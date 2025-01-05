@@ -1,30 +1,24 @@
-- name: Create the Keycloak namespace
-  kubernetes.core.k8s:
-    kind: Namespace
-    name: keycloak
-    state: present
-
-- name: Install Keycloak manifest
-  kubernetes.core.k8s:
+- name: Install the chart for keycloak
+  kubernetes.core.helm:
+    chart_ref: oci://registry-1.docker.io/bitnamicharts/keycloak
+    release_name: keycloak
+    create_namespace: true
     namespace: keycloak
-    state: present
-    src: "{{ cluster_keycloak_manifest }}"
-
-- name: Download Keycloak ingress
-  ansible.builtin.get_url:
-    url: "{{ cluster_keycloak_ingress }}"
-    dest: /tmp/keycloak-ingress.yaml
-    mode: "0644"
-
-- name: Set the Keycloak host in the ingress
-  ansible.builtin.replace:
-    path: /tmp/keycloak-ingress.yaml
-    regexp: KEYCLOAK_HOST
-    replace: "{{ k3s_cluster_domain }}"
-    mode: "0644"
-
-- name: Install Keycloak ingress
-  kubernetes.core.k8s:
-    namespace: keycloak
-    state: present
-    src: /tmp/keycloak-ingress.yaml
+    # https://github.com/bitnami/charts/tree/main/bitnami/keycloak
+    values:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hostname: keycloak.{{ k3s_cluster_domain }}
+        tls: true
+        annotations:
+          kubernetes.io/tls-acme: "true"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      auth:
+        adminUser: admin
+        adminPassword: "{{ admin_password }}"
+      # postgresql:
+      #   auth:
+      #     password: "{{ admin_password }}"
+    timeout: 800s

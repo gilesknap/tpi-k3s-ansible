@@ -68,16 +68,6 @@
   when: longhorn_secret.resources | length == 0
   changed_when: true
 
-- name: Create an ingress for the dashboard
-  kubernetes.core.k8s:
-    definition: "{{ lookup('template', 'ingress.yaml') }}"
-    namespace: kubernetes-dashboard
-  vars:
-    service_name: kubernetes-dashboard-kong-proxy
-    service_port: 443
-    host_url: dashboard.{{ k3s_cluster_domain }}
-  when: ingress_controller_exists and cert_manager_exists
-
 - name: Create a longhorn ingress
   kubernetes.core.k8s:
     definition:

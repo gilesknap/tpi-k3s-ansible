@@ -1,3 +1,18 @@
+# How to set up Cloudflare Origin Certificate in a namespace
+This will need doing for any public facing service that you want to secure with a Cloudflare Origin Certificate.
+
+See below to create .cloudflare folder contents
+
+- from outside the devcontainer
+- cd ~/.cloudflare
+- podman ps # and note the name of the devcontainer e.g. compassionate_kare
+- podman cp compassionate_kare:'/root/.kube/config' ~/.kube
+- kubectl create secret tls tls-cloudflare --cert=cert.crt --key=private.key --namespace default
+- done.
+
+UPDATE: it looks like a let's encrypt cert also works as an origin certificate so the above is no longer necessary!
+
+
 # Cloudflare Certificate Management
 
 - buy a DNS name (gkcluster.org)
