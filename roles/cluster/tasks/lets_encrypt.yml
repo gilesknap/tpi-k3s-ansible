@@ -17,20 +17,21 @@
     src: "https://github.com/jetstack/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml"
 
 - name: Install the helm chart for cert-manager
-  ansible.builtin.include_tasks:
-    file: check_helm.yml
-  vars:
-    ch_release_name: cert-manager
-    ch_namespace: cert-manager
-    ch_chart_repo_url: https://charts.jetstack.io
-    ch_chart_ref: cert-manager
-    ch_force: "{{ cluster_force }}"
-    ch_timeout: 120
+  kubernetes.core.helm:
+    chart_repo_url: https://charts.jetstack.io
+    chart_ref: cert-manager
+    release_name: cert-manager
+    create_namespace: true
+    force: "{{ cluster_force }}"
+    namespace: cert-manager
     # https://github.dev/cert-manager/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml
-    ch_values:
+    values:
       ingressShim:
         defaultIssuerName: "letsencrypt-prod"
         defaultIssuerKind: "ClusterIssuer"
+  timeout: 200
+  retries: 1
+  delay: 10
 
 - name: Create a ClusterIssuer for Let's Encrypt
   kubernetes.core.k8s:

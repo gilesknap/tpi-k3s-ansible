@@ -13,10 +13,10 @@
       INSTALL_K3S_EXEC="server
       --disable=traefik
       --flannel-backend=host-gw
-      --tls-san={{ k3s_control_plane_ip }}
-      --bind-address={{ k3s_control_plane_ip }}
-      --advertise-address={{ k3s_control_plane_ip }}
-      --node-ip={{ k3s_control_plane_ip }}"
+      --tls-san={{ control_plane_ip }}
+      --bind-address={{ control_plane_ip }}
+      --advertise-address={{ control_plane_ip }}
+      --node-ip={{ control_plane_ip }}"
       /tmp/k3s.sh
     creates: /var/lib/rancher/k3s/server/node-token
   when: is_control_plane
@@ -28,3 +28,61 @@
     k3s_install_occurred: true
   when: k3s_installed.changed
   changed_when: false
+
+# - name: Install firewalld
+#   ansible.builtin.package:
+#     name: firewalld
+#     state: present
+#   become: true
+
+# - name: Start firewalld
+#   ansible.builtin.service:
+#     name: firewalld
+#     state: started
+#     enabled: true
+#   become: true
+
+# - name: Attach our single interface to the drop zone
+#   ansible.posix.firewalld:
+#     zone: drop
+#     state: enabled
+#     interface: eth0
+#     permanent: true
+#     immediate: true
+#   become: true
+
+# - name: Restrict IP sources to Cloudflare and local addresses in trusted zone
+#   ansible.posix.firewalld:
+#     zone: trusted
+#     source: "{{ item }}"
+#     state: enabled
+#     permanent: true
+#     immediate: true
+#   become: true
+#   loop:
+#     # local containers
+#     - 172.17.0.0/16
+#     # local subnet
+#     - 192.168.1.0/24
+#     # cloudflare whitelist
+#     - 173.245.48.0/20
+#     - 103.21.244.0/22
+#     - 103.22.200.0/22
+#     - 103.31.4.0/22
+#     - 141.101.64.0/18
+#     - 108.162.192.0/18
+#     - 190.93.240.0/20
+#     - 188.114.96.0/20
+#     - 197.234.240.0/22
+#     - 198.41.128.0/17
+#     - 162.158.0.0/15
+#     - 104.16.0.0/13
+#     - 104.24.0.0/14
+#     - 172.64.0.0/13
+#     - 131.0.72.0/22
+
+# # this should really be a handler
+# - name: Reload firewalld
+#   ansible.builtin.service:
+#     name: firewalld
+#     state: restarted

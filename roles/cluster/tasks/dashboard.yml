@@ -1,20 +1,17 @@
 - name: Check dependencies
   ansible.builtin.include_tasks: dependencies.yml
 
-- name: Report dashboard values
-  ansible.builtin.debug:
-    msg: "{{ lookup('ansible.builtin.template', 'dashboard_values.yaml') | from_yaml }}"
-
-- name: Install the helm chart for dashboard
-  ansible.builtin.include_tasks:
-    file: check_helm.yml
-  vars:
-    ch_release_name: kubernetes-dashboard
-    ch_namespace: kubernetes-dashboard
-    ch_chart_repo_url: https://kubernetes.github.io/dashboard/
-    ch_chart_ref: kubernetes-dashboard
-    ch_values: "{{ lookup('ansible.builtin.template', 'dashboard_values.yaml') }}"
-    ch_force: "{{ cluster_force }}"
+- name: Install the chart kubernetes-dashboard
+  kubernetes.core.helm:
+    chart_repo_url: https://kubernetes.github.io/dashboard/
+    chart_ref: kubernetes-dashboard
+    release_name: kubernetes-dashboard
+    create_namespace: true
+    force: "{{ cluster_force }}"
+    namespace: kubernetes-dashboard
+    values: "{{ lookup('ansible.builtin.template', 'dashboard_values.yaml') }}"
+  retries: 1
+  delay: 10
 
 - name: Create an ingress for the dashboard
   kubernetes.core.k8s:
@@ -23,8 +20,8 @@
   vars:
     service_name: kubernetes-dashboard-kong-proxy
     service_port: 443
-    host_url: dashboard.{{ k3s_cluster_domain }}
-  when: ingress_controller_exists and cert_manager_exists
+    host_url: dashboard.{{ cluster_domain }}
+  when: ingress_controller_exists
 
 - name: Create a service account for the dashboard
   kubernetes.core.k8s:
@@ -51,6 +48,8 @@
           name: dashboard-admin
           namespace: kubernetes-dashboard
 
+# this script generates a token for the dashboard and starts a port-forward
+# that can be used if there is no ingress
 - name: Create dashboard connection script
   ansible.builtin.copy:
     dest: "{{ bin_dir }}/dashboard.sh"

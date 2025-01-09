@@ -1,58 +1,25 @@
 - name: Gather facts for control plane server
   ansible.builtin.setup:
     filter: "ansible_default_ipv4"
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   delegate_facts: true
 
-# Occasionally ingress-nginx-nginx-admission-patch fails and once this happens
-# a reboot of all nodes is the only fix.
+# Occasionally ingress-nginx-nginx-admission-patch job fails and once this happens
+# a reboot of all nodes is the only fix. We now always reboot all the k3s nodes
+# immediately after k3s is installed to avoid this issue (hopefully).
 
-# use a retry block to reboot the control plan if the install fails
-- name: Install Ingress with Retry Logic
-  block:
-    - name: Increment the retry count
-      ansible.builtin.set_fact:
-        retry_count: "{{ retry_count | default(0) | int + 1 }}"
-
-    - name: Install the helm chart for nginx ingress
-      ansible.builtin.include_tasks:
-        file: check_helm.yml
-      vars:
-        ch_release_name: nginx
-        ch_namespace: ingress-nginx
-        ch_chart_repo_url: https://kubernetes.github.io/ingress-nginx
-        ch_chart_ref: ingress-nginx
-        ch_force: "{{ cluster_force }}"
-        ch_values:
-          controller:
-            service:
-              loadBalancerIP: "{{ k3s_control_plane_ip }}"
-        ch_timeout: 40
-
-    - name: Get status of job.batch/nginx-ingress-nginx-admission-patch
-      kubernetes.core.k8s_info:
-        kind: Job
-        name: nginx-ingress-nginx-admission-patch
-        namespace: ingress-nginx
-      register: ingress_nginx_admission_patch
-      failed_when: ingress_nginx_admission_patch.resources[0].status.failed | default(false)
-
-  rescue:
-    - name: Attempting Recovery - Check for maximum retries
-      ansible.builtin.fail:
-        msg: Maximum retries of grouped tasks reached
-      when: retry_count | int == 2
-
-    # This happens in series, I'm not sure how to make a parallel task
-    # across hosts[all_nodes] from a localhost role?
-    - name: Reboot all cluster nodes
-      ansible.builtin.reboot:
-      become: true
-      delegate_to: "{{ item }}"
-      loop: "{{ groups['all_nodes'] }}"
-
-    - name: Retry the ingress task
-      ansible.builtin.include_tasks:
-        file: ingress.yml
-      vars:
-        cluster_force: true
+- name: Install the helm chart for nginx ingress
+  kubernetes.core.helm:
+    chart_repo_url: https://kubernetes.github.io/ingress-nginx
+    chart_ref: ingress-nginx
+    release_name: nginx
+    create_namespace: true
+    force: "{{ cluster_force }}"
+    namespace: ingress-nginx
+    values:
+      controller:
+        service:
+          loadBalancerIP: "{{ control_plane_ip }}"
+  timeout: 40
+  retries: 1
+  delay: 10

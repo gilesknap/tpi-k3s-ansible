@@ -1,17 +1,19 @@
 - name: Check dependencies
   ansible.builtin.include_tasks: dependencies.yml
 
-- name: Install the helm chart for Grafana and Prometheus
-  ansible.builtin.include_tasks:
-    file: check_helm.yml
-  vars:
-    ch_release_name: grafana-prometheus
-    ch_namespace: monitoring
-    ch_chart_repo_url: https://prometheus-community.github.io/helm-charts/
-    ch_chart_ref: kube-prometheus-stack
-    ch_values: "{{ lookup('template', 'grafana_values.yaml') }}"
-    ch_force: "{{ cluster_force }}"
+- name: Install the chart for Grafana and Prometheus
+  kubernetes.core.helm:
+    chart_repo_url: https://prometheus-community.github.io/helm
+    chart_ref: kube-prometheus-stack
+    release_name: grafana-prometheus
+    create_namespace: true
+    force: "{{ cluster_force }}"
+    namespace: monitoring
+    values: "{{ lookup('template', 'grafana_values.yaml') }}"
+  retries: 1
+  delay: 10
 
+# use this to get to the grafana web UI if you have no ingress
 - name: Create port forward script for Grafana
   ansible.builtin.copy:
     dest: "{{ bin_dir }}/grafana.sh"
