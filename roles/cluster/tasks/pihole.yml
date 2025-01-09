@@ -1,0 +1,20 @@
+- name: Install the helm chart for pihole
+  kubernetes.core.helm:
+    chart_repo_url: https://mojo2600.github.io/pihole-kubernetes
+    chart_ref: pihole
+    release_name: pihole
+    create_namespace: true
+    force: "{{ cluster_force }}"
+    namespace: pihole
+    values:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - pihole.{{ cluster_domain }}
+      serviceWeb:
+        https:
+          enabled: true
+        http:
+          enabled: true
+# TODO CONFIGURE PIHOLE VALUES as needed
