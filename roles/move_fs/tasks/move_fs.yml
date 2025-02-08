@@ -3,89 +3,20 @@
     curr_root_dev: "{{ ansible_mounts | json_query('[?mount == `/`].device') | first }}"
 
 - name: Move the root partition for the node to {{ root_dev }}
-  when: root_dev != curr_root_dev
+  when: not curr_root_dev.startswith(root_dev)
   become: true
   block:
-    - name: Record activation of a partition move
-      ansible.builtin.set_fact:
-        move_fs_triggered: true
+    - name: Update ubuntu-rockchip-settings
+      ansible.builtin.apt:
+        name: ubuntu-rockchip-settings
+        state: latest
+      become: true
 
-    - name: Ensure target device is unmounted
-      ansible.posix.mount:
-        path: /mnt/new
-        src: "{{ root_dev }}"
-        state: unmounted
-      failed_when: false
-
-      changed_when: true
-    - name: Format the new root partition
-      community.general.filesystem:
-        fstype: ext4
-        dev: "{{ root_dev }}"
-        state: present
-
-    - name: Copy the root partition to the new device with dd
-      ansible.builtin.command: dd if={{ curr_root_dev }} of={{ root_dev }} bs=4096 conv=noerror,sync
-      changed_when: true
-
-    - name: Fix any errors in the root partition (because of live OS on src)
-      ansible.builtin.command: fsck -y {{ root_dev }}
-      failed_when: false # fsck will return non-zero if it fixes errors
-      changed_when: true
-
-    - name: Prepare a mount point
-      ansible.builtin.file:
-        dest: /mnt/new
-        state: directory
-        mode: "0777"
-
-    - name: Mount the new root partition
-      ansible.posix.mount:
-        path: /mnt/new
-        src: "{{ root_dev }}"
-        fstype: ext4
-        state: mounted
-
-    - name: Generate a new UUID for the new root partition
-      ansible.builtin.command: uuidgen
-      register: new_uuid
-      changed_when: true
-
-    - name: Update fstab with the new UUID
-      ansible.builtin.replace:
-        path: /mnt/new/etc/fstab
-        regexp: "UUID=[a-f0-9-]+"
-        replace: "UUID={{ new_uuid.stdout }}"
-
-    - name: Unmount the new root partition
-      ansible.posix.mount:
-        path: /mnt/new
-        src: "{{ root_dev }}"
-        fstype: ext4
-        state: unmounted
-
-    - name: Run fsck in preparation for tune2fs
-      ansible.builtin.command: fsck -fy {{ root_dev }}
-      changed_when: true
-      retries: 2 # fsck will return non-zero if it fixes errors
-
-    - name: Set the new UUID for the new root partition
-      ansible.builtin.command: tune2fs {{ root_dev }} -U {{ new_uuid.stdout }}
-      changed_when: true
-
-    - name: Update uboot with the new UUID
-      ansible.builtin.shell: # noqa command-instead-of-shell
-        cmd: U_BOOT_ROOT=root=UUID={{ new_uuid.stdout }} u-boot-update
-      changed_when: true
+    - name: Execute ubuntu-rockchip-install
+      ansible.builtin.shell: |
+        yes | ubuntu-rockchip-install {{ root_dev }}
+      become: true
 
     - name: Reboot the node
       ansible.builtin.reboot:
       become: true
-
-    # occasionally we still see a /mnt/new mount
-    - name: Unmount the new root partition
-      ansible.posix.mount:
-        path: /mnt/new
-        src: "{{ root_dev }}"
-        fstype: ext4
-        state: unmounted
