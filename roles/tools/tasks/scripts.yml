@@ -12,3 +12,42 @@
       echo Grafana will be available at:
       echo   http://localhost:3000
     mode: "0755"
+
+# use this to get to the ArgoCD web UI if you have no ingress
+- name: Create port forward script for ArgoCD
+  ansible.builtin.copy:
+    dest: "{{ bin_dir }}/argo.sh"
+    content: |
+      #!/bin/bash
+
+      # Start a port-forward to the ArgoCD and background it
+      nohup kubectl port-forward service/argocd-server -n argo-cd 8080:443 &
+      # Get the initial admin password
+      pass=$(kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+
+      echo
+      echo ArgoCD will be available at:
+      echo   http://localhost:8080
+      echo   Username: admin
+      echo   Initial Password: $pass
+
+    mode: "0755"
+
+# this script generates a token for the dashboard and starts a port-forward
+# that can be used if there is no ingress
+- name: Create dashboard connection script
+  ansible.builtin.copy:
+    dest: "{{ bin_dir }}/dashboard.sh"
+    content: |
+      #!/bin/bash
+
+      # Start a port-forward to the dashboard and background it
+      nohup kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443 &> /tmp/k8s-dash-proxy.out &
+
+      # Get the token for the dashboard
+      kubectl -n kubernetes-dashboard create token dashboard-admin
+
+      echo
+      echo Dashboard will be available using above token at:
+      echo   https://localhost:8443
+    mode: "0755"
