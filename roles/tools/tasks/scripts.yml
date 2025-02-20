@@ -1,0 +1,14 @@
+# use this to get to the grafana web UI if you have no ingress
+- name: Create port forward script for Grafana
+  ansible.builtin.copy:
+    dest: "{{ bin_dir }}/grafana.sh"
+    content: |
+      #!/bin/bash
+
+      # Start a port-forward to the Grafana and background it
+      nohup kubectl -n monitoring port-forward deployment/grafana-prometheus 3000 &> /tmp/grafana-proxy.out &
+
+      echo
+      echo Grafana will be available at:
+      echo   http://localhost:3000
+    mode: "0755"
