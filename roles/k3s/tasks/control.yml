@@ -10,25 +10,25 @@
   ansible.builtin.shell:
     cmd: >
       INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
-      INSTALL_K3S_EXEC="server
-      --disable=traefik
-      --flannel-backend=host-gw
-      --tls-san={{ control_plane_ip }}
-      --bind-address={{ control_plane_ip }}
-      --advertise-address={{ control_plane_ip }}
-      --node-ip={{ control_plane_ip }}"
-      /tmp/k3s.sh
+      INSTALL_K3S_EXEC="server --disable=traefik --cluster-init"
+      /usr/local/bin/k3s-install.sh
     creates: /var/lib/rancher/k3s/server/node-token
   when: is_control_plane
   register: k3s_installed
   become: true
+
+  # we used to do this but I don't think it is required:
+  # --flannel-backend=host-gw
+  # --tls-san={{ control_plane_ip }}
+  # --bind-address={{ control_plane_ip }}
+  # --advertise-address={{ control_plane_ip }}
+  # --node-ip={{ control_plane_ip }}"
 
 - name: Set the k3s_install_occurred fact
   ansible.builtin.set_fact: # noqa no-handler
     k3s_install_occurred: true
   when: k3s_installed.changed
   changed_when: false
-
 # - name: Install firewalld
 #   ansible.builtin.package:
 #     name: firewalld
