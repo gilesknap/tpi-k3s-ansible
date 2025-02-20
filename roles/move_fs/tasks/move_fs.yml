@@ -2,6 +2,18 @@
   ansible.builtin.set_fact:
     curr_root_dev: "{{ ansible_mounts | json_query('[?mount == `/`].device') | first }}"
 
+# IMPORTANT: using `ubuntu-rockchip-settings` to move the root partition appears
+# to set the board to boot direct from the NVME drive. Previously I had a manual
+# process using dd to copy the root partition to the NVME drive and then update
+# the boot config on the eMMC drive.
+#
+# This new approach is the official path. BUT, my flas role no longer works with
+# the new setup, because it reflashes the eMMC drive, which is no longer the boot
+# drive.
+#
+# In future we need to resolve this by undoing whatever `ubuntu-rockchip-settings`
+# does. For now - I accept that the flash role is broken.
+
 - name: Move the root partition for the node to {{ root_dev }}
   when: not curr_root_dev.startswith(root_dev)
   become: true
@@ -16,6 +28,7 @@
       ansible.builtin.shell: |
         yes | ubuntu-rockchip-install {{ root_dev }}
       become: true
+      changed_when: true
 
     - name: Reboot the node
       ansible.builtin.reboot:
