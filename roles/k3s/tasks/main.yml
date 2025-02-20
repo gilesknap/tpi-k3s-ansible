@@ -49,12 +49,3 @@
   register: control_plane_pods_ready
   changed_when: false
 
-# I don't know why this is required but we repeatedly have issues with ingress
-# install locking up on the ingress-nginx-nginx-admission-patch job. I have
-# added logic to the ingress task to reboot all nodes if the install fails but
-# this is clunky as that runs in a role for localhost. So I'm adding this here
-# to reboot all nodes in parallel once kube-system pods are ready.
-- name: Reboot nodes after installing k3s
-  ansible.builtin.reboot:
-  become: true
-  when: k3s_install_occurred

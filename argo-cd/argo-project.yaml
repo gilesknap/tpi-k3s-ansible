@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kubernetes
+  namespace: argo-cd
+  # Finalizer that ensures that project is not deleted until it is not referenced by any application
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Project description
+  description: Services for the Turring Pi v2 Cluster
+
+  # Allow manifests to deploy from any Git repos
+  sourceRepos:
+    - "*"
+
+  # Allow manifests to deploy to any Namespace in this cluster
+  destinations:
+    - namespace: "*"
+      server: https://kubernetes.default.svc
+
+  # Allow all cluster-scoped resources to being created
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Enables namespace orphaned resource monitoring.
+  orphanedResources:
+    warn: false
