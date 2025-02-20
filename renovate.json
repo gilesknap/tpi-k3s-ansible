@@ -1,0 +1,135 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "assignees": [
+    "gilesknap"
+  ],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 10,
+  "enabledManagers": [
+    "kubernetes",
+    "argocd",
+    "gomod",
+    "custom.regex",
+    "kustomize"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
+  "kubernetes": {
+    "fileMatch": [
+      "^kubernetes-services/.*\\.yaml$",
+      "(^|/)kustomization\\.ya?ml$"
+    ]
+  },
+  "argocd": {
+    "fileMatch": [
+      "^kubernetes-services/templates/.*\\.yaml$"
+    ]
+  },
+  "packageRules": [
+    {
+      "matchManagers": [
+        "argocd"
+      ],
+      "enabled": true,
+      "automerge": true,
+      "labels": [
+        "argocd",
+        "helm chart"
+      ]
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "enabled": true,
+      "automerge": true,
+      "labels": [
+        "golang"
+      ]
+    },
+    {
+      "description": "respect weird docker versioning",
+      "versioning": "docker",
+      "matchDatasources": [
+        "docker"
+      ],
+      "labels": [
+        "container image"
+      ]
+    },
+    {
+      "description": "grouping of istio helm charts",
+      "groupName": "istio helm charts",
+      "matchPackageNames": [
+        "istiod",
+        "gateway",
+        "base"
+      ],
+      "labels": [
+        "argocd",
+        "helm chart",
+        "istio"
+      ]
+    },
+    {
+      "description": "grouping of monitoring helm charts",
+      "groupName": "monitoring helm charts",
+      "matchPackageNames": [
+        "kube-prometheus-stack",
+        "loki-stack"
+      ],
+      "labels": [
+        "argocd",
+        "helm chart",
+        "monitoring"
+      ]
+    },
+    {
+      "description": "grouping of k8s packages",
+      "groupName": "go k8s apis",
+      "matchDatasources": "go",
+      "matchPackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/**"
+      ],
+      "labels": [
+        "golang",
+        "k8s api",
+        "e2e framework"
+      ]
+    },
+    {
+      "description": "Grouping of Alpine and Cloudflare OCI artifacts",
+      "groupName": "cloudflare",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "alpine",
+        "cloudflare/cloudflared"
+      ],
+      "labels": [
+        "oci artifacts"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "K3S System Upgrade Controller CRD",
+      "fileMatch": [
+        "kubernetes-services/additions/k3s-upgrade-controller/kustomization.yaml$"
+      ],
+      "matchStrings": [
+        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\n.*?-\\s(.*?)\/(?<currentValue>[^/]+)\/[^/]+\n"
+      ],
+      "depNameTemplate": "{{{depName}}}",
+      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ]
+}
