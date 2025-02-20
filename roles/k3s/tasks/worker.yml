@@ -3,20 +3,20 @@
 - name: Get the control plane facts
   ansible.builtin.setup:
     filter: ansible_default_ipv4
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   delegate_facts: true
 
 - name: Wait for /var/lib/rancher/k3s/server/node-token
   ansible.builtin.wait_for:
     path: /var/lib/rancher/k3s/server/node-token
     state: present
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   become: true
 
 - name: List nodes in the cluster
   ansible.builtin.command:
     cmd: kubectl get nodes
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   become: true
   register: k3s_nodes
   changed_when: false
@@ -36,7 +36,7 @@
 - name: Remove the node from the cluster if it is not ready
   ansible.builtin.command:
     cmd: kubectl delete node {{ inventory_hostname }}
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   become: true
   when: k3s_nodes.stdout is search(inventory_hostname + " *NotReady")
   changed_when: true
@@ -44,7 +44,7 @@
 - name: Get the node token
   ansible.builtin.command:
     cmd: cat /var/lib/rancher/k3s/server/node-token
-  delegate_to: "{{ k3s_control_plane }}"
+  delegate_to: "{{ control_plane }}"
   become: true
   register: node_token
   changed_when: false
@@ -53,7 +53,7 @@
   ansible.builtin.shell: # noqa command-instead-of-shell
     cmd: >
       INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
-      K3S_URL="https://{{ k3s_control_plane_ip }}:6443"
+      K3S_URL="https://{{ control_plane_ip }}:6443"
       K3S_TOKEN="{{ node_token.stdout }}"
       /tmp/k3s.sh
   become: true

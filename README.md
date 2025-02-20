@@ -11,8 +11,6 @@ Supported hardware:
 
 For more see [Details](docs/details.md).
 
-WARNING: I have switched to using subdomains and Let's Encrypt certificates for all services Web UIs. This means that you will need to have a domain name and be able to create subdomains for each service. In particular it means you need to expose the letsencrypt challenge URLs to the internet. I will write some detailed docs on how to achieve this securely but for now you will need to be able to do this yourself in order to use this project. To be clear this does not mean exposing your dashboard or other services to the internet, just the challenge URLs so we can get certificates.
-
 ## Features
 
 - Automated Flashing of the compute modules with latest Ubuntu 24.04 LTS

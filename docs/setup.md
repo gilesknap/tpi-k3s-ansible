@@ -4,8 +4,9 @@
 
 We will first create a master keypair that will be used to access all of the nodes in the cluster including the BMC.
 
-Here we call it ansible_master, if you choose a different name then update the variable public_key in the hosts file.
+Here we call it ansible, if you choose a different name then update the variable public_key in the hosts file.
 ```bash
+# PERFORM THIS ON YOUR HOST MACHINE outside of the dev container
 ssh-keygen -t rsa -b 4096 -C "ansible master key" -f $HOME/.ssh/ansible_rsa
 # copy the public key to the pub_keys folder in this repo
 cp $HOME/.ssh/ansible_rsa.pub pub/ansible_rsa.pub

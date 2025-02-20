@@ -1,0 +1,24 @@
+- name: Install the chart for keycloak
+  kubernetes.core.helm:
+    chart_ref: oci://registry-1.docker.io/bitnamicharts/keycloak
+    release_name: keycloak
+    create_namespace: true
+    namespace: keycloak
+    # https://github.com/bitnami/charts/tree/main/bitnami/keycloak
+    values:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hostname: keycloak.{{ cluster_domain }}
+        tls: true
+        annotations:
+          kubernetes.io/tls-acme: "true"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      auth:
+        adminUser: admin
+        adminPassword: "{{ admin_password }}"
+      # postgresql:
+      #   auth:
+      #     password: "{{ admin_password }}"
+    timeout: 800s
