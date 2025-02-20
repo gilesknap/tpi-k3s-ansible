@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-prometheus
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  project: default
+  sources:
+    - chart: kube-prometheus-stack
+      targetRevision: 69.3.3
+      repoURL:  https://prometheus-community.github.io/helm-charts
+      helm:
+        valuesObject:
+          # https://github.dev/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+          grafana:
+            adminPassword: changeme
+            persistence:
+              enabled: true
+              type: sts
+              accessModes:
+                - ReadWriteOnce
+              size: 20Gi
+              finalizers:
+                - kubernetes.io/pvc-protection
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              # see https://prometheus-operator.dev/docs/platform/troubleshooting/#customresourcedefinition--is-invalid-metadataannotations-too-long-issue
+              syncOptions:
+              - ServerSideApply=true
