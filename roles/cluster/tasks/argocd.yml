@@ -15,7 +15,7 @@
     namespace: argo-cd
   register: argocd_cm
 
-- name: Rollout restart if configmap changed  # noqa no-handler
+- name: Rollout restart if configmap changed # noqa no-handler
   ansible.builtin.command: >
     kubectl rollout restart -n argo-cd statefulset argocd-application-controller
   when: argocd_cm.changed
@@ -30,6 +30,12 @@
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-git-repository.yaml') }}"
+
+- name: Add an ingress for ArgoCD
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
+    namespace: argo-cd
 # How to access
 
 # 1. kubectl port-forward service/argocd-server -n argo-cd 8080:443
