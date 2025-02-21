@@ -155,16 +155,7 @@ Once you have set up your environment and configured the playbook you can run it
 ```bash
 # Launch a terminal in vscode (inside the devcontainer)
 # Menu->Terminal->New Terminal
-ansible-playbook pb_ALL.yml
+ansible-playbook pb_all.yml
 ```
-
-The ALL playbook runs the following playbooks in order. These playbooks are supplied separately so that you can run them individually if you wish. It is always OK to run ALL because of the idempotent nature of Ansible but the individual playbooks are quicker for testing subsets of the playbook.
-
-- pb_tools.yml: Install required and helpful tools into the devcontainer
-- pb_flash.yml: Flash Ubuntu Server 20.04 to the nodes and move the OS to the requested disk
-- pb_k3s.yml: Install K3S on the nodes
-- pb_cluster.yml: Deploy services listed in `cluster_install_list` to the cluster
-
-
 
 
