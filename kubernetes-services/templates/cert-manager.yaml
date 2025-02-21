@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  project: kubernetes
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.17.1
+      helm:
+        valuesObject:
+          prometheus:
+            enabled: true
+          installCRDs: true
+          ingressShim:
+            defaultIssuerName: "letsencrypt-prod"
+            defaultIssuerKind: "ClusterIssuer"
+          # # https://cert-manager.io/v1.9-docs/usage/gateway/
+          # extraArgs:
+          #  - --feature-gates=ExperimentalGatewayAPISupport=true
+    - path: ./kubernetes-services/additions/cert-manager
+      repoURL: https://github.com/gilesknap/tpi-k3s-ansible.git
+      targetRevision: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -17,19 +17,32 @@ spec:
       helm:
         valuesObject:
           # https://github.dev/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+
           grafana:
             adminPassword: changeme
             persistence:
               enabled: true
               type: sts
+              storageClassName: longhorn
               accessModes:
                 - ReadWriteOnce
-              size: 20Gi
+              size: 30Gi
               finalizers:
                 - kubernetes.io/pvc-protection
+
           prometheus:
             annotations:
               argocd.argoproj.io/skip-health-check: "true"
+            prometheusSpec:
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: longhorn
+                    accessModes:
+                      - ReadWriteOnce
+                    resources:
+                      requests:
+                        storage: 40Gi
   syncPolicy:
     automated:
       prune: true
