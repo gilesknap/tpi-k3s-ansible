@@ -53,7 +53,7 @@ See [setup](docs/setup.md) to create some keypairs and access the turingpi(s).
 
 ```bash
 cd tpi-k3s-ansible
-ansible-playbook pb_ALL.yml -e do_flash=true
+ansible-playbook pb_all.yml -e do_flash=true
 ```
 ## Notes
 
@@ -75,11 +75,9 @@ limit hosts to the controlling turing pi and the nodes(s) to be re-flashed. Pass
 
 ```bash
 # re-flash a single node
-ansible-playbook pb_flash_os.yml --limit turingpi,node03 -e flash_force=true
+ansible-playbook pb_all.yml --limit turingpi,node03 -e flash_force=true
 # re-install k3s on one worker node
-ansible-playbook pb_k3s.yml --limit node03 -e k3s_force=true
-# after a re-flash, your node will be missing longhorn drivers so:
-ansible-playbook pb_cluster.yml -e '{ cluster_install_list: [grafana] }'
+ansible-playbook pb_all.yml --limit node03 -e k3s_force=true
 ```
 
 ### shut down all nodes
