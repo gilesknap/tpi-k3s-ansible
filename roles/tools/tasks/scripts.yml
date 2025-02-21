@@ -51,3 +51,25 @@
       echo Dashboard will be available using above token at:
       echo   https://localhost:8443
     mode: "0755"
+
+- name: Create Longhorn connection script
+  ansible.builtin.copy:
+    dest: "{{ bin_dir }}/longhorn.sh"
+    content: |
+      #!/bin/bash
+
+      echo Enter a New password for the Longhorn UI or leave blank to keep the current password
+      read -s -p "Password: " pass
+      if [[ -n $pass ]]; then
+        echo -n "admin:$(echo -n {{ admin_password }}  | openssl passwd -stdin -apr1)" > /tmp/auth
+        kubectl create secret generic basic-auth --from-file /tmp/auth -n longhorn
+        rm /tmp/auth # could not work how to make this happen via environment variables
+      fi
+
+      # Start a port-forward to the Longhorn and background it
+      nohup kubectl -n longhorn port-forward svc/longhorn-frontend 8090:80 &> /tmp/longhorn-proxy.out &
+
+      echo
+      echo Longhorn will be available at:
+      echo   http://localhost:8090
+    mode: "0755"
