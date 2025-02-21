@@ -4,7 +4,7 @@ metadata:
   name: argo-cd
   namespace: argo-cd
   finalizers:
-  - resources-finalizer.argocd.argoproj.io
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: https://kubernetes.default.svc
@@ -12,7 +12,7 @@ spec:
   project: default
   sources:
     - chart: argo-cd
-      repoURL:  https://argoproj.github.io/argo-helm
+      repoURL: https://argoproj.github.io/argo-helm
       targetRevision: 7.8.3
       helm:
         valuesObject:
@@ -36,7 +36,10 @@ spec:
               "timeout.reconciliation": "30s"
           dex:
             enabled: false
+    - path: ./kubernetes-services/additions/argocd
+      repoURL: https://github.com/gilesknap/tpi-k3s-ansible.git
+      targetRevision: main
   syncPolicy:
     automated:
-      prune: true
+      prune: false # important - accidentally pruning argocd with argocd hurts!
       selfHeal: true

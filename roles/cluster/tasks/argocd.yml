@@ -8,6 +8,19 @@
     namespace: argo-cd
     create_namespace: true
 
+- name: Patch the ArgoCD ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'argo-cd/argocd-cm.yaml') }}"
+    namespace: argo-cd
+  register: argocd_cm
+
+- name: Rollout restart if configmap changed  # noqa no-handler
+  ansible.builtin.command: >
+    kubectl rollout restart -n argo-cd statefulset argocd-application-controller
+  when: argocd_cm.changed
+  changed_when: true
+
 - name: Add an ArgoCD Project for the cluster
   kubernetes.core.k8s:
     state: present
@@ -17,7 +30,6 @@
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-git-repository.yaml') }}"
-
 # How to access
 
 # 1. kubectl port-forward service/argocd-server -n argo-cd 8080:443
