@@ -1,42 +1,30 @@
-# Gathering facts like this allows the role to be run standalone
-- name: Gather facts for package manager
-  ansible.builtin.setup:
-    filter: ansible_pkg_mgr
+- name: Repair package manager
+  ansible.builtin.command: sudo dpkg --configure -a
+  changed_when: false
 
-# I can't use the generic package manager module because it does not
-# have update_cache.
-- name: Update all packages with apt
+- name: Perform a dist-upgrade
   ansible.builtin.apt:
-    name: "*"
-    state: latest
+    upgrade: dist
     update_cache: true
-    only_upgrade: true
-  become: true
-  register: apt_result
-  when: ansible_pkg_mgr == 'apt'
 
-- name: Update all packages with dnf
-  ansible.builtin.dnf:
-    name: "*"
-    state: latest
-    update_cache: true
-    update_only: true
-  become: true
-  register: dnf_result
-  when: ansible_pkg_mgr == 'dnf'
+- name: Check if a reboot is required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+    get_checksum: false
+  register: reboot_required_file
 
-- name: Update all packages with pacman
-  community.general.pacman:
-    upgrade: true
-  become: true
-  register: pacman_result
-  when: ansible_pkg_mgr == 'pacman'
-
-- name: Report update result
-  ansible.builtin.set_fact:
-    updated: "{{ apt_result.changed or dnf_result.changed or pacman_result.changed }}"
-
-- name: Reboot the node
+- name: Reboot the server (if required)
   ansible.builtin.reboot:
-  become: true
-  when: updated
+  when: reboot_required_file.stat.exists
+
+- name: Remove dependencies that are no longer required
+  ansible.builtin.apt:
+    autoremove: true
+
+- name: Update apt and install required system packages
+  ansible.builtin.apt:
+    pkg:
+      - unattended-upgrades
+      - open-iscsi
+      - original-awk
+    update_cache: false
