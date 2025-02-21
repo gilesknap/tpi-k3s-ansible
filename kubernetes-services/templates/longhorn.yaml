@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn
+  project: kubernetes
+  sources:
+    - chart: longhorn
+      repoURL: https://charts.longhorn.io/
+      targetRevision: 1.8.0
+      helm:
+        values: |
+          preUpgradeChecker:
+            jobEnabled: false
+          enablePSP: false
+          metrics:
+            serviceMonitor:
+              enabled: true
+          defaultSettings:
+            concurrentAutomaticEngineUpgradePerNodeLimit: 3
+            snapshotMaxCount: 5
+          persistence:
+            defaultClassReplicaCount: 3
+    - path: ./kubernetes-services/additions/longhorn
+      repoURL: https://github.com/procinger/turing-pi-v2-cluster.git
+      targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

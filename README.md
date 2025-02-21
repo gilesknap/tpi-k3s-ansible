@@ -57,7 +57,7 @@ ansible-playbook pb_all.yml -e do_flash=true
 ```
 ## Notes
 
-NOTE: All of the ansible playbooks after the initial flashing of the compute modules can be applied to any k3s cluster. Only the initial flashing of the compute modules is specific to the Turing Pi.
+NOTE: All of the ansible playbook after the initial flashing of the compute modules can be applied to any k3s cluster. Only the initial flashing of the compute modules is specific to the Turing Pi.
 
 Turing Pi is a great platform for a project like this as it provides a BMC interface that allows you to remotely flash and reboot it's compute modules. See the [Turing Pi](https://turingpi.com/) website for more information.
 
