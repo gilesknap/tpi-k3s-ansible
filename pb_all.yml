@@ -1,0 +1,46 @@
+# tools roles #############################################################
+
+- name: Install client tools in execution environment
+  hosts: localhost
+  roles:
+    - role: tools
+      when: do_tools
+
+# flash roles #############################################################
+
+- name: Bare metal provisioning of turing_pi nodes
+  hosts: turing_pis
+  gather_facts: false
+  roles:
+    - role: flash
+      when: do_flash
+
+- name: Prepare the nodes for further provisioning
+  hosts: all_nodes, turing_pis
+  # only gather facts after the nodes are added to known_hosts
+  gather_facts: false
+  serial: 1
+  roles:
+    - role: known_hosts
+      when: do_flash
+
+# k3s roles ###############################################################
+
+- name: Install k3s and update all nodes
+  hosts: all_nodes # all nodes in all turing pi groups and outside
+  roles:
+    - role: move_fs
+      when: do_k3s
+    - role: update_packages
+      when: do_k3s
+    - role: k3s
+      when: do_k3s
+  become: true
+
+# cluster roles ###########################################################
+
+- name: Install cluster services
+  hosts: localhost
+  roles:
+    - role: cluster
+      when: do_cluster

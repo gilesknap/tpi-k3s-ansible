@@ -22,6 +22,8 @@
 - name: Add non turingpi nodes to ansible control
   hosts: extra_nodes
 
+  become: true
+
   vars_prompt:
 
     - name: ansible_user
@@ -43,7 +45,6 @@
         shell: /bin/bash
         createhome: true
         state: present
-      become: true
 
     - name: Create ssh directory for ansible user
       ansible.builtin.file:
@@ -51,7 +52,6 @@
         state: directory
         owner: "ansible"
         mode: "0700"
-      become: true
 
     - name: Add keys to ansible users authorized_keys
       ansible.builtin.copy:
@@ -59,7 +59,6 @@
         dest: "/home/ansible/.ssh/authorized_keys"
         owner: "ansible"
         mode: "0600"
-      become: true
 
     - name: Add ansible user to passwordless sudoers
       ansible.builtin.copy:
@@ -68,4 +67,3 @@
         owner: "root"
         group: "root"
         mode: "0440"
-      become: true
