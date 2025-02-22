@@ -59,14 +59,13 @@ ansible-playbook pb_all.yml -e do_flash=true
 
 ## Working in a branch or fork
 
-When working in a branch or fork, you need set ansible variables to declare this and then redeploy the root ArgoCD application.
+When working in a branch or fork, you need set some ansible variables to declare this while redeploying the root ArgoCD application. i.e.
 
 ```bash
 ansible-playbook pb_all.yml --tags cluster -e repo_branch=your_branch -e repo_remote=your_fork_https_remote
 ```
 
-For your own fork, you can permanently change the repo_remote in the group_vars/all.yml file. It is probably best to leave the repo_branch as main in the group_vars/all.yml file and only set it on the command line when you are working in a branch. As we most home labs don't have a staging environment
-
+For your own fork, you can permanently change the repo_remote in the group_vars/all.yml file. It is probably best to leave the repo_branch as main in the group_vars/all.yml file and only set it on the command line when you are working in a feature branch.
 ## Notes
 
 NOTE: All of the ansible playbook steps after the initial flashing of the compute modules can be applied to any k3s cluster. Only the initial flashing of the compute modules is specific to the Turing Pi.
