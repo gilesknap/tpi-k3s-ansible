@@ -1,12 +1,13 @@
-# Description: This file contains the variables that are common to all the hosts in the inventory.
+# Description:
+# This file contains variables common to all the hosts in the inventory.
 
 # The user to create on each node for access by ansible
 ansible_account: "ansible"
-# The user used to connect to the tpi BMCs
+# The user used to connect to the tpi BMC(s)
 tpi_user: root
-# A path to some storage on the tpi BMCs used for downloading os images
+# A path to some storage on the tpi BMC(s) used for downloading os images
 tpi_images_path: /mnt/sdcard/images
-# default vault password file
+# ansible vault password file
 vault_password_file: "~/.ansible_vault_password"
 
 # location of binaries we install in the execution environment
@@ -14,10 +15,12 @@ bin_dir: "{{ lookup('ansible.builtin.env', 'BIN_DIR', default='${HOME}/bin') }}"
 
 # tracks the node name of the control plane
 control_plane_ip: "{{ hostvars[control_plane]['ansible_default_ipv4']['address'] }}"
+
 # uncomment for a specific version of k3s (see https://github.com/k3s-io/k3s/releases)
 # k3s_version:. v1.29.11+k3s1
 
-# override on command line to make flashing of turing pis nodes happen
+# override on command line to make flashing of turing pi nodes happen
+# (note that any node that is turned off in tpi will get flashed)
 do_flash: false
 
 ################################################################################
@@ -25,21 +28,17 @@ do_flash: false
 # The remaining variables are for personalization of the cluster ###############
 ################################################################################
 
-admin_password: notgood # change this! (TODO: get keycloak working and ansible vault an initial password)
+admin_password: notgood # override this on the anisble-playbook command line
 local_domain: .broadband # how to address local nodes with dig
-control_plane: node01 # the node name of the control plane
+control_plane: node01 # the node name of the (single) control plane
 cluster_domain: gkcluster.org # the DNS name for the cluster control plane node
-domain_email: giles.knap@gilesk.ddns.net
+domain_email: giles.knap@gilesk.gkcluster.org # the email address for letsencrypt
+# where argocd will get the cluster configuration from
+repo_remote: https://github.com/gilesknap/tpi-k3s-ansible.git
+repo_branch: main
 
 # List of features to install into the cluster, comment out to remove.
 # Each entry must match the name of a tasks yaml file in the cluster role.
-# This is for direct installs before ArgoCD is used to manage the cluster only.
+# This is for direct installs before ArgoCD is used to manage the cluster.
 cluster_install_list:
-  - argocd
-  # - ingress
-  # - lets_encrypt
-  # - longhorn
-  # - dashboard
-  # - grafana
-  # - echo
-  # - keycloak
+  - argocd # the remaining services are all managed by argocd at present
