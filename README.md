@@ -77,6 +77,8 @@ K3S is a lightweight Kubernetes distribution that is easy to install and manage.
 
 Thanks to drunkcoding.net for some great tutorials that helped with putting this together. See the [A Complete Series of Articles on Kubernetes Environment Locally](https://drunkcoding.net/posts/ks-00-series-k8s-setup-local-env-pi-cluster/)
 
+Even more thanks to @procinger for lots of help with ArgoCD and other things as demonstrated in https://github.com/procinger/turing-pi-v2-cluster.
+
 ## Some How to's
 
 All these commands are run from the repo root directory to pick up the default hosts.yml file.
