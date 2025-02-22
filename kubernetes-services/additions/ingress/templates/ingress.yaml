@@ -1,26 +1,28 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: "dashboard-ingress"
+  name: {{ .Values.name }}-ingress
   annotations:
     kubernetes.io/tls-acme: "true"
+{{- if eq (int .Values.service_port) 443 }}
     nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+{{- end }}
     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - dashboard.gkcluster.org
-      secretName: "dashboard-secret"
+        - {{ .Values.name }}.{{ .Values.cluster_domain }}
+      secretName: {{ .Values.name }}-secret
   rules:
-    - host: dashboard.gkcluster.org
+    - host: {{ .Values.name }}.{{ .Values.cluster_domain }}
       http:
         paths:
           - pathType: Prefix
             path: /
             backend:
               service:
-                name: kubernetes-dashboard-kong-proxy
+                name: {{ .Values.service_name }}
                 port:
-                  number: 443
+                  number: {{ .Values.service_port }}

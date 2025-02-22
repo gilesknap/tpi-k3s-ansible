@@ -14,9 +14,20 @@ spec:
     - chart: kubernetes-dashboard
       targetRevision: 7.10.4
       repoURL: https://kubernetes.github.io/dashboard/
+
     - path: ./kubernetes-services/additions/dashboard
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
+
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: dashboard
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: kubernetes-dashboard-kong-proxy
+          service_port: 443
   syncPolicy:
     automated:
       prune: true
