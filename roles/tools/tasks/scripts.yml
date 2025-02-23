@@ -22,8 +22,8 @@
     content: |
       #!/bin/bash
 
-      # # Start a port-forward to the ArgoCD and background it
-      # nohup kubectl port-forward service/argocd-server -n argo-cd 8080:443 &
+      # Start a port-forward to the ArgoCD and background it
+      nohup kubectl port-forward service/argocd-server -n argo-cd 8080:443 &
 
       # Get the initial admin password
       pass=$(kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
@@ -31,6 +31,7 @@
       echo
       echo ArgoCD will be available at:
       echo   https://argocd.gkcluster.org
+      echo   or https://localhost:8080
       echo   Username: admin
       echo   Initial Password: $pass
 
@@ -49,15 +50,11 @@
       kubectl -n kubernetes-dashboard create token dashboard-admin
       echo
       echo URL: https://dashboard.gkcluster.org
+      echo  or: https://localhost:8443
 
+      # Start a port-forward to the dashboard and background it
+      nohup kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443 &> /tmp/k8s-dash-proxy.out &
 
-      # # below is the port forward approach if no ingress/certs are available
-      # # Start a port-forward to the dashboard and background it
-      # nohup kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy 8443:443 &> /tmp/k8s-dash-proxy.out &
-
-      # echo
-      # echo Dashboard will be available using above token at:
-      # echo   https://localhost:8443
     mode: "0755"
 
 - name: Create Longhorn connection script
