@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minecraft
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-cd
+  project: kubernetes
+  sources:
+    - path: argocd
+      targetRevision: argocd
+      repoURL:  https://github.com/gilesknap/k3s-minecraft
+      valuesObject:
+        # Argo CD destination information
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: minecraft
+        project: kubernetes # todo a separate project would be nice for this
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

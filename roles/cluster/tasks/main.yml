@@ -1,4 +1,19 @@
-# install services in the cluster
+# perform any final cluster setup first
+
+- name: Taint the control plane node to keep workloads off
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: v1
+      kind: Node
+      metadata:
+        name: "{{ control_plane }}"
+      spec:
+        taints:
+          - key: node-role.kubernetes.io/master
+            effect: NoSchedule
+
+
+# install services - only ArgoCD for now - it adds everything else
 
 - name: Cluster Install of services
   ansible.builtin.include_tasks: "{{ cluster_service }}.yml"
