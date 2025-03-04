@@ -5,13 +5,13 @@
 
 # Remove a hosts ip address from known_hosts file. Discover the ip address
 # with dig because we can't gather facts until ssh keys are updated.
-- name: Get node ip address with dig
+- name: Get node ip address with dig for {{ inventory_hostname }}
   delegate_to: localhost
   ansible.builtin.command: dig +short {{ inventory_hostname }}{{ local_domain }}
   register: node_ip
   changed_when: false
 
-- name: Remove old known_host entries {{ node_ip.stdout }}
+- name: Remove old known_host entries for {{ node_ip.stdout }}
   delegate_to: localhost
   ansible.builtin.known_hosts:
     name: "{{ item }}"
