@@ -12,14 +12,17 @@ spec:
   project: kubernetes
   sources:
     - path: argocd
-      targetRevision: argocd
-      repoURL:  https://github.com/gilesknap/k3s-minecraft
+      targetRevision: {{ .Values.minecraft_branch }}
+      repoURL:  {{ .Values.minecraft_remote }}
       valuesObject:
         # Argo CD destination information
         destination:
           server: https://kubernetes.default.svc
           namespace: minecraft
         project: kubernetes # todo a separate project would be nice for this
+        # pass down details so the child apps are also parameterized
+        minecraft_remote: {{ .Values.minecraft_remote }}
+        minecraft_branch: {{ .Values.minecraft_branch }}
   syncPolicy:
     automated:
       prune: true
