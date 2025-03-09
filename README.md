@@ -91,7 +91,7 @@ ansible-playbook pb_all.yml --tags k3s,cluster -e k3s_force=true
 ### re-flash and rebuild the entire cluster
 
 ```bash
-ansible-playbook pb_all.yml -e do_flash=true -e flash_force=true
+ansible-playbook pb_all.yml -e flash_force=true
 ```
 
 ### re-flash a single node

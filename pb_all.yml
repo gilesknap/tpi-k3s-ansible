@@ -21,11 +21,17 @@
     - role: known_hosts
   tags: known_hosts
 
-- name: Install k3s and update all nodes
+- name: Update all nodes in preparation for k3s
   hosts: all_nodes # all nodes in all turing pi groups and outside
   roles:
     - role: move_fs
     - role: update_packages
+  become: true
+  tags: servers
+
+- name: Install or update k3s control plane and workers
+  hosts: all_nodes # all nodes in all turing pi groups and outside
+  roles:
     - role: k3s
   become: true
   tags: k3s

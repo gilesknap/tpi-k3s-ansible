@@ -8,18 +8,22 @@ metadata:
 spec:
   destination:
     server: https://kubernetes.default.svc
-    namespace: argo-cd
-  project: kubernetes
+    namespace: minecraft
+  project: minecraft
   sources:
     - path: argocd
-      targetRevision: argocd
-      repoURL:  https://github.com/gilesknap/k3s-minecraft
-      valuesObject:
-        # Argo CD destination information
-        destination:
-          server: https://kubernetes.default.svc
-          namespace: minecraft
-        project: kubernetes # todo a separate project would be nice for this
+      targetRevision: {{ .Values.minecraft_branch }}
+      repoURL:  {{ .Values.minecraft_remote }}
+      helm:
+        valuesObject:
+          # Argo CD destination information for the minecraft repo's root app
+          project: minecraft
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: minecraft
+          # also pass down repo details for the child apps
+          minecraft_remote: {{ .Values.minecraft_remote }}
+          minecraft_branch: {{ .Values.minecraft_branch }}
   syncPolicy:
     automated:
       prune: true
