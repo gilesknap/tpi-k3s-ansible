@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
+FROM mcr.microsoft.com/devcontainers/python
 
 # We are root in a rootless container so don't warn us about this in pip
 ENV PIP_ROOT_USER_ACTION=ignore
