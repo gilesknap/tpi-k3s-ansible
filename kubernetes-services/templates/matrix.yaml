@@ -4,7 +4,7 @@ metadata:
   name: matrix
   namespace: argo-cd
   finalizers:
-  - resources-finalizer.argocd.argoproj.io
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: https://kubernetes.default.svc
@@ -14,8 +14,13 @@ spec:
     - chart: matrix-synapse
       targetRevision: 3.11.8
       repoURL: https://ananace.gitlab.io/charts
-      valuesFiles:
-        - ./kubernetes-services/additions/matrix/values.yaml
+      helm:
+        valueFiles:
+          - $values/kubernetes-services/additions/matrix/values.yaml
+      # pull values for the above from this repo
+    - repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      ref: values
   syncPolicy:
     automated:
       prune: true
