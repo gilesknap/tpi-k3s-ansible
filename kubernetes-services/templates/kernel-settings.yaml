@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sysctl-tuning
+  namespace: kube-system
+  labels:
+    app: sysctl-tuning
+spec:
+  selector:
+    matchLabels:
+      app: sysctl-tuning
+  template:
+    metadata:
+      labels:
+        app: sysctl-tuning
+    spec:
+      hostNetwork: true  # Share the host's network namespace for network-related sysctl changes
+      hostPID: true  # Access the host's PID namespace for sysctl commands
+      initContainers:
+      - name: sysctl-init  # Init container to set sysctl parameters
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          sysctl -w net.core.rmem_max=7500000  # Set the maximum receive buffer size
+          sysctl -w net.core.wmem_max=7500000  # Set the maximum send buffer size
+        securityContext:
+          privileged: true  # Privileged access to modify sysctl settings on the host
+      containers:
+      - name: sleep-container  # Main container to keep the pod running
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - sleep infinity  # Keep the pod alive indefinitely
