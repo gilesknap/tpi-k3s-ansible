@@ -1,19 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kubernetes-dashboard
+  name: headlamp
   namespace: argo-cd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: https://kubernetes.default.svc
-    namespace: kubernetes-dashboard
+    namespace: headlamp
   project: kubernetes
   sources:
-    - chart: kubernetes-dashboard
-      targetRevision: 7.13.0
-      repoURL: https://kubernetes.github.io/dashboard/
+    # kubernetes-dashboard was archived Jan 2026; replaced by Headlamp (kubernetes-sigs)
+    # Chart version: https://github.com/kubernetes-sigs/headlamp/releases
+    - chart: headlamp
+      targetRevision: 0.40.0
+      repoURL: https://kubernetes-sigs.github.io/headlamp/
+      helm:
+        valuesObject:
+          clusterRoleBinding:
+            create: false  # managed by additions/dashboard/rbac.yaml
 
     - path: ./kubernetes-services/additions/dashboard
       repoURL: {{ .Values.repo_remote }}
@@ -24,10 +30,10 @@ spec:
       targetRevision: {{ .Values.repo_branch }}
       helm:
         valuesObject:
-          name: dashboard
+          name: headlamp
           cluster_domain: {{ .Values.cluster_domain }}
-          service_name: kubernetes-dashboard-kong-proxy
-          service_port: 443
+          service_name: headlamp
+          service_port: 80
   syncPolicy:
     automated:
       prune: true

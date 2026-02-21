@@ -1,18 +1,21 @@
-- name: Get helm version 3.16.4 amd binary
+- name: Set helm facts
+  ansible.builtin.set_fact:
+    user_home: "{{ ansible_facts['env']['HOME'] }}"
+
+- name: Get helm version 3.20.0 amd binary
   ansible.builtin.get_url:
-    url: https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz
-    dest: /tmp/helm-v3.6.3-linux-amd64.tar.gz
+    url: https://get.helm.sh/helm-v3.20.0-linux-amd64.tar.gz
+    dest: /tmp/helm-v3.20.0-linux-amd64.tar.gz
     mode: "0644"
-    checksum: "sha256:fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179"
+    checksum: "sha256:dbb4c8fc8e19d159d1a63dda8db655f9ffa4aac1b9a6b188b34a40957119b286"
     validate_certs: true
 
 - name: Extract helm binary
   ansible.builtin.unarchive:
-    src: /tmp/helm-v3.6.3-linux-amd64.tar.gz
+    src: /tmp/helm-v3.20.0-linux-amd64.tar.gz
     dest: /tmp
     remote_src: true
     mode: "0755"
-    creates: /tmp/linux-amd64/helm
 
 # the bin folder persists through container rebuilds because it is a volume
 - name: Move helm binary to the path
@@ -31,10 +34,23 @@
     state: link
   become: true
 
+- name: Check if helm-diff plugin is functional
+  ansible.builtin.command:
+    cmd: helm diff version
+  register: helm_diff_check
+  failed_when: false
+  changed_when: false
+
+- name: Remove broken helm-diff plugin directory if present
+  ansible.builtin.file:
+    path: "{{ user_home }}/.local/share/helm/plugins/helm-diff"
+    state: absent
+  when: helm_diff_check.rc != 0
+
 - name: Install helm plugins
   ansible.builtin.command:
     cmd: helm plugin install https://github.com/databus23/helm-diff
-    creates: ${HOME}/.local/share/helm/plugins/helm-diff
+    creates: "{{ user_home }}/.local/share/helm/plugins/helm-diff"
 
 - name: Command line completion for helm
   ansible.builtin.shell:

@@ -1,18 +1,15 @@
 - name: Determine the current root device for the node
   ansible.builtin.set_fact:
-    curr_root_dev: "{{ ansible_mounts | json_query('[?mount == `/`].device') | first }}"
+    curr_root_dev: "{{ ansible_facts['mounts'] | json_query('[?mount == `/`].device') | first }}"
 
-# IMPORTANT: using `ubuntu-rockchip-settings` to move the root partition appears
-# to set the board to boot direct from the NVME drive. Previously I had a manual
-# process using dd to copy the root partition to the NVME drive and then update
-# the boot config on the eMMC drive.
+# ubuntu-rockchip-install copies the OS to the target device and updates
+# extlinux.conf on the eMMC to point root= at the NVME partition UUID.
+# It does NOT change the boot device — eMMC remains the bootloader.
+# (Changing boot device would require also running u-boot-install-mtd for SPI.)
 #
-# This new approach is the official path. BUT, my flas role no longer works with
-# the new setup, because it reflashes the eMMC drive, which is no longer the boot
-# drive.
-#
-# In future we need to resolve this by undoing whatever `ubuntu-rockchip-settings`
-# does. For now - I accept that the flash role is broken.
+# This means tpi flash still works: re-flashing eMMC writes a fresh image
+# with extlinux.conf pointing root= back to eMMC, fully restoring the node.
+# The previous comment claiming flash was broken was incorrect.
 
 - name: Move the root partition for the node to {{ root_dev }}
   when: not curr_root_dev.startswith(root_dev)

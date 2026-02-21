@@ -1,0 +1,71 @@
+---
+# Echo test service — simple HTTP server that mirrors request details back to the client.
+# Useful for verifying end-to-end connectivity through the Cloudflare tunnel.
+# Image: https://github.com/Ealenn/Echo-Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo
+  namespace: echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo
+  namespace: echo
+spec:
+  selector:
+    app: echo
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo
+  namespace: echo
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # No ssl-redirect: Cloudflare terminates external TLS and forwards HTTP to ingress-nginx.
+    # Forcing a redirect to HTTPS here causes a redirect loop through the tunnel.
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - echo.gkcluster.org
+      secretName: echo-tls
+  rules:
+    - host: echo.gkcluster.org
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80

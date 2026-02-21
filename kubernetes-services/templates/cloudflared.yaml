@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+  project: kubernetes
+  sources:
+    # Remotely managed tunnel — all routing rules are configured in the Cloudflare
+    # Zero Trust dashboard. The pod just needs the tunnel token from the SealedSecret.
+    # No Helm chart: the official cloudflare/cloudflared chart was renamed and no longer
+    # supports referencing an existing secret. Plain manifests are simpler and more
+    # transparent. See additions/cloudflared/ for deployment and secret placeholder.
+    - path: ./kubernetes-services/additions/cloudflared
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

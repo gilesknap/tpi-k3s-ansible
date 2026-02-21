@@ -6,9 +6,14 @@ metadata:
     kubernetes.io/tls-acme: "true"
 {{- if eq (int .Values.service_port) 443 }}
     nginx.ingress.kubernetes.io/backend-protocol: HTTPS
-{{- end }}
     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+{{- end }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+{{- if .Values.basic_auth | default false }}
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: admin-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+{{- end }}
 spec:
   ingressClassName: nginx
   tls:

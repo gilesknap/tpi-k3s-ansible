@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sysctl-tuning
+  namespace: kube-system
+  labels:
+    app: sysctl-tuning
+spec:
+  selector:
+    matchLabels:
+      app: sysctl-tuning
+  template:
+    metadata:
+      labels:
+        app: sysctl-tuning
+    spec:
+      hostNetwork: true
+      hostPID: true
+      initContainers:
+      - name: sysctl-init
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          sysctl -w net.core.rmem_max=7500000
+          sysctl -w net.core.wmem_max=7500000
+        securityContext:
+          privileged: true
+      - name: multipath-longhorn-fix
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Blacklist Longhorn iSCSI (IET VIRTUAL-DISK) devices from multipathd.
+          # Without this, multipathd on Ubuntu 24.04 claims Longhorn's iSCSI
+          # block devices (sda/sdb via IET), holding them busy at kernel level
+          # and causing mke2fs to fail with "Device or resource busy while
+          # setting up superblock" even with -F.
+          mkdir -p /host/etc/multipath/conf.d
+          cat > /host/etc/multipath/conf.d/longhorn.conf << 'EOF'
+          blacklist {
+              device {
+                  vendor "IET"
+                  product "VIRTUAL-DISK"
+              }
+          }
+          EOF
+          chroot /host systemctl reload multipathd 2>/dev/null \
+            || chroot /host systemctl restart multipathd 2>/dev/null \
+            || echo "multipathd reload skipped (not running)"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      containers:
+      - name: sleep-container
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - sleep infinity

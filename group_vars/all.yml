@@ -13,15 +13,16 @@ vault_password_file: "~/.ansible_vault_password"
 # location of binaries we install in the execution environment
 bin_dir: "{{ lookup('ansible.builtin.env', 'BIN_DIR', default='${HOME}/bin') }}"
 
-# tracks the node name of the control plane
-control_plane_ip: "{{ hostvars[control_plane]['ansible_default_ipv4']['address'] }}"
+# control_plane_ip is set as a fact at the start of the k3s role (roles/k3s/tasks/main.yml)
+# It cannot be defined here because hostvars is not available during group_vars evaluation.
 
 # uncomment for a specific version of k3s (see https://github.com/k3s-io/k3s/releases)
 # k3s_version:. v1.29.11+k3s1
 
 # override on command line to make flashing of turing pi nodes happen
 # (note that any node that is turned off in tpi will get flashed)
-do_flash: "{{ force_flash | default(false) }}"
+# passing flash_force=true will also force re-flash of already-running nodes
+do_flash: "{{ (flash_force | default(force_flash | default(false))) | bool }}"
 
 ################################################################################
 # EDIT BELOW ###################################################################
@@ -36,9 +37,6 @@ domain_email: giles.knap@gilesk.gkcluster.org # the email address for letsencryp
 # where argocd will get the cluster configuration from
 repo_remote: https://github.com/gilesknap/tpi-k3s-ansible.git
 repo_branch: main
-# where argocd will get the minecraft configuration from
-minecraft_remote: https://github.com/gilesknap/k3s-minecraft
-minecraft_branch: argocd
 
 # List of features to install into the cluster, comment out to remove.
 # Each entry must match the name of a tasks yaml file in the cluster role.

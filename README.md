@@ -44,13 +44,15 @@ For more see [Details](docs/details.md).
 
 See [setup](docs/setup.md) to create some keypairs and access the turingpi(s).
 
-- Add an SDCard to your BMC(s) mounted at /mnt/sdcard
-- install podman 4.3 or higher, git and vscode
-  - set vscode setting `dev.containers.dockerPath` to `podman`
-- clone this repo, open in vscode and reopen in devcontainer
-- edit the hosts.yml file to match the turingpi's and nodes you have
-- also edit group_vars/all.yml to match your environment
-- kick off the ansible playbook:
+- BMC:
+  - Add an SDCard to your BMC(s) mounted at /mnt/sdcard
+- Workstation:
+  - install podman 4.3 or higher, git and vscode
+    - set vscode setting `dev.containers.dockerPath` to `podman`
+  - clone this repo, open in vscode and reopen in devcontainer
+  - edit the hosts.yml file to match the turingpi's and nodes you have
+  - also edit group_vars/all.yml to match your environment
+  - kick off the ansible playbook as follows:
 
 ```bash
 cd tpi-k3s-ansible

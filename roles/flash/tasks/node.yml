@@ -18,12 +18,12 @@
 
     - name: Flash images {{ node_name }}
       ansible.builtin.include_tasks: flash.yml
-      when: not node_status or flash_force
+      when: not node_status or flash_force | bool
 
     - name: Bootstrap node to enable further ansible provisioning {{ node_name }}
       ansible.builtin.include_tasks: bootstrap.yml
       # if the node is already contactable then no need to do initial boot cloud init
-      when: not node_status or flash_force
+      when: not node_status or flash_force | bool
 
   rescue:
     - ansible.builtin.fail: # noqa name

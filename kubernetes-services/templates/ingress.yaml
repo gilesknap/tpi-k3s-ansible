@@ -14,6 +14,14 @@ spec:
     chart: ingress-nginx
     targetRevision: 4.14.3
     repoURL:  https://kubernetes.github.io/ingress-nginx
+    helm:
+      valuesObject:
+        controller:
+          admissionWebhooks:
+            # Disabled: hook jobs (admission-create/patch) delete themselves before
+            # ArgoCD records Succeeded, causing every sync to get permanently stuck.
+            # The webhook validates ingress syntax but is not required for operation.
+            enabled: false
   syncPolicy:
     automated:
       prune: true

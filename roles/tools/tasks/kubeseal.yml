@@ -1,0 +1,31 @@
+- name: Get kubeseal 0.35.0 binary
+  ansible.builtin.get_url:
+    url: https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.35.0/kubeseal-0.35.0-linux-amd64.tar.gz
+    dest: /tmp/kubeseal-0.35.0-linux-amd64.tar.gz
+    mode: "0644"
+    checksum: "sha256:a34e855d7a52992a093701f7bf5c65d9768a52a4e2c9159d686def742b2c9875"
+    validate_certs: true
+
+- name: Extract kubeseal binary
+  ansible.builtin.unarchive:
+    src: /tmp/kubeseal-0.35.0-linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: true
+    mode: "0755"
+
+# the bin folder persists through container rebuilds because it is a volume
+- name: Move kubeseal binary to the path
+  ansible.builtin.copy:
+    src: /tmp/kubeseal
+    dest: "{{ bin_dir }}/kubeseal"
+    mode: "0755"
+  become: true
+
+# this step is lost on rebuild of the container, so is the only step
+# that causes a change after container rebuild
+- name: Make kubeseal available to all
+  ansible.builtin.file:
+    src: "{{ bin_dir }}/kubeseal"
+    path: /usr/local/bin/kubeseal
+    state: link
+  become: true
