@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rkllama
+  namespace: rkllama
+  labels:
+    app: rkllama
+spec:
+  selector:
+    matchLabels:
+      app: rkllama
+  template:
+    metadata:
+      labels:
+        app: rkllama
+    spec:
+      nodeSelector:
+        node-type: rk1
+
+      initContainers:
+        - name: fix-frequency
+          image: busybox:1.37
+          command: ["/bin/sh", "/scripts/fix_frequency.sh"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /scripts
+            - name: sys
+              mountPath: /sys
+
+      containers:
+        - name: rkllama
+          # OpenAI/Ollama-compatible LLM server backed by Rockchip RKLLM SDK (NPU-accelerated)
+          # https://github.com/NotPunchnox/rkllama
+          image: ghcr.io/notpunchnox/rkllama:main
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MODELS_DIR
+              value: /root/rkllama/models
+          securityContext:
+            privileged: true   # required for /dev/rknpu NPU access
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "14Gi"   # RK1 has 16GB; leave headroom for OS
+          volumeMounts:
+            - name: models
+              mountPath: /root/rkllama/models
+            - name: rknpu
+              mountPath: /dev/rknpu
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: rkllama-init-scripts
+            defaultMode: 0755
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: models
+          hostPath:
+            path: /opt/rkllama/models
+            type: DirectoryOrCreate
+        - name: rknpu
+          hostPath:
+            path: /dev/rknpu

@@ -51,26 +51,26 @@ redirects to **Headlamp** (`kubernetes-sigs/headlamp`):
 ## Task Checklist
 
 - [x] Phase 0: Create git worktree (`llm-simplify` branch at `/workspaces/tpi-k3s-llm`)
-- [ ] Phase 1a: Delete `kubernetes-services/templates/minecraft.yaml`
-- [ ] Phase 1b: Delete `argo-cd/argocd-minecraft.yaml` (minecraft AppProject)
-- [ ] Phase 1c: Remove `minecraft_remote` / `minecraft_branch` from `group_vars/all.yml`
-- [ ] Phase 1d: Remove `minecraft_*` Helm values from `argo-cd/argo-git-repository.yaml`
-- [ ] Phase 1e: Delete `kubernetes-services/templates/echo.yaml`
-- [ ] Phase 1f: Delete `kubernetes-services/additions/echo/` directory
-- [ ] Phase 1g: Delete stale files: `pb_recover_nvme.yml`, `roles/flash/tasks/recover_nvme_boot.yml`,
-  `docs/recover-rk1-maskrom.md` (if they exist)
-- [ ] Phase 2a: Rewrite `kubernetes-services/templates/dashboard.yaml` → Headlamp Helm chart
-- [ ] Phase 2b: Update `kubernetes-services/additions/dashboard/rbac.yaml` for Headlamp SA name
-- [ ] Phase 3a: Create `kubernetes-services/templates/cloudflared.yaml` ArgoCD Application
-- [ ] Phase 3b: Fill in ingress rules in `kubernetes-services/additions/cloudflared/values.yaml`
-- [ ] Phase 3c: Add SealedSecret stub for cloudflared tunnel credentials (live cluster needed)
-- [ ] Phase 4: Add `kubectl label node` task in `roles/k3s/tasks/worker.yml` for `node-type=rk1`
-- [ ] Phase 5a: Create `kubernetes-services/additions/rkllama/configmap.yaml` (fix_frequency script)
-- [ ] Phase 5b: Create `kubernetes-services/additions/rkllama/daemonset.yaml`
-- [ ] Phase 5c: Create `kubernetes-services/additions/rkllama/service.yaml`
-- [ ] Phase 5d: Create `kubernetes-services/additions/rkllama/ingress.yaml`
-- [ ] Phase 5e: Create `kubernetes-services/templates/rkllama.yaml` (ArgoCD Application)
-- [ ] Phase 5f: Add Ansible task to create `/opt/rkllama/models/` on RK1 nodes
+- [x] Phase 1a: Delete `kubernetes-services/templates/minecraft.yaml`
+- [x] Phase 1b: Delete `argo-cd/argocd-minecraft.yaml` (minecraft AppProject)
+- [x] Phase 1c: Remove `minecraft_remote` / `minecraft_branch` from `group_vars/all.yml`
+- [x] Phase 1d: Remove `minecraft_*` Helm values from `argo-cd/argo-git-repository.yaml`
+- [x] Phase 1e: Delete `kubernetes-services/templates/echo.yaml`
+- [x] Phase 1f: Delete `kubernetes-services/additions/echo/` directory
+- [x] Phase 1g: Delete stale files: `pb_recover_nvme.yml`, `roles/flash/tasks/recover_nvme_boot.yml`,
+  `docs/recover-rk1-maskrom.md` (if they exist) — none existed in llm-simplify branch
+- [x] Phase 2a: Rewrite `kubernetes-services/templates/dashboard.yaml` → Headlamp Helm chart
+- [x] Phase 2b: Update `kubernetes-services/additions/dashboard/rbac.yaml` for Headlamp SA name
+- [x] Phase 3a: Create `kubernetes-services/templates/cloudflared.yaml` ArgoCD Application
+- [x] Phase 3b: Fill in ingress rules in `kubernetes-services/additions/cloudflared/values.yaml`
+- [x] Phase 3c: Add SealedSecret stub for cloudflared tunnel credentials (live cluster needed)
+- [x] Phase 4: Add `kubectl label node` task in `roles/k3s/tasks/worker.yml` for `node-type=rk1`
+- [x] Phase 5a: Create `kubernetes-services/additions/rkllama/configmap.yaml` (fix_frequency script)
+- [x] Phase 5b: Create `kubernetes-services/additions/rkllama/daemonset.yaml`
+- [x] Phase 5c: Create `kubernetes-services/additions/rkllama/service.yaml`
+- [x] Phase 5d: Create `kubernetes-services/additions/rkllama/ingress.yaml`
+- [x] Phase 5e: Create `kubernetes-services/templates/rkllama.yaml` (ArgoCD Application)
+- [x] Phase 5f: Add Ansible task to create `/opt/rkllama/models/` on RK1 nodes
 
 ## Manual Prerequisites (require live cluster / offline x86)
 

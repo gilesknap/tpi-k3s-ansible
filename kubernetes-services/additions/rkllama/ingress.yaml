@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rkllama-ingress
+  namespace: rkllama
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Plain HTTP backend — no ssl-passthrough (unlike the ingress sub-chart default)
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - rkllama.gkcluster.org
+      secretName: rkllama-secret
+  rules:
+    - host: rkllama.gkcluster.org
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: rkllama
+                port:
+                  number: 8080
