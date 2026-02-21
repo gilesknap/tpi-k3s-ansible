@@ -4,14 +4,16 @@
 
 When using the `run_in_terminal` tool:
 
-- The tool result may show only a minimal acknowledgment (e.g., `#` with a timestamp) rather than the actual command output
-- This is because the shell prompt is two lines — the tool captures only the second line (`#`) as the acknowledgment, e.g.:
+- The shell prompt is **two lines**, e.g.:
   ```
   root@ws03: /workspaces/tpi-k3s-llm llm-simplify
   #
   ```
-- **ALWAYS** use `terminal_last_command` tool afterward to retrieve the actual output if the `run_in_terminal` result appears empty or truncated
-- Check the exit code in the context to determine if the command succeeded before assuming failure
+- `run_in_terminal` returns the command output **followed by** this two-line prompt as a terminator
+- When you see only the two prompt lines with nothing before them, the command produced no output (e.g. a silent `git add`) — this is normal and does not indicate failure
+- Read whatever appears **before** the prompt lines as the actual command output
+- Check the exit code in the `<context>` block to confirm success/failure — do not assume failure just because output looks minimal
+- **DO NOT use `terminal_last_command`** to try to retrieve output — it reads from the user's currently focused VS Code terminal, which is a completely different terminal from where `run_in_terminal` executes, so it will return unrelated output
 
 **CRITICAL: Avoid repeating commands**
 
@@ -20,13 +22,14 @@ When using the `run_in_terminal` tool:
   - `Exit Code`: Whether it succeeded (0) or failed
 - **BEFORE** running a command, check if the context already shows it ran successfully
 - **NEVER** re-run a command that the context shows already completed with exit code 0
-- If you need the output and the context doesn't show it, use `terminal_last_command` once - do not re-run the command
 
-**Common mistake to avoid:**
-- ❌ Run command → Get minimal output → Try to run same command again
-- ✅ Run command → Get minimal output → Check context for exit code → Use `terminal_last_command` to get full output
-- The `run_in_terminal` tool often returns minimal acknowledgment, but the command still executed successfully
-- Always check the context in the next turn - if Exit Code: 0, the command succeeded; just get the output with `terminal_last_command`
+**When you need to capture output for later reading** (e.g. long output, or output needed across turns):
+
+Redirect to a temp file and read it back:
+```
+run_in_terminal: some-command > /tmp/out.txt 2>&1
+read_file: /tmp/out.txt
+```
 
 ---
 

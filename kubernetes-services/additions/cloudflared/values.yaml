@@ -22,20 +22,13 @@ cloudflare:
   # Ingress rules: route each public hostname to the NGINX ingress controller.
   # NGINX then handles TLS termination and routes based on Host header.
   # noTLSVerify is needed because the internal cert is signed for the external hostname.
+  #
+  # Only the echo test service is exposed publicly via the tunnel.
+  # All other services (argocd, headlamp, longhorn, grafana) are LAN-only —
+  # they are NOT listed here and return 404 from the catch-all for external requests.
+  # Access those services via your router's local DNS pointing *.gkcluster.org → 192.168.1.81.
   ingress:
-    - hostname: argocd.gkcluster.org
-      service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
-      originRequest:
-        noTLSVerify: true
-    - hostname: headlamp.gkcluster.org
-      service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
-      originRequest:
-        noTLSVerify: true
-    - hostname: longhorn.gkcluster.org
-      service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
-      originRequest:
-        noTLSVerify: true
-    - hostname: grafana.gkcluster.org
+    - hostname: echo.gkcluster.org
       service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
       originRequest:
         noTLSVerify: true

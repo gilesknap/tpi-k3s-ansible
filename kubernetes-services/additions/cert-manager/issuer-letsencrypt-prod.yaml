@@ -8,6 +8,11 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-      - http01:
-          ingress:
-            class: nginx
+      # DNS-01 via Cloudflare API — works for ALL hostnames including LAN-only services.
+      # HTTP-01 would require a public route to /.well-known/acme-challenge/ for every
+      # hostname, which is impossible for services not exposed via the tunnel.
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
