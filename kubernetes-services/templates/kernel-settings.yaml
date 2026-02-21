@@ -33,14 +33,18 @@ spec:
         - /bin/sh
         - -c
         - |
-          # Blacklist Longhorn NBD block devices from multipathd.
-          # Without this, multipathd on Ubuntu 24.04 holds an open reference on
-          # /dev/nbdX devices the moment Longhorn attaches them, causing mke2fs
-          # to fail with "Device or resource busy while setting up superblock".
+          # Blacklist Longhorn iSCSI (IET VIRTUAL-DISK) devices from multipathd.
+          # Without this, multipathd on Ubuntu 24.04 claims Longhorn's iSCSI
+          # block devices (sda/sdb via IET), holding them busy at kernel level
+          # and causing mke2fs to fail with "Device or resource busy while
+          # setting up superblock" even with -F.
           mkdir -p /host/etc/multipath/conf.d
           cat > /host/etc/multipath/conf.d/longhorn.conf << 'EOF'
           blacklist {
-              devnode "^nbd[0-9]+"
+              device {
+                  vendor "IET"
+                  product "VIRTUAL-DISK"
+              }
           }
           EOF
           chroot /host systemctl reload multipathd 2>/dev/null \
