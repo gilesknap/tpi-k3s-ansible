@@ -85,9 +85,10 @@ The secret is used by:
 | ArgoCD    | Admin password set via `argocd-secret` patch     |
 | Grafana   | `admin.existingSecret` references `admin-auth`   |
 | Longhorn  | Nginx basic-auth on ingress                      |
-| Headlamp  | Nginx basic-auth on ingress                      |
 
-RKLlama and Echo are intentionally left without authentication.
+Headlamp uses its own Kubernetes token authentication (basic-auth is
+incompatible with its frontend API calls). RKLlama and Echo are
+intentionally left without authentication.
 
 ### Create the secrets
 
@@ -101,7 +102,7 @@ HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
 # Create admin-auth secret in each namespace that needs it.
 # The secret contains both htpasswd (for nginx basic-auth) and plain text
 # password (for Grafana's existingSecret).
-for ns in longhorn monitoring headlamp; do
+for ns in longhorn monitoring; do
   kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
   kubectl create secret generic admin-auth -n "$ns" \
     --from-literal=auth="$HTPASSWD" \
@@ -136,9 +137,7 @@ kubectl -n monitoring rollout restart statefulset grafana-prometheus
 
 Once the `headlamp` ArgoCD app is `Synced / Healthy`, the `headlamp` namespace will exist.
 
-Headlamp is protected by nginx basic-auth using the shared admin password
-(see Step 4). After basic-auth, Headlamp also requires a Kubernetes token
-on first login.
+Headlamp uses Kubernetes token authentication (not the shared admin password).
 
 Generate a login token using the `headlamp-admin` service account (cluster-admin rights):
 ```bash
