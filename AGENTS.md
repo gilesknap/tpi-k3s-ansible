@@ -97,12 +97,14 @@ See `README.md` for setup instructions, how to run playbooks, and available tags
 │   └── cluster/                # Deploy cluster services (ArgoCD, then ArgoCD manages the rest)
 ├── kubernetes-services/        # Meta Helm chart deployed by ArgoCD (all cluster services)
 │   ├── Chart.yaml
+│   ├── values.yaml             # Helm values — includes repo_branch for child apps
 │   ├── templates/              # ArgoCD Application manifests for each service
 │   └── additions/              # Extra K8s manifests per service (RBAC, issuers, etc.)
+├── kubernetes-services-todo/   # Service templates not yet promoted to active
 ├── argo-cd/                    # Jinja2 templates for ArgoCD bootstrap (applied by Ansible)
 ├── .devcontainer/              # DevContainer config (Dockerfile, devcontainer.json)
 ├── pub_keys/                   # SSH public keys for node access
-├── docs/                       # Documentation (setup, cloudflare, notes)
+├── docs/                       # Documentation (setup, cloudflare, bootstrap, notes)
 └── old-cluster-tasks/          # Deprecated: pre-ArgoCD direct Ansible installs
 ```
 
@@ -153,58 +155,30 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 1. **`tpi flash` USB errors** — if `tpi flash` fails with `Error occured during flashing: "USB"`, power-cycle the BMC (not just the nodes). This is a BMC firmware USB enumeration bug. `ubuntu-rockchip-install` does NOT change the boot device — eMMC remains the bootloader — so re-flashing eMMC always restores the node fully.
 2. **`known_hosts` must be `serial: 1`** — parallel writes to `~/.ssh/known_hosts` cause race conditions.
 3. **Traefik is disabled** — K3s ships Traefik by default, but this project passes `--disable=traefik` and uses NGINX Ingress instead.
-4. **Working in branches** — you must pass `-e repo_branch=<branch>` so ArgoCD syncs the correct branch.
+4. **Working in branches** — `repo_branch` in `kubernetes-services/values.yaml` controls which branch ArgoCD child apps track. Each branch must set this value to match itself. See "Branch Propagation" below.
 5. **No automated tests** — changes should be validated by running the relevant playbook tags against a test cluster.
 
 ---
 
-## File Editing Guidance
+## Branch Propagation for ArgoCD Child Apps
+
+The root `all-cluster-services` ArgoCD Application passes `repo_branch` to child apps via Helm values. This value lives in `kubernetes-services/values.yaml`, which ArgoCD checks out at the same `targetRevision` as the root app — so it is always self-referential.
+
+**Rules:**
+- Each branch must set `repo_branch` in its own `kubernetes-services/values.yaml` to match the branch name.
+- The Ansible bootstrap also reads `repo_branch` from `group_vars/all.yml` when creating the root Application CR.
+
+**When switching the root app to a different branch:** the live `all-cluster-services` Application CR may retain an old `repo_branch` in its `valuesObject` that overrides `values.yaml`. Remove it:
+```bash
+kubectl patch application all-cluster-services -n argo-cd --type json \
+  -p '[{"op":"remove","path":"/spec/source/helm/valuesObject/repo_branch"}]'
+```
+
 ---
 
-## Current Session State (as of 2026-02-21)
+## Hardware Reference
 
-### Hardware
 - Turing Pi v2.5, 4 slots: node01=CM4 (slot 1), node02/03/04=RK1 (slots 2-4)
 - BMC hostname: `turingpi` → `192.168.1.80`
-- node01 (control plane) → `192.168.1.81`, workers on .82/.83/.84
-- DNS entries for all cluster services (`*.gkcluster.org`) point to `192.168.1.82`/`.83`/`.84` (worker nodes — ingress LoadBalancer IPs; NOT the control plane `.81`)
-- Branch in use: `llm-simplify`
-
-### Cluster Status
-- Cluster is **up and running** — K3s, ArgoCD, ingress-nginx, cert-manager, longhorn, grafana, echo all deployed
-- ArgoCD UI accessible via: `kubectl port-forward svc/argocd-server -n argo-cd 8080:443` → https://localhost:8080
-- ArgoCD also accessible at https://argocd.gkcluster.org once DNS resolves
-- Initial admin password: `kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
-- `kubernetes-dashboard` (Headlamp) and `rkllama` not yet fully synced as of end of session
-
-### What Was Fixed This Session
-- `roles/tools/tasks/helm.yml`:
-  - Helm upgraded **3.16.4 → 3.20.0** — required to support `platformHooks` field in helm-diff 3.x plugin.yaml (older helm refused to load the plugin)
-  - Broken helm-diff plugin now removed via `ansible.builtin.file state=absent` (not `helm plugin uninstall` which also fails when plugin is broken)
-  - `ansible_env.HOME` → `set_fact: user_home` pattern (consistent with k3s role, avoids deprecation warning)
-- `kubernetes-services/values.yaml` **created** — contains `repo_branch: llm-simplify`
-  - ArgoCD checks this out at the same `targetRevision` as the root app, so `repo_branch` is always self-referential
-  - Child apps inherit the correct branch automatically when root app `targetRevision` is changed
-- `argo-cd/argo-git-repository.yaml` — removed `repo_branch` from `valuesObject` (now comes from `values.yaml` instead)
-- `docs/bootstrap.md` **created** — documents how to bootstrap the cluster and access ArgoCD/Headlamp
-
-### Known Deprecation Warnings (not fixable in user code)
-These come from `kubernetes.core` collection 6.3.0 — upstream bug, harmless:
-- `Importing 'to_bytes/to_native/to_text' from 'ansible.module_utils._text' is deprecated`
-- `Passing 'warnings' to exit_json or fail_json is deprecated`
-
-### Important: Branch Propagation for Child Apps
-- The root `all-cluster-services` app passes `repo_branch` to child apps via Helm values
-- `repo_branch` now lives in `kubernetes-services/values.yaml` (checked out at root app's `targetRevision`)
-- **When changing root app target branch**: the live `all-cluster-services` Application CR may have an old `repo_branch` in its `valuesObject` that overrides `values.yaml`. Remove it:
-  ```bash
-  kubectl patch application all-cluster-services -n argo-cd --type json \
-    -p '[{"op":"remove","path":"/spec/source/helm/valuesObject/repo_branch"}]'
-  ```
-- Each branch must have the correct `repo_branch` value in its own `kubernetes-services/values.yaml`
-
-### Next Steps
-1. **Debug remaining OutOfSync/Unknown ArgoCD apps** one at a time: `kubernetes-dashboard`, `rkllama`, `grafana-prometheus`
-2. **Verify Headlamp** deploys and is accessible at https://headlamp.gkcluster.org
-3. **Verify rkllama** deploys correctly (primary goal of this branch)
-4. Token for Headlamp: `kubectl create token headlamp -n headlamp --duration=24h`
+- node01 (control plane) → `192.168.1.81`, workers on `.82`/`.83`/`.84`
+- DNS entries for `*.gkcluster.org` point to worker nodes (`.82`/`.83`/`.84` — ingress LoadBalancer IPs), **not** the control plane
