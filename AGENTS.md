@@ -123,38 +123,46 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 
 ### Hardware
 - Turing Pi v2.5, 4 slots: node01=CM4 (slot 1), node02/03/04=RK1 (slots 2-4)
-- BMC hostname: `turingpi`, user: `root`
-- node02, node03, node04 have NVMEs and previously had `move_fs` run
-- node01 (CM4) is currently being flashed after BMC power-cycle fixed USB errors
-- Branch in use: `add-cloudflared` (ArgoCD must be passed `-e repo_branch=add-cloudflared`)
+- BMC hostname: `turingpi` → `192.168.1.80`
+- node01 (control plane) → `192.168.1.81`, workers on .82/.83/.84
+- DNS entries for all cluster services (`*.gkcluster.org`) point to `192.168.1.81`
+- Branch in use: `llm-simplify`
 
-### Key Findings This Session
-- **All `tpi flash` USB errors were caused by a BMC USB enumeration bug** — fixed by power-cycling the BMC. NOT caused by NVME migration.
-- `ubuntu-rockchip-install` does NOT change the boot device — eMMC remains the bootloader. Re-flashing eMMC always fully restores a node.
-- `move_fs` role is correct as-is; the old comment claiming it broke flashing was wrong (now fixed).
+### Cluster Status
+- Cluster is **up and running** — K3s, ArgoCD, ingress-nginx, cert-manager, longhorn, grafana, echo all deployed
+- ArgoCD UI accessible via: `kubectl port-forward svc/argocd-server -n argo-cd 8080:443` → https://localhost:8080
+- ArgoCD also accessible at https://argocd.gkcluster.org once DNS resolves
+- Initial admin password: `kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+- `kubernetes-dashboard` (Headlamp) and `rkllama` not yet fully synced as of end of session
 
 ### What Was Fixed This Session
-- `ansible.cfg`: `stdout_callback = ansible.builtin.default` + `result_format = yaml` (community.general.yaml removed in v12)
-- `roles/tools/tasks/helm.yml`: helm-diff health check uses `failed_when: false` (not `ignore_errors`) to suppress red output; reinstalls if broken
-- `roles/known_hosts/tasks/main.yml`: `ssh-keyscan` is non-fatal; skips offline/unresolvable nodes
-- `roles/move_fs/tasks/move_fs.yml`: `ansible_mounts` → `ansible_facts['mounts']`; corrected misleading comment
-- `group_vars/all.yml`: `do_flash` checks `flash_force` first; `ansible_default_ipv4` → `ansible_facts['default_ipv4']`; `control_plane_ip` removed (set as fact in k3s role instead)
-- `roles/flash/tasks/node.yml`: `flash_force | bool` added to `when:` conditions
-- `roles/k3s/tasks/main.yml`: `control_plane_ip` set as `set_fact` here (hostvars available at task time)
-- `roles/flash/tasks/bootstrap.yml`: `wait_for` (port 22, delegated to localhost) after MSD switch; `until:` added to block device retry
-- `roles/flash/tasks/flash.yml`: removed `> /tmp/flash.log` redirect; added power-cycle + 10s pause before flash; `failed_when` catches `Error occured` in stdout; retries 3x with power-cycle between attempts
-- `roles/flash/vars/main.yml`: RPi4 image updated to `24.04.4` with correct SHA
-- `roles/move_fs/tasks/move_fs.yml`: comment corrected — `ubuntu-rockchip-install` keeps eMMC as boot device
+- `roles/tools/tasks/helm.yml`:
+  - Helm upgraded **3.16.4 → 3.20.0** — required to support `platformHooks` field in helm-diff 3.x plugin.yaml (older helm refused to load the plugin)
+  - Broken helm-diff plugin now removed via `ansible.builtin.file state=absent` (not `helm plugin uninstall` which also fails when plugin is broken)
+  - `ansible_env.HOME` → `set_fact: user_home` pattern (consistent with k3s role, avoids deprecation warning)
+- `kubernetes-services/values.yaml` **created** — contains `repo_branch: llm-simplify`
+  - ArgoCD checks this out at the same `targetRevision` as the root app, so `repo_branch` is always self-referential
+  - Child apps inherit the correct branch automatically when root app `targetRevision` is changed
+- `argo-cd/argo-git-repository.yaml` — removed `repo_branch` from `valuesObject` (now comes from `values.yaml` instead)
+- `docs/bootstrap.md` **created** — documents how to bootstrap the cluster and access ArgoCD/Headlamp
+
+### Known Deprecation Warnings (not fixable in user code)
+These come from `kubernetes.core` collection 6.3.0 — upstream bug, harmless:
+- `Importing 'to_bytes/to_native/to_text' from 'ansible.module_utils._text' is deprecated`
+- `Passing 'warnings' to exit_json or fail_json is deprecated`
+
+### Important: Branch Propagation for Child Apps
+- The root `all-cluster-services` app passes `repo_branch` to child apps via Helm values
+- `repo_branch` now lives in `kubernetes-services/values.yaml` (checked out at root app's `targetRevision`)
+- **When changing root app target branch**: the live `all-cluster-services` Application CR may have an old `repo_branch` in its `valuesObject` that overrides `values.yaml`. Remove it:
+  ```bash
+  kubectl patch application all-cluster-services -n argo-cd --type json \
+    -p '[{"op":"remove","path":"/spec/source/helm/valuesObject/repo_branch"}]'
+  ```
+- Each branch must have the correct `repo_branch` value in its own `kubernetes-services/values.yaml`
 
 ### Next Steps
-1. **Confirm node01 flash completes successfully**
-2. **Run full playbook** for all nodes: `ansible-playbook pb_all.yml -e flash_force=true -e repo_branch=add-cloudflared`
-3. **If flash USB errors recur** on other nodes: power-cycle the BMC (not the nodes)
-4. **Verify cluster comes up**: K3s control plane on node01, workers on node02/03/04
-5. **Verify ArgoCD deploys** kubernetes-services from `add-cloudflared` branch
-6. **Primary goal of this branch**: add cloudflared tunnel service to the cluster
-
-### Files Created This Session (may be cleaned up)
-- `pb_recover_nvme.yml` — no longer needed (NVME migration doesn't break flashing); can be deleted
-- `roles/flash/tasks/recover_nvme_boot.yml` — no longer needed; can be deleted
-- `docs/recover-rk1-maskrom.md` — no longer needed; can be deleted
+1. **Debug remaining OutOfSync/Unknown ArgoCD apps** one at a time: `kubernetes-dashboard`, `rkllama`, `grafana-prometheus`
+2. **Verify Headlamp** deploys and is accessible at https://headlamp.gkcluster.org
+3. **Verify rkllama** deploys correctly (primary goal of this branch)
+4. Token for Headlamp: `kubectl create token headlamp -n headlamp --duration=24h`
