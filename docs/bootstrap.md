@@ -71,9 +71,74 @@ kubectl patch application all-cluster-services -n argo-cd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
-## Step 4: Access the Kubernetes Dashboard (Headlamp)
+## Step 4: Set Up Shared Admin Password
+
+Several cluster services share a common admin password via a Kubernetes secret
+called `admin-auth`. This secret must be created **before** the services that
+depend on it are synced by ArgoCD. ArgoCD does not manage this secret — it is
+created manually and persists across syncs.
+
+The secret is used by:
+
+| Service   | How                                              |
+|-----------|--------------------------------------------------|
+| ArgoCD    | Admin password set via `argocd-secret` patch     |
+| Grafana   | `admin.existingSecret` references `admin-auth`   |
+| Longhorn  | Nginx basic-auth on ingress                      |
+| Headlamp  | Nginx basic-auth on ingress                      |
+
+RKLlama and Echo are intentionally left without authentication.
+
+### Create the secrets
+
+```bash
+# Prompt for password (not echoed to terminal)
+read -s -p "Enter admin password: " PASSWORD && echo
+
+# Generate htpasswd entry (user: admin)
+HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
+
+# Create admin-auth secret in each namespace that needs it.
+# The secret contains both htpasswd (for nginx basic-auth) and plain text
+# password (for Grafana's existingSecret).
+for ns in longhorn monitoring headlamp; do
+  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create secret generic admin-auth -n "$ns" \
+    --from-literal=auth="$HTPASSWD" \
+    --from-literal=user=admin \
+    --from-literal=password="$PASSWORD" \
+    --dry-run=client -o yaml | kubectl apply -f -
+done
+
+# Set ArgoCD admin password (bcrypt hash in argocd-secret)
+HASH=$(htpasswd -nbBC 10 "" "$PASSWORD" | tr -d ':\n' | sed 's/$2y/$2a/')
+kubectl -n argo-cd patch secret argocd-secret \
+  -p "{\"stringData\": {\"admin.password\": \"$HASH\", \"admin.passwordMtime\": \"$(date +%FT%T%Z)\"}}"
+
+echo "Admin password set for all services."
+```
+
+After running this, **restart the ArgoCD server** so it picks up the new password:
+```bash
+kubectl -n argo-cd rollout restart deployment argocd-server
+```
+
+### Updating the password later
+
+Re-run the same script above with a new `PASSWORD` value. Then restart any
+services that cache credentials:
+```bash
+kubectl -n argo-cd rollout restart deployment argocd-server
+kubectl -n monitoring rollout restart statefulset grafana-prometheus
+```
+
+## Step 5: Access the Kubernetes Dashboard (Headlamp)
 
 Once the `headlamp` ArgoCD app is `Synced / Healthy`, the `headlamp` namespace will exist.
+
+Headlamp is protected by nginx basic-auth using the shared admin password
+(see Step 4). After basic-auth, Headlamp also requires a Kubernetes token
+on first login.
 
 Generate a login token using the `headlamp-admin` service account (cluster-admin rights):
 ```bash
