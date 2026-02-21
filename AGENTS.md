@@ -55,6 +55,18 @@ so it still follows the GitOps flow.
 
 ---
 
+## Cloudflare Tunnel UI Notes
+
+The Cloudflare Zero Trust dashboard public hostname configuration has **no separate "Service
+Type" field**. The protocol is specified as a prefix in the Service URL itself:
+
+- Use `http://hostname:port` for plain HTTP to the backend
+- Use `https://hostname:port` for HTTPS to the backend
+
+Example: `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
+
+---
+
 ## Project Overview
 
 This is an **Infrastructure-as-Code (IaC)** Ansible project that commissions a **K3s Kubernetes cluster** on Turing Pi v2.5 boards (with RK1 or CM4 compute modules) and arbitrary extra Linux nodes. It flashes Ubuntu 24.04 LTS, installs K3s, and deploys services via ArgoCD — all idempotent and repeatable.

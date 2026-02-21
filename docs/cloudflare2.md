@@ -130,7 +130,7 @@ to HTTPS, it would cause a redirect loop back through the tunnel. The echo ingre
 |---|---|
 | Subdomain | `echo` |
 | Domain | `gkcluster.org` |
-| Service URL | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
+| Service URL | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
 
 
 ### 1.5 DNS record created automatically
