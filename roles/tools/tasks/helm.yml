@@ -35,15 +35,15 @@
   ansible.builtin.command:
     cmd: helm diff version
   register: helm_diff_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Remove broken helm-diff plugin if present
   ansible.builtin.command:
     cmd: helm plugin uninstall helm-diff
   when: helm_diff_check.rc != 0
-  ignore_errors: true
-  changed_when: true
+  failed_when: false
+  changed_when: helm_diff_check.rc != 0
 
 - name: Install helm plugins
   ansible.builtin.command:
