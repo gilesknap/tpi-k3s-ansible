@@ -108,7 +108,7 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 
 ## Important Warnings
 
-1. **Flash breaks after NVME migration** — `ubuntu-rockchip-install` changes the boot device away from eMMC; subsequent flashes to eMMC won't take effect.
+1. **`tpi flash` USB errors** — if `tpi flash` fails with `Error occured during flashing: "USB"`, power-cycle the BMC (not just the nodes). This is a BMC firmware USB enumeration bug. `ubuntu-rockchip-install` does NOT change the boot device — eMMC remains the bootloader — so re-flashing eMMC always restores the node fully.
 2. **`known_hosts` must be `serial: 1`** — parallel writes to `~/.ssh/known_hosts` cause race conditions.
 3. **Traefik is disabled** — K3s ships Traefik by default, but this project passes `--disable=traefik` and uses NGINX Ingress instead.
 4. **Working in branches** — you must pass `-e repo_branch=<branch>` so ArgoCD syncs the correct branch.
