@@ -63,12 +63,11 @@ In the Cloudflare dashboard, click **Networking -> Tunnels** in the sidebar. Thi
 2. Click **Create a tunnel**.
 3. Select **Cloudflared** as the connector type.
 4. Name the tunnel (e.g. `gk2`).
+5. After creation, Cloudflare shows the steps to set up the cloudflared client.
 
-[Screenshot: Tunnel creation page — "Select tunnel type" with Cloudflared selected]
+We are going to be running cloudflared in K8S. But we will need to get the tunnel token from the "Install as service" box, so click the copy button next to it to copy the whole box content to your clipboard.
 
-5. After creation, Cloudflare shows the steps to set up the cloudflared client. We are going to be running cloudflared in K8S. But we will need to get the tunnel token from the "Install as service" step, so click the copy button next to "Install as service" command to copy the whole box content to your clipboard.
-
-Extract the token from it and paste it into the token query when you run the command in the following step.
+Extract the token by pasting into an editor and copying just the token. Then paste that token into the when prompted by the command in the following step.
 
 #### 1.3a Deploy cloudflared before continuing
 
@@ -113,7 +112,7 @@ When you are successfully connected the panel at the bottom of the screen will r
 
 ![Screenshot: Cloudflare tunnel dashboard showing "Connected" status](images/tunnel_success.png)
 
-### 1.4 Configure a public hostname
+### 1.4 Configure a public hostname for the example echo service
 
 You will now see a list of your tunnels. Click on the tunnel you just created to view its details.
 
@@ -142,8 +141,9 @@ echo.gkcluster.org  →  <tunnel-id>.cfargotunnel.com   (Proxied ☁)
 ```
 
 > All other subdomains (`argocd`, `headlamp`, etc.) should **not** have Cloudflare-proxied
-> DNS records. Either delete any auto-created ones or make them **DNS-only** (grey cloud)
-> pointing to your LAN IP. For LAN-only services the DNS entries are managed by your router
+> DNS records.
+>
+> For these LAN-only services the DNS entries are managed by your router
 > — see [Part 3](#part-3-local-dns-for-lan-only-services).
 
 ### 1.6 Create an API token for DNS-01 certificate issuance
@@ -151,7 +151,7 @@ echo.gkcluster.org  →  <tunnel-id>.cfargotunnel.com   (Proxied ☁)
 cert-manager needs to add and remove `_acme-challenge` TXT records in Cloudflare DNS to
 prove domain ownership for Let's Encrypt. It does this via a scoped API token.
 
-1. In the Cloudflare dashboard (not Zero Trust), click your **profile icon → My Profile →
+1. In the Cloudflare dashboard, click **Manage Account → Account API Tokens →
    API Tokens**.
 2. Click **Create Token**.
 3. Click **Use template** next to **Edit zone DNS**.
@@ -162,17 +162,16 @@ prove domain ownership for Let's Encrypt. It does this via a scoped API token.
 
 | Setting | Value |
 |---|---|
-| Token name | `cert-manager-dns01` (or similar) |
+| Token name | `edit Zone DNS` (or similar) |
 | Permissions | Zone → DNS → Edit |
-| Zone Resources | Include → Specific zone → `gkcluster.org` |
+| Zone Resources | Include → Specific zone → `your domain name` |
 | TTL | Optional — leave blank or set an expiry |
 
-[Screenshot: API token configuration form — permissions set to "Zone DNS Edit" scoped to gkcluster.org]
-
 5. Click **Continue to summary**, then **Create Token**. Copy the token value — it is
-   **shown only once**. You will create a Kubernetes secret from it in Part 2.
+   **shown only once**.
 
-[Screenshot: Token created confirmation page showing the token value with a warning that it won't be shown again]
+6. Save this token for later, but make sure it is kept secret (e.g. does not get into your bash history!). You will create a Kubernetes secret from it in Part 4, below.
+
 
 ---
 
