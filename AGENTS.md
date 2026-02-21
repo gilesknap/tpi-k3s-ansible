@@ -1,5 +1,30 @@
 # AGENTS.md — Guidance for AI Coding Agents
 
+## Terminal Tool Usage
+
+When using the `run_in_terminal` tool:
+
+- The tool result may show only a minimal acknowledgment (e.g., `#` with a timestamp) rather than the actual command output
+- **ALWAYS** use `terminal_last_command` tool afterward to retrieve the actual output if the `run_in_terminal` result appears empty or truncated
+- Check the exit code in the context to determine if the command succeeded before assuming failure
+
+**CRITICAL: Avoid repeating commands**
+
+- The `<context>` block at the start of each user message contains terminal state including:
+  - `Last Command`: The command that was run
+  - `Exit Code`: Whether it succeeded (0) or failed
+- **BEFORE** running a command, check if the context already shows it ran successfully
+- **NEVER** re-run a command that the context shows already completed with exit code 0
+- If you need the output and the context doesn't show it, use `terminal_last_command` once - do not re-run the command
+
+**Common mistake to avoid:**
+- ❌ Run command → Get minimal output → Try to run same command again
+- ✅ Run command → Get minimal output → Check context for exit code → Use `terminal_last_command` to get full output
+- The `run_in_terminal` tool often returns minimal acknowledgment, but the command still executed successfully
+- Always check the context in the next turn - if Exit Code: 0, the command succeeded; just get the output with `terminal_last_command`
+
+---
+
 ## Project Overview
 
 This is an **Infrastructure-as-Code (IaC)** Ansible project that commissions a **K3s Kubernetes cluster** on Turing Pi v2.5 boards (with RK1 or CM4 compute modules) and arbitrary extra Linux nodes. It flashes Ubuntu 24.04 LTS, installs K3s, and deploys services via ArgoCD — all idempotent and repeatable.
