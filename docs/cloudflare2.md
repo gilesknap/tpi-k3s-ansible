@@ -66,19 +66,13 @@ In the Cloudflare dashboard, click **Networking -> Tunnels** in the sidebar. Thi
 
 [Screenshot: Tunnel creation page — "Select tunnel type" with Cloudflared selected]
 
-5. After creation, Cloudflare shows the **tunnel token**. Copy it — you will need it to create
-   the Kubernetes secret in Part 2. The token is a long base64-encoded string.
+5. After creation, Cloudflare shows the steps to set up the cloudflared client. We are going to be running cloudflared in K8S. But we will need to get the tunnel token from the "Install as service" step, so click the copy button next to "Install as service" command to copy the whole box content to your clipboard.
 
-[Screenshot: Tunnel overview page showing the tunnel token with a "Copy" button]
-
-> **Note:** You can retrieve the token again later in **Zero Trust → Networks → Tunnels →
-> click the tunnel name → Configure → Connector token**.
-
-[Screenshot: Tunnel details page showing Tunnel ID]
+Extract the token from it and paste it into the token query when you run the command in the following step.
 
 #### 1.3a Deploy cloudflared before continuing
 
-Cloudflare's UI will not let you save a public hostname until it can see a live tunnel
+Cloudflare's UI will not let continue until it can see a live tunnel
 connection. You must deploy the cloudflared pod and let it connect **now**, before proceeding
 to §1.4.
 
@@ -115,33 +109,29 @@ kubectl rollout status deployment/cloudflared -n cloudflared
 kubectl logs -n cloudflared deployment/cloudflared | tail -20
 ```
 
-Look for `Registered tunnel connection` in the logs. In the Cloudflare UI the tunnel status
-should flip to **Healthy** (green). Only then continue to the next step.
+When you are successfully connected the panel at the bottom of the screen will read 'Tunnel connected successfully'. See image below.
 
-[Screenshot: Zero Trust → Tunnels list showing tunnel status as Healthy/green]
+![Screenshot: Cloudflare tunnel dashboard showing "Connected" status](images/tunnel_success.png)
 
 ### 1.4 Configure a public hostname
 
-Still inside the tunnel configuration, click the **Public Hostname** tab, then
-**Add a public hostname**:
+You will now see a list of your tunnels. Click on the tunnel you just created to view its details.
+
+Now click on the Routes tab and '+ Add a route'. And choose 'Published Application' as the route type.
+
+This will set up the public echo service which is just for testing to show how to set up an internet facing service.
+
+The tunnel connects via **HTTP on port 80** to ingress-nginx. Cloudflare already terminates
+external TLS at its edge — if the tunnel also used HTTPS and ingress-nginx forced a redirect
+to HTTPS, it would cause a redirect loop back through the tunnel. The echo ingress has
+`ssl-redirect: false` to match.
 
 | Field | Value |
 |---|---|
 | Subdomain | `echo` |
 | Domain | `gkcluster.org` |
-| Type | `HTTPS` |
-| URL | `ingress-nginx-controller.ingress-nginx.svc.cluster.local:443` |
-| TLS → No TLS Verify | ✅ enabled |
+| Service URL | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 
-The "No TLS Verify" setting is required because the certificate presented by ingress-nginx
-is signed for `echo.gkcluster.org` (a hostname Cloudflare's tunnel resolver doesn't verify
-against the internal address).
-
-[Screenshot: "Add a public hostname" form with the values above filled in]
-
-**Do not add public hostnames for argocd, headlamp, longhorn, grafana, or any other service.**
-Those are LAN-only — only `echo` belongs in the Cloudflare dashboard tunnel config.
-External requests for other hostnames will hit the catch-all rule and receive a 404.
 
 ### 1.5 DNS record created automatically
 
@@ -150,8 +140,6 @@ After saving the public hostname, Cloudflare automatically creates a CNAME DNS r
 ```
 echo.gkcluster.org  →  <tunnel-id>.cfargotunnel.com   (Proxied ☁)
 ```
-
-[Screenshot: DNS page showing the echo CNAME record with orange proxy cloud icon]
 
 > All other subdomains (`argocd`, `headlamp`, etc.) should **not** have Cloudflare-proxied
 > DNS records. Either delete any auto-created ones or make them **DNS-only** (grey cloud)
