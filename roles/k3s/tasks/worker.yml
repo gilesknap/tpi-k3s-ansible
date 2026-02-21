@@ -61,3 +61,10 @@
     k3s_install_occurred: true
   when: k3s_installed.changed
   changed_when: false
+
+- name: Label RK1 nodes with node-type=rk1 (for RKLLama DaemonSet nodeSelector)
+  ansible.builtin.command:
+    cmd: kubectl label node {{ inventory_hostname }} node-type=rk1 --overwrite
+  delegate_to: "{{ control_plane }}"
+  when: type == 'rk1'
+  changed_when: true

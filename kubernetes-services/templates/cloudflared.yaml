@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+  project: kubernetes
+  sources:
+    # https://artifacthub.io/packages/helm/cloudflare/cloudflared
+    - chart: cloudflared
+      targetRevision: 0.3.6
+      repoURL: https://cloudflare.github.io/helm-charts
+      helm:
+        valueFiles:
+          - $values/kubernetes-services/additions/cloudflared/values.yaml
+
+    - repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      ref: values
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
