@@ -65,18 +65,20 @@ kubectl patch application all-cluster-services -n argo-cd \
 
 ## Step 4: Access the Kubernetes Dashboard (Headlamp)
 
-Once the `kubernetes-dashboard` ArgoCD app is `Synced / Healthy`, the `headlamp` namespace will exist.
+Once the `headlamp` ArgoCD app is `Synced / Healthy`, the `headlamp` namespace will exist.
 
-Generate a login token:
+Generate a login token using the `headlamp-admin` service account (cluster-admin rights):
 ```bash
-kubectl create token headlamp -n headlamp --duration=24h
+kubectl create token headlamp-admin -n headlamp --duration=24h
 ```
 
-Access Headlamp at **https://headlamp.gkcluster.org** (or via port-forward):
+Access Headlamp at **https://headlamp.gkcluster.org** (once DNS resolves), or via port-forward:
 ```bash
-kubectl port-forward svc/headlamp -n headlamp 8081:80
-# then open http://localhost:8081
+kubectl port-forward svc/headlamp -n headlamp 4466:80
+# then open http://localhost:4466
 ```
+
+Paste the token into the Headlamp login screen.
 
 ## Notes
 
