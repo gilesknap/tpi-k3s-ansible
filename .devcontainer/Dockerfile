@@ -8,6 +8,7 @@ ENV PIP_ROOT_USER_ACTION=ignore
 RUN rm -f /etc/apt/sources.list.d/yarn.list
 RUN apt-get update -y && apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
+    apache2-utils \
     dnsutils
 
 # Install ansible python packages

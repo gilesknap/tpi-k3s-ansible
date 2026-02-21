@@ -93,7 +93,7 @@ RKLlama and Echo are intentionally left without authentication.
 
 ```bash
 # Prompt for password (not echoed to terminal)
-read -s -p "Enter admin password: " PASSWORD && echo
+printf "Enter admin password: " && read -s PASSWORD && echo
 
 # Generate htpasswd entry (user: admin)
 HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
