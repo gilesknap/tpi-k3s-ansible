@@ -167,7 +167,7 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 - Turing Pi v2.5, 4 slots: node01=CM4 (slot 1), node02/03/04=RK1 (slots 2-4)
 - BMC hostname: `turingpi` → `192.168.1.80`
 - node01 (control plane) → `192.168.1.81`, workers on .82/.83/.84
-- DNS entries for all cluster services (`*.gkcluster.org`) point to `192.168.1.81`
+- DNS entries for all cluster services (`*.gkcluster.org`) point to `192.168.1.82`/`.83`/`.84` (worker nodes — ingress LoadBalancer IPs; NOT the control plane `.81`)
 - Branch in use: `llm-simplify`
 
 ### Cluster Status

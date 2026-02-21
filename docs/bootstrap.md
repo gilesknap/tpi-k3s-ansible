@@ -14,7 +14,15 @@ The cluster relies on your router assigning stable DHCP addresses to each node b
 | 192.168.1.83   | node03   | K3s worker                  |
 | 192.168.1.84   | node04   | K3s worker                  |
 
-DNS entries for all cluster services (e.g. `argocd.gkcluster.org`, `headlamp.gkcluster.org`) should point to **192.168.1.81** (node01, the control plane, where ingress-nginx runs).
+DNS entries for all cluster services (e.g. `argocd.gkcluster.org`, `headlamp.gkcluster.org`) must point to **one or more of the worker nodes** (192.168.1.82 / 192.168.1.83 / 192.168.1.84) — **not** the control plane (192.168.1.81). The ingress-nginx LoadBalancer runs on the workers, not the control plane. You can add up to three A records for the same wildcard hostname for basic round-robin:
+
+```
+*.gkcluster.org  A  192.168.1.82
+*.gkcluster.org  A  192.168.1.83
+*.gkcluster.org  A  192.168.1.84
+```
+
+Alternatively a single worker IP is sufficient — kube-proxy routes traffic to the ingress pod regardless of which worker receives it.
 
 ## Step 1: Run the Playbook
 
@@ -51,7 +59,7 @@ Login with username `admin` and the password above.
 
 ### Via ingress (once DNS is working)
 
-Once your DNS entries resolve `argocd.gkcluster.org` → `192.168.1.81`, you can access ArgoCD at **https://argocd.gkcluster.org** directly.
+Once your DNS entries resolve `argocd.gkcluster.org` → a worker node IP (e.g. `192.168.1.82`), you can access ArgoCD at **https://argocd.gkcluster.org** directly.
 
 ## Step 3: Watch ArgoCD Sync
 
