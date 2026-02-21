@@ -11,27 +11,31 @@ INTERNET
   │
   ▼
 Cloudflare Edge (WAF, DDoS protection, CDN)
+  │  DNS: echo.gkcluster.org → <tunnel>.cfargotunnel.com  (Proxied ☁)
   │  HTTPS (Cloudflare manages external TLS)
   ▼
 cloudflared pod (in cluster, outbound connection only — no inbound firewall ports needed)
-  │  HTTPS to internal service
+  │  HTTP to ingress-nginx
   ▼
-ingress-nginx (192.168.1.81:443)
-  │  Routes by Host header
-  ▼
-echo service (echo.gkcluster.org only)
+ingress-nginx → echo service
 
 LOCAL NETWORK
-  Clients → router DNS: *.gkcluster.org → 192.168.1.81
-           directs to ingress-nginx without going via Cloudflare
-           (argocd, headlamp, longhorn, grafana, etc.)
+  DNS: grafana/argocd/headlamp/longhorn.gkcluster.org → 192.168.1.82  (grey-cloud A records)
+  Clients resolve directly to ingress-nginx without going via Cloudflare
 ```
 
 **Key design decisions:**
 
-- **Only `echo.gkcluster.org` is in the tunnel.** All other services return 404 from the
-  Cloudflare tunnel for external requests. They are reachable from your LAN via a local DNS
-  override.
+- **Only `echo.gkcluster.org` is in the tunnel.** It has an explicit Cloudflare Tunnel DNS
+  record (proxied). All other services use grey-cloud (DNS-only) A records pointing directly
+  at the cluster's ingress IP — accessible from your LAN, but not reachable from the internet
+  since the IP is private (`192.168.1.x`).
+- **No wildcard CNAME in Cloudflare DNS.** A proxied `*` CNAME causes Cloudflare to
+  advertise ECH (Encrypted Client Hello) via HTTPS DNS records for every subdomain. Chrome
+  attempts ECH via Cloudflare's edge, which has no certificate for unregistered subdomains,
+  causing `ERR_ECH_FALLBACK_CERTIFICATE_INVALID`. Each service must therefore have an
+  **explicit** DNS record (either a Tunnel record for public services, or a grey-cloud A
+  record for LAN-only services).
 - **DNS-01 challenge for TLS certificates.** Let's Encrypt validates domain ownership by
   looking for a `_acme-challenge` TXT record in Cloudflare DNS. cert-manager automates
   this via the Cloudflare API. This works for **all** hostnames — including LAN-only services
@@ -140,11 +144,14 @@ After saving the public hostname, Cloudflare automatically creates a CNAME DNS r
 echo.gkcluster.org  →  <tunnel-id>.cfargotunnel.com   (Proxied ☁)
 ```
 
-> All other subdomains (`argocd`, `headlamp`, etc.) should **not** have Cloudflare-proxied
-> DNS records.
+> **Do not add a wildcard `*` CNAME record (proxied or otherwise).** A proxied wildcard
+> causes Cloudflare to publish an HTTPS DNS record advertising ECH for every subdomain,
+> pointing at Cloudflare's edge. Chrome will attempt ECH via that edge for any subdomain
+> (e.g. `grafana.gkcluster.org`), but Cloudflare has no cert for it, resulting in
+> `ERR_ECH_FALLBACK_CERTIFICATE_INVALID` even when the backend is perfectly healthy.
 >
-> For these LAN-only services the DNS entries are managed by your router
-> — see [Part 3](#part-3-local-dns-for-lan-only-services).
+> Instead, add explicit **grey-cloud A records** for each LAN-only service
+> — see [Part 3](#part-3-cloudflare-dns-records-for-lan-only-services).
 
 ### 1.6 Create an API token for DNS-01 certificate issuance
 
@@ -198,32 +205,37 @@ You can add an additional rate-limiting rule to prevent abuse of the echo endpoi
 
 ---
 
-## Part 3: Local DNS for LAN-only services
+## Part 3: Cloudflare DNS records for LAN-only services
 
-For services not exposed via the tunnel (`argocd`, `headlamp`, `longhorn`, `grafana`), your
-LAN clients need to resolve their hostnames to the cluster's ingress IP (`192.168.1.81`)
-without going via Cloudflare.
+For services not exposed via the tunnel (`argocd`, `headlamp`, `longhorn`, `grafana`),
+add an explicit **grey-cloud (DNS-only) A record** in Cloudflare DNS for each one:
 
-Configure your router (or a local DNS server like Pi-hole) to resolve:
+| Type | Name | Content | Proxy status |
+|------|------|---------|-------------|
+| A | `argocd` | `192.168.1.82` | DNS only (grey cloud) |
+| A | `headlamp` | `192.168.1.82` | DNS only (grey cloud) |
+| A | `longhorn` | `192.168.1.82` | DNS only (grey cloud) |
+| A | `grafana` | `192.168.1.82` | DNS only (grey cloud) |
 
-```
-*.gkcluster.org  →  192.168.1.81
-```
+Use one of the worker node IPs (`192.168.1.82`–`.84`) — the ingress LoadBalancer is
+reachable on all of them.
 
-Or add individual A records if your router doesn't support wildcard DNS overrides:
+These records resolve to a private RFC-1918 address, so they are only reachable from
+your LAN. External clients will get a DNS response pointing at an unreachable IP.
 
-```
-argocd.gkcluster.org    →  192.168.1.81
-headlamp.gkcluster.org  →  192.168.1.81
-longhorn.gkcluster.org  →  192.168.1.81
-grafana.gkcluster.org   →  192.168.1.81
-```
+> **Why Cloudflare DNS records and not router DNS?**
+> Adding the records in Cloudflare means they work for any LAN client that uses the public
+> Cloudflare nameservers (most do), without needing to configure your router. It also keeps
+> all DNS for the domain in one place.
 
-These overrides take priority over public Cloudflare DNS for LAN clients,
-routing traffic directly to ingress-nginx without passing through Cloudflare.
+> **Why not a wildcard `*` A record?**
+> A proxied wildcard causes Chrome's `ERR_ECH_FALLBACK_CERTIFICATE_INVALID` (see §1.5).
+> A grey-cloud wildcard would work around the ECH issue, but is still best avoided — explicit
+> records make it immediately clear which services are intentionally accessible and which are
+> not.
 
 > Certificates for these services are still issued via Let's Encrypt DNS-01 and are fully
-> trusted by browsers — the LAN routing is transparent to certificate validation.
+> trusted by browsers — the grey-cloud routing is transparent to certificate validation.
 
 ---
 
