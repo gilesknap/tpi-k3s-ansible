@@ -31,6 +31,20 @@
     state: link
   become: true
 
+- name: Check if helm-diff plugin is functional
+  ansible.builtin.command:
+    cmd: helm diff version
+  register: helm_diff_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Remove broken helm-diff plugin if present
+  ansible.builtin.command:
+    cmd: helm plugin uninstall helm-diff
+  when: helm_diff_check.rc != 0
+  ignore_errors: true
+  changed_when: true
+
 - name: Install helm plugins
   ansible.builtin.command:
     cmd: helm plugin install https://github.com/databus23/helm-diff

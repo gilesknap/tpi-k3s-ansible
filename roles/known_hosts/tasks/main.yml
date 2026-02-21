@@ -25,6 +25,7 @@
     cmd: "ssh-keyscan {{ inventory_hostname }}"
   register: new_node_ssh_keys
   changed_when: false
+  failed_when: false
 
 - name: Add/update the host's public keys in known_hosts file
   delegate_to: localhost
@@ -33,5 +34,5 @@
     key: "{{ item }}"
     state: present
   loop: "{{ new_node_ssh_keys.stdout_lines }}"
-  when: not item.startswith('#')
+  when: new_node_ssh_keys.rc == 0 and not item.startswith('#')
   register: known_hosts_update
