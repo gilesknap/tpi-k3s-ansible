@@ -117,3 +117,44 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 ---
 
 ## File Editing Guidance
+---
+
+## Current Session State (as of 2026-02-21)
+
+### Hardware
+- Turing Pi v2.5, 4 slots: node01=CM4 (slot 1), node02/03/04=RK1 (slots 2-4)
+- BMC hostname: `turingpi`, user: `root`
+- node02, node03, node04 have NVMEs and previously had `move_fs` run
+- node01 (CM4) is currently being flashed after BMC power-cycle fixed USB errors
+- Branch in use: `add-cloudflared` (ArgoCD must be passed `-e repo_branch=add-cloudflared`)
+
+### Key Findings This Session
+- **All `tpi flash` USB errors were caused by a BMC USB enumeration bug** — fixed by power-cycling the BMC. NOT caused by NVME migration.
+- `ubuntu-rockchip-install` does NOT change the boot device — eMMC remains the bootloader. Re-flashing eMMC always fully restores a node.
+- `move_fs` role is correct as-is; the old comment claiming it broke flashing was wrong (now fixed).
+
+### What Was Fixed This Session
+- `ansible.cfg`: `stdout_callback = ansible.builtin.default` + `result_format = yaml` (community.general.yaml removed in v12)
+- `roles/tools/tasks/helm.yml`: helm-diff health check uses `failed_when: false` (not `ignore_errors`) to suppress red output; reinstalls if broken
+- `roles/known_hosts/tasks/main.yml`: `ssh-keyscan` is non-fatal; skips offline/unresolvable nodes
+- `roles/move_fs/tasks/move_fs.yml`: `ansible_mounts` → `ansible_facts['mounts']`; corrected misleading comment
+- `group_vars/all.yml`: `do_flash` checks `flash_force` first; `ansible_default_ipv4` → `ansible_facts['default_ipv4']`; `control_plane_ip` removed (set as fact in k3s role instead)
+- `roles/flash/tasks/node.yml`: `flash_force | bool` added to `when:` conditions
+- `roles/k3s/tasks/main.yml`: `control_plane_ip` set as `set_fact` here (hostvars available at task time)
+- `roles/flash/tasks/bootstrap.yml`: `wait_for` (port 22, delegated to localhost) after MSD switch; `until:` added to block device retry
+- `roles/flash/tasks/flash.yml`: removed `> /tmp/flash.log` redirect; added power-cycle + 10s pause before flash; `failed_when` catches `Error occured` in stdout; retries 3x with power-cycle between attempts
+- `roles/flash/vars/main.yml`: RPi4 image updated to `24.04.4` with correct SHA
+- `roles/move_fs/tasks/move_fs.yml`: comment corrected — `ubuntu-rockchip-install` keeps eMMC as boot device
+
+### Next Steps
+1. **Confirm node01 flash completes successfully**
+2. **Run full playbook** for all nodes: `ansible-playbook pb_all.yml -e flash_force=true -e repo_branch=add-cloudflared`
+3. **If flash USB errors recur** on other nodes: power-cycle the BMC (not the nodes)
+4. **Verify cluster comes up**: K3s control plane on node01, workers on node02/03/04
+5. **Verify ArgoCD deploys** kubernetes-services from `add-cloudflared` branch
+6. **Primary goal of this branch**: add cloudflared tunnel service to the cluster
+
+### Files Created This Session (may be cleaned up)
+- `pb_recover_nvme.yml` — no longer needed (NVME migration doesn't break flashing); can be deleted
+- `roles/flash/tasks/recover_nvme_boot.yml` — no longer needed; can be deleted
+- `docs/recover-rk1-maskrom.md` — no longer needed; can be deleted
