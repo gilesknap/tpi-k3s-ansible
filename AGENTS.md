@@ -5,6 +5,11 @@
 When using the `run_in_terminal` tool:
 
 - The tool result may show only a minimal acknowledgment (e.g., `#` with a timestamp) rather than the actual command output
+- This is because the shell prompt is two lines — the tool captures only the second line (`#`) as the acknowledgment, e.g.:
+  ```
+  root@ws03: /workspaces/tpi-k3s-llm llm-simplify
+  #
+  ```
 - **ALWAYS** use `terminal_last_command` tool afterward to retrieve the actual output if the `run_in_terminal` result appears empty or truncated
 - Check the exit code in the context to determine if the command succeeded before assuming failure
 
