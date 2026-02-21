@@ -14,23 +14,51 @@ spec:
       labels:
         app: sysctl-tuning
     spec:
-      hostNetwork: true  # Share the host's network namespace for network-related sysctl changes
-      hostPID: true  # Access the host's PID namespace for sysctl commands
+      hostNetwork: true
+      hostPID: true
       initContainers:
-      - name: sysctl-init  # Init container to set sysctl parameters
+      - name: sysctl-init
         image: busybox:latest
         command:
         - /bin/sh
         - -c
         - |
-          sysctl -w net.core.rmem_max=7500000  # Set the maximum receive buffer size
-          sysctl -w net.core.wmem_max=7500000  # Set the maximum send buffer size
+          sysctl -w net.core.rmem_max=7500000
+          sysctl -w net.core.wmem_max=7500000
         securityContext:
-          privileged: true  # Privileged access to modify sysctl settings on the host
-      containers:
-      - name: sleep-container  # Main container to keep the pod running
+          privileged: true
+      - name: multipath-longhorn-fix
         image: busybox:latest
         command:
         - /bin/sh
         - -c
-        - sleep infinity  # Keep the pod alive indefinitely
+        - |
+          # Blacklist Longhorn NBD block devices from multipathd.
+          # Without this, multipathd on Ubuntu 24.04 holds an open reference on
+          # /dev/nbdX devices the moment Longhorn attaches them, causing mke2fs
+          # to fail with "Device or resource busy while setting up superblock".
+          mkdir -p /host/etc/multipath/conf.d
+          cat > /host/etc/multipath/conf.d/longhorn.conf << 'EOF'
+          blacklist {
+              devnode "^nbd[0-9]+"
+          }
+          EOF
+          chroot /host systemctl reload multipathd 2>/dev/null \
+            || chroot /host systemctl restart multipathd 2>/dev/null \
+            || echo "multipathd reload skipped (not running)"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      containers:
+      - name: sleep-container
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - sleep infinity
