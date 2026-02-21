@@ -52,7 +52,7 @@ updating the nameservers at your registrar.
 2. In 'Account Home' use 'Onboard a Domain' or 'Buy a Domain'.
 3. Wait for propagation (usually a few minutes to an hour).
 
-### 1.2 Navigate Tunnels
+### 1.2 Navigate to Tunnels
 
 In the Cloudflare dashboard, click **Networking -> Tunnels** in the sidebar. This is where you will create and manage your tunnels.
 
@@ -74,10 +74,51 @@ In the Cloudflare dashboard, click **Networking -> Tunnels** in the sidebar. Thi
 > **Note:** You can retrieve the token again later in **Zero Trust → Networks → Tunnels →
 > click the tunnel name → Configure → Connector token**.
 
-Note the **Tunnel ID** (UUID format, shown on the tunnel details page). You will need it
-for `kubernetes-services/additions/cloudflared/values.yaml`.
-
 [Screenshot: Tunnel details page showing Tunnel ID]
+
+#### 1.3a Deploy cloudflared before continuing
+
+Cloudflare's UI will not let you save a public hostname until it can see a live tunnel
+connection. You must deploy the cloudflared pod and let it connect **now**, before proceeding
+to §1.4.
+
+Create a SealedSecret from the token you just copied:
+
+```bash
+# printf shows the prompt; read -rs reads silently without echoing or storing in history.
+# Piping via /dev/stdin prevents the token appearing in process args (ps / /proc).
+printf 'Tunnel token: ' && read -rs TOKEN && echo
+printf '%s' "$TOKEN" | \
+  kubectl create secret generic cloudflared-credentials \
+    --namespace cloudflared \
+    --from-file=TUNNEL_TOKEN=/dev/stdin \
+    --dry-run=client -o yaml | \
+  kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
+    kubernetes-services/additions/cloudflared/tunnel-secret.yaml
+unset TOKEN
+```
+
+Commit and push so ArgoCD picks it up:
+
+```bash
+git add kubernetes-services/additions/cloudflared/tunnel-secret.yaml
+git commit -m "Add cloudflared tunnel token SealedSecret"
+git push
+```
+
+ArgoCD will sync the `cloudflared` Application, sealed-secrets will decrypt the secret, and
+the cloudflared pod will start and connect outward to Cloudflare's edge. Watch the pod come
+up:
+
+```bash
+kubectl rollout status deployment/cloudflared -n cloudflared
+kubectl logs -n cloudflared deployment/cloudflared | tail -20
+```
+
+Look for `Registered tunnel connection` in the logs. In the Cloudflare UI the tunnel status
+should flip to **Healthy** (green). Only then continue to the next step.
+
+[Screenshot: Zero Trust → Tunnels list showing tunnel status as Healthy/green]
 
 ### 1.4 Configure a public hostname
 
@@ -99,8 +140,8 @@ against the internal address).
 [Screenshot: "Add a public hostname" form with the values above filled in]
 
 **Do not add public hostnames for argocd, headlamp, longhorn, grafana, or any other service.**
-Those are LAN-only — their entries in `cloudflared/values.yaml` have been intentionally
-removed. External requests for those hostnames will hit the catch-all and receive a 404.
+Those are LAN-only — only `echo` belongs in the Cloudflare dashboard tunnel config.
+External requests for other hostnames will hit the catch-all rule and receive a 404.
 
 ### 1.5 DNS record created automatically
 
@@ -203,40 +244,23 @@ routing traffic directly to ingress-nginx without passing through Cloudflare.
 
 ### 4.1 Tunnel token secret (cloudflared)
 
-Using the tunnel token copied in Step 1.3:
-
-```bash
-kubectl create secret generic cloudflared-credentials \
-  --namespace cloudflared \
-  --from-literal=TUNNEL_TOKEN=<YOUR_TUNNEL_TOKEN> \
-  --dry-run=client -o yaml | \
-  kubeseal --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/cloudflared/tunnel-secret.yaml
-```
-
-Then commit and push:
-
-```bash
-git add kubernetes-services/additions/cloudflared/tunnel-secret.yaml
-git commit -m "Add cloudflared tunnel token SealedSecret"
-git push
-```
-
-ArgoCD will pick up the change and apply the SealedSecret. sealed-secrets decrypts it
-into a plain `cloudflared-credentials` secret that the cloudflared pod reads as
-`TUNNEL_TOKEN`.
+Covered in [§1.3a](#13a-deploy-cloudflared-before-continuing) — the secret must be created
+and the pod must be running before the Cloudflare UI allows public hostname configuration.
 
 ### 4.2 Cloudflare API token secret (DNS-01)
 
 Using the API token copied in Step 1.6:
 
 ```bash
-kubectl create secret generic cloudflare-api-token \
-  --namespace cert-manager \
-  --from-literal=api-token=<YOUR_CLOUDFLARE_API_TOKEN> \
-  --dry-run=client -o yaml | \
-  kubeseal --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+printf 'Cloudflare API token: ' && read -rs TOKEN && echo
+printf '%s' "$TOKEN" | \
+  kubectl create secret generic cloudflare-api-token \
+    --namespace cert-manager \
+    --from-file=api-token=/dev/stdin \
+    --dry-run=client -o yaml | \
+  kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
+    kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+unset TOKEN
 ```
 
 Then commit and push:
@@ -250,16 +274,6 @@ git push
 The `cert-manager` ArgoCD Application already sources the
 `kubernetes-services/additions/cert-manager/` directory, so the SealedSecret will be synced
 automatically.
-
-### 4.3 Update cloudflared values
-
-Edit `kubernetes-services/additions/cloudflared/values.yaml` and set:
-
-- `tunnelId`: the UUID from Step 1.3
-- `tunnelName`: the name you chose (e.g. `gk2`)
-
-The `ingress` section is already configured to expose only `echo.gkcluster.org`. All previous
-entries (argocd, headlamp, longhorn, grafana) have been removed.
 
 ### 4.4 cert-manager ClusterIssuer
 

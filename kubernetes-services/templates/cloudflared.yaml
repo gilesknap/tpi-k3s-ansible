@@ -11,18 +11,14 @@ spec:
     namespace: cloudflared
   project: kubernetes
   sources:
-    # https://artifacthub.io/packages/helm/cloudflare/cloudflared
-    - chart: cloudflared
-      targetRevision: 0.3.6
-      repoURL: https://cloudflare.github.io/helm-charts
-      helm:
-        valueFiles:
-          - $values/kubernetes-services/additions/cloudflared/values.yaml
-
-    - repoURL: {{ .Values.repo_remote }}
+    # Remotely managed tunnel — all routing rules are configured in the Cloudflare
+    # Zero Trust dashboard. The pod just needs the tunnel token from the SealedSecret.
+    # No Helm chart: the official cloudflare/cloudflared chart was renamed and no longer
+    # supports referencing an existing secret. Plain manifests are simpler and more
+    # transparent. See additions/cloudflared/ for deployment and secret placeholder.
+    - path: ./kubernetes-services/additions/cloudflared
+      repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
-      ref: values
-
   syncPolicy:
     automated:
       prune: true
