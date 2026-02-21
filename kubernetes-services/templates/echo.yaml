@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: echo
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: echo
+  project: kubernetes
+  sources:
+    # Echo test service — Deployment, Service, and Ingress as plain manifests.
+    # Exposed publicly via the Cloudflare tunnel at echo.gkcluster.org.
+    # Useful for verifying tunnel connectivity and TLS certificate issuance.
+    - path: ./kubernetes-services/additions/echo
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
