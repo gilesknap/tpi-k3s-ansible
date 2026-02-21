@@ -33,6 +33,28 @@ read_file: /tmp/out.txt
 
 ---
 
+## GitOps: Always Fix in the Repo, Never in the Cluster
+
+**CRITICAL: Do not patch, edit, or apply resources directly to the cluster to fix problems.**
+
+ArgoCD manages all cluster state — any direct `kubectl apply`, `kubectl patch`, or `kubectl edit`
+will either be immediately reverted by ArgoCD's self-heal, or will create drift that obscures the
+true state of the system.
+
+The correct workflow for any fix is always:
+1. Edit the relevant file(s) in the repo
+2. `git commit` and `git push`
+3. ArgoCD detects the change and reconciles the cluster automatically
+
+The only legitimate `kubectl` commands during a fix are **read-only** (e.g. `kubectl get`,
+`kubectl logs`, `kubectl describe`) to diagnose the problem before editing the repo.
+
+The one exception is generating and committing **SealedSecrets** — `kubeseal` reads from the
+live cluster's public key, but the resulting file is committed to the repo and applied by ArgoCD,
+so it still follows the GitOps flow.
+
+---
+
 ## Project Overview
 
 This is an **Infrastructure-as-Code (IaC)** Ansible project that commissions a **K3s Kubernetes cluster** on Turing Pi v2.5 boards (with RK1 or CM4 compute modules) and arbitrary extra Linux nodes. It flashes Ubuntu 24.04 LTS, installs K3s, and deploys services via ArgoCD — all idempotent and repeatable.
