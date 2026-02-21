@@ -52,16 +52,17 @@
     seconds: 10
 
 - name: Flash image to {{ node_name }} # noqa no-changed-when
-  # tpi flash can fail with a transient USB enumeration error; power-cycle between attempts
+  # async+poll prints a status line every 15s so you can see it isn't hung.
+  # Note: async is incompatible with retries/until; those are removed here.
+  # If tpi flash fails with a USB enumeration error, power-cycle the BMC and re-run.
   ansible.builtin.raw: >-
     tpi power off -n {{ node.slot_num }} &&
     sleep 15 &&
     tpi flash -n {{ node.slot_num }} --image-path {{ image.osf_remote }} --sha256 {{ image.sha }}
   register: flash_results
-  retries: 3
-  delay: 5
-  until: flash_results.rc == 0 and 'Error occured' not in (flash_results.stdout | default(''))
   failed_when: flash_results.rc != 0 or 'Error occured' in (flash_results.stdout | default(''))
+  async: 600
+  poll: 15
   # use pre_flashed to skip this step when testing bootstrapping
   when: not flash_pre_flashed
 
