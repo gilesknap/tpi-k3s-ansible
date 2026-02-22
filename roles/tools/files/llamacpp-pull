@@ -205,9 +205,7 @@ def _do_download(url: str, dest: str, filename: str) -> None:
                         "name": "downloader",
                         "image": "alpine",
                         "command": ["sh", "-c", "sleep 7200"],
-                        "volumeMounts": [
-                            {"name": "models", "mountPath": "/models"}
-                        ],
+                        "volumeMounts": [{"name": "models", "mountPath": "/models"}],
                     }
                 ],
             }
@@ -217,16 +215,27 @@ def _do_download(url: str, dest: str, filename: str) -> None:
     try:
         subprocess.check_call(
             [
-                "kubectl", "run", pod_name, "-n", "llamacpp",
-                "--image=alpine", "--restart=Never",
-                "--overrides", overrides,
+                "kubectl",
+                "run",
+                pod_name,
+                "-n",
+                "llamacpp",
+                "--image=alpine",
+                "--restart=Never",
+                "--overrides",
+                overrides,
             ]
         )
         print("Waiting for downloader pod to be ready ...")
         subprocess.check_call(
             [
-                "kubectl", "wait", f"pod/{pod_name}", "-n", "llamacpp",
-                "--for=condition=Ready", "--timeout=120s",
+                "kubectl",
+                "wait",
+                f"pod/{pod_name}",
+                "-n",
+                "llamacpp",
+                "--for=condition=Ready",
+                "--timeout=120s",
             ]
         )
 
@@ -237,7 +246,8 @@ def _do_download(url: str, dest: str, filename: str) -> None:
         if check.returncode == 0:
             overwrite = (
                 input(f"\n'{filename}' already exists. Re-download? [y/N]: ")
-                .strip().lower()
+                .strip()
+                .lower()
             )
             if overwrite != "y":
                 print("Skipped.")
@@ -252,8 +262,16 @@ def _do_download(url: str, dest: str, filename: str) -> None:
         )
         result = subprocess.run(
             [
-                "kubectl", "exec", "-n", "llamacpp", pod_name, "--",
-                "wget", "-O", dest, url,
+                "kubectl",
+                "exec",
+                "-n",
+                "llamacpp",
+                pod_name,
+                "--",
+                "wget",
+                "-O",
+                dest,
+                url,
             ]
         )
         if result.returncode != 0:
@@ -264,7 +282,12 @@ def _do_download(url: str, dest: str, filename: str) -> None:
         print("\nRemoving downloader pod ...")
         subprocess.run(
             [
-                "kubectl", "delete", "pod", pod_name, "-n", "llamacpp",
+                "kubectl",
+                "delete",
+                "pod",
+                pod_name,
+                "-n",
+                "llamacpp",
                 "--ignore-not-found=true",
             ],
             capture_output=True,
