@@ -4,22 +4,69 @@ After the Ansible playbook completes, ArgoCD is installed and will begin syncing
 services. This guide covers the post-deployment steps: setting up credentials and
 accessing each service.
 
+## Fixed DHCP Leases
+
+These first two steps involve configuring your router.
+
+Before setting up DNS, assign **fixed DHCP leases** (also called "static leases" or
+"address reservations") to each node in your router's DHCP settings. This ensures
+nodes always receive the same IP address after a reboot — without fixed leases, your
+DNS records could become stale.
+
+Find your nodes' MAC addresses with `ip link` or `arp -a`, then map each one to a
+static IP in your router's admin interface (e.g. `192.168.1.82`, `.83`, `.84`).
+
+:::{tip}
+At commissioning time, the nodes will have been given names `node01`, `node02`, etc,
+using mDNS.
+
+You can use these names to identify them in your router and then assign fixed IPs
+accordingly.
+:::
+
 ## DNS Prerequisites
 
-DNS entries for all cluster services (e.g. `argocd.example.com`, `grafana.example.com`)
-must point to **one or more worker node IPs** — not the control plane. The ingress-nginx
-LoadBalancer runs on the workers.
+Each service with an ingress needs a DNS A record pointing to your **worker node IPs**
+(not the control plane). For single-node clusters, point to that node's IP.
 
-Example DNS setup for round-robin across three workers:
+The following services require DNS entries:
+
+| DNS Name | Service | Auth |
+|----------|---------|------|
+| `argocd.<domain>` | ArgoCD (SSL passthrough) | admin + shared password |
+| `grafana.<domain>` | Grafana dashboards | admin + shared password |
+| `longhorn.<domain>` | Longhorn storage UI | admin + shared password (basic-auth) |
+| `headlamp.<domain>` | Headlamp dashboard | Kubernetes token |
+| `rkllama.<domain>` | RKLlama LLM server | None |
+
+:::{note}
+The **echo** service is not included in local DNS — it is intended as a public-facing
+service exposed via the Cloudflare tunnel. Its only purpose is to test the tunnel and
+demonstrate an externally accessible service. It becomes available after completing the
+{doc}`cloudflare-tunnel` setup.
+:::
+
+For high availability, create **one A record per worker node** for each hostname so
+that `kube-proxy` can route to the ingress pod regardless of which worker receives
+the request:
+
+| Type | Name | Content |
+|------|------|---------|
+| A | `argocd` | `192.168.1.82` |
+| A | `argocd` | `192.168.1.83` |
+| A | `argocd` | `192.168.1.84` |
+| etc | ... | ... |
+
+:::{tip}
+If your DNS provider supports wildcard records, a single `*.<domain>` record per
+worker is much simpler:
 
 ```
-*.example.com  A  192.168.1.82
-*.example.com  A  192.168.1.83
-*.example.com  A  192.168.1.84
+*.<domain>  A  192.168.1.82
+*.<domain>  A  192.168.1.83
+*.<domain>  A  192.168.1.84
 ```
-
-A single worker IP is also sufficient — kube-proxy routes traffic to the ingress pod
-regardless of which worker receives it.
+:::
 
 ## Access ArgoCD
 

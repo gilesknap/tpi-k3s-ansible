@@ -174,26 +174,6 @@ kubectl get applications -n argo-cd
 
 All applications should reach `Synced` and `Healthy` status within a few minutes.
 
-## DNS Configuration
-
-For ingress to work, DNS entries for `*.<your-domain>` must point to **one or more
-worker node IPs** (not the control plane). The ingress-nginx LoadBalancer runs on
-worker nodes.
-
-For example, if using Cloudflare DNS:
-
-| Type | Name | Content | Proxy |
-|------|------|---------|-------|
-| A | `argocd` | `192.168.1.102` | DNS only |
-| A | `grafana` | `192.168.1.102` | DNS only |
-| A | `longhorn` | `192.168.1.102` | DNS only |
-
-Alternatively, set up a wildcard A record if you do not need Cloudflare proxy features:
-
-```
-*.example.com  A  192.168.1.102
-```
-
 ## Next Steps
 
 - {doc}`/how-to/bootstrap-cluster` — set up admin passwords and access cluster services
