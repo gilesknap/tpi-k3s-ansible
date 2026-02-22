@@ -72,8 +72,19 @@
     update_cache: true
   when: nvidia_gpu_node | default(false)
 
-- name: Configure containerd to use NVIDIA runtime
-  ansible.builtin.command: nvidia-ctk runtime configure --runtime=containerd
+# k3s ships its own containerd instance — the config must go to the k3s agent
+# path, not /etc/containerd/config.toml (which is the system containerd).
+- name: Ensure k3s containerd config directory exists
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s/agent/etc/containerd
+    state: directory
+    mode: "0755"
+  when: nvidia_gpu_node | default(false)
+
+- name: Configure k3s containerd to use NVIDIA runtime
+  ansible.builtin.command: >
+    nvidia-ctk runtime configure --runtime=containerd
+    --config /var/lib/rancher/k3s/agent/etc/containerd/config.toml
   changed_when: true  # always re-run to ensure config is current
   when: nvidia_gpu_node | default(false)
-  notify: Restart containerd
+  notify: Restart k3s-agent
