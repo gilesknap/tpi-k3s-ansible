@@ -55,6 +55,28 @@ so it still follows the GitOps flow.
 
 ---
 
+## Ansible: Always Update Roles, Never Run Ad-hoc Commands
+
+**CRITICAL: Do not suggest or run ad-hoc `ansible` or `ansible-playbook` commands to fix or
+configure nodes.**
+
+All node configuration is managed by Ansible roles in `roles/`. Any required package, setting,
+or file that needs to be present on cluster nodes must be encoded in the appropriate role so it
+is applied idempotently on every future node provisioning.
+
+The correct workflow for any node-level change is always:
+1. Edit the relevant role task file (e.g. `roles/update_packages/tasks/main.yml`)
+2. `git commit` and `git push`
+3. The user re-runs the relevant playbook/tag against their cluster
+
+Common roles to update:
+- **`roles/update_packages`** — OS packages that must be present on all nodes
+- **`roles/tools`** — CLI tools (helm, kubectl, kubeseal, etc.) installed on the control node
+- **`roles/k3s`** — K3s installation and configuration
+- **`roles/cluster`** — ArgoCD bootstrap and cluster-level setup
+
+---
+
 ## Cloudflare Tunnel UI Notes
 
 The Cloudflare Zero Trust dashboard public hostname configuration has **no separate "Service
