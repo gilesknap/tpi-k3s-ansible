@@ -7,11 +7,3 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apache2-utils \
     dnsutils \
     && rm -rf /var/lib/apt/lists/*
-
-# Install ansible and related python packages
-RUN pip install --no-cache-dir \
-    ansible \
-    argcomplete \
-    ansible-lint \
-    jmespath \
-    kubernetes

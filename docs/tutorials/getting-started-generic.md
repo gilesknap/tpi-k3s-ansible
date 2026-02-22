@@ -143,9 +143,16 @@ This runs only the relevant stages:
 4. **`cluster`** — installs ArgoCD and deploys all cluster services
 
 :::{note}
-The `tools` tag (helm, kubectl installation in the devcontainer) runs automatically as
-part of the devcontainer setup. You can include it explicitly if needed:
-`--tags tools,known_hosts,servers,k3s,cluster`
+The `tools` tag installs helm, kubectl, and kubeseal into the devcontainer (`localhost`).
+It is **not** run automatically by the devcontainer build — you must run it manually
+(or include it in the playbook run, as shown above):
+
+```bash
+ansible-playbook pb_all.yml --tags tools
+```
+
+The installed binaries are placed in `/root/bin` which is backed by the `iac2-bin`
+Docker volume, so they persist across container rebuilds.
 :::
 
 ### What about `move_fs`?

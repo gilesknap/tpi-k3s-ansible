@@ -111,8 +111,9 @@ code .
 When prompted, select **"Reopen in Container"** (or use
 `Ctrl+Shift+P` → `Dev Containers: Reopen in Container`).
 
-The devcontainer provides all required tools: Ansible, kubectl, helm, kubeseal, and more.
-No additional installation is needed on your workstation.
+The devcontainer provides Ansible (and its Python dependencies) out of the box.
+Cluster tools (kubectl, helm, kubeseal) are installed later by the `tools` role when
+you run the playbook. No additional installation is needed on your workstation.
 
 ## Step 5: Configure the inventory
 
