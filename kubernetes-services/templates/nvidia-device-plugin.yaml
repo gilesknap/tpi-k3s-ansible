@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nvidia-device-plugin
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nvidia-device-plugin
+  project: kubernetes
+  sources:
+    # NVIDIA k8s-device-plugin — advertises nvidia.com/gpu resources to the
+    # scheduler and labels GPU nodes with nvidia.com/gpu.present=true.
+    # https://github.com/NVIDIA/k8s-device-plugin
+    - chart: nvidia-device-plugin
+      repoURL: https://nvidia.github.io/k8s-device-plugin
+      targetRevision: 0.17.1
+      helm:
+        valuesObject:
+          # Allow the plugin DaemonSet to tolerate GPU nodes that may carry
+          # a NoSchedule taint until the plugin is running.
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

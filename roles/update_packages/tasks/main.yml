@@ -29,3 +29,36 @@
       - original-awk
       - nfs-common   # required for Longhorn ReadWriteMany (RWX) volumes
     update_cache: false
+
+# NVIDIA container toolkit — only installed on nodes with nvidia_gpu_node: true in inventory.
+# Required so that containerd can pass GPU devices into pods requesting nvidia.com/gpu.
+# Set nvidia_gpu_node: true in host_vars/<nodename>.yml for each GPU node.
+- name: Add NVIDIA container toolkit GPG key
+  ansible.builtin.shell:
+    cmd: >
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey
+      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  when: nvidia_gpu_node | default(false)
+
+- name: Add NVIDIA container toolkit apt repository
+  ansible.builtin.shell:
+    cmd: >
+      curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list
+      | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g'
+      | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  when: nvidia_gpu_node | default(false)
+
+- name: Install NVIDIA container toolkit
+  ansible.builtin.apt:
+    pkg:
+      - nvidia-container-toolkit
+    update_cache: true
+  when: nvidia_gpu_node | default(false)
+
+- name: Configure containerd to use NVIDIA runtime
+  ansible.builtin.command: nvidia-ctk runtime configure --runtime=containerd
+  changed_when: true  # always re-run to ensure config is current
+  when: nvidia_gpu_node | default(false)
+  notify: Restart containerd

@@ -5,7 +5,7 @@
 # IMPORTANT: when changing branches, this value AND group_vars/all.yml repo_branch
 # must both be updated to match (they are consumed by different systems:
 # this file by ArgoCD Helm at runtime, all.yml by Ansible bootstrap).
-repo_branch: llms
+repo_branch: nvidia-llms
 
 # NFS storage for RKLLama models — edit these to match your NFS server.
 # This is the single place to configure NFS for rkllama; ArgoCD injects
@@ -14,3 +14,21 @@ rkllama:
   nfs:
     server: 192.168.1.3 # IP address of your NFS server
     path: /bigdisk/LMModels # exported path on the NFS server
+
+# llama.cpp CUDA server configuration.
+# nfs server/path can share the same NFS export as rkllama if models are co-located.
+# model.file: filename of the GGUF model relative to the NFS path root.
+# model.gpuLayers: number of transformer layers to offload to GPU (99 = all).
+# model.contextSize: KV-cache context length in tokens.
+# model.parallel: number of concurrent request slots (one per simultaneous user).
+# model.memoryLimit: Kubernetes memory limit for the container (VRAM + system RAM).
+llamacpp:
+  nfs:
+    server: 192.168.1.3 # IP address of your NFS server
+    path: /bigdisk/LMModels # exported path on the NFS server
+  model:
+    file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf" # GGUF model file on your NFS share
+    gpuLayers: 99 # offload all layers; reduce if GPU VRAM is insufficient
+    contextSize: 8192
+    parallel: 4
+    memoryLimit: "20Gi"
