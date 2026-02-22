@@ -7,7 +7,7 @@ with continuous deployment via [ArgoCD](https://argo-cd.readthedocs.io/).
 Supported hardware:
 
 - **Turing Pi v2.5** boards with RK1 or CM4 compute modules
-- **Any Linux server** with Ubuntu 24.04 LTS (Intel NUC, Raspberry Pi, VMs, cloud instances)
+- **Any Linux server** with any modern Linux (Intel NUC, Raspberry Pi, VMs, cloud instances)
 - **Mixed clusters** combining Turing Pi nodes with standalone servers
 
 ## Key Features
