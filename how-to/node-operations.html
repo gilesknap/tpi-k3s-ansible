@@ -326,6 +326,7 @@
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Node Operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
 </ul>
@@ -391,6 +392,23 @@
   <section id="node-operations">
 <h1>Node Operations<a class="headerlink" href="#node-operations" title="Link to this heading">#</a></h1>
 <p>Common operations for managing cluster nodes: shutdown, reboot, drain, add, and remove.</p>
+<section id="apply-package-updates-to-nodes">
+<h2>Apply package updates to nodes<a class="headerlink" href="#apply-package-updates-to-nodes" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role is part of the <code class="docutils literal notranslate"><span class="pre">servers</span></code> play — <strong>not</strong> a tag of its own.
+To run package updates (e.g. after adding a new package to the role):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># All nodes</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers
+
+<span class="c1"># Specific nodes only</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>--limit<span class="w"> </span>node02,node03
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">update_packages</span></code> will silently do nothing — the correct tag is <code class="docutils literal notranslate"><span class="pre">servers</span></code>,
+which runs both the <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> and <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> roles.</p>
+</div>
+</section>
 <section id="shutdown-all-nodes">
 <h2>Shutdown all nodes<a class="headerlink" href="#shutdown-all-nodes" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible<span class="w"> </span>all_nodes<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;/sbin/shutdown now&quot;</span><span class="w"> </span>-f<span class="w"> </span><span class="m">10</span><span class="w"> </span>--become
@@ -550,6 +568,7 @@ ansible<span class="w"> </span>all_nodes<span class="w"> </span>-m<span class="w
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#apply-package-updates-to-nodes">Apply package updates to nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shutdown-all-nodes">Shutdown all nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reboot-all-nodes">Reboot all nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shutdown-or-reboot-a-single-node">Shutdown or reboot a single node</a></li>

@@ -67,14 +67,21 @@ ansible-playbook pb_all.yml \
   -e repo_remote=https://github.com/me/my-fork.git
 ```
 
+(argocd-helm-values)=
 ## ArgoCD Helm values (`kubernetes-services/values.yaml`)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
+| `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
+| `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models |
 
-This value is self-referential — ArgoCD reads it from the same branch it is tracking.
-Each branch must set this to match its own branch name.
+The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
+is tracking. Each branch must set this to match its own branch name.
+
+The `rkllama.nfs.*` values are the **single source of truth** for NFS configuration.
+ArgoCD injects them directly into the rkllama Helm chart; no corresponding Ansible
+variable is needed because Ansible does not create the PersistentVolume.
 
 ## Environment variables
 

@@ -456,13 +456,20 @@
 <td><p>Distributed block storage</p></td>
 </tr>
 <tr class="row-even"><td><p>RKLlama</p></td>
-<td><p>Plain manifests</p></td>
+<td><p>Helm chart (local)</p></td>
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama.&lt;domain&gt;</span></code></p></td>
 <td><p>NPU-accelerated LLM server</p></td>
 </tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
+<tr class="row-odd"><td><p>Open WebUI</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">open-webui/open-webui</span></code></p></td>
+<td><p>12.3.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">open-webui.&lt;domain&gt;</span></code></p></td>
+<td><p>ChatGPT-style UI backed by RKLLama</p></td>
+</tr>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
@@ -549,14 +556,39 @@ basic-auth. ServiceMonitor enabled for Prometheus metrics.</p>
 <h3>RKLlama<a class="headerlink" href="#rkllama" title="Link to this heading">#</a></h3>
 <p>NPU-accelerated LLM inference server for Rockchip RK1 nodes. Runs as a DaemonSet on
 nodes labelled <code class="docutils literal notranslate"><span class="pre">node-type:</span> <span class="pre">rk1</span></code>. Requires privileged access to <code class="docutils literal notranslate"><span class="pre">/dev/rknpu</span></code>. Models
-stored on hostPath <code class="docutils literal notranslate"><span class="pre">/opt/rkllama/models</span></code>.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/rkllama/</span></code></p>
+are stored on an NFS PersistentVolume so they are shared across all RK1 nodes and
+persist outside the cluster.</p>
+<p><strong>Helm chart:</strong> <code class="docutils literal notranslate"><span class="pre">additions/rkllama/</span></code> (local chart, no external registry)</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">configmap.yaml</span></code> — CPU/NPU governor tuning script</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">daemonset.yaml</span></code> — Main workload (init + main containers)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ingress.yaml</span></code> — Ingress for <code class="docutils literal notranslate"><span class="pre">rkllama.&lt;domain&gt;</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">service.yaml</span></code> — ClusterIP Service round-robining across DaemonSet pods</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/configmap.yaml</span></code> — CPU/NPU governor tuning script and nginx reverse-proxy config</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/daemonset.yaml</span></code> — Main workload (init + rkllama + nginx sidecar containers)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/ingress.yaml</span></code> — Ingress for <code class="docutils literal notranslate"><span class="pre">rkllama.&lt;domain&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/service.yaml</span></code> — ClusterIP Service round-robining across DaemonSet pods</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/pv.yaml</span></code> — NFS PersistentVolume (server/path from <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/pvc.yaml</span></code> — PersistentVolumeClaim bound to the NFS PV</p></li>
 </ul>
+<p><strong>NFS configuration</strong> — edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (the single source of truth):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rkllama</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">   </span><span class="c1"># your NAS IP</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/LMModels</span><span class="w">  </span><span class="c1"># your NFS export path</span>
+</pre></div>
+</div>
+<p>ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
+changing (see <a class="reference internal" href="variables.html"><span class="std std-doc">Variables Reference</span></a>).</p>
+</section>
+<section id="open-webui">
+<h3>Open WebUI<a class="headerlink" href="#open-webui" title="Link to this heading">#</a></h3>
+<p>ChatGPT-style web interface for interacting with LLMs. Connects to RKLLama
+(Ollama-compatible API) running on the RK1 NPU — no in-cluster Ollama deployment
+is needed. Stores chat history and user accounts in a Longhorn-backed 5Gi volume.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Open WebUI is only useful on clusters with RK1 compute modules. The service deploys
+everywhere, but the backend (RKLLama) requires the Rockchip NPU to serve models.</p>
+</div>
+<p>The first user to register becomes the admin. Models appear in the dropdown
+within ~30 seconds of being pulled via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code> (see <a class="reference internal" href="../how-to/rkllama-models.html"><span class="doc">Download RKLLama Models</span></a>).</p>
 </section>
 <section id="sealed-secrets">
 <h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
@@ -631,6 +663,7 @@ foundation that all other services depend on.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn">Longhorn</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama">RKLlama</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui">Open WebUI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
 </ul>
 </li>

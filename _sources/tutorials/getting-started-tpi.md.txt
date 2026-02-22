@@ -231,6 +231,7 @@ All applications should eventually reach `Synced` and `Healthy` status.
 ## Next Steps
 
 - {doc}`/how-to/bootstrap-cluster` — set up admin passwords and access cluster services
+- {doc}`/how-to/rkllama-models` — pull LLM models and start chatting via Open WebUI (RK1 nodes only)
 - {doc}`/how-to/cloudflare-tunnel` — expose services to the internet via Cloudflare
 - {doc}`/how-to/manage-sealed-secrets` — manage encrypted secrets in the repository
 - {doc}`/explanations/architecture` — understand how all the pieces fit together

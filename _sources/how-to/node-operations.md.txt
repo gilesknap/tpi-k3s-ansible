@@ -2,6 +2,24 @@
 
 Common operations for managing cluster nodes: shutdown, reboot, drain, add, and remove.
 
+## Apply package updates to nodes
+
+The `update_packages` role is part of the `servers` play — **not** a tag of its own.
+To run package updates (e.g. after adding a new package to the role):
+
+```bash
+# All nodes
+ansible-playbook pb_all.yml --tags servers
+
+# Specific nodes only
+ansible-playbook pb_all.yml --tags servers --limit node02,node03
+```
+
+:::{note}
+`--tags update_packages` will silently do nothing — the correct tag is `servers`,
+which runs both the `move_fs` and `update_packages` roles.
+:::
+
 ## Shutdown all nodes
 
 ```bash
