@@ -40,9 +40,10 @@ K3s ships Traefik as its default ingress controller, but this project disables i
 
 ### LoadBalancer on workers
 
-The ingress-nginx controller runs on **worker nodes** (the control plane has a
-`NoSchedule` taint). DNS entries for all services must point to worker node IPs,
-not the control plane.
+The ingress-nginx controller runs on **worker nodes** (in multi-node clusters the
+control plane has a `NoSchedule` taint). DNS entries for all services must point to
+worker node IPs, not the control plane. For single-node clusters, DNS points to that
+single node.
 
 For round-robin across workers:
 

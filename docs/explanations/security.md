@@ -47,19 +47,17 @@ Current SealedSecrets:
 
 ### Admin password
 
-The shared admin password is passed via the Ansible command line
-(`-e admin_password=...`) and injected into the ArgoCD root Application's Helm values.
-It is **not** stored in Git.
-
-The `admin-auth` Kubernetes secret (created manually during bootstrap) stores both
-htpasswd and plain-text forms for different services.
+The `admin-auth` Kubernetes secret is created manually during bootstrap (see
+{doc}`/how-to/bootstrap-cluster`). It stores htpasswd credentials used by
+Grafana and nginx basic-auth protected services.
 
 ## Network security
 
 ### Control plane taint
 
-The control plane node has a `NoSchedule` taint. No regular workloads run on it —
-only K3s system components (CoreDNS, metrics-server, etcd, kube-proxy).
+In multi-node clusters, the control plane node has a `NoSchedule` taint. No regular
+workloads run on it — only K3s system components (CoreDNS, metrics-server, etcd,
+kube-proxy). For single-node clusters the taint is skipped so all workloads can schedule.
 
 ### Cloudflare protection
 

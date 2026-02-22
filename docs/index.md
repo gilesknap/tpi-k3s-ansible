@@ -1,6 +1,6 @@
 # K3s Cluster Commissioning
 
-An Infrastructure-as-Code project that commissions a production-ready
+An Infrastructure-as-Code project that commissions a home-lab
 [K3s](https://k3s.io/) Kubernetes cluster using [Ansible](https://www.ansible.com/),
 with continuous deployment via [ArgoCD](https://argo-cd.readthedocs.io/).
 

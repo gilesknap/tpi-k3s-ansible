@@ -29,10 +29,18 @@ Set the VS Code setting `dev.containers.dockerPath` to `podman` before proceedin
 
 ### Networking
 
-Your workstation and Turing Pi boards must be on the **same subnet** with:
+Your workstation and Turing Pi boards must be on the **same subnet** with these network features:
 
 - DHCP enabled (router assigns IPs automatically)
 - mDNS / zero-configuration networking enabled (so you can reach `turingpi.local`)
+
+:::{note}
+mDNS is enabled by default on macOS, most Linux desktop distributions (via
+Avahi), and Windows 10+. If `turingpi.local` doesn't resolve, check that
+the `avahi-daemon` service is running on Linux (`sudo systemctl start avahi-daemon`)
+or install it with `sudo apt install avahi-daemon`. On Windows, mDNS support
+is built into the OS — no extra setup needed.
+:::
 
 Verify your BMC is reachable:
 
@@ -82,7 +90,8 @@ ssh root@turingpi
 # Set a strong password
 passwd
 
-# Disable password authentication (key-only from now on)
+# Optional: Disable password authentication (key-only from now on)
+# WARNING: test that ssh works without password (i.e. the new key works) before disabling password auth, or you may lock yourself out!
 sed -E -i 's|^#?(PasswordAuthentication)\s.*|\1 no|' /etc/ssh/sshd_config
 
 exit
@@ -161,13 +170,7 @@ cluster_domain: gkcluster.org      # Your domain name
 domain_email: you@example.com      # For Let's Encrypt certificates
 repo_remote: https://github.com/gilesknap/tpi-k3s-ansible.git  # Your fork URL
 repo_branch: main                  # Git branch for ArgoCD to track
-admin_password: notgood            # Override on command line! (see below)
 ```
-
-:::{warning}
-Never commit a real password in `admin_password`. Always override it on the command line
-with `-e admin_password=YourSecurePassword` when running the playbook.
-:::
 
 ## Step 7: Run the playbook
 
@@ -192,6 +195,10 @@ number of nodes.
 :::{note}
 The `-e do_flash=true` flag is required for the initial flash. On subsequent runs, omit it
 to skip flashing (the playbook will check existing state and skip completed steps).
+
+The Ansible steps are idempotent, and will skip flashing nodes that already have
+Ubuntu installed. But ommitting do_flash protects against accidental re-flashing of
+nodes that are temporarily offline or have connectivity issues.
 :::
 
 ## Step 8: Verify the cluster

@@ -91,8 +91,8 @@ Notable configuration:
 
 - **Traefik is disabled** — K3s ships Traefik by default, but this project uses
   NGINX Ingress instead (`--disable=traefik`)
-- **Control plane is tainted** — `NoSchedule` taint prevents workloads from running
-  on the control plane node
+- **Control plane is tainted** (multi-node only) — `NoSchedule` taint prevents
+  workloads from running on the control plane node; skipped for single-node clusters
 - **etcd mode** — single control plane with `--cluster-init` (embedded etcd)
 
 ### GitOps layer (ArgoCD)

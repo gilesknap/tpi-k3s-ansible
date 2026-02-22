@@ -10,10 +10,16 @@ Intel NUCs, Raspberry Pis, VMs, or cloud instances.
 
 ### Target Servers
 
-- **Two or more** Linux servers running **Ubuntu 24.04 LTS**
+- **One or more** Linux servers running **Ubuntu 24.04 LTS**
 - SSH access from your workstation to each server
 - All servers on the **same subnet** (or with routable network connectivity)
-- One server designated as the **control plane**; the rest are **workers**
+- One server designated as the **control plane**; any extras are **workers**
+
+:::{tip}
+A single server works fine — K3s runs as both control plane and worker. The
+control-plane `NoSchedule` taint is automatically skipped when there is only
+one node, so all workloads schedule on it.
+:::
 
 ### Software (on your workstation)
 
@@ -117,7 +123,6 @@ cluster_domain: example.com        # Your domain name
 domain_email: you@example.com      # For Let's Encrypt certificates
 repo_remote: https://github.com/you/tpi-k3s-ansible.git
 repo_branch: main
-admin_password: notgood            # Override on command line!
 ```
 
 Ensure `control_plane` matches one of the hostnames in your `extra_nodes` group.

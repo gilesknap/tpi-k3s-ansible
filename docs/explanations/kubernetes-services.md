@@ -44,7 +44,6 @@ values via Helm:
 - `repo_branch` — comes from `kubernetes-services/values.yaml` (self-referential)
 - `cluster_domain` — domain name for ingress hosts
 - `domain_email` — for Let's Encrypt registration
-- `admin_password` — shared admin password
 
 ### Template rendering
 
@@ -120,7 +119,6 @@ Key values propagated to all child apps:
 | `repo_branch` | `kubernetes-services/values.yaml` | Branch for `targetRevision` |
 | `cluster_domain` | `group_vars/all.yml` | Domain for ingress hosts |
 | `domain_email` | `group_vars/all.yml` | Let's Encrypt email |
-| `admin_password` | Command line override | Shared admin password |
 
 ## Renovate integration
 

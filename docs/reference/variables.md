@@ -12,7 +12,6 @@ All configurable variables, their defaults, and where they are used.
 | `vault_password_file` | `~/.ansible_vault_password` | Path to Ansible vault password file |
 | `bin_dir` | `$HOME/bin` (from `$BIN_DIR` env) | Directory for CLI tools (helm, kubectl, etc.) |
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
-| `admin_password` | `notgood` | Shared admin password — **always override on CLI** |
 | `local_domain` | `.lan` | Local domain suffix for mDNS |
 | `control_plane` | `node01` | Hostname of the K3s control plane node |
 | `cluster_domain` | `gkcluster.org` | Domain name for ingress hosts |
@@ -62,7 +61,6 @@ Variables can be overridden on the command line with `-e`:
 
 ```bash
 ansible-playbook pb_all.yml \
-  -e admin_password=MySecurePassword \
   -e flash_force=true \
   -e k3s_force=true \
   -e repo_branch=my-feature-branch \

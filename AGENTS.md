@@ -116,7 +116,7 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 
 ### Variables
 - Global vars in `group_vars/all.yml` (well-commented — read it directly). Role-specific vars in `roles/<role>/vars/main.yml`.
-- Sensitive values (like `admin_password`) should be overridden on the command line.
+- Sensitive values use `admin-auth` Kubernetes secrets created during bootstrap.
 
 ---
 
