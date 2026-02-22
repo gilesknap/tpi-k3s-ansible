@@ -22,6 +22,129 @@ data:
 
     echo "fix_frequency.sh complete."
 
+  pull_adapter.py: |
+    #!/usr/bin/env python3
+    """
+    Pull Adapter — translates Ollama /api/pull NDJSON requests into rkllama's
+    native plain-text /pull endpoint and streams progress back as NDJSON.
+
+    Enter this in Open WebUI's "Pull a model" field (3+ slash-separated parts):
+      owner/repo/filename.rkllm
+      owner/repo/filename.rkllm/custom-name:tag
+
+    Example:
+      c01zaut/Qwen2.5-3B-Instruct-RK3588-1.1.4/Qwen2.5-3B-Instruct-rk3588-w8a8-opt-0-hybrid-ratio-0.5.rkllm
+    """
+    import http.client
+    import json
+    import re
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    RKLLAMA_HOST = "localhost"
+    RKLLAMA_PORT = 8080
+    LISTEN_PORT  = 8083
+
+
+    class PullAdapter(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            pass  # suppress per-request log noise
+
+        def do_GET(self):
+            if self.path == "/health":
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+            else:
+                self.send_error(404)
+
+        def do_POST(self):
+            if self.path != "/api/pull":
+                self.send_error(404)
+                return
+
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            try:
+                data = json.loads(body)
+            except Exception:
+                self._error("Invalid JSON body")
+                return
+
+            model = data.get("name") or data.get("model") or ""
+            if not model:
+                self._error("Missing model name")
+                return
+
+            # rkllama /pull requires at least 3 slash-separated parts:
+            #   owner / repo / filename.rkllm  [/ custom-name:tag]
+            if len(model.split("/")) < 3:
+                self._error(
+                    f"Invalid model path '{model}'. "
+                    "Use: owner/repo/filename.rkllm  e.g. "
+                    "c01zaut/Qwen2.5-3B-Instruct-RK3588-1.1.4/"
+                    "Qwen2.5-3B-Instruct-rk3588-w8a8-opt-0-hybrid-ratio-0.5.rkllm"
+                )
+                return
+
+            payload = json.dumps({"model": model}).encode()
+            try:
+                conn = http.client.HTTPConnection(RKLLAMA_HOST, RKLLAMA_PORT, timeout=3600)
+                conn.request("POST", "/pull", body=payload,
+                             headers={"Content-Type": "application/json"})
+                resp = conn.getresponse()
+            except Exception as e:
+                self._error(f"Failed to reach rkllama: {e}")
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.end_headers()
+
+            buf = b""
+            try:
+                while True:
+                    chunk = resp.read(512)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b"\n" in buf:
+                        line_bytes, buf = buf.split(b"\n", 1)
+                        line = line_bytes.decode("utf-8", errors="replace").strip()
+                        if not line:
+                            continue
+                        self.wfile.write((json.dumps(self._convert(line)) + "\n").encode())
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                conn.close()
+
+        def _convert(self, line: str) -> dict:
+            """Map a plain-text rkllama progress line to an Ollama NDJSON object."""
+            m = re.match(r"^(\d+(?:\.\d+)?)%\s*$", line)
+            if m:
+                pct = float(m.group(1))
+                return {"status": "downloading", "total": 100, "completed": int(pct)}
+            if re.match(r"(?i)^error[:\s]", line):
+                return {"error": line}
+            if line.lower().startswith("downloading "):
+                return {"status": "pulling manifest"}
+            if re.search(r"(?i)(success|install)", line):
+                return {"status": "success"}
+            return {"status": line}
+
+        def _error(self, msg: str):
+            body = json.dumps({"error": msg}).encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+
+    if __name__ == "__main__":
+        HTTPServer(("", LISTEN_PORT), PullAdapter).serve_forever()
+
   nginx.conf: |
     # Nginx sidecar — stubs missing Ollama endpoints that Open WebUI requires,
     # proxies everything else to rkllama on port 8080.
@@ -36,6 +159,18 @@ data:
         location = /api/ps {
           default_type application/json;
           return 200 '{"models":[]}';
+        }
+
+        # /api/pull: routed to pull-adapter sidecar (port 8083) which translates
+        # Ollama NDJSON streaming <-> rkllama plain-text /pull.
+        # Enter in Open WebUI: owner/repo/filename.rkllm[/custom-name:tag]
+        # e.g. c01zaut/Qwen2.5-3B-Instruct-RK3588-1.1.4/Qwen2.5-3B-Instruct-rk3588-w8a8-opt-0-hybrid-ratio-0.5.rkllm
+        location = /api/pull {
+          proxy_pass http://localhost:8083;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_buffering off;
+          proxy_read_timeout 3600s;
         }
 
         # Everything else proxied transparently to rkllama.
