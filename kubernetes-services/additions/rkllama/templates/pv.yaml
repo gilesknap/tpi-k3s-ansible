@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rkllama-models-nfs
+spec:
+  capacity:
+    storage: 900Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain # don't delete NAS data if PVC is removed
+  storageClassName: "" # static — not managed by any provisioner
+  nfs:
+    server: "{{ .Values.nfs.server }}"
+    path: "{{ .Values.nfs.path }}"
+  mountOptions:
+    - vers=4.1
+    - hard

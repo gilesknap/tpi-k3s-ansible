@@ -38,6 +38,7 @@ The following services require DNS entries:
 | `longhorn.<domain>` | Longhorn storage UI | admin + shared password (basic-auth) |
 | `headlamp.<domain>` | Headlamp dashboard | Kubernetes token |
 | `rkllama.<domain>` | RKLlama LLM server | None |
+| `open-webui.<domain>` | Open WebUI chat interface | Account registration |
 
 :::{note}
 The **echo** service is not included in local DNS — it is intended as a public-facing
@@ -234,6 +235,30 @@ kubectl port-forward svc/headlamp -n headlamp 4466:80
 
 Paste the token into the login screen.
 
+## Access Open WebUI (LLM chat)
+
+Open WebUI provides a ChatGPT-style interface backed by RKLLama running on the RK1
+nodes' NPU. It is only useful once at least one model has been pulled — see
+{doc}`rkllama-models`.
+
+:::{note}
+RKLLama and Open WebUI are only functional on clusters with **RK1 compute modules**.
+The services will deploy on any cluster, but inference requires the Rockchip NPU.
+:::
+
+Via ingress: **https://open-webui.your-domain.com**
+
+First-time access requires creating an account — the first account registered
+automatically becomes the admin. Once logged in, select a model from the dropdown
+(models appear within ~30 seconds of being pulled).
+
+Via port-forward:
+
+```bash
+kubectl port-forward svc/open-webui -n open-webui 8080:80
+# Open http://localhost:8080
+```
+
 ## Access the echo test service
 
 The echo service at **https://echo.your-domain.com** returns a JSON response with all
@@ -259,3 +284,4 @@ kubectl -n argo-cd delete secret argocd-initial-admin-secret
 - {doc}`cloudflare-tunnel` — expose services to the internet via Cloudflare
 - {doc}`manage-sealed-secrets` — manage encrypted secrets in the repository
 - {doc}`add-remove-services` — customise which services are deployed
+- {doc}`rkllama-models` — pull LLM models for RKLLama (RK1 clusters only)

@@ -1,5 +1,16 @@
 # AGENTS.md — Guidance for AI Coding Agents
 
+## Testing Before Committing
+
+**CRITICAL: Do not offer to commit or push until the user has tested the changes.**
+
+After implementing any change:
+1. Stop and tell the user what was changed and how to test it
+2. Wait for the user to confirm the test result
+3. Only proceed to `git commit` / `git push` when explicitly asked
+
+---
+
 ## Terminal Tool Usage
 
 When using the `run_in_terminal` tool:
@@ -52,6 +63,37 @@ The only legitimate `kubectl` commands during a fix are **read-only** (e.g. `kub
 The one exception is generating and committing **SealedSecrets** — `kubeseal` reads from the
 live cluster's public key, but the resulting file is committed to the repo and applied by ArgoCD,
 so it still follows the GitOps flow.
+
+---
+
+## Ansible: Always Update Roles, Never Run Ad-hoc Commands
+
+**CRITICAL: Do not suggest or run ad-hoc `ansible` or `ansible-playbook` commands to fix or
+configure nodes.**
+
+All node configuration is managed by Ansible roles in `roles/`. Any required package, setting,
+or file that needs to be present on cluster nodes must be encoded in the appropriate role so it
+is applied idempotently on every future node provisioning.
+
+The correct workflow for any node-level change is always:
+1. Edit the relevant role task file (e.g. `roles/update_packages/tasks/main.yml`)
+2. `git commit` and `git push`
+3. The user re-runs the relevant playbook/tag against their cluster
+
+Common roles to update:
+- **`roles/update_packages`** — OS packages that must be present on all nodes
+- **`roles/tools`** — CLI tools (helm, kubectl, kubeseal, etc.) installed on the control node
+- **`roles/k3s`** — K3s installation and configuration
+- **`roles/cluster`** — ArgoCD bootstrap and cluster-level setup
+
+**CRITICAL: Correct playbook tag for node packages is `servers`, NOT `update_packages`:**
+```bash
+# All nodes
+ansible-playbook pb_all.yml --tags servers
+# Specific nodes
+ansible-playbook pb_all.yml --tags servers --limit node02,node03
+```
+`--tags update_packages` silently does nothing — the role name is not a tag.
 
 ---
 
@@ -127,6 +169,18 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 3. **Traefik is disabled** — K3s ships Traefik by default, but this project passes `--disable=traefik` and uses NGINX Ingress instead.
 4. **Working in branches** — `repo_branch` in `kubernetes-services/values.yaml` controls which branch ArgoCD child apps track. Each branch must set this value to match itself. See "Branch Propagation" below.
 5. **No automated tests** — changes should be validated by running the relevant playbook tags against a test cluster.
+
+---
+
+## Dual repo_branch Variables — Always Update Both
+
+There are **two separate `repo_branch` variables** that must always be kept in sync:
+
+1. **`group_vars/all.yml`** — used by Ansible at bootstrap time to create the root ArgoCD Application CR
+2. **`kubernetes-services/values.yaml`** — used by ArgoCD's Helm engine at runtime to set `targetRevision` on all child apps
+
+They cannot be unified because they are consumed by completely different systems at different stages.
+**Whenever switching branches, update `repo_branch` in both files.**
 
 ---
 
