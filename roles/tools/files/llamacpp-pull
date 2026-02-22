@@ -18,10 +18,12 @@ Notes:
     You must git commit and push for ArgoCD to pick it up.
 """
 
+import json
 import os
 import re
 import subprocess
 import sys
+import uuid
 
 
 def _choose(prompt: str, items: list) -> str:
@@ -174,43 +176,122 @@ def do_pull() -> None:
     url = f"https://huggingface.co/{repo_id}/resolve/main/{selected_file}"
     dest = f"/models/{selected_file}"
 
-    print(f"\nResolving llamacpp pod ...")
-    pod = _resolve_pod()
-
-    # Check if already present
-    check = subprocess.run(
-        ["kubectl", "exec", "-n", "llamacpp", pod, "--", "test", "-f", dest]
-    )
-    if check.returncode == 0:
-        overwrite = (
-            input(f"\n'{selected_file}' already exists. Re-download? [y/N]: ")
-            .strip()
-            .lower()
-        )
-        if overwrite != "y":
-            print("Skipped.")
-        else:
-            _do_download(pod, url, dest, selected_file)
-    else:
-        _do_download(pod, url, dest, selected_file)
+    _do_download(url, dest, selected_file)
 
     activate = input(f"\nActivate '{selected_file}' now? [Y/n]: ").strip().lower()
     if activate in ("", "y"):
-        sys.argv = [
-            sys.argv[0]
-        ]  # clear args so do_set won't treat them as search terms
-        # Override model choice directly
         _activate_model(selected_file)
 
 
-def _do_download(pod: str, url: str, dest: str, filename: str) -> None:
-    print(f"\nDownloading: {filename}")
-    print("(Large models may take several minutes — download runs inside the pod)\n")
-    result = _kubectl_exec(pod, "curl", "-L", "--progress-bar", "-o", dest, url)
-    if result.returncode != 0:
-        print(f"\nERROR: Download failed (exit {result.returncode})")
-        sys.exit(result.returncode)
-    print(f"\nDownloaded to {dest}")
+def _do_download(url: str, dest: str, filename: str) -> None:
+    """Download via a dedicated pod mounting the llamacpp PVC.
+
+    Using a separate pod (not the llamacpp server pod) means the download
+    survives llamacpp OOM restarts. wget -c resumes partial downloads.
+    """
+    pod_name = f"llamacpp-dl-{uuid.uuid4().hex[:8]}"
+    overrides = json.dumps(
+        {
+            "spec": {
+                "restartPolicy": "Never",
+                "volumes": [
+                    {
+                        "name": "models",
+                        "persistentVolumeClaim": {"claimName": "llamacpp-models"},
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "downloader",
+                        "image": "alpine",
+                        "command": ["sh", "-c", "sleep 7200"],
+                        "volumeMounts": [{"name": "models", "mountPath": "/models"}],
+                    }
+                ],
+            }
+        }
+    )
+    print(f"\nStarting temporary downloader pod ({pod_name}) ...")
+    try:
+        subprocess.check_call(
+            [
+                "kubectl",
+                "run",
+                pod_name,
+                "-n",
+                "llamacpp",
+                "--image=alpine",
+                "--restart=Never",
+                "--overrides",
+                overrides,
+            ]
+        )
+        print("Waiting for downloader pod to be ready ...")
+        subprocess.check_call(
+            [
+                "kubectl",
+                "wait",
+                f"pod/{pod_name}",
+                "-n",
+                "llamacpp",
+                "--for=condition=Ready",
+                "--timeout=120s",
+            ]
+        )
+
+        # Check if already present and ask before overwriting
+        check = subprocess.run(
+            ["kubectl", "exec", "-n", "llamacpp", pod_name, "--", "test", "-f", dest]
+        )
+        if check.returncode == 0:
+            overwrite = (
+                input(f"\n'{filename}' already exists. Re-download? [y/N]: ")
+                .strip()
+                .lower()
+            )
+            if overwrite != "y":
+                print("Skipped.")
+                return
+
+        print(f"\nDownloading: {filename}")
+        print("(If interrupted, re-run llamacpp-pull and choose the same file)\n")
+        # Remove any partial file first — HuggingFace XET Hub does not support
+        # HTTP range requests so resume (wget -c / curl -C) causes a 416 error.
+        subprocess.run(
+            ["kubectl", "exec", "-n", "llamacpp", pod_name, "--", "rm", "-f", dest]
+        )
+        result = subprocess.run(
+            [
+                "kubectl",
+                "exec",
+                "-n",
+                "llamacpp",
+                pod_name,
+                "--",
+                "wget",
+                "-O",
+                dest,
+                url,
+            ]
+        )
+        if result.returncode != 0:
+            print(f"\nERROR: Download failed (exit {result.returncode})")
+            sys.exit(result.returncode)
+        print(f"\nDownloaded to {dest}")
+    finally:
+        print("\nRemoving downloader pod ...")
+        subprocess.run(
+            [
+                "kubectl",
+                "delete",
+                "pod",
+                pod_name,
+                "-n",
+                "llamacpp",
+                "--ignore-not-found=true",
+            ],
+            capture_output=True,
+        )
 
 
 def _activate_model(name: str) -> None:
