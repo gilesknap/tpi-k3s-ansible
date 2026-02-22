@@ -399,7 +399,7 @@ SSH tunnel through Cloudflare Zero Trust, without opening any inbound firewall p
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>CLIENT MACHINE
   │
-  cloudflared access ssh --hostname ssh.gkcluster.org
+  cloudflared access ssh --hostname ssh.example.com
   │  HTTPS to Cloudflare Edge (authenticated via Zero Trust policy)
   ▼
 Cloudflare Zero Trust (identity verification + audit logging)
@@ -408,7 +408,7 @@ Cloudflare Zero Trust (identity verification + audit logging)
 cloudflared pod (in cluster)
   │  Forwards to node01:22
   ▼
-node01 (192.168.1.81) SSH
+node01 (&lt;node01-ip&gt;) SSH
   │
   kubectl / port-forward to any cluster service
 </pre></div>
@@ -466,7 +466,7 @@ attempt connections.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">24h</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>Domain</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Subdomain</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
@@ -527,13 +527,13 @@ go to <strong>Networks → Tunnels</strong>, open your existing tunnel, select <
 <td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Domain</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>Service Type</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">SSH</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Service URL</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.81:22</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;node01-ip&gt;:22</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -541,25 +541,73 @@ go to <strong>Networks → Tunnels</strong>, open your existing tunnel, select <
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The Service field is split into a <strong>Type</strong> dropdown and a <strong>URL</strong> field. Select <code class="docutils literal notranslate"><span class="pre">SSH</span></code>
-from the Type dropdown and enter <code class="docutils literal notranslate"><span class="pre">192.168.1.81:22</span></code> in the URL field — do not include
+from the Type dropdown and enter <code class="docutils literal notranslate"><span class="pre">&lt;node01-ip&gt;:22</span></code> in the URL field — do not include
 the <code class="docutils literal notranslate"><span class="pre">ssh://</span></code> prefix in the URL field.</p>
 </div>
 <p>Cloudflare automatically creates a proxied CNAME:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>ssh.gkcluster.org → &lt;tunnel-id&gt;.cfargotunnel.com  (Proxied ☁)
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>ssh.example.com → &lt;tunnel-id&gt;.cfargotunnel.com  (Proxied ☁)
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod resolves <code class="docutils literal notranslate"><span class="pre">192.168.1.81</span></code> from within the cluster network — it does
+<p>The <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod resolves <code class="docutils literal notranslate"><span class="pre">&lt;node01-ip&gt;</span></code> from within the cluster network — it does
 not need a DNS name, just a reachable IP. Using the control-plane IP directly is more
 reliable than a hostname here.</p>
 </div>
 </section>
-<section id="part-3-client-ssh-configuration">
-<h2>Part 3: Client SSH Configuration<a class="headerlink" href="#part-3-client-ssh-configuration" title="Link to this heading">#</a></h2>
+<section id="part-3-waf-skip-rule">
+<h2>Part 3: WAF Skip Rule<a class="headerlink" href="#part-3-waf-skip-rule" title="Link to this heading">#</a></h2>
+<p>By default Cloudflare’s WAF inspects all proxied traffic and may block requests to
+<code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code> before they ever reach the Access application — resulting in a
+generic “Why have I been blocked?” page and <code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> from
+<code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>. You must add a WAF skip rule to allow Access to handle authentication.</p>
+<p>In the <strong>main Cloudflare dashboard</strong> (<code class="docutils literal notranslate"><span class="pre">dash.cloudflare.com</span></code>, not the One dashboard):</p>
+<ol class="arabic simple">
+<li><p>Select your <code class="docutils literal notranslate"><span class="pre">example.com</span></code> zone.</p></li>
+<li><p>Go to <strong>Security → WAF → Custom rules → Create rule</strong>.</p></li>
+<li><p>Configure:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Rule name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span> <span class="pre">SSH</span> <span class="pre">tunnel</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Expression</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http.host</span> <span class="pre">eq</span> <span class="pre">&quot;ssh.example.com&quot;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Action</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Skip</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>Under <strong>Skip</strong>, tick:</p>
+<ul class="simple">
+<li><p>Skip all remaining <strong>custom rules</strong></p></li>
+<li><p>Skip all <strong>managed rules</strong> (WAF Managed Ruleset)</p></li>
+</ul>
+</li>
+<li><p>Click <strong>Deploy</strong>.</p></li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Without this rule, <code class="docutils literal notranslate"><span class="pre">cloudflared</span> <span class="pre">access</span> <span class="pre">login</span></code> returns
+<code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> and visiting <code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code> in a browser
+shows a WAF block page rather than the Cloudflare Access login prompt. The WAF
+intercepts the request before Access can issue its authentication challenge.</p>
+</div>
+</section>
+<section id="part-4-client-ssh-configuration">
+<h2>Part 4: Client SSH Configuration<a class="headerlink" href="#part-4-client-ssh-configuration" title="Link to this heading">#</a></h2>
 <section id="add-a-proxycommand-entry-to-ssh-config">
-<h3>3.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code><a class="headerlink" href="#add-a-proxycommand-entry-to-ssh-config" title="Link to this heading">#</a></h3>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Host ssh.gkcluster.org
+<h3>4.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code><a class="headerlink" href="#add-a-proxycommand-entry-to-ssh-config" title="Link to this heading">#</a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Host ssh.example.com
     ProxyCommand cloudflared access ssh --hostname %h
     User ubuntu
     StrictHostKeyChecking no
@@ -567,10 +615,10 @@ reliable than a hostname here.</p>
 </div>
 </section>
 <section id="authenticate-before-first-connection">
-<h3>3.2 Authenticate before first connection<a class="headerlink" href="#authenticate-before-first-connection" title="Link to this heading">#</a></h3>
+<h3>4.2 Authenticate before first connection<a class="headerlink" href="#authenticate-before-first-connection" title="Link to this heading">#</a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">ProxyCommand</span></code> does <strong>not</strong> open a browser automatically. You must log in first
 to cache a token:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cloudflared<span class="w"> </span>access<span class="w"> </span>login<span class="w"> </span>https://ssh.gkcluster.org
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cloudflared<span class="w"> </span>access<span class="w"> </span>login<span class="w"> </span>https://ssh.example.com
 </pre></div>
 </div>
 <p>This opens a browser window for Cloudflare Access authentication. After authenticating,
@@ -578,43 +626,45 @@ a token is written to <code class="docutils literal notranslate"><span class="pr
 you configured.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Both Part 1 (Access Application) <strong>and</strong> Part 2 (Tunnel public hostname) must be
-completed before this command will work. If either is missing you will see:</p>
+<p>Parts 1 (Access Application), 2 (Tunnel public hostname), and 3 (WAF skip rule) must
+all be completed before this command will work. If any is missing you will see:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> — the Access Application in Part 1 does not
-exist or the hostname does not exactly match <code class="docutils literal notranslate"><span class="pre">ssh.gkcluster.org</span></code>. Check
-<strong>Access controls → Applications</strong> at <a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> — either the Access Application (Part 1) does not
+exist, the hostname does not exactly match <code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code>, or the WAF (Part 3)
+is blocking the request before Access can respond. Check
+<strong>Access controls → Applications</strong> at <a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>
+and <strong>Security → WAF → Custom rules</strong> at <a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">websocket:</span> <span class="pre">bad</span> <span class="pre">handshake</span></code> — the tunnel hostname in Part 2 is missing, so
 Cloudflare has nowhere to forward the connection. Check <strong>Networks → Tunnels → Public hostnames</strong>.</p></li>
 </ul>
 </div>
 </section>
 <section id="connect-via-ssh">
-<h3>3.3 Connect via SSH<a class="headerlink" href="#connect-via-ssh" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ssh.gkcluster.org
+<h3>4.3 Connect via SSH<a class="headerlink" href="#connect-via-ssh" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ssh.example.com
 </pre></div>
 </div>
 <p>Subsequent connections within the token’s session duration connect immediately without
 re-authentication. When the token expires, re-run <code class="docutils literal notranslate"><span class="pre">cloudflared</span> <span class="pre">access</span> <span class="pre">login</span></code> first.</p>
 </section>
 </section>
-<section id="part-4-remote-kubectl-access">
-<h2>Part 4: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access<a class="headerlink" href="#part-4-remote-kubectl-access" title="Link to this heading">#</a></h2>
+<section id="part-5-remote-kubectl-access">
+<h2>Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access<a class="headerlink" href="#part-5-remote-kubectl-access" title="Link to this heading">#</a></h2>
 <section id="copy-and-patch-your-kubeconfig">
-<h3>4.1 Copy and patch your kubeconfig<a class="headerlink" href="#copy-and-patch-your-kubeconfig" title="Link to this heading">#</a></h3>
+<h3>5.1 Copy and patch your kubeconfig<a class="headerlink" href="#copy-and-patch-your-kubeconfig" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copy kubeconfig from the control plane</span>
-scp<span class="w"> </span>ssh.gkcluster.org:~/.kube/config<span class="w"> </span>~/.kube/k3s-remote.yaml
+scp<span class="w"> </span>ssh.example.com:~/.kube/config<span class="w"> </span>~/.kube/k3s-remote.yaml
 
 <span class="c1"># Patch the server address to use a local forwarded port</span>
-sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|https://192.168.1.81:6443|https://127.0.0.1:6443|&#39;</span><span class="w"> </span><span class="se">\</span>
+sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|https://&lt;node01-ip&gt;:6443|https://127.0.0.1:6443|&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>~/.kube/k3s-remote.yaml
 </pre></div>
 </div>
 </section>
 <section id="forward-the-kubernetes-api-port-and-use-kubectl">
-<h3>4.2 Forward the Kubernetes API port and use kubectl<a class="headerlink" href="#forward-the-kubernetes-api-port-and-use-kubectl" title="Link to this heading">#</a></h3>
+<h3>5.2 Forward the Kubernetes API port and use kubectl<a class="headerlink" href="#forward-the-kubernetes-api-port-and-use-kubectl" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start the port forward in the background</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:192.168.1.81:6443<span class="w"> </span>ssh.gkcluster.org
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:&lt;node01-ip&gt;:6443<span class="w"> </span>ssh.example.com
 
 <span class="c1"># Use the remote kubeconfig</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">KUBECONFIG</span><span class="o">=</span>~/.kube/k3s-remote.yaml
@@ -624,18 +674,18 @@ kubectl<span class="w"> </span>get<span class="w"> </span>nodes
 <p>Expected output: your cluster nodes in <code class="docutils literal notranslate"><span class="pre">Ready</span></code> state.</p>
 </section>
 </section>
-<section id="part-5-access-cluster-web-services-remotely">
-<h2>Part 5: Access Cluster Web Services Remotely<a class="headerlink" href="#part-5-access-cluster-web-services-remotely" title="Link to this heading">#</a></h2>
+<section id="part-6-access-cluster-web-services-remotely">
+<h2>Part 6: Access Cluster Web Services Remotely<a class="headerlink" href="#part-6-access-cluster-web-services-remotely" title="Link to this heading">#</a></h2>
 <p>Use SSH local port-forwarding to reach any cluster web service. The forwarding target
 is resolved from <code class="docutils literal notranslate"><span class="pre">node01</span></code> — so you can use internal cluster DNS or LAN IPs.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single service — ArgoCD UI</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">8080</span>:192.168.1.82:443<span class="w"> </span>ssh.gkcluster.org
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">8080</span>:&lt;worker-ip&gt;:443<span class="w"> </span>ssh.example.com
 <span class="c1"># Open: https://localhost:8080</span>
 
 <span class="c1"># Multiple services in one connection</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">8080</span>:192.168.1.82:443<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-NL<span class="w"> </span><span class="m">8081</span>:192.168.1.82:443<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>ssh.gkcluster.org
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">8080</span>:&lt;worker-ip&gt;:443<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-NL<span class="w"> </span><span class="m">8081</span>:&lt;worker-ip&gt;:443<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>ssh.example.com
 </pre></div>
 </div>
 <p>Or use <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> once your tunnel API connection is active:</p>
@@ -670,7 +720,7 @@ kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/grafana<s
 <p>Create a shell script or alias to bring up all your port forwards in one command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env bash</span>
 <span class="c1"># remote-cluster.sh — bring up tunnel port forwards</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:192.168.1.81:6443<span class="w"> </span>ssh.gkcluster.org
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:&lt;node01-ip&gt;:6443<span class="w"> </span>ssh.example.com
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Kubernetes API → https://127.0.0.1:6443&quot;</span>
 kubectl<span class="w"> </span>--kubeconfig<span class="w"> </span>~/.kube/k3s-remote.yaml<span class="w"> </span>port-forward<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>svc/argocd-server<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="m">8080</span>:443<span class="w"> </span><span class="p">&amp;</span>
@@ -679,18 +729,18 @@ kubectl<span class="w"> </span>--kubeconfig<span class="w"> </span>~/.kube/k3s-r
 </div>
 </div>
 </section>
-<section id="part-6-verification">
-<h2>Part 6: Verification<a class="headerlink" href="#part-6-verification" title="Link to this heading">#</a></h2>
+<section id="part-7-verification">
+<h2>Part 7: Verification<a class="headerlink" href="#part-7-verification" title="Link to this heading">#</a></h2>
 <section id="confirm-access-policy-is-enforced">
 <h3>Confirm Access policy is enforced<a class="headerlink" href="#confirm-access-policy-is-enforced" title="Link to this heading">#</a></h3>
-<p>Visit <code class="docutils literal notranslate"><span class="pre">https://ssh.gkcluster.org</span></code> in a browser — you should be redirected to the
+<p>Visit <code class="docutils literal notranslate"><span class="pre">https://ssh.example.com</span></code> in a browser — you should be redirected to the
 Cloudflare Access login page, not an SSH banner. If you see a plain error page,
 check <strong>Access controls → Applications</strong> at <a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>
 to confirm the application exists and its hostname matches.</p>
 </section>
 <section id="test-the-ssh-tunnel">
 <h3>Test the SSH tunnel<a class="headerlink" href="#test-the-ssh-tunnel" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ssh.gkcluster.org<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;tunnel ok&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ssh.example.com<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;tunnel ok&quot;</span>
 </pre></div>
 </div>
 <p>Expected: <code class="docutils literal notranslate"><span class="pre">tunnel</span> <span class="pre">ok</span></code> printed after authentication.</p>
@@ -700,12 +750,12 @@ to confirm the application exists and its hostname matches.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>deployment/cloudflared<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-20
 </pre></div>
 </div>
-<p>Look for connections referencing <code class="docutils literal notranslate"><span class="pre">ssh.gkcluster.org</span></code>.</p>
+<p>Look for connections referencing <code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code>.</p>
 </section>
 <section id="confirm-the-node-is-not-directly-reachable-from-outside-your-lan">
 <h3>Confirm the node is NOT directly reachable from outside your LAN<a class="headerlink" href="#confirm-the-node-is-not-directly-reachable-from-outside-your-lan" title="Link to this heading">#</a></h3>
 <p>From a mobile hotspot (off your home network):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ubuntu@192.168.1.81
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ubuntu@&lt;node01-ip&gt;
 <span class="c1"># Expected: connection refused or timeout — direct access is blocked</span>
 </pre></div>
 </div>
@@ -769,19 +819,20 @@ to confirm the application exists and its hostname matches.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-tunnel-public-hostname-for-ssh">Part 2: Tunnel Public Hostname for SSH</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-client-ssh-configuration">Part 3: Client SSH Configuration</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-a-proxycommand-entry-to-ssh-config">3.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#authenticate-before-first-connection">3.2 Authenticate before first connection</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-via-ssh">3.3 Connect via SSH</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-waf-skip-rule">Part 3: WAF Skip Rule</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-client-ssh-configuration">Part 4: Client SSH Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-a-proxycommand-entry-to-ssh-config">4.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#authenticate-before-first-connection">4.2 Authenticate before first connection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-via-ssh">4.3 Connect via SSH</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-remote-kubectl-access">Part 4: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#copy-and-patch-your-kubeconfig">4.1 Copy and patch your kubeconfig</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-the-kubernetes-api-port-and-use-kubectl">4.2 Forward the Kubernetes API port and use kubectl</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-remote-kubectl-access">Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#copy-and-patch-your-kubeconfig">5.1 Copy and patch your kubeconfig</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-the-kubernetes-api-port-and-use-kubectl">5.2 Forward the Kubernetes API port and use kubectl</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-access-cluster-web-services-remotely">Part 5: Access Cluster Web Services Remotely</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-6-verification">Part 6: Verification</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-6-access-cluster-web-services-remotely">Part 6: Access Cluster Web Services Remotely</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-7-verification">Part 7: Verification</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#confirm-access-policy-is-enforced">Confirm Access policy is enforced</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-ssh-tunnel">Test the SSH tunnel</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-cloudflared-logs-in-the-cluster">Check <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> logs in the cluster</a></li>
