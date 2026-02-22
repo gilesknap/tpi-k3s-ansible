@@ -18,11 +18,11 @@ Supported hardware:
 - GitOps-driven service deployment via ArgoCD
 - Let's Encrypt TLS certificates via DNS-01 validation
 - Optional Cloudflare tunnel for secure public access
-- **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
-- Additional GPU Accelerated LLM server is coming soon
-- **Open WebUI chat** interface to above LLM models
 - Devcontainer-based Ansible execution environment (podman + VS Code)
 - Fully idempotent — safe to re-run Ansible Playbook for updates
+- **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
+- **Local LLM inference** — Nvidia GPU-accelerated LLM server on compatible servers
+- **Open WebUI chat** interface to above LLM models
 
 ## Documentation
 

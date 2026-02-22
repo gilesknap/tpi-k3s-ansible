@@ -22,6 +22,17 @@ All configurable variables, their defaults, and where they are used.
 
 ## Role-specific variables
 
+### Host variables (inventory)
+
+Set per-host in `hosts.yml` under the relevant host entry:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `slot_num` | — | Turing Pi BMC slot number (1–4), required for Turing Pi nodes |
+| `type` | — | Module type: `rk1` or `pi4` |
+| `root_dev` | — | Block device to migrate root filesystem to (e.g. `/dev/nvme0n1`) |
+| `nvidia_gpu_node` | `false` | Set `true` on nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true` so the device plugin DaemonSet can schedule. |
+
 ### `tools` role (`roles/tools/vars/main.yml`)
 
 | Variable | Default | Description |
@@ -74,7 +85,14 @@ ansible-playbook pb_all.yml \
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
 | `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
-| `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models |
+| `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
+| `llamacpp.nfs.server` | *(your NFS server IP)* | NFS server for llama.cpp model storage |
+| `llamacpp.nfs.path` | *(your NFS export path)* | Exported NFS path for llama.cpp models (GGUF files — keep separate from rkllama) |
+| `llamacpp.model.file` | *(GGUF filename)* | Filename of the GGUF model to load at startup |
+| `llamacpp.model.gpuLayers` | `99` | Transformer layers to offload to GPU (`99` = all) |
+| `llamacpp.model.contextSize` | `8192` | KV-cache context length in tokens |
+| `llamacpp.model.parallel` | `4` | Concurrent request slots |
+| `llamacpp.model.memoryLimit` | `24Gi` | Kubernetes memory limit for the container |
 
 The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
 is tracking. Each branch must set this to match its own branch name.

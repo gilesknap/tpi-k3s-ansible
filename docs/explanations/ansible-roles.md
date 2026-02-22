@@ -153,6 +153,13 @@ Prepares each node for K3s:
    - `unattended-upgrades` — automatic security updates
    - `open-iscsi` — required by Longhorn for iSCSI storage
    - `original-awk` — required by some K3s scripts
+6. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
+   - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
+   - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
+   - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA
+     runtime set as the default containerd runtime. k3s regenerates `config.toml` on
+     every agent restart from this template, so the configuration persists across reboots.
+   - Restart `k3s-agent` to apply the new containerd config
 
 ---
 
@@ -177,6 +184,9 @@ Installs K3s with one control plane node and the rest as workers.
 - Runs the K3s agent installer.
 - Labels RK1 nodes with `node-type=rk1` (used by the rkllama DaemonSet selector).
 - Creates `/opt/rkllama/models` directory on RK1 nodes.
+- Labels NVIDIA GPU nodes with `nvidia.com/gpu.present=true` (when `nvidia_gpu_node: true`
+  in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
+  then takes over and advertises `nvidia.com/gpu` allocatable resources to the scheduler.
 
 ### Kubeconfig (`kubeconfig.yml`)
 
