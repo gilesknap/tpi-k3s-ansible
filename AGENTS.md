@@ -152,6 +152,18 @@ Most services use a reusable ingress sub-chart at `additions/ingress/` for stand
 
 ---
 
+## Dual repo_branch Variables — Always Update Both
+
+There are **two separate `repo_branch` variables** that must always be kept in sync:
+
+1. **`group_vars/all.yml`** — used by Ansible at bootstrap time to create the root ArgoCD Application CR
+2. **`kubernetes-services/values.yaml`** — used by ArgoCD's Helm engine at runtime to set `targetRevision` on all child apps
+
+They cannot be unified because they are consumed by completely different systems at different stages.
+**Whenever switching branches, update `repo_branch` in both files.**
+
+---
+
 ## Branch Propagation for ArgoCD Child Apps
 
 The root `all-cluster-services` ArgoCD Application passes `repo_branch` to child apps via Helm values. This value lives in `kubernetes-services/values.yaml`, which ArgoCD checks out at the same `targetRevision` as the root app — so it is always self-referential.
