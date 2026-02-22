@@ -75,6 +75,15 @@ Common roles to update:
 - **`roles/k3s`** — K3s installation and configuration
 - **`roles/cluster`** — ArgoCD bootstrap and cluster-level setup
 
+**CRITICAL: Correct playbook tag for node packages is `servers`, NOT `update_packages`:**
+```bash
+# All nodes
+ansible-playbook pb_all.yml --tags servers
+# Specific nodes
+ansible-playbook pb_all.yml --tags servers --limit node02,node03
+```
+`--tags update_packages` silently does nothing — the role name is not a tag.
+
 ---
 
 ## Cloudflare Tunnel UI Notes
