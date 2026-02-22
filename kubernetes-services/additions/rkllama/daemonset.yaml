@@ -33,15 +33,18 @@ spec:
         - name: rkllama
           # OpenAI/Ollama-compatible LLM server backed by Rockchip RKLLM SDK (NPU-accelerated)
           # https://github.com/NotPunchnox/rkllama
+          # Runs on port 8081 internally; nginx sidecar fronts on 8080.
           image: ghcr.io/notpunchnox/rkllama:main
           imagePullPolicy: Always
           ports:
-            - name: http
-              containerPort: 8080
+            - name: rkllama
+              containerPort: 8081
               protocol: TCP
           env:
             - name: MODELS_DIR
               value: /root/rkllama/models
+            - name: PORT
+              value: "8081"
           securityContext:
             privileged: true # required for /dev/rknpu NPU access
           resources:
@@ -58,15 +61,40 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 8080
+              port: 8081
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
-              port: 8080
+              port: 8081
             initialDelaySeconds: 10
+            periodSeconds: 10
+
+        - name: nginx
+          # Sidecar that stubs /api/ps (not implemented by rkllama) so that
+          # Open WebUI's model pull UI works. Proxies all other requests to rkllama.
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          livenessProbe:
+            httpGet:
+              path: /api/version
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/version
+              port: 8080
+            initialDelaySeconds: 5
             periodSeconds: 10
 
       volumes:

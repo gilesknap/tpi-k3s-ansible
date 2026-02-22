@@ -21,3 +21,32 @@ data:
     done
 
     echo "fix_frequency.sh complete."
+
+  nginx.conf: |
+    # Nginx sidecar — stubs missing Ollama endpoints that Open WebUI requires,
+    # proxies everything else to rkllama on port 8081.
+    events {}
+    http {
+      server {
+        listen 8080;
+
+        # /api/ps: rkllama doesn't implement this but Open WebUI polls it
+        # to verify the connection before pulling models. Return an empty
+        # but valid Ollama response so the pull UI works.
+        location = /api/ps {
+          add_header Content-Type application/json;
+          return 200 '{"models":[]}';
+        }
+
+        # Everything else proxied transparently to rkllama.
+        location / {
+          proxy_pass http://localhost:8081;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          # Required for streaming (SSE) inference responses.
+          proxy_buffering off;
+          proxy_read_timeout 600s;
+        }
+      }
+    }
