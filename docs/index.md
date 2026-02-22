@@ -21,8 +21,8 @@ Supported hardware:
 - **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
 - Additional GPU Accelerated LLM server is coming soon
 - **Open WebUI chat** interface to above LLM models
-- Fully idempotent — safe to re-run at any time
-- Devcontainer-based execution environment (podman + VS Code)
+- Devcontainer-based Ansible execution environment (podman + VS Code)
+- Fully idempotent — safe to re-run Ansible Playbook for updates
 
 ## Documentation
 
