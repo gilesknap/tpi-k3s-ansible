@@ -223,9 +223,7 @@ def _activate_model(name: str) -> None:
         print("ERROR: Could not determine git repo root. Run from within the repo.")
         sys.exit(1)
 
-    values_path = os.path.join(
-        repo_root, "kubernetes-services", "values.yaml"
-    )
+    values_path = os.path.join(repo_root, "kubernetes-services", "values.yaml")
     try:
         content = open(values_path).read()
     except FileNotFoundError:
@@ -235,7 +233,7 @@ def _activate_model(name: str) -> None:
     # Replace the .gguf filename on the `file:` line (unique to llamacpp model entry)
     new_content, count = re.subn(
         r'(?m)(^\s+file:\s+")[^"]*.gguf(")',
-        rf'\g<1>{name}\g<2>',
+        rf"\g<1>{name}\g<2>",
         content,
     )
     if count == 0:
@@ -250,9 +248,9 @@ def _activate_model(name: str) -> None:
     print()
     print("To apply the change, commit and push:")
     print(f"  cd {repo_root}")
-    print( "  git add kubernetes-services/values.yaml")
+    print("  git add kubernetes-services/values.yaml")
     print(f"  git commit -m 'chore: switch llamacpp model to {name}'")
-    print( "  git push")
+    print("  git push")
     print()
     print("ArgoCD will detect the push and restart llamacpp with the new model.")
 
