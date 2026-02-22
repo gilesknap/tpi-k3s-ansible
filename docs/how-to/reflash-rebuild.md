@@ -10,8 +10,8 @@ force flags to override this behaviour:
 
 | Flag | Effect |
 |------|--------|
-| `-e flash_force=true` | Re-flash all nodes (erases eMMC) |
-| `-e do_flash=true` | Enable flashing (alias for `flash_force`) |
+| `-e flash_force=true` | Re-flash all nodes (erases eMMC even if OS is installed) |
+| `-e do_flash=true` | Enable flashing. But does not flash nodes with OS installed |
 | `-e k3s_force=true` | Uninstall and reinstall K3s on all nodes |
 | `-e cluster_force=true` | Force reinstall of ArgoCD and cluster services |
 

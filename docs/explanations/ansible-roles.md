@@ -6,7 +6,8 @@ it checks state before acting and does nothing if the desired state is already a
 ## Execution order
 
 ```mermaid
-flowchart LR
+%%{init: {'themeVariables': {'fontSize': '30px'}, 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TD
     T["tools<br/><i>localhost</i>"] --> F["flash<br/><i>turing_pis</i>"]
     F --> KH["known_hosts<br/><i>all_nodes + turing_pis</i>"]
     KH --> MF["move_fs<br/><i>all_nodes</i>"]

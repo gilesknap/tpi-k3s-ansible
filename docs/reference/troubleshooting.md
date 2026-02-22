@@ -157,7 +157,7 @@ typically completes within minutes depending on volume size.
 
 ### Ingress returning 404 or 503
 
-**Symptom:** `https://<service>.gkcluster.org` returns 404 Not Found or 503 Bad
+**Symptom:** `https://<service>.<domain>` returns 404 Not Found or 503 Bad
 Gateway.
 
 **Checklist:**
@@ -166,7 +166,7 @@ Gateway.
 2. **Endpoints populated?** `kubectl get endpoints -n <namespace> <svc-name>`
 3. **Ingress resource correct?** `kubectl get ingress -n <namespace> -o yaml`
 4. **TLS certificate ready?** `kubectl get cert -n <namespace>`
-5. **DNS resolving?** `dig <service>.gkcluster.org` — should return worker node IPs
+5. **DNS resolving?** `dig <service>.<domain>` — should return worker node IPs
 
 ### Certificate not issuing
 

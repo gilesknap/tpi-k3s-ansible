@@ -166,7 +166,7 @@ Edit `group_vars/all.yml`:
 ```yaml
 # Change these to match your environment
 control_plane: node01              # Which node is the K3s control plane
-cluster_domain: gkcluster.org      # Your domain name
+cluster_domain: <domain>           # Your domain name
 domain_email: you@example.com      # For Let's Encrypt certificates
 repo_remote: https://github.com/gilesknap/tpi-k3s-ansible.git  # Your fork URL
 repo_branch: main                  # Git branch for ArgoCD to track

@@ -78,7 +78,7 @@ that necessarily interacts with the live cluster. However, the resulting SealedS
 YAML is committed to Git — so it still follows the GitOps flow:
 
 ```mermaid
-flowchart LR
+flowchart TB
     A["kubeseal<br/>(reads cluster public key)"] --> B["SealedSecret YAML"]
     B -->|"git push"| C["Git Repo"]
     C -->|"ArgoCD sync"| D["Cluster"]

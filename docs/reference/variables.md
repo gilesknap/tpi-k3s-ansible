@@ -14,8 +14,8 @@ All configurable variables, their defaults, and where they are used.
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
 | `local_domain` | `.lan` | Local domain suffix for mDNS |
 | `control_plane` | `node01` | Hostname of the K3s control plane node |
-| `cluster_domain` | `gkcluster.org` | Domain name for ingress hosts |
-| `domain_email` | `giles.knap@...` | Email for Let's Encrypt certificate registration |
+| `cluster_domain` | `<domain>` | Domain name for ingress hosts |
+| `domain_email` | `your.email@...` | Email for Let's Encrypt certificate registration |
 | `repo_remote` | `https://github.com/gilesknap/tpi-k3s-ansible.git` | Git repo URL for ArgoCD |
 | `repo_branch` | `main` | Git branch for ArgoCD (also in `kubernetes-services/values.yaml`) |
 | `cluster_install_list` | `[argocd]` | List of services installed directly by Ansible |

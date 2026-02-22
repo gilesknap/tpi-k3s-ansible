@@ -11,7 +11,7 @@ INTERNET
   │
   ▼
 Cloudflare Edge (WAF, DDoS protection, CDN)
-  │  DNS: echo.example.com → <tunnel>.cfargotunnel.com  (Proxied)
+  │  DNS: echo.<domain> → <tunnel>.cfargotunnel.com  (Proxied)
   │  HTTPS (Cloudflare manages external TLS)
   ▼
 cloudflared pod (in cluster, outbound connection only — no inbound firewall ports)
@@ -20,7 +20,7 @@ cloudflared pod (in cluster, outbound connection only — no inbound firewall po
 ingress-nginx → service
 
 LOCAL NETWORK
-  DNS: grafana/argocd/headlamp/longhorn.example.com → worker IP  (DNS-only A records)
+  DNS: grafana/argocd/headlamp/longhorn/rkllama.<domain> → worker IP  (DNS-only A records)
   Clients resolve directly to ingress-nginx without going via Cloudflare
 ```
 
@@ -53,6 +53,13 @@ nameservers at your registrar.
 4. Name the tunnel (e.g. `k3s-cluster`).
 5. After creation, Cloudflare shows setup instructions. Copy the **tunnel token**
    from the "Install as service" box.
+
+```{figure} ../images/tunnels.png
+:alt: Cloudflare tunnel configuration
+:align: center
+
+The Cloudflare Tunnels dashboard after creating a tunnel.
+```
 
 Extract just the token value (the long base64 string after `--token`).
 
@@ -91,6 +98,13 @@ kubectl logs -n cloudflared deployment/cloudflared | tail -20
 ```
 
 Once connected, the Cloudflare UI shows **"Tunnel connected successfully"**.
+
+```{figure} ../images/tunnel_success.png
+:alt: Tunnel connected successfully
+:align: center
+
+Cloudflare confirming the tunnel connection is established.
+```
 
 ### 1.4 Configure a public hostname
 

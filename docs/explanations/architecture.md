@@ -61,7 +61,7 @@ Both types join the same K3s cluster as either the control plane or workers.
 Ansible orchestrates the entire setup through a sequence of roles:
 
 ```mermaid
-flowchart LR
+flowchart TB
     T[tools] --> F[flash] --> KH[known_hosts] --> S[servers] --> K[k3s] --> C[cluster]
 ```
 
@@ -100,7 +100,7 @@ Notable configuration:
 After Ansible installs ArgoCD, all further service management is done via Git:
 
 ```mermaid
-flowchart LR
+flowchart TD
     DEV[Developer] -->|"git push"| GIT[Git Repo]
     GIT -->|"poll/webhook"| ARGO[ArgoCD]
     ARGO -->|"sync"| K8S[Kubernetes]

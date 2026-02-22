@@ -52,7 +52,7 @@ Opens a port-forward to the ArgoCD server and prints the initial admin password.
 
 ```text
 ArgoCD will be available at:
-  https://argocd.gkcluster.org
+  https://argocd.<domain>
   or https://localhost:8080
   Username: admin
   Initial Password: <printed>
@@ -65,7 +65,7 @@ Opens a port-forward to Grafana on port 3000.
 ```text
 Grafana will be available at:
   http://localhost:3000
-  or https://grafana.gkcluster.org
+  or https://grafana.<domain>
 ```
 
 ### `dashboard.sh`
@@ -74,7 +74,7 @@ Generates a Headlamp login token and opens a port-forward on port 8443.
 
 ```text
 Login Token: <printed>
-URL: https://dashboard.gkcluster.org
+URL: https://dashboard.<domain>
  or: https://localhost:8443
 ```
 
@@ -85,7 +85,7 @@ access URL.
 
 ```text
 Longhorn will be available at:
-  https://longhorn.gkcluster.org
+  https://longhorn.<domain>
 ```
 
 ## Shell configuration

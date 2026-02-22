@@ -7,7 +7,7 @@ cluster decrypts them at deploy time.
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Plain Secret] -->|kubeseal| B[SealedSecret YAML]
     B -->|git push| C[Git Repository]
     C -->|ArgoCD sync| D[Cluster]
