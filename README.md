@@ -17,6 +17,9 @@ modules) and arbitrary additional Linux servers — fully idempotent and repeata
 - **Monitoring** — Prometheus + Grafana stack
 - **Distributed storage** — Longhorn with snapshots and backup
 - **Sealed Secrets** — encrypt secrets safely in Git
+- **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
+- **Additional GPU Accelerated LLM** server is coming soon
+- **Open WebUI chat** interface to above LLM models
 - **Devcontainer** — complete execution environment with zero host dependencies
 - Works with **any Linux server** — Turing Pi hardware is optional
 

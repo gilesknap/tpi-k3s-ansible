@@ -15,6 +15,7 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | Distributed block storage |
 | RKLlama | Helm chart (local) | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server |
+| Open WebUI | `open-webui/open-webui` | 12.3.0 | `open-webui` | `open-webui.<domain>` | ChatGPT-style UI backed by RKLLama |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.1 | `kube-system` | — | Encrypted secrets in Git |
 
 ## Service details
@@ -108,7 +109,21 @@ rkllama:
 ```
 
 ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
-changing (see [Variables Reference](#argocd-helm-values).
+changing (see [Variables Reference](variables.md)).
+
+### Open WebUI
+
+ChatGPT-style web interface for interacting with LLMs. Connects to RKLLama
+(Ollama-compatible API) running on the RK1 NPU — no in-cluster Ollama deployment
+is needed. Stores chat history and user accounts in a Longhorn-backed 5Gi volume.
+
+:::{note}
+Open WebUI is only useful on clusters with RK1 compute modules. The service deploys
+everywhere, but the backend (RKLLama) requires the Rockchip NPU to serve models.
+:::
+
+The first user to register becomes the admin. Models appear in the dropdown
+within ~30 seconds of being pulled via `rkllama-pull` (see {doc}`/how-to/rkllama-models`).
 
 ### Sealed Secrets
 
