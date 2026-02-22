@@ -49,4 +49,3 @@ Full documentation is available at
   for Kubernetes setup tutorials
 - [K3s](https://k3s.io/) — lightweight CNCF-certified Kubernetes
 - [Turing Pi](https://turingpi.com/) — compact multi-node compute platform
-
