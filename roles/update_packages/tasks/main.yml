@@ -33,6 +33,21 @@
 # NVIDIA container toolkit — only installed on nodes with nvidia_gpu_node: true in inventory.
 # Required so that containerd can pass GPU devices into pods requesting nvidia.com/gpu.
 # Set nvidia_gpu_node: true in host_vars/<nodename>.yml for each GPU node.
+
+- name: Install ubuntu-drivers-common (provides ubuntu-drivers auto-install)
+  ansible.builtin.apt:
+    pkg:
+      - ubuntu-drivers-common
+    update_cache: false
+  when: nvidia_gpu_node | default(false)
+
+- name: Install NVIDIA GPU driver via ubuntu-drivers
+  ansible.builtin.command: ubuntu-drivers install
+  args:
+    creates: /usr/bin/nvidia-smi  # skip if driver already installed
+  when: nvidia_gpu_node | default(false)
+  notify: Reboot node
+
 - name: Add NVIDIA container toolkit GPG key
   ansible.builtin.shell:
     cmd: >
