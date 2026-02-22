@@ -4,7 +4,7 @@
 Usage:
     llamacpp-pull [search terms ...]   # search HuggingFace and download a model
     llamacpp-pull --list               # list GGUF models on the NFS share
-    llamacpp-pull --set                # switch the active model (patches deployment)
+    llamacpp-pull --set                # edit values.yaml to switch active model
     llamacpp-pull --delete             # delete a model from the NFS share
 
 Prerequisites:
@@ -13,11 +13,13 @@ Prerequisites:
 
 Notes:
     Models are downloaded to the llamacpp pod's /models volume (NFS share).
-    --set patches the running Deployment directly; ArgoCD will revert it on the
-    next sync. To make a model change permanent, update llamacpp.model.file in
-    kubernetes-services/values.yaml, commit, and push.
+    --set (and the activate prompt after download) edits llamacpp.model.file in
+    kubernetes-services/values.yaml so the change survives ArgoCD auto-sync.
+    You must git commit and push for ArgoCD to pick it up.
 """
 
+import os
+import re
 import subprocess
 import sys
 
@@ -130,43 +132,7 @@ def do_set() -> None:
 
     print(f"\nAvailable GGUF models:\n")
     name = _choose("Select model to activate", models)
-
-    print(f"\nPatching llamacpp Deployment to use: {name}")
-    print("WARNING: ArgoCD self-heal will revert this change on the next sync.")
-    print("         To make it permanent, update llamacpp.model.file in")
-    print("         kubernetes-services/values.yaml, commit, and push.\n")
-
-    # Patch the --model arg in the deployment's container args
-    patch = (
-        '{"spec":{"template":{"spec":{"containers":[{'
-        '"name":"llamacpp","args":['
-        '"--model","/models/' + name + '",'
-        '"--host","0.0.0.0",'
-        '"--port","8080",'
-        '"--n-gpu-layers","99"'
-        "]}]}}}}}"
-    )
-    try:
-        subprocess.check_call(
-            [
-                "kubectl",
-                "patch",
-                "deployment",
-                "llamacpp",
-                "-n",
-                "llamacpp",
-                "--type",
-                "strategic",
-                "-p",
-                patch,
-            ]
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: kubectl patch failed: {e}")
-        sys.exit(1)
-
-    print(f"\nDeployment patched. llamacpp is reloading '{name}'.")
-    print("(Takes ~30-60s to load into GPU memory.)")
+    _activate_model(name)
 
 
 def do_pull() -> None:
@@ -248,39 +214,47 @@ def _do_download(pod: str, url: str, dest: str, filename: str) -> None:
 
 
 def _activate_model(name: str) -> None:
-    print(f"\nPatching llamacpp Deployment to use: {name}")
-    print("WARNING: ArgoCD self-heal will revert this change on the next sync.")
-    print("         To make it permanent, update llamacpp.model.file in")
-    print("         kubernetes-services/values.yaml, commit, and push.\n")
+    """Edit kubernetes-services/values.yaml to set llamacpp.model.file."""
+    try:
+        repo_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True
+        ).strip()
+    except subprocess.CalledProcessError:
+        print("ERROR: Could not determine git repo root. Run from within the repo.")
+        sys.exit(1)
 
-    patch = (
-        '{"spec":{"template":{"spec":{"containers":[{'
-        '"name":"llamacpp","args":['
-        '"--model","/models/' + name + '",'
-        '"--host","0.0.0.0",'
-        '"--port","8080",'
-        '"--n-gpu-layers","99"'
-        "]}]}}}}}"
+    values_path = os.path.join(
+        repo_root, "kubernetes-services", "values.yaml"
     )
     try:
-        subprocess.check_call(
-            [
-                "kubectl",
-                "patch",
-                "deployment",
-                "llamacpp",
-                "-n",
-                "llamacpp",
-                "--type",
-                "strategic",
-                "-p",
-                patch,
-            ]
-        )
-        print(f"\nDeployment patched. llamacpp is loading '{name}'.")
-        print("(Takes ~30-60s to load into GPU memory.)")
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: kubectl patch failed: {e}")
+        content = open(values_path).read()
+    except FileNotFoundError:
+        print(f"ERROR: Could not find {values_path}")
+        sys.exit(1)
+
+    # Replace the .gguf filename on the `file:` line (unique to llamacpp model entry)
+    new_content, count = re.subn(
+        r'(?m)(^\s+file:\s+")[^"]*.gguf(")',
+        rf'\g<1>{name}\g<2>',
+        content,
+    )
+    if count == 0:
+        print(f"ERROR: Could not find 'file: \"*.gguf\"' entry in {values_path}")
+        sys.exit(1)
+
+    with open(values_path, "w") as f:
+        f.write(new_content)
+
+    print(f"\nUpdated kubernetes-services/values.yaml:")
+    print(f"  llamacpp.model.file = {name!r}")
+    print()
+    print("To apply the change, commit and push:")
+    print(f"  cd {repo_root}")
+    print( "  git add kubernetes-services/values.yaml")
+    print(f"  git commit -m 'chore: switch llamacpp model to {name}'")
+    print( "  git push")
+    print()
+    print("ArgoCD will detect the push and restart llamacpp with the new model.")
 
 
 def main() -> None:
