@@ -1,5 +1,15 @@
 # install K3s on each node
 
+# When running with --limit <worker>, the control plane may not have had its
+# facts gathered in this play. Collect them via delegation so control_plane_ip
+# is always available regardless of the --limit value.
+- name: Gather facts from control plane if not already collected
+  ansible.builtin.setup:
+  delegate_to: "{{ control_plane }}"
+  delegate_facts: true
+  when: hostvars[control_plane]['ansible_facts'] is not defined
+        or 'default_ipv4' not in (hostvars[control_plane]['ansible_facts'] | default({}))
+
 # determine if this node is the control plane
 - name: Check if control plane
   ansible.builtin.set_fact:

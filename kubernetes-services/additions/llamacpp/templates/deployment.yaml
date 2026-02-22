@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llamacpp
+  namespace: llamacpp
+  labels:
+    app: llamacpp
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate) is required because there is only one GPU node.
+  # RollingUpdate would try to start the new pod before killing the old one,
+  # deadlocking because both pods request nvidia.com/gpu: 1.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: llamacpp
+  template:
+    metadata:
+      labels:
+        app: llamacpp
+    spec:
+      # Schedule only on nodes with an NVIDIA GPU (label set by device plugin)
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+
+      containers:
+        - name: llamacpp
+          # CUDA-enabled llama.cpp OpenAI-compatible server
+          # https://github.com/ggml-org/llama.cpp
+          image: ghcr.io/ggml-org/llama.cpp:server-cuda
+          args:
+            - --model
+            - /models/{{ .Values.model.file }}
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8080"
+            - --n-gpu-layers  # offload all layers to GPU
+            - "{{ .Values.model.gpuLayers }}"
+            - --ctx-size
+            - "{{ .Values.model.contextSize }}"
+            - --parallel      # number of concurrent request slots
+            - "{{ .Values.model.parallel }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "500m"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "{{ .Values.model.memoryLimit }}"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: llamacpp-models

@@ -96,6 +96,37 @@ The role configures these for both bash and zsh:
 - Shell completions for `kubectl`, `helm`, `kubeseal`
 - `KUBECONFIG` set to the cluster kubeconfig
 
+## Model management scripts
+
+### `rkllama-pull`
+
+Searches HuggingFace for RKLLM models and downloads them to the cluster's NFS share
+via `kubectl exec`. See {doc}`/how-to/rkllama-models` for full usage.
+
+```bash
+rkllama-pull [search terms ...]   # search and download
+rkllama-pull --delete             # list installed models and delete one
+```
+
+### `llamacpp-pull`
+
+Searches HuggingFace for GGUF models and downloads them to the llamacpp NFS share
+via `kubectl exec`. Also supports switching the active model and listing/deleting
+models. See {doc}`/how-to/llamacpp-models` for full usage.
+
+```bash
+llamacpp-pull [search terms ...]  # search and download (optionally activate)
+llamacpp-pull --list              # list GGUF models on the NFS share
+llamacpp-pull --set               # switch the active model
+llamacpp-pull --delete            # delete a model from the NFS share
+```
+
+:::{note}
+`llamacpp-pull --set` patches the running Deployment directly and will be reverted
+by ArgoCD on the next sync. To permanently switch models, update
+`llamacpp.model.file` in `kubernetes-services/values.yaml` and push.
+:::
+
 ## Additional packages
 
 The following are installed into the devcontainer for debugging:

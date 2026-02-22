@@ -18,16 +18,16 @@ modules) and arbitrary additional Linux servers — fully idempotent and repeata
 - **Distributed storage** — Longhorn with snapshots and backup
 - **Sealed Secrets** — encrypt secrets safely in Git
 - **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
-- **Additional GPU Accelerated LLM** server is coming soon
+- **Local LLM inference** — Nvidia GPU-accelerated LLM server on compatible servers
 - **Open WebUI chat** interface to above LLM models
 - **Devcontainer** — complete execution environment with zero host dependencies
 - Works with **any Linux server** — Turing Pi hardware is optional
 
 ## Quick start
 
-1. Install [Podman](https://podman.io/) (or Docker) and VS Code
+1. Install [Podman](https://podman.io/) and VS Code
 2. Clone this repo and reopen in the devcontainer
-3. Edit `hosts.yml` and `group_vars/all.yml` to match your environment
+3. Edit `hosts.yml`, `group_vars/all.yml`, `kubernetes-services/values.yaml` to match your environment
 4. Run:
 
 ```bash

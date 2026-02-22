@@ -10,10 +10,10 @@
 # To add a node, giving ansible control, do this:
 #
 # - edit hosts.yml and add new nodes to the extra_nodes group
-# - ansible-playbook pb_add_nodes.yml
+# - ansible-playbook pb_add_nodes.yml -u <your-username> -K
 #
-# you will be prompted for user and password - this must be an account that
-# can ssh to the extra nodes and has sudo privileges
+# -u sets the SSH user (must have sudo on the target node)
+# -K prompts for the sudo (become) password
 #
 # Now you can do:
 # - ansible-playbook pb_all.yml
@@ -23,20 +23,6 @@
   hosts: extra_nodes
 
   become: true
-
-  vars_prompt:
-
-    - name: ansible_user
-      prompt: Username for an ssh account to all extra nodes?
-      private: false
-
-    - name: ansible_password
-      prompt: Password for the user?
-      private: true
-
-  vars:
-    ansible_ssh_user: "{{ ansible_user }}"
-    ansible_sudo_pass: "{{ ansible_password }}"
 
   tasks:
     - name: Create ansible user (with no password login)

@@ -14,8 +14,10 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | Distributed block storage |
-| RKLlama | Helm chart (local) | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server |
-| Open WebUI | `open-webui/open-webui` | 12.3.0 | `open-webui` | `open-webui.<domain>` | ChatGPT-style UI backed by RKLLama |
+| RKLlama | Helm chart (local) | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server (Rockchip RK1) |
+| llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | CUDA-accelerated LLM server (NVIDIA GPU) |
+| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.17.1 | `nvidia-device-plugin` | — | Advertises `nvidia.com/gpu` resources to the scheduler |
+| Open WebUI | `open-webui/open-webui` | 12.3.0 | `open-webui` | `open-webui.<domain>` | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.1 | `kube-system` | — | Encrypted secrets in Git |
 
 ## Service details
@@ -111,19 +113,66 @@ rkllama:
 ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
 changing (see [Variables Reference](variables.md)).
 
+### llama.cpp (CUDA)
+
+OpenAI-compatible LLM inference server using
+[llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA acceleration. Runs as
+a single-replica Deployment scheduled exclusively on nodes labelled
+`nvidia.com/gpu.present=true`. Requires an NVIDIA GPU node in `extra_nodes` with
+`nvidia_gpu_node: true` in the inventory.
+
+Models are stored as GGUF files on an NFS PersistentVolume (a separate subdirectory
+from RKLLama — the two formats are incompatible). Exposes an OpenAI-compatible
+`/v1` API on port 8080, consumed by Open WebUI.
+
+**NFS and model configuration** — edit `kubernetes-services/values.yaml`:
+
+```yaml
+llamacpp:
+  nfs:
+    server: 192.168.1.3          # your NFS server IP
+    path: /bigdisk/LMModels/cuda # separate from rkllama — GGUF files only
+  model:
+    file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+    gpuLayers: 99        # offload all layers to GPU
+    contextSize: 8192
+    parallel: 4
+    memoryLimit: "24Gi"
+```
+
+See {doc}`/how-to/llamacpp-models` for how to download models to the NFS share.
+
+### NVIDIA device plugin
+
+DaemonSet that detects NVIDIA GPUs and advertises `nvidia.com/gpu` resources to the
+Kubernetes scheduler. Schedules on nodes with label `nvidia.com/gpu.present=true`
+(applied by the `k3s` Ansible role for `nvidia_gpu_node` hosts). Once running, it
+also sets the `nvidia.com/gpu.present` label and the `nvidia.com/gpu` allocatable
+resource on the node.
+
+Requires the NVIDIA container runtime to be configured in k3s's containerd. The
+`update_packages` role writes a `config.toml.tmpl` that sets the NVIDIA runtime as
+default and survives k3s-agent restarts.
+
 ### Open WebUI
 
-ChatGPT-style web interface for interacting with LLMs. Connects to RKLLama
-(Ollama-compatible API) running on the RK1 NPU — no in-cluster Ollama deployment
-is needed. Stores chat history and user accounts in a Longhorn-backed 5Gi volume.
+ChatGPT-style web interface for interacting with LLMs. Connects to both:
+
+- **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
+- **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
+
+Models from both backends appear merged in the model dropdown. Stores chat history
+and user accounts in a Longhorn-backed 5Gi volume.
 
 :::{note}
-Open WebUI is only useful on clusters with RK1 compute modules. The service deploys
-everywhere, but the backend (RKLLama) requires the Rockchip NPU to serve models.
+Either backend is optional. The service works with just RKLLama (RK1 cluster),
+just llama.cpp (NVIDIA GPU node), or both simultaneously.
 :::
 
-The first user to register becomes the admin. Models appear in the dropdown
-within ~30 seconds of being pulled via `rkllama-pull` (see {doc}`/how-to/rkllama-models`).
+The first user to register becomes the admin. RK1 models appear after being pulled
+via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as soon
+as the GGUF file is present on the NFS share and llamacpp has loaded it
+(see {doc}`/how-to/llamacpp-models`).
 
 ### Sealed Secrets
 
