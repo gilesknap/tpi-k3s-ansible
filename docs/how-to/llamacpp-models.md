@@ -77,22 +77,32 @@ llama.cpp loads any GGUF-format model. A good starting point:
 
 ## Download a model
 
-Because the NFS share is not directly accessible from the devcontainer, download via
-`kubectl exec` into a pod that already has the NFS volume mounted. An RKLLama pod works
-well since it mounts `/bigdisk/LMModels`:
+Use the `llamacpp-pull` script (installed by the `tools` role) to search HuggingFace
+and download directly to the cluster's NFS share:
 
 ```bash
-# Find a running rkllama pod
-kubectl get pods -n rkllama
+llamacpp-pull mistral 7b
+```
 
-# Download via exec — curl writes directly to the NFS share
-kubectl exec -n rkllama <pod-name> -c rkllama -- \
-  curl -L -o /root/RKLLAMA/models/cuda/my-model.Q4_K_M.gguf \
+The script will:
+1. Search HuggingFace for matching GGUF repos
+2. Let you pick a repo and a specific `.gguf` file
+3. Download it via `kubectl exec` into the llamacpp pod's `/models` volume
+4. Offer to activate the model immediately (`--set`)
+
+### Manual download via kubectl exec
+
+If you prefer to download manually, exec into the llamacpp pod directly:
+
+```bash
+kubectl get pods -n llamacpp
+
+kubectl exec -n llamacpp <pod-name> -- \
+  curl -L -o /models/my-model.Q4_K_M.gguf \
   https://huggingface.co/<owner>/<repo>/resolve/main/<filename>.gguf
 ```
 
-The download runs inside the pod and writes directly to NFS, so it continues even if
-your terminal disconnects.
+The download runs inside the pod and writes directly to NFS.
 
 ## Update the model filename in values.yaml
 

@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""llamacpp-pull — manage GGUF models for the llama.cpp CUDA server.
+
+Usage:
+    llamacpp-pull [search terms ...]   # search HuggingFace and download a model
+    llamacpp-pull --list               # list GGUF models on the NFS share
+    llamacpp-pull --set                # switch the active model (patches deployment)
+    llamacpp-pull --delete             # delete a model from the NFS share
+
+Prerequisites:
+    - kubectl configured to reach the cluster (kubeconfig in place)
+    - huggingface-hub Python package  (pip install huggingface-hub)
+
+Notes:
+    Models are downloaded to the llamacpp pod's /models volume (NFS share).
+    --set patches the running Deployment directly; ArgoCD will revert it on the
+    next sync. To make a model change permanent, update llamacpp.model.file in
+    kubernetes-services/values.yaml, commit, and push.
+"""
+
+import subprocess
+import sys
+
+
+def _choose(prompt: str, items: list) -> str:
+    for i, item in enumerate(items, 1):
+        print(f"  {i:2d}.  {item}")
+    print()
+    while True:
+        try:
+            idx = int(input(f"{prompt} [1-{len(items)}]: ").strip()) - 1
+            if 0 <= idx < len(items):
+                return items[idx]
+        except (ValueError, KeyboardInterrupt):
+            print()
+            sys.exit(0)
+        print(f"  Please enter a number between 1 and {len(items)}.")
+
+
+def _resolve_pod() -> str:
+    try:
+        pod_output = subprocess.check_output(
+            [
+                "kubectl",
+                "get",
+                "pod",
+                "-n",
+                "llamacpp",
+                "-l",
+                "app=llamacpp",
+                "-o",
+                "name",
+            ],
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Could not list llamacpp pods: {e}")
+        sys.exit(1)
+    if not pod_output:
+        print(
+            "ERROR: No llamacpp pod found. Is the cluster reachable and llamacpp running?"
+        )
+        sys.exit(1)
+    pod = pod_output.split("\n")[0]
+    print(f"Using: {pod}")
+    return pod
+
+
+def _kubectl_exec(pod: str, *cmd: str, capture: bool = False):
+    args = ["kubectl", "exec", "-n", "llamacpp", pod, "--"] + list(cmd)
+    if capture:
+        return subprocess.check_output(args, text=True)
+    return subprocess.run(args)
+
+
+def _list_models(pod: str) -> list[str]:
+    raw = _kubectl_exec(pod, "ls", "/models/", capture=True)
+    return sorted(f for f in raw.split() if f.endswith(".gguf"))
+
+
+def do_list() -> None:
+    print("\nResolving llamacpp pod ...")
+    pod = _resolve_pod()
+
+    print("\nGGUF models on NFS share:\n")
+    models = _list_models(pod)
+    if not models:
+        print("  (none)")
+    else:
+        for m in models:
+            print(f"  {m}")
+    print()
+
+
+def do_delete() -> None:
+    print("\nResolving llamacpp pod ...")
+    pod = _resolve_pod()
+
+    print("\nFetching model list ...")
+    models = _list_models(pod)
+    if not models:
+        print("No models found on the NFS share.")
+        sys.exit(0)
+
+    print(f"\nInstalled GGUF models:\n")
+    name = _choose("Select model to delete", models)
+
+    confirm = input(f"\nDelete '{name}'? [y/N]: ").strip().lower()
+    if confirm != "y":
+        print("Aborted.")
+        sys.exit(0)
+
+    result = _kubectl_exec(pod, "rm", f"/models/{name}")
+    if result.returncode != 0:
+        print(f"\nERROR: rm exited with code {result.returncode}")
+        sys.exit(result.returncode)
+
+    print(f"\nDeleted '{name}'.")
+
+
+def do_set() -> None:
+    print("\nResolving llamacpp pod ...")
+    pod = _resolve_pod()
+
+    print("\nFetching model list ...")
+    models = _list_models(pod)
+    if not models:
+        print("No GGUF models found on the NFS share. Download one first.")
+        sys.exit(1)
+
+    print(f"\nAvailable GGUF models:\n")
+    name = _choose("Select model to activate", models)
+
+    print(f"\nPatching llamacpp Deployment to use: {name}")
+    print("WARNING: ArgoCD self-heal will revert this change on the next sync.")
+    print("         To make it permanent, update llamacpp.model.file in")
+    print("         kubernetes-services/values.yaml, commit, and push.\n")
+
+    # Patch the --model arg in the deployment's container args
+    patch = (
+        '{"spec":{"template":{"spec":{"containers":[{'
+        '"name":"llamacpp","args":['
+        '"--model","/models/' + name + '",'
+        '"--host","0.0.0.0",'
+        '"--port","8080",'
+        '"--n-gpu-layers","99"'
+        "]}]}}}}}"
+    )
+    try:
+        subprocess.check_call(
+            [
+                "kubectl",
+                "patch",
+                "deployment",
+                "llamacpp",
+                "-n",
+                "llamacpp",
+                "--type",
+                "strategic",
+                "-p",
+                patch,
+            ]
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: kubectl patch failed: {e}")
+        sys.exit(1)
+
+    print(f"\nDeployment patched. llamacpp is reloading '{name}'.")
+    print("(Takes ~30-60s to load into GPU memory.)")
+
+
+def do_pull() -> None:
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        print("ERROR: huggingface-hub is not installed.")
+        print("       Run: uv pip install huggingface-hub")
+        sys.exit(1)
+
+    query = " ".join(a for a in sys.argv[1:] if not a.startswith("-")).strip()
+    if not query:
+        query = input("Search HuggingFace for GGUF models: ").strip()
+    if not query:
+        print("No search query provided.")
+        sys.exit(1)
+
+    search_term = f"{query} GGUF"
+    print(f"\nSearching HuggingFace for: {search_term!r} ...")
+
+    api = HfApi()
+    repos = list(api.list_models(search=search_term, limit=20))
+    if not repos:
+        print("No models found. Try different search terms.")
+        sys.exit(1)
+
+    print(f"\nFound {len(repos)} repo(s):\n")
+    repo_id = _choose("Select repo", [r.id for r in repos])
+
+    print(f"\nFetching file list from {repo_id} ...")
+    gguf_files = [f for f in api.list_repo_files(repo_id) if f.endswith(".gguf")]
+    if not gguf_files:
+        print(f"No .gguf files found in {repo_id}.")
+        sys.exit(1)
+
+    print(f"\nAvailable .gguf files:\n")
+    selected_file = _choose("Select file", gguf_files)
+
+    url = f"https://huggingface.co/{repo_id}/resolve/main/{selected_file}"
+    dest = f"/models/{selected_file}"
+
+    print(f"\nResolving llamacpp pod ...")
+    pod = _resolve_pod()
+
+    # Check if already present
+    check = subprocess.run(
+        ["kubectl", "exec", "-n", "llamacpp", pod, "--", "test", "-f", dest]
+    )
+    if check.returncode == 0:
+        overwrite = (
+            input(f"\n'{selected_file}' already exists. Re-download? [y/N]: ")
+            .strip()
+            .lower()
+        )
+        if overwrite != "y":
+            print("Skipped.")
+        else:
+            _do_download(pod, url, dest, selected_file)
+    else:
+        _do_download(pod, url, dest, selected_file)
+
+    activate = input(f"\nActivate '{selected_file}' now? [Y/n]: ").strip().lower()
+    if activate in ("", "y"):
+        sys.argv = [
+            sys.argv[0]
+        ]  # clear args so do_set won't treat them as search terms
+        # Override model choice directly
+        _activate_model(selected_file)
+
+
+def _do_download(pod: str, url: str, dest: str, filename: str) -> None:
+    print(f"\nDownloading: {filename}")
+    print("(Large models may take several minutes — download runs inside the pod)\n")
+    result = _kubectl_exec(pod, "curl", "-L", "--progress-bar", "-o", dest, url)
+    if result.returncode != 0:
+        print(f"\nERROR: Download failed (exit {result.returncode})")
+        sys.exit(result.returncode)
+    print(f"\nDownloaded to {dest}")
+
+
+def _activate_model(name: str) -> None:
+    print(f"\nPatching llamacpp Deployment to use: {name}")
+    print("WARNING: ArgoCD self-heal will revert this change on the next sync.")
+    print("         To make it permanent, update llamacpp.model.file in")
+    print("         kubernetes-services/values.yaml, commit, and push.\n")
+
+    patch = (
+        '{"spec":{"template":{"spec":{"containers":[{'
+        '"name":"llamacpp","args":['
+        '"--model","/models/' + name + '",'
+        '"--host","0.0.0.0",'
+        '"--port","8080",'
+        '"--n-gpu-layers","99"'
+        "]}]}}}}}"
+    )
+    try:
+        subprocess.check_call(
+            [
+                "kubectl",
+                "patch",
+                "deployment",
+                "llamacpp",
+                "-n",
+                "llamacpp",
+                "--type",
+                "strategic",
+                "-p",
+                patch,
+            ]
+        )
+        print(f"\nDeployment patched. llamacpp is loading '{name}'.")
+        print("(Takes ~30-60s to load into GPU memory.)")
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: kubectl patch failed: {e}")
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if "--list" in args or "-l" in args:
+        do_list()
+    elif "--delete" in args or "-d" in args:
+        do_delete()
+    elif "--set" in args or "-s" in args:
+        do_set()
+    else:
+        do_pull()
+
+
+if __name__ == "__main__":
+    main()
