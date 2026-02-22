@@ -75,38 +75,8 @@ This is an **Infrastructure-as-Code (IaC)** Ansible project that commissions a *
 **Primary Runtime:** Ansible (Python-based), Helm, kubectl
 **Target OS:** Ubuntu 24.04 LTS on cluster nodes; Debian-based devcontainer for the execution environment
 
-See `README.md` for setup instructions, how to run playbooks, and available tags.
-
----
-
-## Repository Structure
-
-```
-├── pb_all.yml                  # Main playbook — runs all roles in sequence
-├── pb_add_nodes.yml            # Standalone: add non-Turing Pi nodes to Ansible control
-├── hosts.yml                   # Inventory: BMCs, Turing Pi nodes, extra nodes
-├── group_vars/all.yml          # Global variables (personalization, cluster config)
-├── ansible.cfg                 # Ansible configuration (inventory path, stdout format)
-├── roles/
-│   ├── tools/                  # Install CLI tools (helm, kubectl, scripts) in devcontainer
-│   ├── flash/                  # Flash Ubuntu onto Turing Pi compute modules via BMC
-│   ├── known_hosts/            # Update SSH known_hosts (must run serial: 1)
-│   ├── move_fs/                # Move root filesystem to NVME
-│   ├── update_packages/        # Dist-upgrade, install dependencies (open-iscsi, etc.)
-│   ├── k3s/                    # Install K3s control plane + workers
-│   └── cluster/                # Deploy cluster services (ArgoCD, then ArgoCD manages the rest)
-├── kubernetes-services/        # Meta Helm chart deployed by ArgoCD (all cluster services)
-│   ├── Chart.yaml
-│   ├── values.yaml             # Helm values — includes repo_branch for child apps
-│   ├── templates/              # ArgoCD Application manifests for each service
-│   └── additions/              # Extra K8s manifests per service (RBAC, issuers, etc.)
-├── kubernetes-services-todo/   # Service templates not yet promoted to active
-├── argo-cd/                    # Jinja2 templates for ArgoCD bootstrap (applied by Ansible)
-├── .devcontainer/              # DevContainer config (Dockerfile, devcontainer.json)
-├── pub_keys/                   # SSH public keys for node access
-├── docs/                       # Documentation (setup, cloudflare, bootstrap, notes)
-└── old-cluster-tasks/          # Deprecated: pre-ArgoCD direct Ansible installs
-```
+Full documentation lives in `docs/` (Sphinx + MyST). Build with `uv run tox -e docs`.
+See `README.md` for a quick-start summary.
 
 ---
 

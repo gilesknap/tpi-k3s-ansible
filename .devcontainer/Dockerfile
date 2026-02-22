@@ -11,6 +11,9 @@ RUN apt-get update -y && apt-get upgrade -y && \
     apache2-utils \
     dnsutils
 
+# Install uv for docs builds
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 # Install ansible python packages
 RUN pip install \
     ansible \
