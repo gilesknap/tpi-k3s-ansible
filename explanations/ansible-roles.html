@@ -1008,6 +1008,16 @@ re-migrate to NVMe on the next playbook run.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">original-awk</span></code> — required by some K3s scripts</p></li>
 </ul>
 </li>
+<li><p><strong>NVIDIA GPU nodes only</strong> (when <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in inventory):</p>
+<ul class="simple">
+<li><p>Install <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers-common</span></code> and run <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers</span> <span class="pre">install</span></code> to install the GPU driver</p></li>
+<li><p>Add the NVIDIA container toolkit apt repository and install <code class="docutils literal notranslate"><span class="pre">nvidia-container-toolkit</span></code></p></li>
+<li><p>Write <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl</span></code> with the NVIDIA
+runtime set as the default containerd runtime. k3s regenerates <code class="docutils literal notranslate"><span class="pre">config.toml</span></code> on
+every agent restart from this template, so the configuration persists across reboots.</p></li>
+<li><p>Restart <code class="docutils literal notranslate"><span class="pre">k3s-agent</span></code> to apply the new containerd config</p></li>
+</ul>
+</li>
 </ol>
 </section>
 <hr class="docutils" />
@@ -1033,6 +1043,9 @@ re-migrate to NVMe on the next playbook run.</p>
 <li><p>Runs the K3s agent installer.</p></li>
 <li><p>Labels RK1 nodes with <code class="docutils literal notranslate"><span class="pre">node-type=rk1</span></code> (used by the rkllama DaemonSet selector).</p></li>
 <li><p>Creates <code class="docutils literal notranslate"><span class="pre">/opt/rkllama/models</span></code> directory on RK1 nodes.</p></li>
+<li><p>Labels NVIDIA GPU nodes with <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code> (when <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code>
+in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
+then takes over and advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> allocatable resources to the scheduler.</p></li>
 </ul>
 </section>
 <section id="kubeconfig-kubeconfig-yml">

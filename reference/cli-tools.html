@@ -474,6 +474,36 @@ access URL.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">KUBECONFIG</span></code> set to the cluster kubeconfig</p></li>
 </ul>
 </section>
+<section id="model-management-scripts">
+<h2>Model management scripts<a class="headerlink" href="#model-management-scripts" title="Link to this heading">#</a></h2>
+<section id="rkllama-pull">
+<h3><code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code><a class="headerlink" href="#rkllama-pull" title="Link to this heading">#</a></h3>
+<p>Searches HuggingFace for RKLLM models and downloads them to the cluster’s NFS share
+via <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span></code>. See <a class="reference internal" href="../how-to/rkllama-models.html"><span class="doc">Download RKLLama Models</span></a> for full usage.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rkllama-pull<span class="w"> </span><span class="o">[</span>search<span class="w"> </span>terms<span class="w"> </span>...<span class="o">]</span><span class="w">   </span><span class="c1"># search and download</span>
+rkllama-pull<span class="w"> </span>--delete<span class="w">             </span><span class="c1"># list installed models and delete one</span>
+</pre></div>
+</div>
+</section>
+<section id="llamacpp-pull">
+<h3><code class="docutils literal notranslate"><span class="pre">llamacpp-pull</span></code><a class="headerlink" href="#llamacpp-pull" title="Link to this heading">#</a></h3>
+<p>Searches HuggingFace for GGUF models and downloads them to the llamacpp NFS share
+via <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span></code>. Also supports switching the active model and listing/deleting
+models. See <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a> for full usage.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>llamacpp-pull<span class="w"> </span><span class="o">[</span>search<span class="w"> </span>terms<span class="w"> </span>...<span class="o">]</span><span class="w">  </span><span class="c1"># search and download (optionally activate)</span>
+llamacpp-pull<span class="w"> </span>--list<span class="w">              </span><span class="c1"># list GGUF models on the NFS share</span>
+llamacpp-pull<span class="w"> </span>--set<span class="w">               </span><span class="c1"># switch the active model</span>
+llamacpp-pull<span class="w"> </span>--delete<span class="w">            </span><span class="c1"># delete a model from the NFS share</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">llamacpp-pull</span> <span class="pre">--set</span></code> patches the running Deployment directly and will be reverted
+by ArgoCD on the next sync. To permanently switch models, update
+<code class="docutils literal notranslate"><span class="pre">llamacpp.model.file</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and push.</p>
+</div>
+</section>
+</section>
 <section id="additional-packages">
 <h2>Additional packages<a class="headerlink" href="#additional-packages" title="Link to this heading">#</a></h2>
 <p>The following are installed into the devcontainer for debugging:</p>
@@ -566,6 +596,11 @@ access URL.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shell-configuration">Shell configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#model-management-scripts">Model management scripts</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama-pull"><code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llamacpp-pull"><code class="docutils literal notranslate"><span class="pre">llamacpp-pull</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-packages">Additional packages</a></li>
 </ul>
   </nav></div>

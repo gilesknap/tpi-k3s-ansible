@@ -460,14 +460,28 @@
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama.&lt;domain&gt;</span></code></p></td>
-<td><p>NPU-accelerated LLM server</p></td>
+<td><p>NPU-accelerated LLM server (Rockchip RK1)</p></td>
+</tr>
+<tr class="row-odd"><td><p>llama.cpp</p></td>
+<td><p>Helm chart (local)</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">llamacpp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">llamacpp.&lt;domain&gt;</span></code></p></td>
+<td><p>CUDA-accelerated LLM server (NVIDIA GPU)</p></td>
+</tr>
+<tr class="row-even"><td><p>NVIDIA device plugin</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia/nvidia-device-plugin</span></code></p></td>
+<td><p>0.17.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
+<td><p>—</p></td>
+<td><p>Advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the scheduler</p></td>
 </tr>
 <tr class="row-odd"><td><p>Open WebUI</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui/open-webui</span></code></p></td>
 <td><p>12.3.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui.&lt;domain&gt;</span></code></p></td>
-<td><p>ChatGPT-style UI backed by RKLLama</p></td>
+<td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
 <tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
@@ -577,18 +591,60 @@ persist outside the cluster.</p>
 <p>ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
 changing (see <a class="reference internal" href="variables.html"><span class="std std-doc">Variables Reference</span></a>).</p>
 </section>
+<section id="llama-cpp-cuda">
+<h3>llama.cpp (CUDA)<a class="headerlink" href="#llama-cpp-cuda" title="Link to this heading">#</a></h3>
+<p>OpenAI-compatible LLM inference server using
+<a class="reference external" href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> with CUDA acceleration. Runs as
+a single-replica Deployment scheduled exclusively on nodes labelled
+<code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>. Requires an NVIDIA GPU node in <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code> with
+<code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in the inventory.</p>
+<p>Models are stored as GGUF files on an NFS PersistentVolume (a separate subdirectory
+from RKLLama — the two formats are incompatible). Exposes an OpenAI-compatible
+<code class="docutils literal notranslate"><span class="pre">/v1</span></code> API on port 8080, consumed by Open WebUI.</p>
+<p><strong>NFS and model configuration</strong> — edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">llamacpp</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">          </span><span class="c1"># your NFS server IP</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/LMModels/cuda</span><span class="w"> </span><span class="c1"># separate from rkllama — GGUF files only</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mistral-7b-instruct-v0.2.Q4_K_M.gguf&quot;</span>
+<span class="w">    </span><span class="nt">gpuLayers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">99</span><span class="w">        </span><span class="c1"># offload all layers to GPU</span>
+<span class="w">    </span><span class="nt">contextSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8192</span>
+<span class="w">    </span><span class="nt">parallel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">    </span><span class="nt">memoryLimit</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;24Gi&quot;</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a> for how to download models to the NFS share.</p>
+</section>
+<section id="nvidia-device-plugin">
+<h3>NVIDIA device plugin<a class="headerlink" href="#nvidia-device-plugin" title="Link to this heading">#</a></h3>
+<p>DaemonSet that detects NVIDIA GPUs and advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the
+Kubernetes scheduler. Schedules on nodes with label <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>
+(applied by the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role for <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code> hosts). Once running, it
+also sets the <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present</span></code> label and the <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> allocatable
+resource on the node.</p>
+<p>Requires the NVIDIA container runtime to be configured in k3s’s containerd. The
+<code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role writes a <code class="docutils literal notranslate"><span class="pre">config.toml.tmpl</span></code> that sets the NVIDIA runtime as
+default and survives k3s-agent restarts.</p>
+</section>
 <section id="open-webui">
 <h3>Open WebUI<a class="headerlink" href="#open-webui" title="Link to this heading">#</a></h3>
-<p>ChatGPT-style web interface for interacting with LLMs. Connects to RKLLama
-(Ollama-compatible API) running on the RK1 NPU — no in-cluster Ollama deployment
-is needed. Stores chat history and user accounts in a Longhorn-backed 5Gi volume.</p>
+<p>ChatGPT-style web interface for interacting with LLMs. Connects to both:</p>
+<ul class="simple">
+<li><p><strong>RKLLama</strong> (Ollama-compatible API) on the RK1 NPU — via <code class="docutils literal notranslate"><span class="pre">ollamaUrls</span></code></p></li>
+<li><p><strong>llama.cpp</strong> (OpenAI-compatible API) on an NVIDIA GPU — via <code class="docutils literal notranslate"><span class="pre">openaiBaseApiUrl</span></code></p></li>
+</ul>
+<p>Models from both backends appear merged in the model dropdown. Stores chat history
+and user accounts in a Longhorn-backed 5Gi volume.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Open WebUI is only useful on clusters with RK1 compute modules. The service deploys
-everywhere, but the backend (RKLLama) requires the Rockchip NPU to serve models.</p>
+<p>Either backend is optional. The service works with just RKLLama (RK1 cluster),
+just llama.cpp (NVIDIA GPU node), or both simultaneously.</p>
 </div>
-<p>The first user to register becomes the admin. Models appear in the dropdown
-within ~30 seconds of being pulled via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code> (see <a class="reference internal" href="../how-to/rkllama-models.html"><span class="doc">Download RKLLama Models</span></a>).</p>
+<p>The first user to register becomes the admin. RK1 models appear after being pulled
+via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code> (see <a class="reference internal" href="../how-to/rkllama-models.html"><span class="doc">Download RKLLama Models</span></a>). CUDA models appear as soon
+as the GGUF file is present on the NFS share and llamacpp has loaded it
+(see <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>).</p>
 </section>
 <section id="sealed-secrets">
 <h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
@@ -663,6 +719,8 @@ foundation that all other services depend on.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn">Longhorn</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama">RKLlama</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llama-cpp-cuda">llama.cpp (CUDA)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui">Open WebUI</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
 </ul>
