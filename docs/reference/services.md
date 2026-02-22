@@ -14,7 +14,7 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | Distributed block storage |
-| RKLlama | Plain manifests | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server |
+| RKLlama | Helm chart (local) | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.1 | `kube-system` | — | Encrypted secrets in Git |
 
 ## Service details
@@ -87,13 +87,28 @@ basic-auth. ServiceMonitor enabled for Prometheus metrics.
 
 NPU-accelerated LLM inference server for Rockchip RK1 nodes. Runs as a DaemonSet on
 nodes labelled `node-type: rk1`. Requires privileged access to `/dev/rknpu`. Models
-stored on hostPath `/opt/rkllama/models`.
+are stored on an NFS PersistentVolume so they are shared across all RK1 nodes and
+persist outside the cluster.
 
-**Additional manifests:** `additions/rkllama/`
-- `configmap.yaml` — CPU/NPU governor tuning script
-- `daemonset.yaml` — Main workload (init + main containers)
-- `ingress.yaml` — Ingress for `rkllama.<domain>`
-- `service.yaml` — ClusterIP Service round-robining across DaemonSet pods
+**Helm chart:** `additions/rkllama/` (local chart, no external registry)
+- `templates/configmap.yaml` — CPU/NPU governor tuning script and nginx reverse-proxy config
+- `templates/daemonset.yaml` — Main workload (init + rkllama + nginx sidecar containers)
+- `templates/ingress.yaml` — Ingress for `rkllama.<domain>`
+- `templates/service.yaml` — ClusterIP Service round-robining across DaemonSet pods
+- `templates/pv.yaml` — NFS PersistentVolume (server/path from `values.yaml`)
+- `templates/pvc.yaml` — PersistentVolumeClaim bound to the NFS PV
+
+**NFS configuration** — edit `kubernetes-services/values.yaml` (the single source of truth):
+
+```yaml
+rkllama:
+  nfs:
+    server: 192.168.1.3   # your NAS IP
+    path: /bigdisk/LMModels  # your NFS export path
+```
+
+ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
+changing (see [Variables Reference](variables.md#argocd-helm-values-kubernetes-servicevaluesyaml)).
 
 ### Sealed Secrets
 

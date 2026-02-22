@@ -11,11 +11,17 @@ spec:
     namespace: rkllama
   project: kubernetes
   sources:
-    # All rkllama manifests (ConfigMap, DaemonSet, Service, Ingress) are plain YAML in additions/.
-    # No external Helm chart — rkllama runs from upstream container image directly.
+    # rkllama Helm chart: ConfigMap, DaemonSet, Service, Ingress, PV and PVC.
+    # NFS server/path values are injected from kubernetes-services/values.yaml
+    # so users only need to edit one place — no personal details are hardcoded here.
     - path: ./kubernetes-services/additions/rkllama
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          nfs:
+            server: {{ .Values.rkllama.nfs.server | quote }}
+            path: {{ .Values.rkllama.nfs.path | quote }}
   syncPolicy:
     automated:
       prune: true

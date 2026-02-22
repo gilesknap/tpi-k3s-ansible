@@ -70,34 +70,8 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
 
-        - name: pull-adapter
-          # Translates Ollama /api/pull NDJSON <-> rkllama plain-text /pull.
-          # Listens on 8083; nginx routes /api/pull here.
-          image: python:3.13-alpine
-          command: ["python3", "/scripts/pull_adapter.py"]
-          ports:
-            - name: pull-adapter
-              containerPort: 8083
-              protocol: TCP
-          volumeMounts:
-            - name: init-scripts
-              mountPath: /scripts
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8083
-            initialDelaySeconds: 5
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8083
-            initialDelaySeconds: 3
-            periodSeconds: 10
-
         - name: nginx
-          # Sidecar: stubs /api/ps, routes /api/pull to pull-adapter,
-          # proxies everything else to rkllama on 8080.
+          # Sidecar: stubs /api/ps; proxies everything else to rkllama on 8080.
           image: nginx:1.27-alpine
           ports:
             - name: http

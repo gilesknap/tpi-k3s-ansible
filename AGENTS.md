@@ -1,5 +1,16 @@
 # AGENTS.md — Guidance for AI Coding Agents
 
+## Testing Before Committing
+
+**CRITICAL: Do not offer to commit or push until the user has tested the changes.**
+
+After implementing any change:
+1. Stop and tell the user what was changed and how to test it
+2. Wait for the user to confirm the test result
+3. Only proceed to `git commit` / `git push` when explicitly asked
+
+---
+
 ## Terminal Tool Usage
 
 When using the `run_in_terminal` tool:
