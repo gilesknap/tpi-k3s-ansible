@@ -67,6 +67,7 @@ ansible-playbook pb_all.yml \
   -e repo_remote=https://github.com/me/my-fork.git
 ```
 
+(argocd-helm-values)=
 ## ArgoCD Helm values (`kubernetes-services/values.yaml`)
 
 | Variable | Default | Description |

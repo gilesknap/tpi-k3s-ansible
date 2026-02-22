@@ -108,7 +108,7 @@ rkllama:
 ```
 
 ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
-changing (see [Variables Reference](variables.md#argocd-helm-values-kubernetes-servicevaluesyaml)).
+changing (see [Variables Reference](#argocd-helm-values).
 
 ### Sealed Secrets
 
