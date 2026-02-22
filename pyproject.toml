@@ -1,0 +1,63 @@
+[project]
+name = "k3s-cluster-commissioning-docs"
+version = "0.0.0"
+description = "Documentation for K3s Cluster Commissioning with Ansible"
+requires-python = ">=3.12"
+# these are used by ansible to do cluster deployments
+dependencies = [
+    "ansible",
+    "argcomplete",
+    "ansible-lint",
+    "jmespath",
+    "kubernetes",
+]
+
+[tool.setuptools]
+packages = []
+
+[dependency-groups]
+# these are used by tox and CI to build the documentation
+dev = [
+    "myst-parser",
+    "pre-commit",
+    "pydata-sphinx-theme>=0.12",
+    "sphinx-autobuild",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "sphinxcontrib-mermaid",
+    "tox-uv",
+]
+
+[tool.tox]
+env_list = ["docs"]
+
+[tool.tox.env.docs]
+description = "Build documentation with Sphinx"
+commands = [
+    [
+        "sphinx-build",
+        "--fresh-env",
+        "--show-traceback",
+        "--fail-on-warning",
+        "--keep-going",
+        "docs",
+        "build/html",
+        { replace = "posargs", default = [
+        ], extend = true },
+    ],
+]
+
+[tool.tox.env.docs-autobuild]
+description = "Run docs with autobuild on change"
+commands = [
+    [
+        "sphinx-autobuild",
+        "--show-traceback",
+        "--watch",
+        "README.md",
+        "docs",
+        "build/html",
+        { replace = "posargs", default = [
+        ], extend = true },
+    ],
+]

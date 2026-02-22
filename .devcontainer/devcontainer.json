@@ -1,13 +1,13 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/python
+// For format details, see https://containers.dev/implementors/json_reference/
 {
-	"name": "Python 3.12 Ansible Execution Environment",
+	"name": "K3s Cluster Ansible Execution Environment",
 	"build": {
-		"dockerfile": "Dockerfile"
+		"dockerfile": "Dockerfile",
+		"target": "developer"
 	},
 	// enable ping to test connectivity
 	"runArgs": [
-		"--network=host",
+		"--net=host",
 		"--security-opt=label=disable"
 	],
 	// reserve some ports for port forwarding with kubectl - because when auto
@@ -24,18 +24,23 @@
 	},
 	"customizations": {
 		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/cache/venv-for${localWorkspaceFolder}/bin/python",
+				"python.terminal.activateEnvInCurrentTerminal": false,
+				"python.terminal.activateEnvironment": false,
+				"python.terminal.shellIntegration.enabled": false,
+				"remote.autoForwardPorts": false,
+				"remote.restoreForwardedPorts": false,
+				"remote.forwardOnOpen": false
+			},
 			"extensions": [
 				"streetsidesoftware.code-spell-checker-cspell-bundled-dictionaries",
 				"redhat.ansible",
 				"mhutchie.git-graph",
-				"ms-kubernetes-tools.vscode-kubernetes-tools"
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"tamasfe.even-better-toml",
+				"redhat.vscode-yaml"
 			]
-		},
-		// port forwarding is getting into loops - disabling until I can diagnose
-		"settings": {
-			"remote.autoForwardPorts": false,
-			"remote.restoreForwardedPorts": false,
-			"remote.forwardOnOpen": false
 		}
 	},
 	// TODO - at present this only works for rootless - investigate how to do rootful
@@ -49,17 +54,28 @@
 		"source=${localEnv:HOME}/.ansible_vault_password,target=/etc/ansible/.vault_password.txt,type=bind,ro",
 		"source=iac2-bin,target=/root/bin,type=volume",
 		"source=iac2-ssh,target=/root/.ssh,type=volume",
-		"source=iac2-kube,target=/root/.kube,type=volume"
+		"source=iac2-kube,target=/root/.kube,type=volume",
+		{
+			"source": "devcontainer-shared-cache",
+			"target": "/cache",
+			"type": "volume"
+		}
 	],
 	"remoteEnv": {
 		"ANSIBLE_VAULT_PASSWORD_FILE": "/etc/ansible/.vault_password.txt",
 		"ZSHRC": "/bash-config/zshrc",
-		"BIN_DIR": "/root/bin"
+		"BIN_DIR": "/root/bin",
+		"PRE_COMMIT_HOME": "/cache/pre-commit",
+		"UV_CACHE_DIR": "/cache/uv",
+		"UV_PYTHON_CACHE_DIR": "/cache/uv-python",
+		"UV_PROJECT_ENVIRONMENT": "/cache/venv-for${localWorkspaceFolder}",
+		"VIRTUAL_ENV": "/cache/venv-for${localWorkspaceFolder}",
+		"PATH": "/cache/venv-for${localWorkspaceFolder}/bin:${containerEnv:PATH}"
 	},
 	// For rootless leave the filesystem owned by root
 	"updateRemoteUserUID": false,
 	// One time global setup commands inside the container
-	"postCreateCommand": "bash .devcontainer/postCreateCommand ${devcontainerId}",
+	"postCreateCommand": "uv venv --clear && uv sync && pre-commit install --install-hooks && bash .devcontainer/postCreateCommand ${devcontainerId}",
 	// Mount the parent of the project folder so we can access peer projects
 	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind"
 }
