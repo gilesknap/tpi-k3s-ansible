@@ -7,6 +7,11 @@ metadata:
     app: llamacpp
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate) is required because there is only one GPU node.
+  # RollingUpdate would try to start the new pod before killing the old one,
+  # deadlocking because both pods request nvidia.com/gpu: 1.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: llamacpp
