@@ -72,8 +72,12 @@
     update_cache: true
   when: nvidia_gpu_node | default(false)
 
-# k3s ships its own containerd instance — the config must go to the k3s agent
-# path, not /etc/containerd/config.toml (which is the system containerd).
+# k3s regenerates /var/lib/rancher/k3s/agent/etc/containerd/config.toml on every
+# restart from its internal template, so nvidia-ctk changes to config.toml are
+# lost. k3s supports a config.toml.tmpl override: if this file exists, k3s uses
+# it as a Go template (with {{ template "base" . }} expanding the k3s defaults)
+# to generate config.toml. Write the NVIDIA runtime config here so it survives
+# k3s-agent restarts.
 - name: Ensure k3s containerd config directory exists
   ansible.builtin.file:
     path: /var/lib/rancher/k3s/agent/etc/containerd
@@ -81,10 +85,10 @@
     mode: "0755"
   when: nvidia_gpu_node | default(false)
 
-- name: Configure k3s containerd to use NVIDIA runtime
-  ansible.builtin.command: >
-    nvidia-ctk runtime configure --runtime=containerd
-    --config /var/lib/rancher/k3s/agent/etc/containerd/config.toml
-  changed_when: true  # always re-run to ensure config is current
+- name: Write k3s containerd config template with NVIDIA runtime as default
+  ansible.builtin.copy:
+    src: k3s-containerd-nvidia.toml.tmpl
+    dest: /var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl
+    mode: "0644"
   when: nvidia_gpu_node | default(false)
   notify: Restart k3s-agent
