@@ -1,0 +1,861 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Set Up a Cloudflare Tunnel &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/cloudflare-tunnel';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Manage Sealed Secrets" href="manage-sealed-secrets.html" />
+    <link rel="prev" title="Bootstrap the Cluster" href="bootstrap-cluster.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Set Up a Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Set Up a Cloudflare Tunnel</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="set-up-a-cloudflare-tunnel">
+<h1>Set Up a Cloudflare Tunnel<a class="headerlink" href="#set-up-a-cloudflare-tunnel" title="Link to this heading">#</a></h1>
+<p>This guide walks through setting up a <a class="reference external" href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/">Cloudflare Tunnel</a>
+to expose selective cluster services to the internet, while keeping most services
+LAN-only. It also covers DNS-01 certificate issuance via the Cloudflare API.</p>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>INTERNET
+  │
+  ▼
+Cloudflare Edge (WAF, DDoS protection, CDN)
+  │  DNS: echo.&lt;domain&gt; → &lt;tunnel&gt;.cfargotunnel.com  (Proxied)
+  │  HTTPS (Cloudflare manages external TLS)
+  ▼
+cloudflared pod (in cluster, outbound connection only — no inbound firewall ports)
+  │  HTTP to ingress-nginx
+  ▼
+ingress-nginx → service
+
+LOCAL NETWORK
+  DNS: grafana/argocd/headlamp/longhorn/rkllama.&lt;domain&gt; → worker IP  (DNS-only A records)
+  Clients resolve directly to ingress-nginx without going via Cloudflare
+</pre></div>
+</div>
+<p><strong>Key design decisions:</strong></p>
+<ul class="simple">
+<li><p>Only explicitly configured services are publicly accessible through the tunnel.
+All other services use grey-cloud (DNS-only) A records — accessible from LAN only.</p></li>
+<li><p><strong>No wildcard CNAME</strong> in Cloudflare DNS to avoid ECH (Encrypted Client Hello)
+issues in Chrome (<code class="docutils literal notranslate"><span class="pre">ERR_ECH_FALLBACK_CERTIFICATE_INVALID</span></code>).</p></li>
+<li><p><strong>DNS-01 challenge</strong> for TLS certificates — works for all hostnames including
+LAN-only services that have no public HTTP route.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> uses an <strong>outbound-only</strong> connection — no inbound firewall ports needed.</p></li>
+</ul>
+</section>
+<section id="part-1-cloudflare-web-ui-setup">
+<h2>Part 1: Cloudflare web UI setup<a class="headerlink" href="#part-1-cloudflare-web-ui-setup" title="Link to this heading">#</a></h2>
+<section id="add-your-domain">
+<h3>1.1 Add your domain<a class="headerlink" href="#add-your-domain" title="Link to this heading">#</a></h3>
+<p>If your domain is registered elsewhere, delegate DNS to Cloudflare by updating
+nameservers at your registrar.</p>
+<ol class="arabic simple">
+<li><p>Log in to the <a class="reference external" href="https://dash.cloudflare.com">Cloudflare dashboard</a>.</p></li>
+<li><p>Use <strong>Onboard a Domain</strong> or <strong>Buy a Domain</strong>.</p></li>
+<li><p>Wait for DNS propagation (usually minutes to an hour).</p></li>
+</ol>
+</section>
+<section id="create-a-tunnel">
+<h3>1.2 Create a tunnel<a class="headerlink" href="#create-a-tunnel" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Navigate to <strong>Networking → Tunnels</strong>.</p></li>
+<li><p>Click <strong>Create a tunnel</strong>.</p></li>
+<li><p>Select <strong>Cloudflared</strong> as the connector type.</p></li>
+<li><p>Name the tunnel (e.g. <code class="docutils literal notranslate"><span class="pre">k3s-cluster</span></code>).</p></li>
+<li><p>After creation, Cloudflare shows setup instructions. Copy the <strong>tunnel token</strong>
+from the “Install as service” box.</p></li>
+</ol>
+<figure class="align-center" id="id1">
+<img alt="Cloudflare tunnel configuration" src="../_images/tunnels.png" />
+<figcaption>
+<p><span class="caption-text">The Cloudflare Tunnels dashboard after creating a tunnel.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p>Extract just the token value (the long base64 string after <code class="docutils literal notranslate"><span class="pre">--token</span></code>).</p>
+</section>
+<section id="deploy-cloudflared-first">
+<h3>1.3 Deploy cloudflared first<a class="headerlink" href="#deploy-cloudflared-first" title="Link to this heading">#</a></h3>
+<p>Cloudflare’s UI will not let you continue until it detects a live tunnel connection.
+You must deploy the cloudflared pod <strong>now</strong>.</p>
+<p>Create a SealedSecret from the token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;Tunnel token: &#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>TOKEN<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span>
+<span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>cloudflared-credentials<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--namespace<span class="w"> </span>cloudflared<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--from-file<span class="o">=</span><span class="nv">TUNNEL_TOKEN</span><span class="o">=</span>/dev/stdin<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>kubernetes-services/additions/cloudflared/tunnel-secret.yaml
+<span class="nb">unset</span><span class="w"> </span>TOKEN
+</pre></div>
+</div>
+<p>Commit and push:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/additions/cloudflared/tunnel-secret.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add cloudflared tunnel token SealedSecret&quot;</span>
+git<span class="w"> </span>push
+</pre></div>
+</div>
+<p>ArgoCD syncs the <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> Application. Watch the pod start:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/cloudflared<span class="w"> </span>-n<span class="w"> </span>cloudflared
+kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>deployment/cloudflared<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-20
+</pre></div>
+</div>
+<p>Once connected, the Cloudflare UI shows <strong>“Tunnel connected successfully”</strong>.</p>
+<figure class="align-center" id="id2">
+<img alt="Tunnel connected successfully" src="../_images/tunnel_success.png" />
+<figcaption>
+<p><span class="caption-text">Cloudflare confirming the tunnel connection is established.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="configure-a-public-hostname">
+<h3>1.4 Configure a public hostname<a class="headerlink" href="#configure-a-public-hostname" title="Link to this heading">#</a></h3>
+<p>In the tunnel details, click <strong>Routes → Add a route → Published Application</strong>.</p>
+<p>For the echo test service:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Subdomain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Domain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Service URL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Use <strong>HTTP</strong> (not HTTPS) for the service URL. Cloudflare terminates external TLS at its
+edge. If the tunnel also used HTTPS and ingress-nginx forced a redirect, it would cause
+a redirect loop. The echo ingress has <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">false</span></code> to match.</p>
+</div>
+</section>
+<section id="dns-record-created-automatically">
+<h3>1.5 DNS record created automatically<a class="headerlink" href="#dns-record-created-automatically" title="Link to this heading">#</a></h3>
+<p>Cloudflare creates a proxied CNAME:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>echo.example.com → &lt;tunnel-id&gt;.cfargotunnel.com  (Proxied ☁)
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Do not add a wildcard <code class="docutils literal notranslate"><span class="pre">*</span></code> CNAME record.</strong> A proxied wildcard causes Cloudflare to
+publish HTTPS DNS records advertising ECH for every subdomain. Chrome will attempt ECH
+for subdomains like <code class="docutils literal notranslate"><span class="pre">grafana.example.com</span></code> via Cloudflare’s edge, but Cloudflare has no
+cert for it — resulting in <code class="docutils literal notranslate"><span class="pre">ERR_ECH_FALLBACK_CERTIFICATE_INVALID</span></code>.</p>
+<p>Instead, add explicit grey-cloud A records for each LAN-only service (see Part 3).</p>
+</div>
+</section>
+<section id="create-an-api-token-for-dns-01">
+<h3>1.6 Create an API token for DNS-01<a class="headerlink" href="#create-an-api-token-for-dns-01" title="Link to this heading">#</a></h3>
+<p>cert-manager needs a Cloudflare API token to manage <code class="docutils literal notranslate"><span class="pre">_acme-challenge</span></code> TXT records.</p>
+<ol class="arabic simple">
+<li><p>Go to <strong>Manage Account → Account API Tokens → Create Token</strong>.</p></li>
+<li><p>Use the <strong>Edit zone DNS</strong> template.</p></li>
+<li><p>Configure:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Setting</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Permissions</p></td>
+<td><p>Zone → DNS → Edit</p></td>
+</tr>
+<tr class="row-odd"><td><p>Zone Resources</p></td>
+<td><p>Include → Specific zone → your domain</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>Create the token and <strong>copy it immediately</strong> (shown only once).</p></li>
+</ol>
+</section>
+</section>
+<section id="part-2-waf-web-application-firewall">
+<h2>Part 2: WAF (Web Application Firewall)<a class="headerlink" href="#part-2-waf-web-application-firewall" title="Link to this heading">#</a></h2>
+<p>Cloudflare’s default WAF (DDoS protection, bot management) applies automatically to
+all proxied traffic. Optionally add a rate-limiting rule:</p>
+<ol class="arabic simple">
+<li><p>Go to <strong>Security → WAF → Rate Limiting Rules</strong>.</p></li>
+<li><p>Create a rule:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Rule name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Echo</span> <span class="pre">rate</span> <span class="pre">limit</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Match</p></td>
+<td><p>Hostname equals <code class="docutils literal notranslate"><span class="pre">echo.example.com</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Rate</p></td>
+<td><p>30 requests per 1 minute</p></td>
+</tr>
+<tr class="row-odd"><td><p>Action</p></td>
+<td><p>Block</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="part-3-dns-records-for-lan-only-services">
+<h2>Part 3: DNS records for LAN-only services<a class="headerlink" href="#part-3-dns-records-for-lan-only-services" title="Link to this heading">#</a></h2>
+<p>For services not exposed via the tunnel, add <strong>grey-cloud (DNS-only) A records</strong>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Type</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Content</p></th>
+<th class="head"><p>Proxy status</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-odd"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-even"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">longhorn</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-odd"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Use one of the worker node IPs. These resolve to a private RFC-1918 address — only
+reachable from your LAN.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Adding records in Cloudflare (rather than your router) means they work for any client
+using Cloudflare’s public nameservers, without router-side DNS configuration. It also
+keeps all DNS for the domain in one place.</p>
+</div>
+</section>
+<section id="part-4-kubernetes-secrets">
+<h2>Part 4: Kubernetes secrets<a class="headerlink" href="#part-4-kubernetes-secrets" title="Link to this heading">#</a></h2>
+<section id="cloudflare-api-token-secret">
+<h3>4.1 Cloudflare API token secret<a class="headerlink" href="#cloudflare-api-token-secret" title="Link to this heading">#</a></h3>
+<p>Using the API token from Step 1.6:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;Cloudflare API token: &#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>TOKEN<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span>
+<span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>cloudflare-api-token<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--namespace<span class="w"> </span>cert-manager<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--from-file<span class="o">=</span>api-token<span class="o">=</span>/dev/stdin<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+<span class="nb">unset</span><span class="w"> </span>TOKEN
+</pre></div>
+</div>
+<p>Commit and push:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add cert-manager Cloudflare DNS-01 API token SealedSecret&quot;</span>
+git<span class="w"> </span>push
+</pre></div>
+</div>
+</section>
+<section id="cert-manager-clusterissuer">
+<h3>4.2 cert-manager ClusterIssuer<a class="headerlink" href="#cert-manager-clusterissuer" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">ClusterIssuer</span></code> at <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cert-manager/issuer-letsencrypt-prod.yaml</span></code>
+uses DNS-01 with Cloudflare:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">solvers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">dns01</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">cloudflare</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">apiTokenSecretRef</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudflare-api-token</span>
+<span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-token</span>
+</pre></div>
+</div>
+<p>This works for <strong>all</strong> certificates — including LAN-only services. cert-manager adds
+a temporary <code class="docutils literal notranslate"><span class="pre">_acme-challenge</span></code> TXT record via the Cloudflare API, waits for Let’s Encrypt
+to validate it, then removes the record.</p>
+</section>
+</section>
+<section id="part-5-verification">
+<h2>Part 5: Verification<a class="headerlink" href="#part-5-verification" title="Link to this heading">#</a></h2>
+<section id="check-certificates">
+<h3>Check certificates<a class="headerlink" href="#check-certificates" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>certificate<span class="w"> </span>-A
+</pre></div>
+</div>
+<p>All certificates should show <code class="docutils literal notranslate"><span class="pre">READY:</span> <span class="pre">True</span></code>.</p>
+</section>
+<section id="check-cloudflared-connectivity">
+<h3>Check cloudflared connectivity<a class="headerlink" href="#check-cloudflared-connectivity" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>deployment/cloudflared<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-30
+</pre></div>
+</div>
+<p>Look for <code class="docutils literal notranslate"><span class="pre">Connection</span> <span class="pre">registered</span></code> and <code class="docutils literal notranslate"><span class="pre">Registered</span> <span class="pre">tunnel</span> <span class="pre">connection</span></code>.</p>
+</section>
+<section id="test-public-access">
+<h3>Test public access<a class="headerlink" href="#test-public-access" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://echo.example.com
+</pre></div>
+</div>
+<p>Expected: JSON response from the echo server.</p>
+</section>
+<section id="confirm-lan-only-isolation">
+<h3>Confirm LAN-only isolation<a class="headerlink" href="#confirm-lan-only-isolation" title="Link to this heading">#</a></h3>
+<p>From outside your LAN (e.g. mobile hotspot):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
+<span class="c1"># Expected: connection refused or timeout (private IP not reachable)</span>
+</pre></div>
+</div>
+<p>From inside your LAN:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
+<span class="c1"># Expected: 200/302 ArgoCD login page</span>
+</pre></div>
+</div>
+</section>
+<section id="check-argocd-app-status">
+<h3>Check ArgoCD app status<a class="headerlink" href="#check-argocd-app-status" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>applications<span class="w"> </span>-n<span class="w"> </span>argo-cd
+</pre></div>
+</div>
+<p>All applications should be <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and <code class="docutils literal notranslate"><span class="pre">Healthy</span></code>.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="bootstrap-cluster.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Bootstrap the Cluster</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="manage-sealed-secrets.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Manage Sealed Secrets</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-cloudflare-web-ui-setup">Part 1: Cloudflare web UI setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-your-domain">1.1 Add your domain</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-tunnel">1.2 Create a tunnel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy-cloudflared-first">1.3 Deploy cloudflared first</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-a-public-hostname">1.4 Configure a public hostname</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dns-record-created-automatically">1.5 DNS record created automatically</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-api-token-for-dns-01">1.6 Create an API token for DNS-01</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-waf-web-application-firewall">Part 2: WAF (Web Application Firewall)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-dns-records-for-lan-only-services">Part 3: DNS records for LAN-only services</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-kubernetes-secrets">Part 4: Kubernetes secrets</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-api-token-secret">4.1 Cloudflare API token secret</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager-clusterissuer">4.2 cert-manager ClusterIssuer</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-verification">Part 5: Verification</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-certificates">Check certificates</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-cloudflared-connectivity">Check cloudflared connectivity</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-public-access">Test public access</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#confirm-lan-only-isolation">Confirm LAN-only isolation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-argocd-app-status">Check ArgoCD app status</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/cloudflare-tunnel.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/cloudflare-tunnel.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
