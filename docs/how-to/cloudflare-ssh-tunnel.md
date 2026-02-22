@@ -8,7 +8,7 @@ SSH tunnel through Cloudflare Zero Trust, without opening any inbound firewall p
 ```
 CLIENT MACHINE
   │
-  cloudflared access ssh --hostname ssh.gkcluster.org
+  cloudflared access ssh --hostname ssh.example.com
   │  HTTPS to Cloudflare Edge (authenticated via Zero Trust policy)
   ▼
 Cloudflare Zero Trust (identity verification + audit logging)
@@ -17,7 +17,7 @@ Cloudflare Zero Trust (identity verification + audit logging)
 cloudflared pod (in cluster)
   │  Forwards to node01:22
   ▼
-node01 (192.168.1.81) SSH
+node01 (<node01-ip>) SSH
   │
   kubectl / port-forward to any cluster service
 ```
@@ -63,7 +63,7 @@ attempt connections.
 |---|---|
 | Application name | `k3s SSH` |
 | Session duration | `24h` |
-| Domain | `gkcluster.org` |
+| Domain | `example.com` |
 | Subdomain | `ssh` |
 | Path | none (leave blank) |
 
@@ -92,46 +92,77 @@ go to **Networks → Tunnels**, open your existing tunnel, select **Public hostn
 | Field | Value |
 |---|---|
 | Subdomain | `ssh` |
-| Domain | `gkcluster.org` |
+| Domain | `example.com` |
 | Service Type | `SSH` |
-| Service URL | `192.168.1.81:22` |
+| Service URL | `<node01-ip>:22` |
 
 :::{note}
 The Service field is split into a **Type** dropdown and a **URL** field. Select `SSH`
-from the Type dropdown and enter `192.168.1.81:22` in the URL field — do not include
+from the Type dropdown and enter `<node01-ip>:22` in the URL field — do not include
 the `ssh://` prefix in the URL field.
 :::
 
 Cloudflare automatically creates a proxied CNAME:
 
 ```
-ssh.gkcluster.org → <tunnel-id>.cfargotunnel.com  (Proxied ☁)
+ssh.example.com → <tunnel-id>.cfargotunnel.com  (Proxied ☁)
 ```
 
 :::{note}
-The `cloudflared` pod resolves `192.168.1.81` from within the cluster network — it does
+The `cloudflared` pod resolves `<node01-ip>` from within the cluster network — it does
 not need a DNS name, just a reachable IP. Using the control-plane IP directly is more
 reliable than a hostname here.
 :::
 
-## Part 3: Client SSH Configuration
+## Part 3: WAF Skip Rule
 
-### 3.1 Add a ProxyCommand entry to `~/.ssh/config`
+By default Cloudflare's WAF inspects all proxied traffic and may block requests to
+`ssh.example.com` before they ever reach the Access application — resulting in a
+generic "Why have I been blocked?" page and `failed to find Access application` from
+`cloudflared`. You must add a WAF skip rule to allow Access to handle authentication.
+
+In the **main Cloudflare dashboard** (`dash.cloudflare.com`, not the One dashboard):
+
+1. Select your `example.com` zone.
+2. Go to **Security → WAF → Custom rules → Create rule**.
+3. Configure:
+
+| Field | Value |
+|---|---|
+| Rule name | `Allow SSH tunnel` |
+| Expression | `http.host eq "ssh.example.com"` |
+| Action | `Skip` |
+
+4. Under **Skip**, tick:
+   - Skip all remaining **custom rules**
+   - Skip all **managed rules** (WAF Managed Ruleset)
+5. Click **Deploy**.
+
+:::{warning}
+Without this rule, `cloudflared access login` returns
+`failed to find Access application` and visiting `ssh.example.com` in a browser
+shows a WAF block page rather than the Cloudflare Access login prompt. The WAF
+intercepts the request before Access can issue its authentication challenge.
+:::
+
+## Part 4: Client SSH Configuration
+
+### 4.1 Add a ProxyCommand entry to `~/.ssh/config`
 
 ```text
-Host ssh.gkcluster.org
+Host ssh.example.com
     ProxyCommand cloudflared access ssh --hostname %h
     User ubuntu
     StrictHostKeyChecking no
 ```
 
-### 3.2 Authenticate before first connection
+### 4.2 Authenticate before first connection
 
 The `ProxyCommand` does **not** open a browser automatically. You must log in first
 to cache a token:
 
 ```bash
-cloudflared access login https://ssh.gkcluster.org
+cloudflared access login https://ssh.example.com
 ```
 
 This opens a browser window for Cloudflare Access authentication. After authenticating,
@@ -139,43 +170,45 @@ a token is written to `~/.cloudflared/`. The token is reused for the session dur
 you configured.
 
 :::{warning}
-Both Part 1 (Access Application) **and** Part 2 (Tunnel public hostname) must be
-completed before this command will work. If either is missing you will see:
+Parts 1 (Access Application), 2 (Tunnel public hostname), and 3 (WAF skip rule) must
+all be completed before this command will work. If any is missing you will see:
 
-- `failed to find Access application` — the Access Application in Part 1 does not
-  exist or the hostname does not exactly match `ssh.gkcluster.org`. Check
-  **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/).
+- `failed to find Access application` — either the Access Application (Part 1) does not
+  exist, the hostname does not exactly match `ssh.example.com`, or the WAF (Part 3)
+  is blocking the request before Access can respond. Check
+  **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/)
+  and **Security → WAF → Custom rules** at [dash.cloudflare.com](https://dash.cloudflare.com/).
 - `websocket: bad handshake` — the tunnel hostname in Part 2 is missing, so
   Cloudflare has nowhere to forward the connection. Check **Networks → Tunnels → Public hostnames**.
 :::
 
-### 3.3 Connect via SSH
+### 4.3 Connect via SSH
 
 ```bash
-ssh ssh.gkcluster.org
+ssh ssh.example.com
 ```
 
 Subsequent connections within the token's session duration connect immediately without
 re-authentication. When the token expires, re-run `cloudflared access login` first.
 
-## Part 4: Remote `kubectl` Access
+## Part 5: Remote `kubectl` Access
 
-### 4.1 Copy and patch your kubeconfig
+### 5.1 Copy and patch your kubeconfig
 
 ```bash
 # Copy kubeconfig from the control plane
-scp ssh.gkcluster.org:~/.kube/config ~/.kube/k3s-remote.yaml
+scp ssh.example.com:~/.kube/config ~/.kube/k3s-remote.yaml
 
 # Patch the server address to use a local forwarded port
-sed -i 's|https://192.168.1.81:6443|https://127.0.0.1:6443|' \
+sed -i 's|https://<node01-ip>:6443|https://127.0.0.1:6443|' \
     ~/.kube/k3s-remote.yaml
 ```
 
-### 4.2 Forward the Kubernetes API port and use kubectl
+### 5.2 Forward the Kubernetes API port and use kubectl
 
 ```bash
 # Start the port forward in the background
-ssh -fNL 6443:192.168.1.81:6443 ssh.gkcluster.org
+ssh -fNL 6443:<node01-ip>:6443 ssh.example.com
 
 # Use the remote kubeconfig
 export KUBECONFIG=~/.kube/k3s-remote.yaml
@@ -184,20 +217,20 @@ kubectl get nodes
 
 Expected output: your cluster nodes in `Ready` state.
 
-## Part 5: Access Cluster Web Services Remotely
+## Part 6: Access Cluster Web Services Remotely
 
 Use SSH local port-forwarding to reach any cluster web service. The forwarding target
 is resolved from `node01` — so you can use internal cluster DNS or LAN IPs.
 
 ```bash
 # Single service — ArgoCD UI
-ssh -fNL 8080:192.168.1.82:443 ssh.gkcluster.org
+ssh -fNL 8080:<worker-ip>:443 ssh.example.com
 # Open: https://localhost:8080
 
 # Multiple services in one connection
-ssh -fNL 8080:192.168.1.82:443 \
-    -NL 8081:192.168.1.82:443 \
-    ssh.gkcluster.org
+ssh -fNL 8080:<worker-ip>:443 \
+    -NL 8081:<worker-ip>:443 \
+    ssh.example.com
 ```
 
 Or use `kubectl port-forward` once your tunnel API connection is active:
@@ -222,7 +255,7 @@ Create a shell script or alias to bring up all your port forwards in one command
 ```bash
 #!/usr/bin/env bash
 # remote-cluster.sh — bring up tunnel port forwards
-ssh -fNL 6443:192.168.1.81:6443 ssh.gkcluster.org
+ssh -fNL 6443:<node01-ip>:6443 ssh.example.com
 echo "Kubernetes API → https://127.0.0.1:6443"
 kubectl --kubeconfig ~/.kube/k3s-remote.yaml port-forward \
     svc/argocd-server -n argo-cd 8080:443 &
@@ -230,11 +263,11 @@ echo "ArgoCD → https://localhost:8080"
 ```
 :::
 
-## Part 6: Verification
+## Part 7: Verification
 
 ### Confirm Access policy is enforced
 
-Visit `https://ssh.gkcluster.org` in a browser — you should be redirected to the
+Visit `https://ssh.example.com` in a browser — you should be redirected to the
 Cloudflare Access login page, not an SSH banner. If you see a plain error page,
 check **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/)
 to confirm the application exists and its hostname matches.
@@ -242,7 +275,7 @@ to confirm the application exists and its hostname matches.
 ### Test the SSH tunnel
 
 ```bash
-ssh ssh.gkcluster.org echo "tunnel ok"
+ssh ssh.example.com echo "tunnel ok"
 ```
 
 Expected: `tunnel ok` printed after authentication.
@@ -253,14 +286,14 @@ Expected: `tunnel ok` printed after authentication.
 kubectl logs -n cloudflared deployment/cloudflared | tail -20
 ```
 
-Look for connections referencing `ssh.gkcluster.org`.
+Look for connections referencing `ssh.example.com`.
 
 ### Confirm the node is NOT directly reachable from outside your LAN
 
 From a mobile hotspot (off your home network):
 
 ```bash
-ssh ubuntu@192.168.1.81
+ssh ubuntu@<node01-ip>
 # Expected: connection refused or timeout — direct access is blocked
 ```
 
