@@ -24,11 +24,11 @@ data:
 
   nginx.conf: |
     # Nginx sidecar — stubs missing Ollama endpoints that Open WebUI requires,
-    # proxies everything else to rkllama on port 8081.
+    # proxies everything else to rkllama on port 8080.
     events {}
     http {
       server {
-        listen 8080;
+        listen 8082;
 
         # /api/ps: rkllama doesn't implement this but Open WebUI polls it
         # to verify the connection before pulling models. Return an empty
@@ -40,7 +40,7 @@ data:
 
         # Everything else proxied transparently to rkllama.
         location / {
-          proxy_pass http://localhost:8081;
+          proxy_pass http://localhost:8080;
           proxy_http_version 1.1;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;

@@ -33,18 +33,16 @@ spec:
         - name: rkllama
           # OpenAI/Ollama-compatible LLM server backed by Rockchip RKLLM SDK (NPU-accelerated)
           # https://github.com/NotPunchnox/rkllama
-          # Runs on port 8081 internally; nginx sidecar fronts on 8080.
+          # Runs on port 8080 internally; nginx sidecar fronts on 8082.
           image: ghcr.io/notpunchnox/rkllama:main
           imagePullPolicy: Always
           ports:
             - name: rkllama
-              containerPort: 8081
+              containerPort: 8080
               protocol: TCP
           env:
             - name: MODELS_DIR
               value: /root/rkllama/models
-            - name: PORT
-              value: "8081"
           securityContext:
             privileged: true # required for /dev/rknpu NPU access
           resources:
@@ -61,14 +59,14 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 8081
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
-              port: 8081
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
 
@@ -78,7 +76,7 @@ spec:
           image: nginx:1.27-alpine
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: 8082
               protocol: TCP
           volumeMounts:
             - name: init-scripts
@@ -87,13 +85,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /api/version
-              port: 8080
+              port: 8082
             initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /api/version
-              port: 8080
+              port: 8082
             initialDelaySeconds: 5
             periodSeconds: 10
 
