@@ -30,6 +30,23 @@ node01 (<node01-ip>) SSH
 - All access attempts are logged in the Cloudflare Access audit trail.
 - Optionally, short-lived SSH certificates replace static keys entirely.
 
+## Notes on cloudflare
+
+<https://one.dash.cloudflare.com> is specifically designed for managing Cloudflare Zero Trust and network security services (formerly Cloudflare for Teams), while <https://dash.cloudflare.com> remains the primary dashboard for managing DNS, WAF, and general website performance.
+
+![cloudflare 01](../images/cloudflare-01.png)
+
+![cloudflare 02](../images/cloudflare-02.png)
+
+![cloudflare 03](../images/cloudflare-03.png)
+
+![cloudflare 04](../images/cloudflare-04.png)
+
+![cloudflare 05](../images/cloudflare-05.png)
+
+![cloudflare 06](../images/cloudflare-06.png)
+
+
 ## Prerequisites
 
 - A working Cloudflare Tunnel with `cloudflared` deployed in the cluster
