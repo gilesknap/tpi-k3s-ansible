@@ -78,7 +78,19 @@ git commit -m "Add oauth2-proxy credentials SealedSecret"
 git push
 ```
 
-## Step 4: Deploy oauth2-proxy
+## Step 4: Add a DNS record
+
+Add a grey-cloud (DNS-only) A record in the Cloudflare dashboard for the
+oauth2-proxy ingress:
+
+| Type | Name | Content | Proxy status |
+|------|------|---------|-------------|
+| A | `oauth2` | `192.168.1.82` | DNS only |
+
+Use one of your worker node IPs. This is the same pattern as other LAN-only
+services (see {doc}`cloudflare-tunnel` Part 3).
+
+## Step 5: Deploy oauth2-proxy
 
 oauth2-proxy is deployed as an ArgoCD Application defined in
 `kubernetes-services/templates/oauth2-proxy.yaml`. After pushing the
@@ -93,7 +105,7 @@ kubectl get ingress -n oauth2-proxy
 
 Visit `https://oauth2.<your-domain>` — you should see a GitHub login page.
 
-## Step 5: Enable OAuth on services
+## Step 6: Enable OAuth on services
 
 Services use the shared ingress template at
 `kubernetes-services/additions/ingress/templates/ingress.yaml`. To protect
@@ -120,7 +132,7 @@ Services currently protected by OAuth:
 - Headlamp (`dashboard.yaml`)
 - Open WebUI (`open-webui.yaml`)
 
-## Step 6: Restrict access (optional)
+## Step 7: Restrict access (optional)
 
 To restrict access to members of a specific GitHub organisation, add the
 `github-org` flag in `kubernetes-services/templates/oauth2-proxy.yaml`:
