@@ -14,6 +14,10 @@ metadata:
     nginx.ingress.kubernetes.io/auth-secret: admin-auth
     nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
 {{- end }}
+{{- if .Values.oauth2_proxy | default false }}
+    nginx.ingress.kubernetes.io/auth-url: "https://oauth2.{{ .Values.cluster_domain }}/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.{{ .Values.cluster_domain }}/oauth2/start?rd=$scheme://$host$escaped_request_uri"
+{{- end }}
 spec:
   ingressClassName: nginx
   tls:

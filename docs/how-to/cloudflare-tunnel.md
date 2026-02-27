@@ -284,3 +284,45 @@ kubectl get applications -n argo-cd
 ```
 
 All applications should be `Synced` and `Healthy`.
+
+## Adding more services to the tunnel
+
+To expose a new service through the tunnel:
+
+1. In the Cloudflare tunnel dashboard, add a new **public hostname**.
+2. Set the subdomain (e.g. `myapp`), domain, and service URL.
+3. Use `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
+   as the service URL (same as the echo service).
+4. Ensure the service has an Ingress resource with a matching hostname and
+   `ssl-redirect: false` (to avoid redirect loops through the tunnel).
+5. The DNS CNAME is created automatically by Cloudflare.
+
+## Cloudflare Access integration
+
+For services that need authentication before reaching the cluster, use
+Cloudflare Access (part of Zero Trust). This adds identity verification
+at the Cloudflare edge with zero cluster overhead.
+
+See {doc}`cloudflare-ssh-tunnel` for a working example with SSH, and
+{doc}`oauth-setup` for in-cluster OAuth as an alternative.
+
+## Rate limiting best practices
+
+Rate limiting rules are configured per-hostname in the Cloudflare dashboard
+under **Security > WAF > Rate Limiting Rules**.
+
+Recommended starting points:
+
+| Service | Rate | Window | Action |
+|---------|------|--------|--------|
+| Echo (test) | 30 req | 1 min | Block |
+| API endpoints | 60 req | 1 min | Challenge |
+| Web UIs | 120 req | 1 min | Challenge |
+
+Adjust based on your usage patterns. Monitor blocked requests in the
+Cloudflare analytics dashboard.
+
+## Troubleshooting
+
+See the Cloudflare Tunnel section in the {doc}`/reference/troubleshooting`
+guide for common issues and solutions.

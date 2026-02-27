@@ -315,3 +315,9 @@ ssh ubuntu@<node01-ip>
 ```
 
 The node is only reachable via the Cloudflare tunnel with a valid Access session.
+
+## See also
+
+- {doc}`cloudflare-tunnel` — Setting up the base Cloudflare tunnel
+- {doc}`oauth-setup` — In-cluster OAuth authentication as an alternative to
+  Cloudflare Access

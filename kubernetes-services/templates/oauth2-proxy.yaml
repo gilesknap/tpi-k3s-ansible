@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oauth2-proxy
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: oauth2-proxy
+  project: kubernetes
+  sources:
+    - chart: oauth2-proxy
+      repoURL: https://oauth2-proxy.github.io/manifests
+      targetRevision: 7.12.10
+      helm:
+        valuesObject:
+          # https://github.com/oauth2-proxy/manifests/blob/main/helm/oauth2-proxy/values.yaml
+          # Credentials are loaded from a SealedSecret — do NOT put them here.
+          config:
+            existingSecret: oauth2-proxy-credentials
+          extraArgs:
+            provider: github
+            email-domain: "*"
+            cookie-domain: ".{{ .Values.cluster_domain }}"
+            whitelist-domain: ".{{ .Values.cluster_domain }}"
+            cookie-secure: "true"
+            upstream: "static://202"
+            set-xauthrequest: "true"
+            pass-access-token: "true"
+          ingress:
+            enabled: true
+            className: nginx
+            hosts:
+              - oauth2.{{ .Values.cluster_domain }}
+            tls:
+              - secretName: oauth2-proxy-tls
+                hosts:
+                  - oauth2.{{ .Values.cluster_domain }}
+            annotations:
+              kubernetes.io/tls-acme: "true"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+    - path: ./kubernetes-services/additions/oauth2-proxy
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

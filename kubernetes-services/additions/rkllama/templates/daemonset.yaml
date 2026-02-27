@@ -34,8 +34,8 @@ spec:
           # OpenAI/Ollama-compatible LLM server backed by Rockchip RKLLM SDK (NPU-accelerated)
           # https://github.com/NotPunchnox/rkllama
           # Runs on port 8080 internally; nginx sidecar fronts on 8082.
-          image: ghcr.io/notpunchnox/rkllama:main
-          imagePullPolicy: Always
+          image: ghcr.io/notpunchnox/rkllama:0.0.4
+          imagePullPolicy: IfNotPresent
           ports:
             - name: rkllama
               containerPort: 8080
@@ -56,23 +56,35 @@ spec:
               mountPath: /root/RKLLAMA/models
             - name: rknpu
               mountPath: /dev/rknpu
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8080
+            # Allow up to 5 minutes for model loading (30 x 10s)
+            failureThreshold: 30
+            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
               port: 8080
-            initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: 8080
-            initialDelaySeconds: 10
             periodSeconds: 10
 
         - name: nginx
           # Sidecar: stubs /api/ps; proxies everything else to rkllama on 8080.
           image: nginx:1.29-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
           ports:
             - name: http
               containerPort: 8082
