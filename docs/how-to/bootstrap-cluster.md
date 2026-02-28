@@ -4,14 +4,17 @@ After the Ansible playbook completes, ArgoCD is installed and will begin syncing
 services. This guide covers the post-deployment steps: setting up credentials and
 accessing each service.
 
-## Fixed DHCP Leases
+## Local Network Setup
 
-These first two steps involve configuring your router.
+The first two steps configure your **home router** to give the cluster stable
+IP addresses and DNS names on your LAN.
 
-Before setting up DNS, assign **fixed DHCP leases** (also called "static leases" or
-"address reservations") to each node in your router's DHCP settings. This ensures
-nodes always receive the same IP address after a reboot — without fixed leases, your
-DNS records could become stale.
+### Fixed DHCP Leases
+
+In your router's DHCP settings, assign **fixed leases** (also called "static leases"
+or "address reservations") to each cluster node. This ensures nodes always receive
+the same IP address after a reboot — without fixed leases, your DNS records could
+become stale.
 
 Find your nodes' MAC addresses with `ip link` or `arp -a`, then map each one to a
 static IP in your router's admin interface (e.g. `192.168.1.82`, `.83`, `.84`).
@@ -24,7 +27,7 @@ You can use these names to identify them in your router and then assign fixed IP
 accordingly.
 :::
 
-## DNS Prerequisites
+### DNS Records
 
 Each service with an ingress needs a DNS A record pointing to your **worker node IPs**
 (not the control plane). For single-node clusters, point to that node's IP.
