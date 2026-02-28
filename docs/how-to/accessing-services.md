@@ -3,6 +3,12 @@
 How to connect to each cluster service via ingress or port-forward.
 All services below assume you have completed the {doc}`bootstrap-cluster` steps.
 
+:::{note}
+The **ingress URLs** (`https://<service>.<domain>`) require DNS and TLS to be
+configured first — see {doc}`cloudflare-tunnel` Parts 1–3. **Port-forward**
+commands work immediately after bootstrap with no additional setup.
+:::
+
 ## ArgoCD
 
 Via ingress: **https://argocd.\<domain\>**

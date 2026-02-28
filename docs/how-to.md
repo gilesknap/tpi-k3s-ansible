@@ -9,7 +9,6 @@ Task-oriented recipes for common operations and configuration changes.
 
 how-to/bootstrap-cluster
 how-to/accessing-services
-how-to/manage-sealed-secrets
 how-to/cloudflare-tunnel
 how-to/cloudflare-ssh-tunnel
 how-to/oauth-setup
@@ -32,6 +31,7 @@ how-to/add-remove-services
 
 how-to/monitoring
 how-to/backup-restore
+how-to/manage-sealed-secrets
 how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild

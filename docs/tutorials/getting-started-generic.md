@@ -50,6 +50,10 @@ cd tpi-k3s-ansible
 :::{note}
 You need your own fork because ArgoCD tracks *your* repository for GitOps.
 Changes you push to your fork are automatically deployed to your cluster.
+
+The repo contains SealedSecret files encrypted for the original cluster —
+these won't work on yours and can be safely ignored until you create your
+own during {doc}`/how-to/cloudflare-tunnel` setup.
 :::
 
 ## Step 2: Generate an SSH keypair
