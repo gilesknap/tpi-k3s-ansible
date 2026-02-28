@@ -290,48 +290,43 @@ Expected output: your cluster nodes in `Ready` state.
 
 ## Part 6: Access cluster web services remotely
 
-Use SSH local port-forwarding to reach any cluster web service. The forwarding target
-is resolved from `node01` — so you can use internal cluster DNS or LAN IPs.
+The `scripts/remote-cluster` script brings up the Kubernetes API tunnel and
+`kubectl port-forward` sessions for every cluster service in one command.
+Copy it to your **client machine** (not the devcontainer) and create
+`~/.remote-cluster.conf` with your cluster settings:
 
 ```bash
-# Single service — ArgoCD UI
-ssh -fNL 8080:<worker-ip>:443 ssh.example.com
-# Open: https://localhost:8080
-
-# Multiple services in one connection
-ssh -fNL 8080:<worker-ip>:443 \
-    -NL 8081:<worker-ip>:443 \
-    ssh.example.com
+SSH_HOST="ssh.example.com"
+CONTROL_PLANE="node01.lan"
 ```
 
-Or use `kubectl port-forward` once your tunnel API connection is active:
+Then run:
 
 ```bash
-# Forward ArgoCD (already connected via Part 5)
-kubectl port-forward svc/argocd-server -n argo-cd 8080:443 &
-
-# Forward Grafana
-kubectl port-forward svc/grafana -n monitoring 8081:80 &
+./remote-cluster
 ```
 
-| Service | Forwarded URL |
-|---------|--------------|
+This forwards:
+
+| Service | Local URL |
+|---------|-----------|
+| Kubernetes API | `https://127.0.0.1:6443` |
 | ArgoCD | `https://localhost:8080` |
-| Grafana | `http://localhost:8081` |
-| Headlamp | adjust port as needed |
+| Grafana | `http://localhost:3000` |
+| Headlamp | `http://localhost:4466` |
+| Longhorn | `http://localhost:8081` |
+| Open WebUI | `http://localhost:8082` |
+
+To tear down all forwards:
+
+```bash
+remote-cluster --kill
+```
 
 :::{tip}
-Create a shell script or alias to bring up all your port forwards in one command:
-
-```bash
-#!/usr/bin/env bash
-# remote-cluster.sh — bring up tunnel port forwards
-ssh -fNL 6443:<node01-ip>:6443 ssh.example.com
-echo "Kubernetes API → https://127.0.0.1:6443"
-kubectl --kubeconfig ~/.kube/k3s-remote.yaml port-forward \
-    svc/argocd-server -n argo-cd 8080:443 &
-echo "ArgoCD → https://localhost:8080"
-```
+Authentication is handled by the SSH `ProxyCommand` — if your Cloudflare Access
+token has expired, the SSH connection will trigger a browser login automatically.
+You can override port assignments and `KUBECONFIG_FILE` in `~/.remote-cluster.conf`.
 :::
 
 ## Part 7: Verification
