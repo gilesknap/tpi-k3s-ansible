@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Getting Started with Turing Pi &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Common Setup Steps &#8212; K3s Cluster Commissioning  documentation</title>
   
   
   
@@ -47,11 +47,11 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/getting-started-tpi';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/common-setup';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Getting Started without Turing Pi" href="getting-started-generic.html" />
-    <link rel="prev" title="Tutorials" href="../tutorials.html" />
+    <link rel="next" title="How-To Guides" href="../how-to.html" />
+    <link rel="prev" title="Getting Started without Turing Pi" href="getting-started-generic.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -317,9 +317,9 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Getting Started with Turing Pi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started-tpi.html">Getting Started with Turing Pi</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started-generic.html">Getting Started without Turing Pi</a></li>
-<li class="toctree-l1"><a class="reference internal" href="common-setup.html">Common Setup Steps</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Common Setup Steps</a></li>
 </ul>
 </div>
 </nav></div>
@@ -363,7 +363,7 @@
     
     <li class="breadcrumb-item"><a href="../tutorials.html" class="nav-link">Tutorials</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Getting Started with Turing Pi</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Common Setup Steps</span></li>
   </ul>
 </nav>
 </div>
@@ -380,23 +380,15 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="getting-started-with-turing-pi">
-<h1>Getting Started with Turing Pi<a class="headerlink" href="#getting-started-with-turing-pi" title="Link to this heading">#</a></h1>
-<p>This tutorial walks you through setting up a K3s cluster on one or more Turing Pi v2.5
-boards, from initial hardware setup to a fully deployed cluster with ArgoCD managing
-all services.</p>
+  <section id="common-setup-steps">
+<h1>Common Setup Steps<a class="headerlink" href="#common-setup-steps" title="Link to this heading">#</a></h1>
+<p>This page contains setup steps shared by both the
+<a class="reference internal" href="getting-started-tpi.html"><span class="doc">Getting Started with Turing Pi</span></a> and <a class="reference internal" href="getting-started-generic.html"><span class="doc">Getting Started without Turing Pi</span></a> tutorials.
+You do not need to read this page on its own — it is included automatically
+in the tutorial you are following.</p>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<section id="hardware">
-<h3>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p>One or more <strong>Turing Pi v2.5</strong> boards</p></li>
-<li><p>Compute modules in each slot: <strong>RK1</strong> (8GB+) or <strong>CM4</strong> (4GB+)</p></li>
-<li><p>Network cable connecting each Turing Pi to your router</p></li>
-<li><p><strong>SD card</strong> (≥8GB, ext4) inserted in each Turing Pi’s BMC SD slot</p></li>
-<li><p>Optional: NVMe drives in the M.2 slots for OS migration</p></li>
-</ul>
-</section>
+<!-- begin:software-prereqs -->
 <section id="software-on-your-workstation">
 <h3>Software (on your workstation)<a class="headerlink" href="#software-on-your-workstation" title="Link to this heading">#</a></h3>
 <ul class="simple">
@@ -411,36 +403,9 @@ extension</p></li>
 <p class="admonition-title">Note</p>
 <p>Set the VS Code setting <code class="docutils literal notranslate"><span class="pre">dev.containers.dockerPath</span></code> to <code class="docutils literal notranslate"><span class="pre">podman</span></code> before proceeding.</p>
 </div>
+<!-- end:software-prereqs -->
+<!-- begin:fork-clone -->
 </section>
-<section id="networking">
-<h3>Networking<a class="headerlink" href="#networking" title="Link to this heading">#</a></h3>
-<p>Your workstation and Turing Pi boards must be on the <strong>same subnet</strong> with these network features:</p>
-<ul class="simple">
-<li><p>DHCP enabled (router assigns IPs automatically)</p></li>
-<li><p>mDNS / zero-configuration networking enabled (so you can reach <code class="docutils literal notranslate"><span class="pre">turingpi.local</span></code>)</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>mDNS is enabled by default on macOS, most Linux desktop distributions (via
-Avahi), and Windows 10+. If <code class="docutils literal notranslate"><span class="pre">turingpi.local</span></code> doesn’t resolve, check that
-the <code class="docutils literal notranslate"><span class="pre">avahi-daemon</span></code> service is running on Linux (<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">start</span> <span class="pre">avahi-daemon</span></code>)
-or install it with <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">avahi-daemon</span></code>. On Windows, mDNS support
-is built into the OS — no extra setup needed.</p>
-</div>
-<p>Verify your BMC is reachable:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ping<span class="w"> </span>turingpi.local
-<span class="c1"># Also try: turingpi, turingpi.lan, turingpi.broadband</span>
-</pre></div>
-</div>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p>After the first boot, assign <strong>fixed DHCP leases</strong> (by MAC address) to each node in your
-router’s DHCP settings. This prevents IP changes on reboot.</p>
-</div>
-</section>
-</section>
-<section id="step-1-fork-clone-and-generate-ssh-key">
-<h2>Step 1: Fork, clone, and generate SSH key<a class="headerlink" href="#step-1-fork-clone-and-generate-ssh-key" title="Link to this heading">#</a></h2>
 </section>
 <section id="fork-and-clone-the-repository">
 <h2>Fork and clone the repository<a class="headerlink" href="#fork-and-clone-the-repository" title="Link to this heading">#</a></h2>
@@ -462,6 +427,8 @@ Changes you push to your fork are automatically deployed to your cluster.</p>
 these won’t work on yours and can be safely ignored until you create your
 own during <a class="reference internal" href="../how-to/cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> setup.</p>
 </div>
+<!-- end:fork-clone -->
+<!-- begin:ssh-keygen -->
 </section>
 <section id="generate-an-ssh-keypair">
 <h2>Generate an SSH keypair<a class="headerlink" href="#generate-an-ssh-keypair" title="Link to this heading">#</a></h2>
@@ -474,31 +441,8 @@ ssh-keygen<span class="w"> </span>-t<span class="w"> </span>rsa<span class="w"> 
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span><span class="nv">$HOME</span>/.ssh/ansible_rsa.pub<span class="w"> </span>pub_keys/ansible_rsa.pub
 </pre></div>
 </div>
-</section>
-<section id="step-2-authorize-the-keypair-on-each-turing-pi-bmc">
-<h2>Step 2: Authorize the keypair on each Turing Pi BMC<a class="headerlink" href="#step-2-authorize-the-keypair-on-each-turing-pi-bmc" title="Link to this heading">#</a></h2>
-<p>Repeat for each Turing Pi board:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copy the public key to the BMC (uses password auth — default password is empty or &quot;turing&quot;)</span>
-scp<span class="w"> </span>pub_keys/ansible_rsa.pub<span class="w"> </span>root@turingpi:.ssh/authorized_keys
-
-<span class="c1"># Connect and secure the BMC</span>
-ssh<span class="w"> </span>root@turingpi
-
-<span class="c1"># Set a strong password</span>
-passwd
-
-<span class="c1"># Optional: Disable password authentication (key-only from now on)</span>
-<span class="c1"># WARNING: test that ssh works without password (i.e. the new key works) before disabling password auth, or you may lock yourself out!</span>
-sed<span class="w"> </span>-E<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|^#?(PasswordAuthentication)\s.*|\1 no|&#39;</span><span class="w"> </span>/etc/ssh/sshd_config
-
-<span class="nb">exit</span>
-</pre></div>
-</div>
-<p>Ensure the SD card is mounted at <code class="docutils literal notranslate"><span class="pre">/mnt/sdcard</span></code> and formatted as ext4. This is where
-OS images are stored during flashing.</p>
-</section>
-<section id="step-3-open-the-devcontainer">
-<h2>Step 3: Open the devcontainer<a class="headerlink" href="#step-3-open-the-devcontainer" title="Link to this heading">#</a></h2>
+<!-- end:ssh-keygen -->
+<!-- begin:devcontainer -->
 </section>
 <section id="open-the-devcontainer">
 <h2>Open the devcontainer<a class="headerlink" href="#open-the-devcontainer" title="Link to this heading">#</a></h2>
@@ -511,53 +455,8 @@ OS images are stored during flashing.</p>
 <p>The devcontainer provides Ansible (and its Python dependencies) out of the box.
 Cluster tools (kubectl, helm, kubeseal) are installed later by the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role when
 you run the playbook. No additional installation is needed on your workstation.</p>
-</section>
-<section id="step-4-configure-the-inventory">
-<h2>Step 4: Configure the inventory<a class="headerlink" href="#step-4-configure-the-inventory" title="Link to this heading">#</a></h2>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> to match your hardware. The default inventory describes a single Turing Pi
-with four nodes:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">turing_pis</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi</span><span class="p">:</span><span class="w">            </span><span class="c1"># BMC hostname (must be reachable via SSH)</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">tpi_user</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">turingpi_nodes</span><span class="p">:</span><span class="w">          </span><span class="c1"># MUST be named &lt;bmc_hostname&gt;_nodes</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">node01</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">        </span><span class="c1"># Physical slot (1-4, slot 1 nearest coin battery)</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pi4</span><span class="w">          </span><span class="c1"># pi4 for CM4, rk1 for RK1</span>
-<span class="w">    </span><span class="nt">node02</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span><span class="w">   </span><span class="c1"># Optional: migrate OS to NVMe</span>
-<span class="w">    </span><span class="nt">node03</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">    </span><span class="nt">node04</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">ansible_account</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">all_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">children</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi_nodes</span><span class="p">:</span>
-</pre></div>
-</div>
-<p>Key points:</p>
-<ul class="simple">
-<li><p>The node group name <strong>must</strong> be <code class="docutils literal notranslate"><span class="pre">&lt;bmc_hostname&gt;_nodes</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code> for BMC
-host <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>). The flash role uses this naming convention to discover nodes.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">slot_num</span></code> maps each node to its physical slot on the Turing Pi board.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code> determines which OS image to flash (<code class="docutils literal notranslate"><span class="pre">rk1</span></code> or <code class="docutils literal notranslate"><span class="pre">pi4</span></code>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code> is optional — set it to migrate the OS from eMMC to NVMe after flashing.</p></li>
-</ul>
-</section>
-<section id="step-5-configure-the-cluster">
-<h2>Step 5: Configure the cluster<a class="headerlink" href="#step-5-configure-the-cluster" title="Link to this heading">#</a></h2>
+<!-- end:devcontainer -->
+<!-- begin:configure-cluster -->
 </section>
 <section id="configure-the-cluster">
 <h2>Configure the cluster<a class="headerlink" href="#configure-the-cluster" title="Link to this heading">#</a></h2>
@@ -608,35 +507,8 @@ Leave it <code class="docutils literal notranslate"><span class="pre">false</spa
 otherwise services like Grafana and Longhorn will return errors because the
 OAuth proxy is not yet deployed.</p>
 </div>
-</section>
-<section id="step-6-run-the-playbook">
-<h2>Step 6: Run the playbook<a class="headerlink" href="#step-6-run-the-playbook" title="Link to this heading">#</a></h2>
-<p>From a terminal inside the devcontainer:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span>
-</pre></div>
-</div>
-<p>This single command:</p>
-<ol class="arabic simple">
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">tools</span></code></strong> — installs helm, kubectl, kubeseal in the devcontainer</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">flash</span></code></strong> — flashes Ubuntu 24.04 to each compute module via the BMC</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code></strong> — updates SSH known_hosts for all nodes</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">servers</span></code></strong> — migrates OS to NVMe (if configured), dist-upgrades, installs dependencies</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">k3s</span></code></strong> — installs K3s control plane and worker nodes</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">cluster</span></code></strong> — installs ArgoCD and deploys all cluster services</p></li>
-</ol>
-<p>The full process takes approximately 15–30 minutes depending on network speed and
-number of nodes.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code> flag is required for the initial flash. On subsequent runs, omit it
-to skip flashing (the playbook will check existing state and skip completed steps).</p>
-<p>The Ansible steps are idempotent, and will skip flashing nodes that already have
-Ubuntu installed. But ommitting do_flash protects against accidental re-flashing of
-nodes that are temporarily offline or have connectivity issues.</p>
-</div>
-</section>
-<section id="step-7-verify-the-cluster">
-<h2>Step 7: Verify the cluster<a class="headerlink" href="#step-7-verify-the-cluster" title="Link to this heading">#</a></h2>
+<!-- end:configure-cluster -->
+<!-- begin:verify-cluster -->
 </section>
 <section id="verify-the-cluster">
 <h2>Verify the cluster<a class="headerlink" href="#verify-the-cluster" title="Link to this heading">#</a></h2>
@@ -657,6 +529,8 @@ nodes that are temporarily offline or have connectivity issues.</p>
 </pre></div>
 </div>
 <p>All applications should eventually reach <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and <code class="docutils literal notranslate"><span class="pre">Healthy</span></code> status.</p>
+<!-- end:verify-cluster -->
+<!-- begin:next-steps -->
 </section>
 <section id="next-steps">
 <h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
@@ -667,6 +541,7 @@ nodes that are temporarily offline or have connectivity issues.</p>
 <li><p><a class="reference internal" href="../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> — manage encrypted secrets in the repository</p></li>
 <li><p><a class="reference internal" href="../explanations/architecture.html"><span class="doc">Architecture</span></a> — understand how all the pieces fit together</p></li>
 </ul>
+<!-- end:next-steps -->
 </section>
 </section>
 
@@ -681,20 +556,20 @@ nodes that are temporarily offline or have connectivity issues.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../tutorials.html"
+       href="getting-started-generic.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Tutorials</p>
+        <p class="prev-next-title">Getting Started without Turing Pi</p>
       </div>
     </a>
     <a class="right-next"
-       href="getting-started-generic.html"
+       href="../how-to.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Getting Started without Turing Pi</p>
+        <p class="prev-next-title">How-To Guides</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -718,22 +593,13 @@ nodes that are temporarily offline or have connectivity issues.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#software-on-your-workstation">Software (on your workstation)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-fork-clone-and-generate-ssh-key">Step 1: Fork, clone, and generate SSH key</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fork-and-clone-the-repository">Fork and clone the repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generate-an-ssh-keypair">Generate an SSH keypair</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-authorize-the-keypair-on-each-turing-pi-bmc">Step 2: Authorize the keypair on each Turing Pi BMC</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-open-the-devcontainer">Step 3: Open the devcontainer</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#open-the-devcontainer">Open the devcontainer</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-configure-the-inventory">Step 4: Configure the inventory</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-configure-the-cluster">Step 5: Configure the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-cluster">Configure the cluster</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-run-the-playbook">Step 6: Run the playbook</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-verify-the-cluster">Step 7: Verify the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-the-cluster">Verify the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
 </ul>
@@ -743,7 +609,7 @@ nodes that are temporarily offline or have connectivity issues.</p>
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/tutorials/getting-started-tpi.md">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/tutorials/common-setup.md">
       <i class="fa-solid fa-pencil"></i>
       
       
@@ -759,7 +625,7 @@ nodes that are temporarily offline or have connectivity issues.</p>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
-      <li><a href="../_sources/tutorials/getting-started-tpi.md.txt"
+      <li><a href="../_sources/tutorials/common-setup.md.txt"
             rel="nofollow">Show Source</a></li>
     </ul>
    </div></div>

@@ -485,7 +485,7 @@ window.addEventListener("load", load);</script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/kubernetes-services';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Network Policies" href="network-policies.html" />
+    <link rel="next" title="Ansible Roles in Detail" href="ansible-roles.html" />
     <link rel="prev" title="GitOps Flow" href="gitops-flow.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -752,12 +752,14 @@ window.addEventListener("load", load);</script>
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="ansible-roles.html">Ansible Roles in Detail</a></li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gitops-flow.html">GitOps Flow</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Kubernetes Services Structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="network-policies.html">Network Policies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ansible-roles.html">Ansible Roles in Detail</a></li>
+</ul>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network-policies.html">Network Policies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="security.html">Security Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="security-hardening.html">Security Hardening</a></li>
 </ul>
@@ -829,16 +831,20 @@ within it becomes an independent ArgoCD Application.</p>
 <h2>Directory layout<a class="headerlink" href="#directory-layout" title="Link to this heading">#</a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>kubernetes-services/
 ├── Chart.yaml              # Minimal Helm chart metadata
-├── values.yaml             # Shared values (repo_branch)
+├── values.yaml             # Shared values (repo_branch, oauth2_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
-│   ├── dashboard.yaml
+│   ├── dashboard.yaml      # Headlamp
 │   ├── echo.yaml
 │   ├── grafana.yaml
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
+│   ├── llamacpp.yaml
 │   ├── longhorn.yaml
+│   ├── nvidia-device-plugin.yaml
+│   ├── oauth2-proxy.yaml
+│   ├── open-webui.yaml
 │   ├── rkllama.yaml
 │   └── sealed-secrets.yaml
 └── additions/              # Extra manifests per service
@@ -846,9 +852,11 @@ within it becomes an independent ArgoCD Application.</p>
     ├── cert-manager/       # SealedSecret + ClusterIssuer
     ├── cloudflared/        # Deployment + SealedSecret
     ├── dashboard/          # RBAC for Headlamp
-    ├── echo/               # Full echo-server manifests
+    ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
+    ├── llamacpp/           # NFS volume + GPU config
     ├── longhorn/           # VolumeSnapshotClass
+    ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
 </pre></div>
 </div>
@@ -911,8 +919,10 @@ a standardised Ingress resource. It supports:</p>
 <ul class="simple">
 <li><p>TLS via the <code class="docutils literal notranslate"><span class="pre">letsencrypt-prod</span></code> ClusterIssuer</p></li>
 <li><p>Host-based routing (<code class="docutils literal notranslate"><span class="pre">&lt;service_name&gt;.&lt;cluster_domain&gt;</span></code>)</p></li>
-<li><p>Optional nginx basic-auth (via the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret)</p></li>
-<li><p>Optional HTTPS passthrough (when <code class="docutils literal notranslate"><span class="pre">service_port:</span> <span class="pre">443</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">basic_auth:</span> <span class="pre">true</span></code> — nginx basic-auth via the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> — protect with oauth2-proxy authentication gateway</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code> — disable HTTP→HTTPS redirect (default true)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ssl_passthrough:</span> <span class="pre">true</span></code> — TLS passthrough mode (e.g. for ArgoCD)</p></li>
 </ul>
 <p>This avoids duplicating ingress boilerplate across services.</p>
 </section>
@@ -988,11 +998,11 @@ charts release new versions. See <code class="docutils literal notranslate"><spa
       </div>
     </a>
     <a class="right-next"
-       href="network-policies.html"
+       href="ansible-roles.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Network Policies</p>
+        <p class="prev-next-title">Ansible Roles in Detail</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

@@ -1,70 +1,50 @@
-# K3s Cluster Commissioning
+---
+html_theme.sidebar_secondary.remove: true
+---
 
-An Infrastructure-as-Code project that commissions a home-lab
-[K3s](https://k3s.io/) Kubernetes cluster using [Ansible](https://www.ansible.com/),
-with continuous deployment via [ArgoCD](https://argo-cd.readthedocs.io/).
-
-Supported hardware:
-
-- **Turing Pi v2.5** boards with RK1 or CM4 compute modules
-- **Any Linux server** with a modern Linux Distribution pre-installed.
-- **Mixed clusters** combining Turing Pi nodes with standalone servers
-
-## Key Features
-
-- Automated flashing of Turing Pi compute modules with Ubuntu 24.04 LTS
-- Optional OS migration to NVMe storage
-- Multi-node K3s cluster with a single control plane
-- GitOps-driven service deployment via ArgoCD
-- Let's Encrypt TLS certificates via DNS-01 validation
-- Optional Cloudflare tunnel for secure public access
-- Devcontainer-based Ansible execution environment (podman + VS Code)
-- Fully idempotent — safe to re-run Ansible Playbook for updates
-- **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
-- **Local LLM inference** — Nvidia GPU-accelerated LLM server on compatible servers
-- **Open WebUI chat** interface to above LLM models
+```{include} ../README.md
+:end-before: <!-- README only content
+```
 
 ## Documentation
 
-::::{grid} 1 2 2 2
-:gutter: 3
+::::{grid} 2
+:gutter: 4
 
-:::{grid-item-card} {octicon}`mortar-board` Tutorials
-:link: tutorials
-:link-type: doc
-
-Step-by-step guides to get your cluster running from scratch.
+:::{grid-item-card} {material-regular}`directions_walk;2em`
+```{toctree}
+:maxdepth: 2
+tutorials
+```
++++
+Tutorials for installation and typical usage. New users start here.
 :::
 
-:::{grid-item-card} {octicon}`tools` How-To Guides
-:link: how-to
-:link-type: doc
-
-Task-oriented recipes for common operations and configuration.
+:::{grid-item-card} {material-regular}`directions;2em`
+```{toctree}
+:maxdepth: 2
+how-to
+```
++++
+Practical step-by-step guides for the more experienced user.
 :::
 
-:::{grid-item-card} {octicon}`light-bulb` Explanations
-:link: explanations
-:link-type: doc
-
-Background knowledge: architecture, design decisions, and how things work.
+:::{grid-item-card} {material-regular}`info;2em`
+```{toctree}
+:maxdepth: 2
+explanations
+```
++++
+Explanations of how it works and why it works that way.
 :::
 
-:::{grid-item-card} {octicon}`book` Reference
-:link: reference
-:link-type: doc
-
+:::{grid-item-card} {material-regular}`menu_book;2em`
+```{toctree}
+:maxdepth: 2
+reference
+```
++++
 Technical reference: variables, tags, services, inventory format.
 :::
 
 ::::
-
-```{toctree}
-:maxdepth: 1
-:hidden:
-
-tutorials
-how-to
-explanations
-reference
-```

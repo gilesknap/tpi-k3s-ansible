@@ -215,10 +215,6 @@
   
 
   
-    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
-      <span class="fa-solid fa-outdent"></span>
-    </button>
-  
 </div>
 
     </header>
@@ -340,76 +336,189 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="k3s-cluster-commissioning">
+  <p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue" /></a>
+<a class="reference external" href="https://github.com/gilesknap/tpi-k3s-ansible/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-green" /></a></p>
+<section id="k3s-cluster-commissioning">
 <h1>K3s Cluster Commissioning<a class="headerlink" href="#k3s-cluster-commissioning" title="Link to this heading">#</a></h1>
-<p>An Infrastructure-as-Code project that commissions a home-lab
-<a class="reference external" href="https://k3s.io/">K3s</a> Kubernetes cluster using <a class="reference external" href="https://www.ansible.com/">Ansible</a>,
-with continuous deployment via <a class="reference external" href="https://argo-cd.readthedocs.io/">ArgoCD</a>.</p>
-<p>Supported hardware:</p>
+<p>An <strong>Infrastructure-as-Code</strong> Ansible project that commissions a
+<a class="reference external" href="https://k3s.io/">K3s</a> Kubernetes cluster on
+<a class="reference external" href="https://turingpi.com/">Turing Pi</a> v2.5 boards (RK1 / CM4 compute modules)
+and arbitrary additional Linux servers — fully idempotent and repeatable.</p>
+<p>All cluster customisation lives in just <strong>two files</strong>
+(<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>),
+so you can fork the repo, edit those files, and have your own cluster running
+in minutes.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-center"><p>Source</p></th>
+<th class="head text-center"><p><a class="github reference external" href="https://github.com/gilesknap/tpi-k3s-ansible">gilesknap/tpi-k3s-ansible</a></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-center"><p>Documentation</p></td>
+<td class="text-center"><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible">https://gilesknap.github.io/tpi-k3s-ansible</a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
+<section id="infrastructure">
+<h3>Infrastructure<a class="headerlink" href="#infrastructure" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p><strong>Turing Pi v2.5</strong> boards with RK1 or CM4 compute modules</p></li>
-<li><p><strong>Any Linux server</strong> with a modern Linux Distribution pre-installed.</p></li>
-<li><p><strong>Mixed clusters</strong> combining Turing Pi nodes with standalone servers</p></li>
+<li><p><strong>Automated flashing</strong> of Turing Pi compute modules with Ubuntu 24.04 LTS</p></li>
+<li><p><strong>Optional NVMe migration</strong> — move the root filesystem to fast storage</p></li>
+<li><p><strong>K3s cluster</strong> with one control-plane node and multiple workers</p></li>
+<li><p><strong>Works with any Linux server</strong> — Turing Pi hardware is optional</p></li>
+<li><p><strong>Kernel tuning</strong> — DaemonSet for network buffers and multipathd fixes</p></li>
 </ul>
-<section id="key-features">
-<h2>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h2>
+</section>
+<section id="gitops-deployment">
+<h3>GitOps &amp; Deployment<a class="headerlink" href="#gitops-deployment" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Automated flashing of Turing Pi compute modules with Ubuntu 24.04 LTS</p></li>
-<li><p>Optional OS migration to NVMe storage</p></li>
-<li><p>Multi-node K3s cluster with a single control plane</p></li>
-<li><p>GitOps-driven service deployment via ArgoCD</p></li>
-<li><p>Let’s Encrypt TLS certificates via DNS-01 validation</p></li>
-<li><p>Optional Cloudflare tunnel for secure public access</p></li>
-<li><p>Devcontainer-based Ansible execution environment (podman + VS Code)</p></li>
-<li><p>Fully idempotent — safe to re-run Ansible Playbook for updates</p></li>
-<li><p><strong>Local LLM inference</strong> — NPU-accelerated LLM server (RKLLama) on RK1 nodes</p></li>
-<li><p><strong>Local LLM inference</strong> — Nvidia GPU-accelerated LLM server on compatible servers</p></li>
-<li><p><strong>Open WebUI chat</strong> interface to above LLM models</p></li>
+<li><p><strong>GitOps via ArgoCD</strong> — all services deployed and managed declaratively</p></li>
+<li><p><strong>Fork-friendly</strong> — two-file configuration for easy customisation</p></li>
+<li><p><strong>Sealed Secrets</strong> — encrypt secrets safely in Git</p></li>
+<li><p><strong>Reusable ingress sub-chart</strong> — shared template with OAuth, SSL redirect,
+SSL passthrough, and basic-auth toggles</p></li>
 </ul>
+</section>
+<section id="networking-security">
+<h3>Networking &amp; Security<a class="headerlink" href="#networking-security" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Ingress + TLS</strong> — NGINX ingress with Let’s Encrypt certificates
+(DNS-01 via Cloudflare)</p></li>
+<li><p><strong>OAuth2 authentication</strong> — GitHub OAuth gateway (oauth2-proxy) protecting
+Grafana, Longhorn, Headlamp, and Open WebUI</p></li>
+<li><p><strong>Cloudflare Tunnel</strong> — optional secure public access via cloudflared</p></li>
+</ul>
+</section>
+<section id="services">
+<h3>Services<a class="headerlink" href="#services" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Monitoring</strong> — Prometheus + Grafana stack</p></li>
+<li><p><strong>Distributed storage</strong> — Longhorn with snapshots and backup</p></li>
+<li><p><strong>Kubernetes dashboard</strong> — Headlamp with RBAC</p></li>
+<li><p><strong>Local LLM inference</strong> — NPU-accelerated RKLLama on RK1 nodes</p></li>
+<li><p><strong>Local LLM inference</strong> — NVIDIA GPU-accelerated llama.cpp on compatible servers</p></li>
+<li><p><strong>Open WebUI</strong> — chat interface to the above LLM backends</p></li>
+<li><p><strong>Echo test service</strong> — for verifying ingress, TLS, and headers</p></li>
+</ul>
+</section>
+<section id="developer-experience">
+<h3>Developer Experience<a class="headerlink" href="#developer-experience" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Devcontainer</strong> — complete execution environment with zero host dependencies</p></li>
+<li><p><strong>Claude Code integration</strong> — AI-assisted workflow with safe autonomy guardrails</p></li>
+</ul>
+</section>
+</section>
+<section id="quick-start">
+<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Install <a class="reference external" href="https://podman.io/">Podman</a> and VS Code</p></li>
+<li><p>Fork this repo, clone it, and reopen in the devcontainer</p></li>
+<li><p>Edit <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>
+to match your environment</p></li>
+<li><p>Run:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
 </section>
 <section id="documentation">
 <h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading">#</a></h2>
 <div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
-<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
+<div class="sd-row sd-row-cols-2 sd-row-cols-xs-2 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-4 sd-g-xs-4 sd-g-sm-4 sd-g-md-4 sd-g-lg-4 docutils">
 <div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
 <div class="sd-card-body docutils">
 <div class="sd-card-title sd-font-weight-bold docutils">
-<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-mortar-board" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.693 1.066a.747.747 0 0 1 .614 0l7.25 3.25a.75.75 0 0 1 0 1.368L13 6.831v2.794c0 1.024-.81 1.749-1.66 2.173-.893.447-2.075.702-3.34.702-.278 0-.55-.012-.816-.036a.75.75 0 0 1 .133-1.494c.22.02.45.03.683.03 1.082 0 2.025-.221 2.67-.543.69-.345.83-.682.83-.832V7.503L8.307 8.934a.747.747 0 0 1-.614 0L4 7.28v1.663c.296.105.575.275.812.512.438.438.688 1.059.688 1.796v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1-.75-.75v-3c0-.737.25-1.358.688-1.796.237-.237.516-.407.812-.512V6.606L.443 5.684a.75.75 0 0 1 0-1.368ZM2.583 5 8 7.428 13.416 5 8 2.572ZM2.5 11.25v2.25H4v-2.25c0-.388-.125-.611-.25-.735a.697.697 0 0 0-.5-.203.707.707 0 0 0-.5.203c-.125.124-.25.347-.25.735Z"></path></svg> Tutorials</div>
-<p class="sd-card-text">Step-by-step guides to get your cluster running from scratch.</p>
+<svg version="4.0.0.63c5cb3" width="2.0em" height="2.0em" class="sd-material-icon sd-material-icon-directions_walk" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"></path><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"></path></svg></div>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/getting-started-tpi.html">Getting Started with Turing Pi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/getting-started-generic.html">Getting Started without Turing Pi</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/common-setup.html">Common Setup Steps</a></li>
+</ul>
+</li>
+</ul>
 </div>
-<a class="sd-stretched-link sd-hide-link-text reference internal" href="tutorials.html"><span class="doc">Tutorials</span></a></div>
 </div>
-<div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
-<div class="sd-card-body docutils">
-<div class="sd-card-title sd-font-weight-bold docutils">
-<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-tools" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.433 2.304A4.492 4.492 0 0 0 3.5 6c0 1.598.832 3.002 2.09 3.802.518.328.929.923.902 1.64v.008l-.164 3.337a.75.75 0 1 1-1.498-.073l.163-3.33c.002-.085-.05-.216-.207-.316A5.996 5.996 0 0 1 2 6a5.993 5.993 0 0 1 2.567-4.92 1.482 1.482 0 0 1 1.673-.04c.462.296.76.827.76 1.423v2.82c0 .082.041.16.11.206l.75.51a.25.25 0 0 0 .28 0l.75-.51A.249.249 0 0 0 9 5.282V2.463c0-.596.298-1.127.76-1.423a1.482 1.482 0 0 1 1.673.04A5.993 5.993 0 0 1 14 6a5.996 5.996 0 0 1-2.786 5.068c-.157.1-.209.23-.207.315l.163 3.33a.752.752 0 0 1-1.094.714.75.75 0 0 1-.404-.64l-.164-3.345c-.027-.717.384-1.312.902-1.64A4.495 4.495 0 0 0 12.5 6a4.492 4.492 0 0 0-1.933-3.696c-.024.017-.067.067-.067.16v2.818a1.75 1.75 0 0 1-.767 1.448l-.75.51a1.75 1.75 0 0 1-1.966 0l-.75-.51A1.75 1.75 0 0 1 5.5 5.282V2.463c0-.092-.043-.142-.067-.159Z"></path></svg> How-To Guides</div>
-<p class="sd-card-text">Task-oriented recipes for common operations and configuration.</p>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Tutorials for installation and typical usage. New users start here.</p>
 </div>
-<a class="sd-stretched-link sd-hide-link-text reference internal" href="how-to.html"><span class="doc">How-To Guides</span></a></div>
 </div>
-<div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
-<div class="sd-card-body docutils">
-<div class="sd-card-title sd-font-weight-bold docutils">
-<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-light-bulb" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg> Explanations</div>
-<p class="sd-card-text">Background knowledge: architecture, design decisions, and how things work.</p>
-</div>
-<a class="sd-stretched-link sd-hide-link-text reference internal" href="explanations.html"><span class="doc">Explanations</span></a></div>
 </div>
 <div class="sd-col sd-d-flex-row docutils">
-<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
 <div class="sd-card-body docutils">
 <div class="sd-card-title sd-font-weight-bold docutils">
-<svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-book" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z"></path></svg> Reference</div>
+<svg version="4.0.0.63c5cb3" width="2.0em" height="2.0em" class="sd-material-icon sd-material-icon-directions" viewBox="0 0 24 24" aria-hidden="true"><g><rect fill="none" height="24" width="24"></rect></g><g><path d="m21.41 10.59-7.99-8c-.78-.78-2.05-.78-2.83 0l-8.01 8c-.78.78-.78 2.05 0 2.83l8.01 8c.78.78 2.05.78 2.83 0l7.99-8c.79-.79.79-2.05 0-2.83zM13.5 14.5V12H10v3H8v-4c0-.55.45-1 1-1h4.5V7.5L17 11l-3.5 3.5z"></path></g></svg></div>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="how-to.html">How-To Guides</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="how-to.html#setup">Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to.html#optional-features">Optional Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to.html#operations-maintenance">Operations &amp; Maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to.html#developer-workflow">Developer Workflow</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Practical step-by-step guides for the more experienced user.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="4.0.0.63c5cb3" width="2.0em" height="2.0em" class="sd-material-icon sd-material-icon-info" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h24v24H0z" fill="none"></path><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg></div>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="explanations.html">Explanations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="explanations.html#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explanations.html#networking-security">Networking &amp; Security</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="sd-card-footer docutils">
+<p class="sd-card-text">Explanations of how it works and why it works that way.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+<svg version="4.0.0.63c5cb3" width="2.0em" height="2.0em" class="sd-material-icon sd-material-icon-menu_book" viewBox="0 0 24 24" aria-hidden="true"><g><rect fill="none" height="24" width="24"></rect></g><g><g></rect><g><path d="M21,5c-1.11-0.35-2.33-0.5-3.5-0.5c-1.95,0-4.05,0.4-5.5,1.5c-1.45-1.1-3.55-1.5-5.5-1.5S2.45,4.9,1,6v14.65 c0,0.25,0.25,0.5,0.5,0.5c0.1,0,0.15-0.05,0.25-0.05C3.1,20.45,5.05,20,6.5,20c1.95,0,4.05,0.4,5.5,1.5c1.35-0.85,3.8-1.5,5.5-1.5 c1.65,0,3.35,0.3,4.75,1.05c0.1,0.05,0.15,0.05,0.25,0.05c0.25,0,0.5-0.25,0.5-0.5V6C22.4,5.55,21.75,5.25,21,5z M21,18.5 c-1.1-0.35-2.3-0.5-3.5-0.5c-1.7,0-4.15,0.65-5.5,1.5V8c1.35-0.85,3.8-1.5,5.5-1.5c1.2,0,2.4,0.15,3.5,0.5V18.5z"></path><g><path d="M17.5,10.5c0.88,0,1.73,0.09,2.5,0.26V9.24C19.21,9.09,18.36,9,17.5,9c-1.7,0-3.24,0.29-4.5,0.83v1.66 C14.13,10.85,15.7,10.5,17.5,10.5z"></path><path d="M13,12.49v1.66c1.13-0.64,2.7-0.99,4.5-0.99c0.88,0,1.73,0.09,2.5,0.26V11.9c-0.79-0.15-1.64-0.24-2.5-0.24 C15.8,11.66,14.26,11.96,13,12.49z"></path><path d="M17.5,14.33c-1.7,0-3.24,0.29-4.5,0.83v1.66c1.13-0.64,2.7-0.99,4.5-0.99c0.88,0,1.73,0.09,2.5,0.26v-1.52 C19.21,14.41,18.36,14.33,17.5,14.33z"></path></g></g></g></svg></div>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/variables.html">Variables Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/playbook-tags.html">Playbook Tags Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/inventory.html">Inventory Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/services.html">Services Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli-tools.html">CLI Tools Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/production-checklist.html">Production Readiness Checklist</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="sd-card-footer docutils">
 <p class="sd-card-text">Technical reference: variables, tags, services, inventory format.</p>
 </div>
-<a class="sd-stretched-link sd-hide-link-text reference internal" href="reference.html"><span class="doc">Reference</span></a></div>
 </div>
 </div>
 </div>
-<div class="toctree-wrapper compound">
 </div>
 </section>
 </section>
@@ -439,50 +548,6 @@ with continuous deployment via <a class="reference external" href="https://argo-
             </div>
             
             
-              
-                <dialog id="pst-secondary-sidebar-modal"></dialog>
-                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-<div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> On this page
-  </div>
-  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#key-features">Key Features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
-</ul>
-  </nav></div>
-
-  <div class="sidebar-secondary-item">
-
-  
-  <div class="tocsection editthispage">
-    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/index.md">
-      <i class="fa-solid fa-pencil"></i>
-      
-      
-        
-          Edit on GitHub
-        
-      
-    </a>
-  </div>
-</div>
-
-  <div class="sidebar-secondary-item">
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="_sources/index.md.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div></div>
-
-</div></div>
               
             
           </div>

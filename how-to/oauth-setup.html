@@ -50,8 +50,8 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/oauth-setup';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Re-flash and Rebuild" href="reflash-rebuild.html" />
-    <link rel="prev" title="Node Operations" href="node-operations.html" />
+    <link rel="next" title="Download RKLLama Models" href="rkllama-models.html" />
+    <link rel="prev" title="Set Up a Cloudflare SSH Tunnel for Remote Cluster Access" href="cloudflare-ssh-tunnel.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -317,21 +317,29 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
-<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up a Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
-<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Set Up OAuth Authentication</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+</ul>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
 </ul>
 </div>
 </nav></div>
@@ -507,7 +515,7 @@ oauth2-proxy ingress:</p>
 </table>
 </div>
 <p>Use one of your worker node IPs. This is the same pattern as other LAN-only
-services (see <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up a Cloudflare Tunnel</span></a> Part 3).</p>
+services (see <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> Part 3).</p>
 </section>
 <section id="step-5-deploy-oauth2-proxy">
 <h2>Step 5: Deploy oauth2-proxy<a class="headerlink" href="#step-5-deploy-oauth2-proxy" title="Link to this heading">#</a></h2>
@@ -521,8 +529,23 @@ kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"
 </div>
 <p>Visit <code class="docutils literal notranslate"><span class="pre">https://oauth2.&lt;your-domain&gt;</span></code> — you should see a GitHub login page.</p>
 </section>
-<section id="step-6-enable-oauth-on-services">
-<h2>Step 6: Enable OAuth on services<a class="headerlink" href="#step-6-enable-oauth-on-services" title="Link to this heading">#</a></h2>
+<section id="step-6-enable-the-oauth-toggle">
+<h2>Step 6: Enable the OAuth toggle<a class="headerlink" href="#step-6-enable-the-oauth-toggle" title="Link to this heading">#</a></h2>
+<p>Now that oauth2-proxy is running, enable it for all protected services by editing
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Commit and push:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/values.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Enable OAuth2 proxy for cluster services&quot;</span>
+git<span class="w"> </span>push
+</pre></div>
+</div>
+<p>ArgoCD will pick up the change and add OAuth annotations to all protected ingresses.</p>
+</section>
+<section id="step-7-how-oauth-is-wired-to-services">
+<h2>Step 7: How OAuth is wired to services<a class="headerlink" href="#step-7-how-oauth-is-wired-to-services" title="Link to this heading">#</a></h2>
 <p>Services use the shared ingress template at
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/templates/ingress.yaml</span></code>. To protect
 a service with OAuth, set <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in its ingress values:</p>
@@ -548,8 +571,8 @@ to oauth2-proxy.</p>
 (managed by Ansible, not the shared ingress template)</p></li>
 </ul>
 </section>
-<section id="step-7-restrict-access-optional">
-<h2>Step 7: Restrict access (optional)<a class="headerlink" href="#step-7-restrict-access-optional" title="Link to this heading">#</a></h2>
+<section id="step-8-restrict-access-optional">
+<h2>Step 8: Restrict access (optional)<a class="headerlink" href="#step-8-restrict-access-optional" title="Link to this heading">#</a></h2>
 <p>To restrict access to members of a specific GitHub organisation, add the
 <code class="docutils literal notranslate"><span class="pre">github-org</span></code> flag in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extraArgs</span><span class="p">:</span>
@@ -608,20 +631,20 @@ All protected services must be subdomains of this domain.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="node-operations.html"
+       href="cloudflare-ssh-tunnel.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Node Operations</p>
+        <p class="prev-next-title">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</p>
       </div>
     </a>
     <a class="right-next"
-       href="reflash-rebuild.html"
+       href="rkllama-models.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Re-flash and Rebuild</p>
+        <p class="prev-next-title">Download RKLLama Models</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -651,8 +674,9 @@ All protected services must be subdomains of this domain.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-create-and-seal-the-credentials">Step 3: Create and seal the credentials</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-add-a-dns-record">Step 4: Add a DNS record</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-deploy-oauth2-proxy">Step 5: Deploy oauth2-proxy</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-enable-oauth-on-services">Step 6: Enable OAuth on services</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-restrict-access-optional">Step 7: Restrict access (optional)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-enable-the-oauth-toggle">Step 6: Enable the OAuth toggle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-how-oauth-is-wired-to-services">Step 7: How OAuth is wired to services</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-8-restrict-access-optional">Step 8: Restrict access (optional)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-with-cloudflare-access">Integrating with Cloudflare Access</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-after-enabling-oauth">Redirect loop after enabling OAuth</a></li>
