@@ -108,25 +108,44 @@ to issue Let's Encrypt certificates for all your ingress hostnames.
 
 ## Part 2: DNS records for LAN services
 
-Add **grey-cloud (DNS-only) A records** in Cloudflare for each service:
+Add **grey-cloud (DNS-only) A records** in Cloudflare for each service. For
+high availability, create one A record **per worker node** for each hostname —
+Cloudflare will round-robin across them:
 
 | Type | Name | Content | Proxy status |
 |------|------|---------|-------------|
-| A | `argocd` | `192.168.1.82` | DNS only |
-| A | `grafana` | `192.168.1.82` | DNS only |
-| A | `headlamp` | `192.168.1.82` | DNS only |
-| A | `longhorn` | `192.168.1.82` | DNS only |
-| A | `oauth2` | `192.168.1.82` | DNS only |
-| A | `open-webui` | `192.168.1.82` | DNS only |
-| A | `rkllama` | `192.168.1.82` | DNS only |
+| A | `argocd` | `<worker-1 IP>` | DNS only |
+| A | `argocd` | `<worker-2 IP>` | DNS only |
+| A | `argocd` | `<worker-3 IP>` | DNS only |
+| A | `grafana` | `<worker-1 IP>` | DNS only |
+| A | `grafana` | `<worker-2 IP>` | DNS only |
+| A | `grafana` | `<worker-3 IP>` | DNS only |
+| … | *(repeat for each service)* | | |
 
-Use one of your worker node IPs. These resolve to a private RFC-1918 address —
-only reachable from your LAN.
+Replace the IPs with the LAN addresses of your worker nodes (e.g.
+`192.168.1.82`, `.83`, `.84`). Services to add: `argocd`, `grafana`,
+`headlamp`, `longhorn`, `oauth2`, `open-webui`, `rkllama`.
 
-:::{note}
-Using Cloudflare DNS (rather than your home router) means the records work for
-any device using Cloudflare's public nameservers, without router-side configuration.
-It also keeps all DNS for the domain in one place.
+These resolve to private RFC-1918 addresses — only reachable from your LAN.
+For a single-node cluster, one A record per service is sufficient.
+
+:::{warning}
+**DNS rebinding protection** — many routers and DNS resolvers silently drop DNS
+responses that contain private IPs. If `nslookup grafana.example.com` returns
+`NXDOMAIN` but `nslookup grafana.example.com 1.1.1.1` works, your local
+resolver is filtering the response. Fixes (pick one):
+
+- **Router domain whitelist (recommended)** — on OpenWrt, add your domain to
+  the dnsmasq *rebind domain whitelist* in Network → DHCP and DNS, or add
+  `list rebind_domain 'example.com'` to `/etc/config/dhcp`. Other routers
+  may have a similar setting.
+- **Use a public DNS resolver** — set your router's DHCP-advertised DNS to
+  `1.1.1.1` / `1.0.0.1` (Cloudflare) or `8.8.8.8` / `8.8.4.4` (Google),
+  which do not filter private IPs.
+- **Use local router DNS instead** — skip the Cloudflare A records above and
+  create the DNS entries directly in your router's DNS/hosts configuration.
+  This avoids rebinding issues entirely but means DNS is split across two
+  places.
 :::
 
 :::{warning}
