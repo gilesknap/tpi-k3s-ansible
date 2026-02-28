@@ -6,4 +6,5 @@ FROM ghcr.io/diamondlightsource/ubuntu-devcontainer:noble AS developer
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apache2-utils \
     dnsutils \
+    gh \
     && rm -rf /var/lib/apt/lists/*
