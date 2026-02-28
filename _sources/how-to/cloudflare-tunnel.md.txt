@@ -158,8 +158,17 @@ cert-manager needs a Cloudflare API token to manage `_acme-challenge` TXT record
 
 ## Part 2: WAF (Web Application Firewall)
 
-Cloudflare's default WAF (DDoS protection, bot management) applies automatically to
-all proxied traffic. Optionally add a rate-limiting rule:
+Cloudflare's built-in protections (DDoS mitigation, bot management, managed rulesets)
+apply automatically to all proxied traffic. **No custom security rules are needed**
+for this setup.
+
+Custom WAF rules are only necessary if you add a wildcard CNAME (which you should
+not — see the warning in Part 1.5). Without a wildcard, only explicitly tunnelled
+hostnames receive traffic from the internet, so Cloudflare's defaults are sufficient.
+
+### Optional: rate limiting
+
+If you want to limit request rates on tunnelled services, add a rate-limiting rule:
 
 1. Go to **Security → WAF → Rate Limiting Rules**.
 2. Create a rule:
@@ -178,9 +187,12 @@ For services not exposed via the tunnel, add **grey-cloud (DNS-only) A records**
 | Type | Name | Content | Proxy status |
 |------|------|---------|-------------|
 | A | `argocd` | `192.168.1.82` | DNS only |
+| A | `grafana` | `192.168.1.82` | DNS only |
 | A | `headlamp` | `192.168.1.82` | DNS only |
 | A | `longhorn` | `192.168.1.82` | DNS only |
-| A | `grafana` | `192.168.1.82` | DNS only |
+| A | `oauth2` | `192.168.1.82` | DNS only |
+| A | `open-webui` | `192.168.1.82` | DNS only |
+| A | `rkllama` | `192.168.1.82` | DNS only |
 
 Use one of the worker node IPs. These resolve to a private RFC-1918 address — only
 reachable from your LAN.
@@ -284,3 +296,63 @@ kubectl get applications -n argo-cd
 ```
 
 All applications should be `Synced` and `Healthy`.
+
+## Making a LAN-only service externally accessible
+
+To move a service from LAN-only to publicly accessible through the tunnel:
+
+1. **Add a public hostname in the tunnel.** In the Cloudflare dashboard, go to
+   **Networking → Tunnels → your tunnel → Public Hostname → Add a public hostname**.
+
+   | Field | Value |
+   |---|---|
+   | Subdomain | e.g. `grafana` |
+   | Domain | `example.com` |
+   | Service URL | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
+
+   Use HTTP, not HTTPS — Cloudflare terminates TLS at its edge.
+
+2. **Delete the grey-cloud A record** for that subdomain in **DNS → Records**.
+   Cloudflare creates a proxied CNAME automatically when you add the tunnel hostname.
+   If you leave the A record in place it takes precedence over the tunnel CNAME,
+   and external clients get the unreachable private IP.
+
+3. **Disable ssl-redirect on the Ingress.** Traffic arriving through the tunnel is
+   already HTTP (Cloudflare handles external TLS). If ingress-nginx forces an HTTPS
+   redirect, it causes a redirect loop. Add the annotation:
+
+   ```yaml
+   nginx.ingress.kubernetes.io/ssl-redirect: "false"
+   ```
+
+4. **Consider authentication.** A service on the LAN may not have required auth.
+   Once it is public, protect it with one of:
+   - **Cloudflare Access** (Zero Trust) — authentication at the Cloudflare edge,
+     zero cluster overhead. See {doc}`cloudflare-ssh-tunnel` for an example.
+   - **oauth2-proxy** — in-cluster OAuth. See {doc}`oauth-setup`.
+
+5. **Optionally add a rate-limiting rule** in **Security → WAF → Rate Limiting Rules**
+   for the newly public hostname.
+
+### Reverting to LAN-only
+
+To take a service back off the internet:
+
+1. Delete the public hostname from the tunnel configuration.
+2. Delete the proxied CNAME that Cloudflare created.
+3. Re-add the grey-cloud A record pointing to your worker IP.
+4. Remove the `ssl-redirect: "false"` annotation if it was only added for the tunnel.
+
+## Cloudflare Access integration
+
+For services that need authentication before reaching the cluster, use
+Cloudflare Access (part of Zero Trust). This adds identity verification
+at the Cloudflare edge with zero cluster overhead.
+
+See {doc}`cloudflare-ssh-tunnel` for a working example with SSH, and
+{doc}`oauth-setup` for in-cluster OAuth as an alternative.
+
+## Troubleshooting
+
+See the Cloudflare Tunnel section in the {doc}`/reference/troubleshooting`
+guide for common issues and solutions.

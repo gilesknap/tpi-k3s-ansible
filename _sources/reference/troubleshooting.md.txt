@@ -188,6 +188,107 @@ Gateway.
    `additions/cert-manager/cloudflare-api-token-secret.yaml` must decrypt to a
    valid token with `Zone:DNS:Edit` permission.
 
+## Cloudflare Tunnel
+
+### Redirect loop through tunnel
+
+**Symptom:** Browser shows `ERR_TOO_MANY_REDIRECTS` when accessing a
+tunnelled service.
+
+**Cause:** The tunnel service URL uses HTTPS, and ingress-nginx forces
+an SSL redirect — creating an infinite loop.
+
+**Fix:** Use `http://` (not `https://`) for the tunnel service URL in
+the Cloudflare dashboard. The echo ingress has `ssl-redirect: false` as
+a reference.
+
+### WAF blocks access to SSH tunnel
+
+**Symptom:** `cloudflared access login` returns
+`failed to find Access application`.
+
+**Fix:** Add a WAF skip rule for the SSH hostname. See
+{doc}`/how-to/cloudflare-ssh-tunnel` Part 3 for details.
+
+### Tunnel not connecting
+
+**Symptom:** cloudflared pods are running but the Cloudflare dashboard shows
+the tunnel as inactive.
+
+**Checklist:**
+
+1. **Tunnel token valid?** The SealedSecret must decrypt to a valid token:
+   ```bash
+   kubectl get secret cloudflared-credentials -n cloudflared -o jsonpath='{.data.TUNNEL_TOKEN}' | base64 -d | head -c 20
+   ```
+2. **Pods running?** `kubectl get pods -n cloudflared`
+3. **Logs show errors?** `kubectl logs -n cloudflared deployment/cloudflared | tail -30`
+4. **Outbound connectivity?** The pod needs to reach `*.cloudflareresearch.com` on port 7844.
+
+### Connection refused for tunnelled service
+
+**Symptom:** Cloudflare returns 502 Bad Gateway.
+
+**Checklist:**
+
+1. **Service URL correct?** The hostname in the tunnel config must match
+   the Kubernetes service DNS name (e.g.
+   `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`).
+2. **Service port correct?** Use port 80 (not 443) for HTTP backends.
+3. **Ingress resource exists?** Check the target namespace has an ingress
+   for the hostname.
+
+## NFS Mount Issues
+
+### PVC stuck in Pending
+
+**Symptom:** A PersistentVolumeClaim for LLM models stays in `Pending`.
+
+**Checklist:**
+
+1. **NFS server reachable?**
+   ```bash
+   kubectl run nfs-test --rm -it --image=busybox:1.37 -- ping -c 3 <nfs-ip>
+   ```
+2. **Export path correct?** Check `kubernetes-services/values.yaml` matches
+   the NFS server's `/etc/exports`.
+3. **PV exists and is Available?** `kubectl get pv`
+4. **StorageClass mismatch?** NFS PVs in this project do not use a StorageClass
+   — the PVC binds directly by name.
+
+## K3s Control Plane
+
+### API server unreachable
+
+**Symptom:** `kubectl` commands fail with `connection refused` on port 6443.
+
+**Checklist:**
+
+1. **K3s service running?**
+   ```bash
+   ssh node01 sudo systemctl status k3s
+   ```
+2. **Certificates valid?** Check `/var/lib/rancher/k3s/server/tls/` on the
+   control plane node.
+3. **Disk full?** etcd can fail if the node runs out of disk space:
+   ```bash
+   ssh node01 df -h /
+   ```
+
+### etcd database too large
+
+**Symptom:** K3s logs show `mvcc: database space exceeded`.
+
+**Fix:** Compact and defragment etcd:
+
+```bash
+ssh node01
+sudo k3s etcd-snapshot save --name manual-backup
+sudo systemctl restart k3s
+```
+
+K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
+
 ## Hardware
 
 ### RK1 module not detected in slot

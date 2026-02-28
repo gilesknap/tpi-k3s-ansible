@@ -327,6 +327,7 @@
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
@@ -498,6 +499,52 @@ It can decrypt all your SealedSecrets.</p>
 <p>The new controller will pick up the restored key and can decrypt existing SealedSecrets.</p>
 </section>
 </section>
+<section id="etcd-backup-and-restore">
+<h2>etcd backup and restore<a class="headerlink" href="#etcd-backup-and-restore" title="Link to this heading">#</a></h2>
+<p>K3s uses an embedded etcd (or SQLite for single-node) datastore. Backing up
+etcd preserves the full cluster state including all Kubernetes objects.</p>
+<section id="create-an-etcd-snapshot">
+<h3>Create an etcd snapshot<a class="headerlink" href="#create-an-etcd-snapshot" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>
+</pre></div>
+</div>
+<p>Snapshots are stored at <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/db/snapshots/</span></code> on the
+control plane node.</p>
+</section>
+<section id="list-snapshots">
+<h3>List snapshots<a class="headerlink" href="#list-snapshots" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>list
+</pre></div>
+</div>
+</section>
+<section id="configure-automatic-snapshots">
+<h3>Configure automatic snapshots<a class="headerlink" href="#configure-automatic-snapshots" title="Link to this heading">#</a></h3>
+<p>K3s supports automatic etcd snapshots. Add to <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code>
+on the control plane:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">etcd-snapshot-schedule-cron</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0</span><span class="nv"> </span><span class="s">*/6</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*&quot;</span><span class="w">  </span><span class="c1"># every 6 hours</span>
+<span class="nt">etcd-snapshot-retention</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+<p>Restart K3s to apply:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s
+</pre></div>
+</div>
+</section>
+<section id="restore-from-snapshot">
+<h3>Restore from snapshot<a class="headerlink" href="#restore-from-snapshot" title="Link to this heading">#</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Restoring replaces the entire cluster state. All changes since the snapshot
+are lost.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01
+sudo<span class="w"> </span>systemctl<span class="w"> </span>stop<span class="w"> </span>k3s
+sudo<span class="w"> </span>k3s<span class="w"> </span>server<span class="w"> </span>--cluster-reset<span class="w"> </span>--cluster-reset-restore-path<span class="o">=</span>/var/lib/rancher/k3s/server/db/snapshots/&lt;snapshot-name&gt;
+sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>k3s
+</pre></div>
+</div>
+</section>
+</section>
 <section id="disaster-recovery">
 <h2>Disaster recovery<a class="headerlink" href="#disaster-recovery" title="Link to this heading">#</a></h2>
 <p>To rebuild a cluster from scratch:</p>
@@ -571,6 +618,13 @@ requiring explicit restoration.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets-key-backup">Sealed Secrets key backup</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#export-the-key">Export the key</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-after-rebuild">Restore after rebuild</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-and-restore">etcd backup and restore</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-etcd-snapshot">Create an etcd snapshot</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#list-snapshots">List snapshots</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-automatic-snapshots">Configure automatic snapshots</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-snapshot">Restore from snapshot</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a></li>

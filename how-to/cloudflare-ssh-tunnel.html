@@ -327,6 +327,7 @@
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
@@ -422,11 +423,23 @@ node01 (&lt;node01-ip&gt;) SSH
 <li><p>Optionally, short-lived SSH certificates replace static keys entirely.</p></li>
 </ul>
 </section>
+<section id="two-cloudflare-dashboards">
+<h2>Two Cloudflare dashboards<a class="headerlink" href="#two-cloudflare-dashboards" title="Link to this heading">#</a></h2>
+<p>This guide uses <strong>two separate Cloudflare dashboards</strong> — it is easy to get confused
+between them:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://one.dash.cloudflare.com/"><strong>one.dash.cloudflare.com</strong></a> — the <strong>Zero Trust</strong>
+dashboard for managing tunnels, Access Applications, and security policies.</p></li>
+<li><p><a class="reference external" href="https://dash.cloudflare.com/"><strong>dash.cloudflare.com</strong></a> — the <strong>main</strong> dashboard for
+managing DNS zones, WAF rules, and general site settings.</p></li>
+</ul>
+<p>The steps below will tell you which dashboard to use at each point.</p>
+</section>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>A working Cloudflare Tunnel with <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> deployed in the cluster
-(see <a class="reference internal" href="cloudflare-tunnel.html"><span class="std std-doc">Set Up a Cloudflare Tunnel</span></a>).</p></li>
+(see <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up a Cloudflare Tunnel</span></a>).</p></li>
 <li><p>SSH enabled on <code class="docutils literal notranslate"><span class="pre">node01</span></code> (it is by default after Ansible provisioning).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> installed on your <strong>client machine</strong>:</p></li>
 </ul>
@@ -440,82 +453,36 @@ sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </spa
 </pre></div>
 </div>
 </section>
-<section id="part-1-cloudflare-zero-trust-access-application">
-<h2>Part 1: Cloudflare Zero Trust — Access Application<a class="headerlink" href="#part-1-cloudflare-zero-trust-access-application" title="Link to this heading">#</a></h2>
-<p>This is the critical security gate. Without it, anyone with your DNS name could
-attempt connections.</p>
-<section id="create-an-access-application">
-<h3>1.1 Create an Access Application<a class="headerlink" href="#create-an-access-application" title="Link to this heading">#</a></h3>
+<section id="part-1-add-an-ssh-route-to-the-tunnel">
+<h2>Part 1: Add an SSH route to the tunnel<a class="headerlink" href="#part-1-add-an-ssh-route-to-the-tunnel" title="Link to this heading">#</a></h2>
+<p>First, add an SSH public hostname to your existing Cloudflare tunnel so that
+traffic to <code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code> is forwarded to your control-plane node’s SSH port.</p>
+<p>In the <strong>Zero Trust dashboard</strong> (<a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>):</p>
 <ol class="arabic simple">
-<li><p>Go to <a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a> (the Cloudflare One dashboard — separate from the main Cloudflare dashboard).</p></li>
-<li><p>Navigate to <strong>Access controls → Applications</strong>.</p></li>
-<li><p>Select <strong>Add an application → Self-hosted</strong>.</p></li>
-<li><p>Configure as follows, then click <strong>Add public hostname</strong>:</p></li>
+<li><p>Navigate to <strong>Networking → Tunnels</strong>. You should see your existing tunnel listed
+as Healthy.</p></li>
 </ol>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Field</p></th>
-<th class="head"><p>Value</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Application name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">SSH</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Session duration</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">24h</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Domain</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Subdomain</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Path</p></td>
-<td><p>none (leave blank)</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<ol class="arabic simple" start="4">
-<li><p>Click <strong>Save</strong>.</p></li>
+<figure class="align-center" id="id1">
+<img alt="Cloudflare Tunnels list" src="../_images/cloudflare-01.png" />
+<figcaption>
+<p><span class="caption-text">The Tunnels page showing the existing <code class="docutils literal notranslate"><span class="pre">gkcluster</span></code> tunnel with Healthy status.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="2">
+<li><p>Click on your tunnel name to open the tunnel details.</p></li>
 </ol>
-</section>
-<section id="add-an-access-policy">
-<h3>1.2 Add an Access Policy<a class="headerlink" href="#add-an-access-policy" title="Link to this heading">#</a></h3>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Field</p></th>
-<th class="head"><p>Value</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Policy name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">Owner</span> <span class="pre">only</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Action</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Include rule</p></td>
-<td><p>Emails → <code class="docutils literal notranslate"><span class="pre">your&#64;email.com</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Keep this policy as restrictive as possible — ideally a single email address or a
-specific identity provider group. This policy is the primary security boundary.</p>
-</div>
-<ol class="arabic simple" start="5">
-<li><p>Click <strong>Save</strong>.</p></li>
+<figure class="align-center" id="id2">
+<img alt="Tunnel overview with routes" src="../_images/cloudflare-02.png" />
+<figcaption>
+<p><span class="caption-text">The tunnel overview shows active replicas, uptime, and published routes. Click
+<strong>View all</strong> under Routes to see the full list, or click <strong>Add a route</strong> to add
+the SSH hostname.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="3">
+<li><p>Click <strong>Add a route</strong> (or go to the <strong>Routes</strong> tab and click <strong>Add route</strong>).
+Configure the new public hostname:</p></li>
 </ol>
-</section>
-</section>
-<section id="part-2-tunnel-public-hostname-for-ssh">
-<h2>Part 2: Tunnel Public Hostname for SSH<a class="headerlink" href="#part-2-tunnel-public-hostname-for-ssh" title="Link to this heading">#</a></h2>
-<p>In the Cloudflare One dashboard (<a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>),
-go to <strong>Networks → Tunnels</strong>, open your existing tunnel, select <strong>Public hostnames → Add a public hostname</strong>:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Field</p></th>
@@ -544,6 +511,16 @@ go to <strong>Networks → Tunnels</strong>, open your existing tunnel, select <
 from the Type dropdown and enter <code class="docutils literal notranslate"><span class="pre">&lt;node01-ip&gt;:22</span></code> in the URL field — do not include
 the <code class="docutils literal notranslate"><span class="pre">ssh://</span></code> prefix in the URL field.</p>
 </div>
+<p>After saving, the Routes tab shows all published applications including the new SSH
+route alongside any existing services (echo, headlamp, etc.):</p>
+<figure class="align-center" id="id3">
+<img alt="Tunnel routes showing SSH" src="../_images/cloudflare-03.png" />
+<figcaption>
+<p><span class="caption-text">The Routes tab showing all published applications. The SSH route forwards to
+<code class="docutils literal notranslate"><span class="pre">ssh://192.168.1.81:22</span></code> on the cluster network. HTTP services route to the
+ingress-nginx controller.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
 <p>Cloudflare automatically creates a proxied CNAME:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>ssh.example.com → &lt;tunnel-id&gt;.cfargotunnel.com  (Proxied ☁)
 </pre></div>
@@ -555,16 +532,102 @@ not need a DNS name, just a reachable IP. Using the control-plane IP directly is
 reliable than a hostname here.</p>
 </div>
 </section>
-<section id="part-3-waf-skip-rule">
-<h2>Part 3: WAF Skip Rule<a class="headerlink" href="#part-3-waf-skip-rule" title="Link to this heading">#</a></h2>
+<section id="part-2-create-a-zero-trust-access-application">
+<h2>Part 2: Create a Zero Trust Access Application<a class="headerlink" href="#part-2-create-a-zero-trust-access-application" title="Link to this heading">#</a></h2>
+<p>This is the critical security gate. Without an Access Application, anyone with your
+DNS name could attempt connections through the tunnel. The Access Application
+enforces identity verification <strong>before</strong> any SSH session is established.</p>
+<p>Still in the <strong>Zero Trust dashboard</strong> (<a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>):</p>
+<ol class="arabic simple">
+<li><p>Navigate to <strong>Access controls → Applications</strong>.</p></li>
+<li><p>Click <strong>Add an application</strong> and select <strong>Self-hosted</strong>.</p></li>
+<li><p>Configure the application:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Application name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Session duration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">24h</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Domain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Subdomain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Path</p></td>
+<td><p>none (leave blank)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>On the <strong>Policies</strong> tab, create an access policy:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Policy name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Owner</span> <span class="pre">Only</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Action</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Include rule</p></td>
+<td><p>Emails → <code class="docutils literal notranslate"><span class="pre">your&#64;email.com</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Keep this policy as restrictive as possible — ideally a single email address or a
+specific identity provider group. This policy is the primary security boundary.</p>
+</div>
+<ol class="arabic simple" start="5">
+<li><p>Click <strong>Save application</strong>.</p></li>
+</ol>
+<p>After saving, the Applications list shows your SSH application:</p>
+<figure class="align-center" id="id4">
+<img alt="Access Applications list" src="../_images/cloudflare-04.png" />
+<figcaption>
+<p><span class="caption-text">The Access Applications page showing the <code class="docutils literal notranslate"><span class="pre">ssh</span></code> application at <code class="docutils literal notranslate"><span class="pre">ssh.gkcluster.org</span></code>
+with one policy assigned.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p>You can review or edit the policy at any time by clicking the application name
+and selecting the <strong>Policies</strong> tab:</p>
+<figure class="align-center" id="id5">
+<img alt="SSH application policy" src="../_images/cloudflare-05.png" />
+<figcaption>
+<p><span class="caption-text">The policy editor showing the “Owner Only” ALLOW policy. Use the policy tester
+to verify your email is permitted before attempting to connect.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="part-3-add-a-waf-skip-rule">
+<h2>Part 3: Add a WAF skip rule<a class="headerlink" href="#part-3-add-a-waf-skip-rule" title="Link to this heading">#</a></h2>
 <p>By default Cloudflare’s WAF inspects all proxied traffic and may block requests to
-<code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code> before they ever reach the Access application — resulting in a
+<code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code> before they ever reach the Access Application — resulting in a
 generic “Why have I been blocked?” page and <code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> from
-<code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>. You must add a WAF skip rule to allow Access to handle authentication.</p>
-<p>In the <strong>main Cloudflare dashboard</strong> (<code class="docutils literal notranslate"><span class="pre">dash.cloudflare.com</span></code>, not the One dashboard):</p>
+<code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>. You must add a WAF skip rule to let Access handle authentication
+for the SSH hostname.</p>
+<p>Switch to the <strong>main Cloudflare dashboard</strong> (<a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>):</p>
 <ol class="arabic simple">
 <li><p>Select your <code class="docutils literal notranslate"><span class="pre">example.com</span></code> zone.</p></li>
-<li><p>Go to <strong>Security → WAF → Custom rules → Create rule</strong>.</p></li>
+<li><p>Go to <strong>Security → Security rules</strong> (formerly WAF → Custom rules).</p></li>
+<li><p>Click <strong>Create rule</strong>.</p></li>
 <li><p>Configure:</p></li>
 </ol>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -575,7 +638,7 @@ generic “Why have I been blocked?” page and <code class="docutils literal no
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Rule name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span> <span class="pre">SSH</span> <span class="pre">tunnel</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span> <span class="pre">ssh</span> <span class="pre">application</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Expression</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">http.host</span> <span class="pre">eq</span> <span class="pre">&quot;ssh.example.com&quot;</span></code></p></td>
@@ -586,7 +649,7 @@ generic “Why have I been blocked?” page and <code class="docutils literal no
 </tbody>
 </table>
 </div>
-<ol class="arabic simple" start="4">
+<ol class="arabic simple" start="5">
 <li><p>Under <strong>Skip</strong>, tick:</p>
 <ul class="simple">
 <li><p>Skip all remaining <strong>custom rules</strong></p></li>
@@ -595,6 +658,14 @@ generic “Why have I been blocked?” page and <code class="docutils literal no
 </li>
 <li><p>Click <strong>Deploy</strong>.</p></li>
 </ol>
+<figure class="align-center" id="id6">
+<img alt="WAF security rules" src="../_images/cloudflare-06.png" />
+<figcaption>
+<p><span class="caption-text">The Security rules page showing the SSH skip rule alongside other WAF rules. The
+SSH rule must use <strong>Skip</strong> so that Cloudflare Access can handle authentication
+instead of the WAF blocking the request.</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Without this rule, <code class="docutils literal notranslate"><span class="pre">cloudflared</span> <span class="pre">access</span> <span class="pre">login</span></code> returns
@@ -604,7 +675,7 @@ intercepts the request before Access can issue its authentication challenge.</p>
 </div>
 </section>
 <section id="part-4-client-ssh-configuration">
-<h2>Part 4: Client SSH Configuration<a class="headerlink" href="#part-4-client-ssh-configuration" title="Link to this heading">#</a></h2>
+<h2>Part 4: Client SSH configuration<a class="headerlink" href="#part-4-client-ssh-configuration" title="Link to this heading">#</a></h2>
 <section id="add-a-proxycommand-entry-to-ssh-config">
 <h3>4.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code><a class="headerlink" href="#add-a-proxycommand-entry-to-ssh-config" title="Link to this heading">#</a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Host ssh.example.com
@@ -623,19 +694,19 @@ to cache a token:</p>
 </div>
 <p>This opens a browser window for Cloudflare Access authentication. After authenticating,
 a token is written to <code class="docutils literal notranslate"><span class="pre">~/.cloudflared/</span></code>. The token is reused for the session duration
-you configured.</p>
+you configured (24 hours by default).</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Parts 1 (Access Application), 2 (Tunnel public hostname), and 3 (WAF skip rule) must
+<p>Parts 1 (tunnel route), 2 (Access Application), and 3 (WAF skip rule) must
 all be completed before this command will work. If any is missing you will see:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> — either the Access Application (Part 1) does not
+<li><p><code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code> — either the Access Application (Part 2) does not
 exist, the hostname does not exactly match <code class="docutils literal notranslate"><span class="pre">ssh.example.com</span></code>, or the WAF (Part 3)
 is blocking the request before Access can respond. Check
 <strong>Access controls → Applications</strong> at <a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>
-and <strong>Security → WAF → Custom rules</strong> at <a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">websocket:</span> <span class="pre">bad</span> <span class="pre">handshake</span></code> — the tunnel hostname in Part 2 is missing, so
-Cloudflare has nowhere to forward the connection. Check <strong>Networks → Tunnels → Public hostnames</strong>.</p></li>
+and <strong>Security → Security rules</strong> at <a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">websocket:</span> <span class="pre">bad</span> <span class="pre">handshake</span></code> — the tunnel hostname in Part 1 is missing, so
+Cloudflare has nowhere to forward the connection. Check <strong>Networking → Tunnels → Public hostnames</strong>.</p></li>
 </ul>
 </div>
 </section>
@@ -649,7 +720,8 @@ re-authentication. When the token expires, re-run <code class="docutils literal 
 </section>
 </section>
 <section id="part-5-remote-kubectl-access">
-<h2>Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access<a class="headerlink" href="#part-5-remote-kubectl-access" title="Link to this heading">#</a></h2>
+<h2>Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> access<a class="headerlink" href="#part-5-remote-kubectl-access" title="Link to this heading">#</a></h2>
+<p>Once the SSH tunnel is working, you can use it to reach the Kubernetes API remotely.</p>
 <section id="copy-and-patch-your-kubeconfig">
 <h3>5.1 Copy and patch your kubeconfig<a class="headerlink" href="#copy-and-patch-your-kubeconfig" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copy kubeconfig from the control plane</span>
@@ -675,7 +747,7 @@ kubectl<span class="w"> </span>get<span class="w"> </span>nodes
 </section>
 </section>
 <section id="part-6-access-cluster-web-services-remotely">
-<h2>Part 6: Access Cluster Web Services Remotely<a class="headerlink" href="#part-6-access-cluster-web-services-remotely" title="Link to this heading">#</a></h2>
+<h2>Part 6: Access cluster web services remotely<a class="headerlink" href="#part-6-access-cluster-web-services-remotely" title="Link to this heading">#</a></h2>
 <p>Use SSH local port-forwarding to reach any cluster web service. The forwarding target
 is resolved from <code class="docutils literal notranslate"><span class="pre">node01</span></code> — so you can use internal cluster DNS or LAN IPs.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single service — ArgoCD UI</span>
@@ -689,7 +761,7 @@ ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">8080</spa
 </pre></div>
 </div>
 <p>Or use <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> once your tunnel API connection is active:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Forward ArgoCD (already connected via Part 4)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Forward ArgoCD (already connected via Part 5)</span>
 kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/argocd-server<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="m">8080</span>:443<span class="w"> </span><span class="p">&amp;</span>
 
 <span class="c1"># Forward Grafana</span>
@@ -762,6 +834,14 @@ to confirm the application exists and its hostname matches.</p>
 <p>The node is only reachable via the Cloudflare tunnel with a valid Access session.</p>
 </section>
 </section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up a Cloudflare Tunnel</span></a> — Setting up the base Cloudflare tunnel</p></li>
+<li><p><a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> — In-cluster OAuth authentication as an alternative to
+Cloudflare Access</p></li>
+</ul>
+</section>
 </section>
 
 
@@ -812,26 +892,23 @@ to confirm the application exists and its hostname matches.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-cloudflare-dashboards">Two Cloudflare dashboards</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-cloudflare-zero-trust-access-application">Part 1: Cloudflare Zero Trust — Access Application</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-access-application">1.1 Create an Access Application</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-an-access-policy">1.2 Add an Access Policy</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-tunnel-public-hostname-for-ssh">Part 2: Tunnel Public Hostname for SSH</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-waf-skip-rule">Part 3: WAF Skip Rule</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-client-ssh-configuration">Part 4: Client SSH Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-add-an-ssh-route-to-the-tunnel">Part 1: Add an SSH route to the tunnel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-create-a-zero-trust-access-application">Part 2: Create a Zero Trust Access Application</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-add-a-waf-skip-rule">Part 3: Add a WAF skip rule</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-client-ssh-configuration">Part 4: Client SSH configuration</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-a-proxycommand-entry-to-ssh-config">4.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#authenticate-before-first-connection">4.2 Authenticate before first connection</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-via-ssh">4.3 Connect via SSH</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-remote-kubectl-access">Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> Access</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-remote-kubectl-access">Part 5: Remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> access</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#copy-and-patch-your-kubeconfig">5.1 Copy and patch your kubeconfig</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-the-kubernetes-api-port-and-use-kubectl">5.2 Forward the Kubernetes API port and use kubectl</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-6-access-cluster-web-services-remotely">Part 6: Access Cluster Web Services Remotely</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-6-access-cluster-web-services-remotely">Part 6: Access cluster web services remotely</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-7-verification">Part 7: Verification</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#confirm-access-policy-is-enforced">Confirm Access policy is enforced</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-ssh-tunnel">Test the SSH tunnel</a></li>
@@ -839,6 +916,7 @@ to confirm the application exists and its hostname matches.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#confirm-the-node-is-not-directly-reachable-from-outside-your-lan">Confirm the node is NOT directly reachable from outside your LAN</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
 </ul>
   </nav></div>
 

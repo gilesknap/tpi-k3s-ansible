@@ -91,6 +91,56 @@ kubectl apply -f sealed-secrets-key-backup.yaml
 
 The new controller will pick up the restored key and can decrypt existing SealedSecrets.
 
+## etcd backup and restore
+
+K3s uses an embedded etcd (or SQLite for single-node) datastore. Backing up
+etcd preserves the full cluster state including all Kubernetes objects.
+
+### Create an etcd snapshot
+
+```bash
+ssh node01 sudo k3s etcd-snapshot save --name manual-$(date +%Y%m%d)
+```
+
+Snapshots are stored at `/var/lib/rancher/k3s/server/db/snapshots/` on the
+control plane node.
+
+### List snapshots
+
+```bash
+ssh node01 sudo k3s etcd-snapshot list
+```
+
+### Configure automatic snapshots
+
+K3s supports automatic etcd snapshots. Add to `/etc/rancher/k3s/config.yaml`
+on the control plane:
+
+```yaml
+etcd-snapshot-schedule-cron: "0 */6 * * *"  # every 6 hours
+etcd-snapshot-retention: 10
+```
+
+Restart K3s to apply:
+
+```bash
+ssh node01 sudo systemctl restart k3s
+```
+
+### Restore from snapshot
+
+:::{warning}
+Restoring replaces the entire cluster state. All changes since the snapshot
+are lost.
+:::
+
+```bash
+ssh node01
+sudo systemctl stop k3s
+sudo k3s server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/k3s/server/db/snapshots/<snapshot-name>
+sudo systemctl start k3s
+```
+
 ## Disaster recovery
 
 To rebuild a cluster from scratch:

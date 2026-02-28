@@ -327,6 +327,7 @@
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
@@ -567,8 +568,15 @@ cert for it — resulting in <code class="docutils literal notranslate"><span cl
 </section>
 <section id="part-2-waf-web-application-firewall">
 <h2>Part 2: WAF (Web Application Firewall)<a class="headerlink" href="#part-2-waf-web-application-firewall" title="Link to this heading">#</a></h2>
-<p>Cloudflare’s default WAF (DDoS protection, bot management) applies automatically to
-all proxied traffic. Optionally add a rate-limiting rule:</p>
+<p>Cloudflare’s built-in protections (DDoS mitigation, bot management, managed rulesets)
+apply automatically to all proxied traffic. <strong>No custom security rules are needed</strong>
+for this setup.</p>
+<p>Custom WAF rules are only necessary if you add a wildcard CNAME (which you should
+not — see the warning in Part 1.5). Without a wildcard, only explicitly tunnelled
+hostnames receive traffic from the internet, so Cloudflare’s defaults are sufficient.</p>
+<section id="optional-rate-limiting">
+<h3>Optional: rate limiting<a class="headerlink" href="#optional-rate-limiting" title="Link to this heading">#</a></h3>
+<p>If you want to limit request rates on tunnelled services, add a rate-limiting rule:</p>
 <ol class="arabic simple">
 <li><p>Go to <strong>Security → WAF → Rate Limiting Rules</strong>.</p></li>
 <li><p>Create a rule:</p></li>
@@ -596,6 +604,7 @@ all proxied traffic. Optionally add a rate-limiting rule:</p>
 </table>
 </div>
 </section>
+</section>
 <section id="part-3-dns-records-for-lan-only-services">
 <h2>Part 3: DNS records for LAN-only services<a class="headerlink" href="#part-3-dns-records-for-lan-only-services" title="Link to this heading">#</a></h2>
 <p>For services not exposed via the tunnel, add <strong>grey-cloud (DNS-only) A records</strong>:</p>
@@ -614,17 +623,32 @@ all proxied traffic. Optionally add a rate-limiting rule:</p>
 <td><p>DNS only</p></td>
 </tr>
 <tr class="row-odd"><td><p>A</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
 <td><p>DNS only</p></td>
 </tr>
 <tr class="row-even"><td><p>A</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">longhorn</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
 <td><p>DNS only</p></td>
 </tr>
 <tr class="row-odd"><td><p>A</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">longhorn</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-even"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-odd"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p>DNS only</p></td>
+</tr>
+<tr class="row-even"><td><p>A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rkllama</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
 <td><p>DNS only</p></td>
 </tr>
@@ -724,6 +748,79 @@ to validate it, then removes the record.</p>
 <p>All applications should be <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and <code class="docutils literal notranslate"><span class="pre">Healthy</span></code>.</p>
 </section>
 </section>
+<section id="making-a-lan-only-service-externally-accessible">
+<h2>Making a LAN-only service externally accessible<a class="headerlink" href="#making-a-lan-only-service-externally-accessible" title="Link to this heading">#</a></h2>
+<p>To move a service from LAN-only to publicly accessible through the tunnel:</p>
+<ol class="arabic">
+<li><p><strong>Add a public hostname in the tunnel.</strong> In the Cloudflare dashboard, go to
+<strong>Networking → Tunnels → your tunnel → Public Hostname → Add a public hostname</strong>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Subdomain</p></td>
+<td><p>e.g. <code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Domain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Service URL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Use HTTP, not HTTPS — Cloudflare terminates TLS at its edge.</p>
+</li>
+<li><p><strong>Delete the grey-cloud A record</strong> for that subdomain in <strong>DNS → Records</strong>.
+Cloudflare creates a proxied CNAME automatically when you add the tunnel hostname.
+If you leave the A record in place it takes precedence over the tunnel CNAME,
+and external clients get the unreachable private IP.</p></li>
+<li><p><strong>Disable ssl-redirect on the Ingress.</strong> Traffic arriving through the tunnel is
+already HTTP (Cloudflare handles external TLS). If ingress-nginx forces an HTTPS
+redirect, it causes a redirect loop. Add the annotation:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nginx.ingress.kubernetes.io/ssl-redirect</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;false&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Consider authentication.</strong> A service on the LAN may not have required auth.
+Once it is public, protect it with one of:</p>
+<ul class="simple">
+<li><p><strong>Cloudflare Access</strong> (Zero Trust) — authentication at the Cloudflare edge,
+zero cluster overhead. See <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> for an example.</p></li>
+<li><p><strong>oauth2-proxy</strong> — in-cluster OAuth. See <a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>.</p></li>
+</ul>
+</li>
+<li><p><strong>Optionally add a rate-limiting rule</strong> in <strong>Security → WAF → Rate Limiting Rules</strong>
+for the newly public hostname.</p></li>
+</ol>
+<section id="reverting-to-lan-only">
+<h3>Reverting to LAN-only<a class="headerlink" href="#reverting-to-lan-only" title="Link to this heading">#</a></h3>
+<p>To take a service back off the internet:</p>
+<ol class="arabic simple">
+<li><p>Delete the public hostname from the tunnel configuration.</p></li>
+<li><p>Delete the proxied CNAME that Cloudflare created.</p></li>
+<li><p>Re-add the grey-cloud A record pointing to your worker IP.</p></li>
+<li><p>Remove the <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code> annotation if it was only added for the tunnel.</p></li>
+</ol>
+</section>
+</section>
+<section id="cloudflare-access-integration">
+<h2>Cloudflare Access integration<a class="headerlink" href="#cloudflare-access-integration" title="Link to this heading">#</a></h2>
+<p>For services that need authentication before reaching the cluster, use
+Cloudflare Access (part of Zero Trust). This adds identity verification
+at the Cloudflare edge with zero cluster overhead.</p>
+<p>See <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> for a working example with SSH, and
+<a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> for in-cluster OAuth as an alternative.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<p>See the Cloudflare Tunnel section in the <a class="reference internal" href="../reference/troubleshooting.html"><span class="doc">Troubleshooting</span></a>
+guide for common issues and solutions.</p>
+</section>
 </section>
 
 
@@ -783,7 +880,10 @@ to validate it, then removes the record.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-api-token-for-dns-01">1.6 Create an API token for DNS-01</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-waf-web-application-firewall">Part 2: WAF (Web Application Firewall)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-waf-web-application-firewall">Part 2: WAF (Web Application Firewall)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-rate-limiting">Optional: rate limiting</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-dns-records-for-lan-only-services">Part 3: DNS records for LAN-only services</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-kubernetes-secrets">Part 4: Kubernetes secrets</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-api-token-secret">4.1 Cloudflare API token secret</a></li>
@@ -798,6 +898,12 @@ to validate it, then removes the record.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-argocd-app-status">Check ArgoCD app status</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#making-a-lan-only-service-externally-accessible">Making a LAN-only service externally accessible</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reverting-to-lan-only">Reverting to LAN-only</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-access-integration">Cloudflare Access integration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
 </ul>
   </nav></div>
 

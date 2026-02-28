@@ -320,6 +320,7 @@
 <li class="toctree-l1"><a class="reference internal" href="cli-tools.html">CLI Tools Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="inventory.html">Inventory Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook Tags Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="production-checklist.html">Production Readiness Checklist</a></li>
 <li class="toctree-l1"><a class="reference internal" href="services.html">Services Reference</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables Reference</a></li>
@@ -561,6 +562,108 @@ valid token with <code class="docutils literal notranslate"><span class="pre">Zo
 </ol>
 </section>
 </section>
+<section id="cloudflare-tunnel">
+<h2>Cloudflare Tunnel<a class="headerlink" href="#cloudflare-tunnel" title="Link to this heading">#</a></h2>
+<section id="redirect-loop-through-tunnel">
+<h3>Redirect loop through tunnel<a class="headerlink" href="#redirect-loop-through-tunnel" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Browser shows <code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code> when accessing a
+tunnelled service.</p>
+<p><strong>Cause:</strong> The tunnel service URL uses HTTPS, and ingress-nginx forces
+an SSL redirect — creating an infinite loop.</p>
+<p><strong>Fix:</strong> Use <code class="docutils literal notranslate"><span class="pre">http://</span></code> (not <code class="docutils literal notranslate"><span class="pre">https://</span></code>) for the tunnel service URL in
+the Cloudflare dashboard. The echo ingress has <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">false</span></code> as
+a reference.</p>
+</section>
+<section id="waf-blocks-access-to-ssh-tunnel">
+<h3>WAF blocks access to SSH tunnel<a class="headerlink" href="#waf-blocks-access-to-ssh-tunnel" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">cloudflared</span> <span class="pre">access</span> <span class="pre">login</span></code> returns
+<code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code>.</p>
+<p><strong>Fix:</strong> Add a WAF skip rule for the SSH hostname. See
+<a class="reference internal" href="../how-to/cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> Part 3 for details.</p>
+</section>
+<section id="tunnel-not-connecting">
+<h3>Tunnel not connecting<a class="headerlink" href="#tunnel-not-connecting" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> cloudflared pods are running but the Cloudflare dashboard shows
+the tunnel as inactive.</p>
+<p><strong>Checklist:</strong></p>
+<ol class="arabic">
+<li><p><strong>Tunnel token valid?</strong> The SealedSecret must decrypt to a valid token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>cloudflared-credentials<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.TUNNEL_TOKEN}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span><span class="m">20</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Pods running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">cloudflared</span></code></p></li>
+<li><p><strong>Logs show errors?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">cloudflared</span> <span class="pre">deployment/cloudflared</span> <span class="pre">|</span> <span class="pre">tail</span> <span class="pre">-30</span></code></p></li>
+<li><p><strong>Outbound connectivity?</strong> The pod needs to reach <code class="docutils literal notranslate"><span class="pre">*.cloudflareresearch.com</span></code> on port 7844.</p></li>
+</ol>
+</section>
+<section id="connection-refused-for-tunnelled-service">
+<h3>Connection refused for tunnelled service<a class="headerlink" href="#connection-refused-for-tunnelled-service" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Cloudflare returns 502 Bad Gateway.</p>
+<p><strong>Checklist:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Service URL correct?</strong> The hostname in the tunnel config must match
+the Kubernetes service DNS name (e.g.
+<code class="docutils literal notranslate"><span class="pre">ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>).</p></li>
+<li><p><strong>Service port correct?</strong> Use port 80 (not 443) for HTTP backends.</p></li>
+<li><p><strong>Ingress resource exists?</strong> Check the target namespace has an ingress
+for the hostname.</p></li>
+</ol>
+</section>
+</section>
+<section id="nfs-mount-issues">
+<h2>NFS Mount Issues<a class="headerlink" href="#nfs-mount-issues" title="Link to this heading">#</a></h2>
+<section id="pvc-stuck-in-pending">
+<h3>PVC stuck in Pending<a class="headerlink" href="#pvc-stuck-in-pending" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> A PersistentVolumeClaim for LLM models stays in <code class="docutils literal notranslate"><span class="pre">Pending</span></code>.</p>
+<p><strong>Checklist:</strong></p>
+<ol class="arabic">
+<li><p><strong>NFS server reachable?</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>run<span class="w"> </span>nfs-test<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--image<span class="o">=</span>busybox:1.37<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span>-c<span class="w"> </span><span class="m">3</span><span class="w"> </span>&lt;nfs-ip&gt;
+</pre></div>
+</div>
+</li>
+<li><p><strong>Export path correct?</strong> Check <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> matches
+the NFS server’s <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code>.</p></li>
+<li><p><strong>PV exists and is Available?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code></p></li>
+<li><p><strong>StorageClass mismatch?</strong> NFS PVs in this project do not use a StorageClass
+— the PVC binds directly by name.</p></li>
+</ol>
+</section>
+</section>
+<section id="k3s-control-plane">
+<h2>K3s Control Plane<a class="headerlink" href="#k3s-control-plane" title="Link to this heading">#</a></h2>
+<section id="api-server-unreachable">
+<h3>API server unreachable<a class="headerlink" href="#api-server-unreachable" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> commands fail with <code class="docutils literal notranslate"><span class="pre">connection</span> <span class="pre">refused</span></code> on port 6443.</p>
+<p><strong>Checklist:</strong></p>
+<ol class="arabic">
+<li><p><strong>K3s service running?</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>k3s
+</pre></div>
+</div>
+</li>
+<li><p><strong>Certificates valid?</strong> Check <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/tls/</span></code> on the
+control plane node.</p></li>
+<li><p><strong>Disk full?</strong> etcd can fail if the node runs out of disk space:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>df<span class="w"> </span>-h<span class="w"> </span>/
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="etcd-database-too-large">
+<h3>etcd database too large<a class="headerlink" href="#etcd-database-too-large" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> K3s logs show <code class="docutils literal notranslate"><span class="pre">mvcc:</span> <span class="pre">database</span> <span class="pre">space</span> <span class="pre">exceeded</span></code>.</p>
+<p><strong>Fix:</strong> Compact and defragment etcd:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01
+sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual-backup
+sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s
+</pre></div>
+</div>
+<p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
+</section>
+</section>
 <section id="hardware">
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
@@ -668,6 +771,22 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-returning-404-or-503">Ingress returning 404 or 503</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#certificate-not-issuing">Certificate not issuing</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-tunnel">Cloudflare Tunnel</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-through-tunnel">Redirect loop through tunnel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#waf-blocks-access-to-ssh-tunnel">WAF blocks access to SSH tunnel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tunnel-not-connecting">Tunnel not connecting</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connection-refused-for-tunnelled-service">Connection refused for tunnelled service</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-mount-issues">NFS Mount Issues</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pvc-stuck-in-pending">PVC stuck in Pending</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-control-plane">K3s Control Plane</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api-server-unreachable">API server unreachable</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-database-too-large">etcd database too large</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">
