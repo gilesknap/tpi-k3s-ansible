@@ -75,7 +75,30 @@ or small-team cluster, provided Cloudflare Access policies are configured. Witho
 Cloudflare Access, security depends entirely on oauth2-proxy and native auth —
 still reasonable, but adding Access is strongly recommended.
 
-## Part 1: Add public hostnames to the tunnel
+## Part 1: Delete existing DNS records
+
+When you add a route to the tunnel (Part 2), Cloudflare automatically creates a
+proxied CNAME record for the hostname. However, if a grey-cloud (DNS-only) A record
+already exists for that subdomain, the auto-creation fails silently and external
+clients resolve to your private IP instead of the tunnel.
+
+Delete the A records **before** adding routes so the CNAMEs are created automatically.
+
+In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
+
+1. Select your domain zone.
+2. Go to **DNS → Records**.
+3. For each service you plan to tunnel (`grafana`, `headlamp`, `open-webui`, `oauth2`,
+   `argocd`), delete the existing A record.
+
+:::{note}
+After this change, LAN clients also route through Cloudflare for these services.
+If you need split-horizon DNS (LAN clients go direct, external clients use the
+tunnel), configure your local DNS resolver to return the private IPs for these
+hostnames.
+:::
+
+## Part 2: Add routes to the tunnel
 
 In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
@@ -87,15 +110,16 @@ In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 These four services use the same origin configuration:
 
-| Subdomain | Domain | Type | URL |
-|-----------|--------|------|-----|
-| `grafana` | `example.com` | `HTTP` | `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
-| `headlamp` | `example.com` | `HTTP` | `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
-| `open-webui` | `example.com` | `HTTP` | `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
-| `oauth2` | `example.com` | `HTTP` | `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` |
+| Subdomain | Domain | URL |
+|-----------|--------|-----|
+| `grafana` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
+| `headlamp` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
+| `open-webui` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
+| `oauth2` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 
-Use **HTTP**, not HTTPS — Cloudflare terminates TLS at its edge and sends HTTP to
-`cloudflared`. The `Host` header tells ingress-nginx which service to route to.
+Use `http://`, not `https://` — Cloudflare terminates TLS at its edge and sends
+HTTP to `cloudflared`. The `Host` header tells ingress-nginx which service to route
+to.
 
 :::{important}
 The `oauth2` hostname **must** be included. When a user accesses a protected service,
@@ -109,9 +133,9 @@ OAuth-protected services.
 ArgoCD uses SSL passthrough — it terminates TLS itself on port 443. This requires
 a different origin configuration:
 
-| Subdomain | Domain | Type | URL |
-|-----------|--------|------|-----|
-| `argocd` | `example.com` | `HTTPS` | `ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:443` |
+| Subdomain | Domain | URL |
+|-----------|--------|-----|
+| `argocd` | `example.com` | `https://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:443` |
 
 Under **Additional application settings → TLS**, enable:
 
@@ -122,27 +146,6 @@ Under **Additional application settings → TLS**, enable:
 :::{note}
 ArgoCD does **not** need the `enable_cloudflare_tunnel` toggle — its SSL passthrough
 ingress works differently from the HTTP services. No code changes are needed.
-:::
-
-## Part 2: Update DNS records
-
-When you add public hostnames to the tunnel, Cloudflare automatically creates
-proxied CNAME records. However, if you already have grey-cloud (DNS-only) A records
-for these subdomains, they take precedence and external clients get your private IP.
-
-In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
-
-1. Select your domain zone.
-2. Go to **DNS → Records**.
-3. For each tunnelled service (`grafana`, `headlamp`, `open-webui`, `oauth2`,
-   `argocd`), delete the existing A record. The proxied CNAME created by the
-   tunnel takes over.
-
-:::{note}
-After this change, LAN clients also route through Cloudflare for these services.
-If you need split-horizon DNS (LAN clients go direct, external clients use the
-tunnel), configure your local DNS resolver to return the private IPs for these
-hostnames.
 :::
 
 ## Part 3: Create Cloudflare Access policies (recommended)
@@ -162,8 +165,17 @@ You can create a **single wildcard application** covering all services:
 |---|---|
 | Application name | `Cluster Web Services` |
 | Session duration | `24h` |
+| Input method | **Custom** (switch from Default — this allows wildcards) |
+| Subdomain | `*` |
 | Domain | `example.com` |
-| Subdomain | `*.example.com` or add each subdomain individually |
+
+```{figure} ../images/edit-cloudflare-app.png
+:alt: Cloudflare Access application with Custom input method and wildcard subdomain
+:align: center
+
+Switch the **Input method** dropdown from Default to **Custom** to enter `*` in the
+Subdomain field.
+```
 
 :::{tip}
 A wildcard policy is simpler to maintain. If you prefer per-service policies,

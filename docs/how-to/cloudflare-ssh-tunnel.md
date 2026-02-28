@@ -94,14 +94,7 @@ the SSH hostname.
 |---|---|
 | Subdomain | `ssh` |
 | Domain | `example.com` |
-| Service Type | `SSH` |
-| Service URL | `<node01-ip>:22` |
-
-:::{note}
-The Service field is split into a **Type** dropdown and a **URL** field. Select `SSH`
-from the Type dropdown and enter `<node01-ip>:22` in the URL field — do not include
-the `ssh://` prefix in the URL field.
-:::
+| Service URL | `ssh://<node01-ip>:22` |
 
 After saving, the Routes tab shows all published applications including the new SSH
 route alongside any existing services (echo, headlamp, etc.):
