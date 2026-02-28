@@ -84,7 +84,7 @@ sequenceDiagram
 - Doesn't require inbound port 80 to be open
 
 The Cloudflare API token for DNS management is stored as a SealedSecret at
-`kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml`.
+`kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml`.
 
 ### Certificate lifecycle
 

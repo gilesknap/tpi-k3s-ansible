@@ -1,0 +1,935 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Expose Web Services via Cloudflare Tunnel &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/cloudflare-web-tunnel';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Set Up OAuth Authentication" href="oauth-setup.html" />
+    <link rel="prev" title="Set Up a Cloudflare SSH Tunnel for Remote Cluster Access" href="cloudflare-ssh-tunnel.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Expose Web Services via Cloudflare Tunnel</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="expose-web-services-via-cloudflare-tunnel">
+<h1>Expose Web Services via Cloudflare Tunnel<a class="headerlink" href="#expose-web-services-via-cloudflare-tunnel" title="Link to this heading">#</a></h1>
+<p>This guide extends the base Cloudflare Tunnel setup to make cluster web services
+accessible from the internet through Cloudflare Zero Trust. No inbound firewall
+ports are opened — all traffic flows through <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>’s outbound connection.</p>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>INTERNET (browser)
+  │
+  ▼  HTTPS
+Cloudflare Edge (TLS termination, WAF, DDoS protection)
+  │  Cloudflare Access policy — identity check before traffic enters tunnel
+  ▼
+cloudflared pod (outbound-only tunnel, 2 replicas)
+  │  HTTP to ingress-nginx (ssl_redirect disabled for tunnelled services)
+  ▼
+ingress-nginx
+  │  auth subrequest to oauth2-proxy (email allowlist)
+  ▼
+Backend service (Grafana, Headlamp, Open WebUI, ArgoCD)
+  │  Native login / RBAC
+  ▼
+Authenticated session
+</pre></div>
+</div>
+<p><strong>Defense in depth — three authentication layers:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Cloudflare Access</strong> (edge) — identity verification before traffic reaches the
+cluster. Recommended for all tunnelled services.</p></li>
+<li><p><strong>oauth2-proxy</strong> (ingress) — GitHub email allowlist. Active when
+<code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p></li>
+<li><p><strong>Native service auth</strong> — each service retains its own login and RBAC.</p></li>
+</ol>
+</section>
+<section id="two-cloudflare-dashboards">
+<h2>Two Cloudflare dashboards<a class="headerlink" href="#two-cloudflare-dashboards" title="Link to this heading">#</a></h2>
+<p>This guide uses <strong>two separate Cloudflare dashboards</strong> — it is easy to get confused
+between them:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://dash.cloudflare.com/"><strong>dash.cloudflare.com</strong></a> — the <strong>main</strong> dashboard for
+managing DNS zones, WAF rules, tunnels, and general site settings.</p></li>
+<li><p><a class="reference external" href="https://one.dash.cloudflare.com/"><strong>one.dash.cloudflare.com</strong></a> — the <strong>Zero Trust</strong>
+dashboard for managing Access Applications and security policies.</p></li>
+</ul>
+<p>The steps below will tell you which dashboard to use at each point.</p>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>A working Cloudflare Tunnel with <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> deployed in the cluster
+(<a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a>).</p></li>
+<li><p>The echo service verified working through the tunnel.</p></li>
+<li><p>oauth2-proxy deployed and working (<a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>).</p></li>
+</ul>
+</section>
+<section id="security-assessment">
+<h2>Security assessment<a class="headerlink" href="#security-assessment" title="Link to this heading">#</a></h2>
+<p>Before exposing services, consider the risk profile of each:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Service</p></th>
+<th class="head"><p>Native Auth</p></th>
+<th class="head"><p>OAuth2</p></th>
+<th class="head"><p>Risk if OAuth Bypassed</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grafana</p></td>
+<td><p>Admin login + user accounts</p></td>
+<td><p>Yes</p></td>
+<td><p>Low — requires credentials</p></td>
+</tr>
+<tr class="row-odd"><td><p>Headlamp</p></td>
+<td><p>Kubernetes service account token</p></td>
+<td><p>Yes</p></td>
+<td><p>Low — requires token</p></td>
+</tr>
+<tr class="row-even"><td><p>Open WebUI</p></td>
+<td><p>User accounts with registration</p></td>
+<td><p>Yes</p></td>
+<td><p>Low — requires login</p></td>
+</tr>
+<tr class="row-odd"><td><p>ArgoCD</p></td>
+<td><p>Admin password + optional OIDC</p></td>
+<td><p>No (SSL passthrough)</p></td>
+<td><p>Low — requires credentials</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Services deliberately excluded:</strong></p>
+<ul class="simple">
+<li><p><strong>Longhorn</strong> — no native authentication. If OAuth is bypassed, an attacker gets
+full storage admin access. Keep it LAN-only.</p></li>
+<li><p><strong>RKLlama</strong> — internal API consumed by Open WebUI. No reason to expose directly.</p></li>
+</ul>
+<p><strong>Overall risk assessment:</strong> The combination of Cloudflare Access + oauth2-proxy +
+native service auth provides strong defense in depth. The risk is low for a homelab
+or small-team cluster, provided Cloudflare Access policies are configured. Without
+Cloudflare Access, security depends entirely on oauth2-proxy and native auth —
+still reasonable, but adding Access is strongly recommended.</p>
+</section>
+<section id="part-1-delete-existing-dns-records">
+<h2>Part 1: Delete existing DNS records<a class="headerlink" href="#part-1-delete-existing-dns-records" title="Link to this heading">#</a></h2>
+<p>When you add a route to the tunnel (Part 2), Cloudflare automatically creates a
+proxied CNAME record for the hostname. However, if a grey-cloud (DNS-only) A record
+already exists for that subdomain, the auto-creation fails silently and external
+clients resolve to your private IP instead of the tunnel.</p>
+<p>Delete the A records <strong>before</strong> adding routes so the CNAMEs are created automatically.</p>
+<p>In the <strong>main dashboard</strong> (<a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>):</p>
+<ol class="arabic simple">
+<li><p>Select your domain zone.</p></li>
+<li><p>Go to <strong>DNS → Records</strong>.</p></li>
+<li><p>For each service you plan to tunnel (<code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">open-webui</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code>,
+<code class="docutils literal notranslate"><span class="pre">argocd</span></code>), delete the existing A record.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>After this change, LAN clients also route through Cloudflare for these services.
+If you need split-horizon DNS (LAN clients go direct, external clients use the
+tunnel), configure your local DNS resolver to return the private IPs for these
+hostnames.</p>
+</div>
+</section>
+<section id="part-2-add-routes-to-the-tunnel">
+<h2>Part 2: Add routes to the tunnel<a class="headerlink" href="#part-2-add-routes-to-the-tunnel" title="Link to this heading">#</a></h2>
+<p>In the <strong>main dashboard</strong> (<a class="reference external" href="https://dash.cloudflare.com/">dash.cloudflare.com</a>):</p>
+<ol class="arabic simple">
+<li><p>Navigate to <strong>Networking → Tunnels</strong> and click on your tunnel name.</p></li>
+<li><p>Go to the <strong>Routes</strong> tab (or click <strong>View all</strong> under Routes on the Overview tab)
+and click <strong>Add route</strong> for each service below.</p></li>
+</ol>
+<section id="http-services-grafana-headlamp-open-webui-oauth2-proxy">
+<h3>HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)<a class="headerlink" href="#http-services-grafana-headlamp-open-webui-oauth2-proxy" title="Link to this heading">#</a></h3>
+<p>These four services use the same origin configuration:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Subdomain</p></th>
+<th class="head"><p>Domain</p></th>
+<th class="head"><p>URL</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">http://</span></code>, not <code class="docutils literal notranslate"><span class="pre">https://</span></code> — Cloudflare terminates TLS at its edge and sends
+HTTP to <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>. The <code class="docutils literal notranslate"><span class="pre">Host</span></code> header tells ingress-nginx which service to route
+to.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">oauth2</span></code> hostname <strong>must</strong> be included. When a user accesses a protected service,
+the browser is redirected to <code class="docutils literal notranslate"><span class="pre">oauth2.example.com</span></code> to complete the GitHub OAuth flow.
+If this hostname is not reachable through the tunnel, login fails for all
+OAuth-protected services.</p>
+</div>
+</section>
+<section id="argocd-https-origin">
+<h3>ArgoCD (HTTPS origin)<a class="headerlink" href="#argocd-https-origin" title="Link to this heading">#</a></h3>
+<p>ArgoCD uses SSL passthrough — it terminates TLS itself on port 443. This requires
+a different origin configuration:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Subdomain</p></th>
+<th class="head"><p>Domain</p></th>
+<th class="head"><p>URL</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">https://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:443</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Under <strong>Additional application settings → TLS</strong>, enable:</p>
+<ul class="simple">
+<li><p><strong>No TLS Verify</strong> — <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> connects to ingress-nginx’s TLS port but does
+not verify the internal certificate. This is safe because the connection is
+entirely within the cluster network.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>ArgoCD does <strong>not</strong> need the <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> toggle — its SSL passthrough
+ingress works differently from the HTTP services. No code changes are needed.</p>
+</div>
+</section>
+</section>
+<section id="part-3-create-cloudflare-access-policies-recommended">
+<h2>Part 3: Create Cloudflare Access policies (recommended)<a class="headerlink" href="#part-3-create-cloudflare-access-policies-recommended" title="Link to this heading">#</a></h2>
+<p>Cloudflare Access adds identity verification at the edge — before traffic even
+reaches your cluster. This is especially valuable as an additional layer on top of
+oauth2-proxy.</p>
+<p>In the <strong>Zero Trust dashboard</strong> (<a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>):</p>
+<ol class="arabic simple">
+<li><p>Navigate to <strong>Access controls → Applications</strong>.</p></li>
+<li><p>Click <strong>Add an application</strong> and select <strong>Self-hosted</strong>.</p></li>
+</ol>
+<p>You can create a <strong>single wildcard application</strong> covering all services:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Application name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Cluster</span> <span class="pre">Web</span> <span class="pre">Services</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Session duration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">24h</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Input method</p></td>
+<td><p><strong>Custom</strong> (switch from Default — this allows wildcards)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Subdomain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Domain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<figure class="align-center" id="id1">
+<img alt="Cloudflare Access application with Custom input method and wildcard subdomain" src="../_images/edit-cloudflare-app.png" />
+<figcaption>
+<p><span class="caption-text">Switch the <strong>Input method</strong> dropdown from Default to <strong>Custom</strong> to enter <code class="docutils literal notranslate"><span class="pre">*</span></code> in the
+Subdomain field.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>A wildcard policy is simpler to maintain. If you prefer per-service policies,
+create separate applications for each subdomain. The SSH application from
+<a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> can remain separate.</p>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>On the <strong>Policies</strong> tab, create an access policy:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Policy name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Allowed</span> <span class="pre">Users</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Action</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Allow</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Include rule</p></td>
+<td><p>Emails — add the same addresses as your <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> list</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>Click <strong>Save application</strong>.</p></li>
+</ol>
+</section>
+<section id="part-4-enable-the-tunnel-toggle">
+<h2>Part 4: Enable the tunnel toggle<a class="headerlink" href="#part-4-enable-the-tunnel-toggle" title="Link to this heading">#</a></h2>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_cloudflare_tunnel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Commit and push. ArgoCD picks up the change and sets <code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code> on the
+ingresses for Grafana, Headlamp, Open WebUI, and oauth2-proxy. This prevents
+redirect loops — Cloudflare sends HTTP to <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>, and without this toggle
+ingress-nginx would redirect back to HTTPS in a loop.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>ArgoCD’s ingress is not affected by this toggle — its SSL passthrough configuration
+works independently.</p>
+</div>
+</section>
+<section id="part-5-verify">
+<h2>Part 5: Verify<a class="headerlink" href="#part-5-verify" title="Link to this heading">#</a></h2>
+<section id="from-outside-your-lan">
+<h3>From outside your LAN<a class="headerlink" href="#from-outside-your-lan" title="Link to this heading">#</a></h3>
+<p>Use a mobile hotspot or VPN to test from outside your home network:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Each should load the login page (Cloudflare Access, then OAuth/service login)</span>
+curl<span class="w"> </span>-I<span class="w"> </span>https://grafana.example.com
+curl<span class="w"> </span>-I<span class="w"> </span>https://headlamp.example.com
+curl<span class="w"> </span>-I<span class="w"> </span>https://open-webui.example.com
+curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
+</pre></div>
+</div>
+</section>
+<section id="check-the-oauth-flow">
+<h3>Check the OAuth flow<a class="headerlink" href="#check-the-oauth-flow" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Open <code class="docutils literal notranslate"><span class="pre">https://grafana.example.com</span></code> in a browser.</p></li>
+<li><p>If Cloudflare Access is configured, you see the Access login first.</p></li>
+<li><p>After Access authentication, oauth2-proxy redirects to GitHub for OAuth.</p></li>
+<li><p>After GitHub auth, you reach the Grafana login page.</p></li>
+</ol>
+</section>
+<section id="check-cloudflared-logs">
+<h3>Check cloudflared logs<a class="headerlink" href="#check-cloudflared-logs" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>deployment/cloudflared<span class="w"> </span>--tail<span class="o">=</span><span class="m">20</span>
+</pre></div>
+</div>
+<p>Look for connection entries referencing your service hostnames.</p>
+</section>
+<section id="verify-ssl-redirect-is-disabled">
+<h3>Verify ssl-redirect is disabled<a class="headerlink" href="#verify-ssl-redirect-is-disabled" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>jq<span class="w"> </span><span class="s1">&#39;.items[] | select(.metadata.annotations[&quot;nginx.ingress.kubernetes.io/ssl-redirect&quot;] == &quot;false&quot;) | .metadata.name&#39;</span>
+</pre></div>
+</div>
+<p>Expected: ingresses for <code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">open-webui</span></code>, and <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>.</p>
+</section>
+</section>
+<section id="reverting-to-lan-only">
+<h2>Reverting to LAN-only<a class="headerlink" href="#reverting-to-lan-only" title="Link to this heading">#</a></h2>
+<p>To take services back off the internet:</p>
+<ol class="arabic simple">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel:</span> <span class="pre">false</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>,
+commit and push.</p></li>
+<li><p>Delete the public hostnames from the tunnel configuration in the Zero Trust
+dashboard.</p></li>
+<li><p>Delete the Cloudflare Access application if no longer needed.</p></li>
+<li><p>In <strong>DNS → Records</strong>, delete the proxied CNAMEs and re-add grey-cloud A records
+pointing to your worker node IPs.</p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="redirect-loop-err-too-many-redirects">
+<h3>Redirect loop (ERR_TOO_MANY_REDIRECTS)<a class="headerlink" href="#redirect-loop-err-too-many-redirects" title="Link to this heading">#</a></h3>
+<p>The most common cause is <code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code> still set to <code class="docutils literal notranslate"><span class="pre">true</span></code>. Verify:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>ssl-redirect
+</pre></div>
+</div>
+<p>Should show <code class="docutils literal notranslate"><span class="pre">&quot;false&quot;</span></code> when <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>. If not, check that
+ArgoCD has synced the latest values.</p>
+</section>
+<section id="oauth-login-fails-from-outside-lan">
+<h3>OAuth login fails from outside LAN<a class="headerlink" href="#oauth-login-fails-from-outside-lan" title="Link to this heading">#</a></h3>
+<p>Ensure the <code class="docutils literal notranslate"><span class="pre">oauth2</span></code> hostname is included in the tunnel public hostnames. The
+browser must be able to reach <code class="docutils literal notranslate"><span class="pre">oauth2.example.com</span></code> to complete the GitHub OAuth
+flow.</p>
+</section>
+<section id="bad-gateway-on-argocd">
+<h3>502 Bad Gateway on ArgoCD<a class="headerlink" href="#bad-gateway-on-argocd" title="Link to this heading">#</a></h3>
+<p>Check that the ArgoCD tunnel hostname uses <strong>HTTPS</strong> origin (not HTTP) with
+<strong>No TLS Verify</strong> enabled. ArgoCD’s SSL passthrough requires a TLS connection from
+<code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>.</p>
+</section>
+<section id="forbidden-after-authenticating">
+<h3>403 Forbidden after authenticating<a class="headerlink" href="#forbidden-after-authenticating" title="Link to this heading">#</a></h3>
+<p>Check the oauth2-proxy email allowlist in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> under
+<code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code>. The email on your GitHub account must match an entry in this list.</p>
+</section>
+<section id="lan-access-stops-working">
+<h3>LAN access stops working<a class="headerlink" href="#lan-access-stops-working" title="Link to this heading">#</a></h3>
+<p>If you deleted the A records (Part 2), LAN clients now route through Cloudflare.
+This usually works but adds latency. For direct LAN access, configure your local
+DNS resolver to return private IPs for the service hostnames.</p>
+</section>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> — Base tunnel setup and per-service tunnel instructions</p></li>
+<li><p><a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> — SSH tunnel with Cloudflare Access</p></li>
+<li><p><a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> — In-cluster OAuth configuration</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cloudflare-ssh-tunnel.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="oauth-setup.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Set Up OAuth Authentication</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-cloudflare-dashboards">Two Cloudflare dashboards</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#security-assessment">Security assessment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-delete-existing-dns-records">Part 1: Delete existing DNS records</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-add-routes-to-the-tunnel">Part 2: Add routes to the tunnel</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#http-services-grafana-headlamp-open-webui-oauth2-proxy">HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-https-origin">ArgoCD (HTTPS origin)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-create-cloudflare-access-policies-recommended">Part 3: Create Cloudflare Access policies (recommended)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-enable-the-tunnel-toggle">Part 4: Enable the tunnel toggle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-verify">Part 5: Verify</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-outside-your-lan">From outside your LAN</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-oauth-flow">Check the OAuth flow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-cloudflared-logs">Check cloudflared logs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-ssl-redirect-is-disabled">Verify ssl-redirect is disabled</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reverting-to-lan-only">Reverting to LAN-only</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-err-too-many-redirects">Redirect loop (ERR_TOO_MANY_REDIRECTS)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-login-fails-from-outside-lan">OAuth login fails from outside LAN</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bad-gateway-on-argocd">502 Bad Gateway on ArgoCD</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forbidden-after-authenticating">403 Forbidden after authenticating</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lan-access-stops-working">LAN access stops working</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/cloudflare-web-tunnel.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/cloudflare-web-tunnel.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

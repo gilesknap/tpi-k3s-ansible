@@ -46,7 +46,7 @@ controller can decrypt them.
 Current SealedSecrets:
 
 - `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` — Cloudflare tunnel token
-- `kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml` — DNS API token
+- `kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml` — DNS API token
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — OAuth client credentials
 
 ### Admin password

@@ -90,19 +90,19 @@ printf '%s' "$TOKEN" | \
     --from-file=api-token=/dev/stdin \
     --dry-run=client -o yaml | \
   kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-    kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+    kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml
 unset TOKEN
 ```
 
 Commit and push:
 
 ```bash
-git add kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+git add kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml
 git commit -m "Add cert-manager Cloudflare DNS-01 API token SealedSecret"
 git push
 ```
 
-The `ClusterIssuer` at `kubernetes-services/additions/cert-manager/issuer-letsencrypt-prod.yaml`
+The `ClusterIssuer` at `kubernetes-services/additions/cert-manager/templates/issuer-letsencrypt-prod.yaml`
 is already configured to use DNS-01 with this token. cert-manager will now be able
 to issue Let's Encrypt certificates for all your ingress hostnames.
 
@@ -306,10 +306,15 @@ Optionally add a rate-limiting rule in **Security → WAF → Rate Limiting Rule
 
 ## Making a LAN-only service externally accessible
 
+:::{tip}
+To expose **all** OAuth-protected web services at once with a single toggle,
+see {doc}`cloudflare-web-tunnel` instead of the per-service steps below.
+:::
+
 To move a service from LAN-only to publicly accessible through the tunnel:
 
-1. **Add a public hostname in the tunnel.** In the Cloudflare dashboard, go to
-   **Networking → Tunnels → your tunnel → Public Hostname → Add a public hostname**.
+1. **Add a route in the tunnel.** In the Cloudflare dashboard, go to
+   **Networking → Tunnels → your tunnel → Routes → Add route**.
 
    | Field | Value |
    |---|---|
@@ -356,8 +361,9 @@ For services that need authentication before reaching the cluster, use
 Cloudflare Access (part of Zero Trust). This adds identity verification
 at the Cloudflare edge with zero cluster overhead.
 
-See {doc}`cloudflare-ssh-tunnel` for a working example with SSH, and
-{doc}`oauth-setup` for in-cluster OAuth as an alternative.
+See {doc}`cloudflare-ssh-tunnel` for a working example with SSH,
+{doc}`cloudflare-web-tunnel` for exposing web services through the tunnel,
+and {doc}`oauth-setup` for in-cluster OAuth as an alternative or complement.
 
 ## Troubleshooting
 
