@@ -21,6 +21,24 @@ flowchart TD
 4. ArgoCD syncs the SealedSecret to the cluster.
 5. The sealed-secrets controller decrypts it into a regular Secret.
 
+## Existing SealedSecrets
+
+:::{important}
+SealedSecrets are encrypted for a **specific cluster**. If you forked this repo,
+the existing sealed secret files will not decrypt on your cluster — the
+sealed-secrets controller will log errors but the cluster will otherwise run
+normally. You must create your own secrets by following {doc}`cloudflare-tunnel`
+and {doc}`oauth-setup`.
+:::
+
+These secrets are created during the setup guides:
+
+| Secret | Namespace | Purpose | File |
+|--------|-----------|---------|------|
+| `cloudflared-credentials` | `cloudflared` | Cloudflare tunnel token | additions/cloudflared/tunnel-secret.yaml |
+| `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/cloudflare-api-token-secret.yaml |
+| `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
+
 ## Prerequisites
 
 - `kubeseal` is installed in the devcontainer (via the `tools` role)
@@ -82,13 +100,6 @@ git push
 ```
 
 ArgoCD syncs the SealedSecret automatically.
-
-## Existing SealedSecrets in this project
-
-| Secret | Namespace | File | Purpose |
-|--------|-----------|------|---------|
-| `cloudflared-credentials` | `cloudflared` | `additions/cloudflared/tunnel-secret.yaml` | Cloudflare tunnel token |
-| `cloudflare-api-token` | `cert-manager` | `additions/cert-manager/cloudflare-api-token-secret.yaml` | DNS-01 API token |
 
 ## Rotate a secret
 

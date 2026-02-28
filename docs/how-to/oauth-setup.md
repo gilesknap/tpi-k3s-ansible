@@ -105,7 +105,26 @@ kubectl get ingress -n oauth2-proxy
 
 Visit `https://oauth2.<your-domain>` — you should see a GitHub login page.
 
-## Step 6: Enable OAuth on services
+## Step 6: Enable the OAuth toggle
+
+Now that oauth2-proxy is running, enable it for all protected services by editing
+`kubernetes-services/values.yaml`:
+
+```yaml
+enable_oauth2_proxy: true
+```
+
+Commit and push:
+
+```bash
+git add kubernetes-services/values.yaml
+git commit -m "Enable OAuth2 proxy for cluster services"
+git push
+```
+
+ArgoCD will pick up the change and add OAuth annotations to all protected ingresses.
+
+## Step 7: How OAuth is wired to services
 
 Services use the shared ingress template at
 `kubernetes-services/additions/ingress/templates/ingress.yaml`. To protect
@@ -134,7 +153,7 @@ Services currently protected by OAuth:
 - ArgoCD (`argo-cd/ingress.yaml`) — uses TLS passthrough with its own login
   (managed by Ansible, not the shared ingress template)
 
-## Step 7: Restrict access (optional)
+## Step 8: Restrict access (optional)
 
 To restrict access to members of a specific GitHub organisation, add the
 `github-org` flag in `kubernetes-services/templates/oauth2-proxy.yaml`:

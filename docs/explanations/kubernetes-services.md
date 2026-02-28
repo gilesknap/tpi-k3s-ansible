@@ -9,16 +9,20 @@ within it becomes an independent ArgoCD Application.
 ```
 kubernetes-services/
 ├── Chart.yaml              # Minimal Helm chart metadata
-├── values.yaml             # Shared values (repo_branch)
+├── values.yaml             # Shared values (repo_branch, oauth2_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
-│   ├── dashboard.yaml
+│   ├── dashboard.yaml      # Headlamp
 │   ├── echo.yaml
 │   ├── grafana.yaml
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
+│   ├── llamacpp.yaml
 │   ├── longhorn.yaml
+│   ├── nvidia-device-plugin.yaml
+│   ├── oauth2-proxy.yaml
+│   ├── open-webui.yaml
 │   ├── rkllama.yaml
 │   └── sealed-secrets.yaml
 └── additions/              # Extra manifests per service
@@ -26,9 +30,11 @@ kubernetes-services/
     ├── cert-manager/       # SealedSecret + ClusterIssuer
     ├── cloudflared/        # Deployment + SealedSecret
     ├── dashboard/          # RBAC for Headlamp
-    ├── echo/               # Full echo-server manifests
+    ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
+    ├── llamacpp/           # NFS volume + GPU config
     ├── longhorn/           # VolumeSnapshotClass
+    ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
 ```
 
@@ -90,8 +96,10 @@ a standardised Ingress resource. It supports:
 
 - TLS via the `letsencrypt-prod` ClusterIssuer
 - Host-based routing (`<service_name>.<cluster_domain>`)
-- Optional nginx basic-auth (via the `admin-auth` secret)
-- Optional HTTPS passthrough (when `service_port: 443`)
+- `basic_auth: true` — nginx basic-auth via the `admin-auth` secret
+- `oauth2_proxy: true` — protect with oauth2-proxy authentication gateway
+- `ssl_redirect: false` — disable HTTP→HTTPS redirect (default true)
+- `ssl_passthrough: true` — TLS passthrough mode (e.g. for ArgoCD)
 
 This avoids duplicating ingress boilerplate across services.
 
