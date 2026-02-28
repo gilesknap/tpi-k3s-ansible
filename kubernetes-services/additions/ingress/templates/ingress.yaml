@@ -8,7 +8,7 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: HTTPS
     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
 {{- end }}
-    nginx.ingress.kubernetes.io/ssl-redirect: {{ .Values.ssl_redirect | default "true" | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ if (kindIs "invalid" .Values.ssl_redirect) }}"true"{{ else }}{{ .Values.ssl_redirect | toString | quote }}{{ end }}
 {{- if .Values.basic_auth | default false }}
     nginx.ingress.kubernetes.io/auth-type: basic
     nginx.ingress.kubernetes.io/auth-secret: admin-auth

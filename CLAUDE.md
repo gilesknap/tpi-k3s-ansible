@@ -168,6 +168,10 @@ See: `docs/how-to/work-in-branches.md`
 - `.gitleaks.toml` allowlists `*-secret.yaml` so SealedSecrets don't trigger false positives
 - Docs build: `python -m sphinx docs docs/_build`
 
+### SSH to cluster nodes
+- Use `ansible@` as the SSH user: `ssh ansible@node01`
+- The default/root user does not have key access from the devcontainer
+
 ---
 
 ## Inventory Conventions
@@ -192,10 +196,13 @@ See: `docs/reference/inventory.md`
 
 ## Cloudflare Tunnel UI
 
-The Zero Trust dashboard has no separate "Service Type" field. Specify the
-protocol as a URL prefix: `http://hostname:port` or `https://hostname:port`.
+- Tunnel routes use a single **Service URL** field with the protocol prefix
+  (e.g. `http://host`, `https://host:443`, `ssh://host:22`) — no separate Type dropdown.
+- Tunnels are managed in the **main dashboard** (dash.cloudflare.com) under
+  Networking → Tunnels, not in the Zero Trust dashboard.
+- Access Applications are in the **Zero Trust dashboard** (one.dash.cloudflare.com).
 
-See: `docs/how-to/cloudflare-tunnel.md`
+See: `docs/how-to/cloudflare-tunnel.md`, `docs/how-to/cloudflare-web-tunnel.md`
 
 ---
 
