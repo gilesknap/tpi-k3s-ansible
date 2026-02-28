@@ -83,6 +83,7 @@ ansible-playbook pb_all.yml \
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
+| `oauth2_emails` | *(list of emails)* | GitHub-linked email addresses allowed through OAuth2 proxy |
 | `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
 | `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
 | `llamacpp.nfs.server` | *(your NFS server IP)* | NFS server for llama.cpp model storage |
