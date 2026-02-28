@@ -11,7 +11,7 @@ spec:
     namespace: rkllama
   project: kubernetes
   sources:
-    # rkllama Helm chart: ConfigMap, DaemonSet, Service, Ingress, PV and PVC.
+    # rkllama Helm chart: ConfigMap, DaemonSet, Service, PV and PVC.
     # NFS server/path values are injected from kubernetes-services/values.yaml
     # so users only need to edit one place — no personal details are hardcoded here.
     - path: ./kubernetes-services/additions/rkllama
@@ -22,6 +22,15 @@ spec:
           nfs:
             server: {{ .Values.rkllama.nfs.server | quote }}
             path: {{ .Values.rkllama.nfs.path | quote }}
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: rkllama
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: rkllama
+          service_port: 8080
   syncPolicy:
     automated:
       prune: true
