@@ -1,0 +1,30 @@
+- name: Get argocd 3.3.2 binary
+  ansible.builtin.get_url:
+    url: https://github.com/argoproj/argo-cd/releases/download/v3.3.2/argocd-linux-amd64
+    dest: /tmp/argocd-3.3.2-linux-amd64
+    mode: "0644"
+    checksum: "sha256:7820a7fa23dc0f57b5550c739b4fa5a69f3521765ce20a3559d83b27f3180488"
+    validate_certs: true
+
+# the bin folder persists through container rebuilds because it is a volume
+- name: Move argocd binary to the path
+  ansible.builtin.copy:
+    src: /tmp/argocd-3.3.2-linux-amd64
+    dest: "{{ bin_dir }}/argocd"
+    mode: "0755"
+  become: true
+
+# this step is lost on rebuild of the container, so is the only step
+# that causes a change after container rebuild
+- name: Make argocd available to all
+  ansible.builtin.file:
+    src: "{{ bin_dir }}/argocd"
+    path: /usr/local/bin/argocd
+    state: link
+  become: true
+
+- name: Command line completion for argocd
+  ansible.builtin.shell:
+    cmd: argocd completion {{ item.name }} > {{ item.completion_dir }}/_argocd
+    creates: "{{ item.completion_dir }}/_argocd"
+  loop: "{{ tools_shell }}"
