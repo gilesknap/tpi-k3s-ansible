@@ -4,21 +4,22 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 
 ## Service catalogue
 
-| Service | Chart / Source | Version | Namespace | Ingress URL | Purpose |
-|---------|---------------|---------|-----------|-------------|---------|
-| cert-manager | `jetstack/cert-manager` | v1.19.3 | `cert-manager` | — | TLS certificate management |
-| cloudflared | Plain manifests | — | `cloudflared` | — | Cloudflare tunnel connector |
-| echo | Plain manifests | — | `echo` | `echo.<domain>` | HTTP echo test service |
-| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 82.2.0 | `monitoring` | `grafana.<domain>` | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.40.0 | `headlamp` | `headlamp.<domain>` | Kubernetes dashboard |
-| ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | Ingress controller |
-| kernel-settings | Inline DaemonSet | — | `kube-system` | — | Sysctl tuning for performance |
-| Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | Distributed block storage |
-| RKLlama | Helm chart (local) | — | `rkllama` | `rkllama.<domain>` | NPU-accelerated LLM server (Rockchip RK1) |
-| llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | CUDA-accelerated LLM server (NVIDIA GPU) |
-| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.17.1 | `nvidia-device-plugin` | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| Open WebUI | `open-webui/open-webui` | 12.3.0 | `open-webui` | `open-webui.<domain>` | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
-| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.1 | `kube-system` | — | Encrypted secrets in Git |
+| Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
+|---------|---------------|---------|-----------|-------------|------|---------|
+| cert-manager | `jetstack/cert-manager` | v1.19.4 | `cert-manager` | — | — | TLS certificate management |
+| cloudflared | Plain manifests | 2026.2.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
+| echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
+| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 82.4.1 | `monitoring` | `grafana.<domain>` | OAuth | Monitoring and dashboards |
+| Headlamp | `headlamp/headlamp` | 0.40.0 | `headlamp` | `headlamp.<domain>` | OAuth | Kubernetes dashboard |
+| ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | — | Ingress controller |
+| kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
+| Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 7.12.10 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth authentication proxy |
+| RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
+| llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
+| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.18.2 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
+| Open WebUI | `open-webui/open-webui` | 12.5.0 | `open-webui` | `open-webui.<domain>` | OAuth | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.3 | `kube-system` | — | — | Encrypted secrets in Git |
 
 ## Service details
 
@@ -26,7 +27,7 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 
 Manages TLS certificates via Let's Encrypt. Uses DNS-01 validation through the
 Cloudflare API. Includes a `ClusterIssuer` (`letsencrypt-prod`) and a SealedSecret
-for the Cloudflare API token.
+for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi limit.
 
 **Additional manifests:** `additions/cert-manager/`
 - `cloudflare-api-token-secret.yaml` — SealedSecret for DNS API token
@@ -35,17 +36,19 @@ for the Cloudflare API token.
 ### cloudflared
 
 Outbound Cloudflare tunnel connector. Runs 2 replicas for availability. Reads the
-tunnel token from a SealedSecret. Non-root, read-only rootfs.
+tunnel token from a SealedSecret. Non-root, read-only rootfs. Image pinned to
+`2026.2.0`.
 
 **Additional manifests:** `additions/cloudflared/`
-- `deployment.yaml` — 2-replica Deployment
+- `deployment.yaml` — 2-replica Deployment with hardened security context
 - `tunnel-secret.yaml` — SealedSecret for tunnel token
 
 ### echo
 
 Simple HTTP echo service ([ealen/echo-server](https://github.com/Ealenn/Echo-Server))
 for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel with
-`ssl-redirect: false`.
+`ssl-redirect: false`. Runs as non-root (65534) with read-only root filesystem.
+Image pinned to `0.9.2`.
 
 **Additional manifests:** `additions/echo/`
 - `manifests.yaml` — Deployment, Service, and Ingress
@@ -53,23 +56,25 @@ for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel wi
 ### Grafana + Prometheus (kube-prometheus-stack)
 
 Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
-Alertmanager for alerts. Uses `admin-auth` existingSecret for Grafana login. Longhorn
-persistent volumes for data (30Gi Grafana, 40Gi Prometheus).
+Alertmanager for alerts. Protected by OAuth via oauth2-proxy. Longhorn persistent
+volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
+100m/256Mi request, 500m/512Mi limit.
 
 Uses `ServerSideApply=true` sync option due to large CRDs.
 
 ### Headlamp
 
-Modern Kubernetes dashboard. Uses token-based authentication (not the shared admin
-password). Requires a ServiceAccount with `cluster-admin` binding.
+Modern Kubernetes dashboard. Protected by OAuth via oauth2-proxy. Uses a
+ServiceAccount with `cluster-admin` binding and a long-lived token Secret.
+Resource limits: 50m/128Mi request, 200m/256Mi limit.
 
 **Additional manifests:** `additions/dashboard/`
 - `rbac.yaml` — ServiceAccount, ClusterRoleBinding, long-lived token Secret
 
 ### ingress-nginx
 
-NGINX ingress controller. Admission webhooks are disabled. Replaces K3s's default
-Traefik.
+NGINX ingress controller. Admission webhooks are disabled. Resource limits:
+100m/256Mi request, 500m/512Mi limit. PodDisruptionBudget: minAvailable 1.
 
 ### kernel-settings
 
@@ -77,21 +82,35 @@ DaemonSet that applies system tuning on all nodes:
 - Sets `rmem_max` and `wmem_max` to 7500000 (network buffers)
 - Blacklists Longhorn iSCSI devices from multipathd
 
+All busybox images pinned to `1.37`.
+
 ### Longhorn
 
 Distributed block storage with replication, snapshots, and backup support. Includes a
-`VolumeSnapshotClass` for Kubernetes volume snapshots. Web UI protected with nginx
-basic-auth. ServiceMonitor enabled for Prometheus metrics.
+`VolumeSnapshotClass` for Kubernetes volume snapshots. Web UI protected with OAuth via
+oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.
 
 **Additional manifests:** `additions/longhorn/`
 - `volume-snapshot-class.yaml` — VolumeSnapshotClass (default, Delete policy)
+
+### oauth2-proxy
+
+Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
+for login. Integrated with nginx ingress annotations. Resource limits: 10m/64Mi
+request, 100m/128Mi limit.
+
+**Additional manifests:** `additions/oauth2-proxy/`
+- `oauth2-proxy-secret.yaml` — SealedSecret for GitHub OAuth credentials
+
+See {doc}`/how-to/oauth-setup` for configuration details.
 
 ### RKLlama
 
 NPU-accelerated LLM inference server for Rockchip RK1 nodes. Runs as a DaemonSet on
 nodes labelled `node-type: rk1`. Requires privileged access to `/dev/rknpu`. Models
 are stored on an NFS PersistentVolume so they are shared across all RK1 nodes and
-persist outside the cluster.
+persist outside the cluster. Image pinned to `0.0.4`. Startup probe allows up to 5
+minutes for model loading.
 
 **Helm chart:** `additions/rkllama/` (local chart, no external registry)
 - `templates/configmap.yaml` — CPU/NPU governor tuning script and nginx reverse-proxy config
@@ -119,7 +138,10 @@ OpenAI-compatible LLM inference server using
 [llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA acceleration. Runs as
 a single-replica Deployment scheduled exclusively on nodes labelled
 `nvidia.com/gpu.present=true`. Requires an NVIDIA GPU node in `extra_nodes` with
-`nvidia_gpu_node: true` in the inventory.
+`nvidia_gpu_node: true` in the inventory. Image pinned to `server-cuda-b8172`.
+Startup probe allows up to 10 minutes for model loading.
+
+Security context drops all capabilities while retaining GPU access.
 
 Models are stored as GGUF files on an NFS PersistentVolume (a separate subdirectory
 from RKLLama — the two formats are incompatible). Exposes an OpenAI-compatible
@@ -156,13 +178,15 @@ default and survives k3s-agent restarts.
 
 ### Open WebUI
 
-ChatGPT-style web interface for interacting with LLMs. Connects to both:
+ChatGPT-style web interface for interacting with LLMs. Protected by OAuth via
+oauth2-proxy. Connects to both:
 
 - **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
 - **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
 
 Models from both backends appear merged in the model dropdown. Stores chat history
-and user accounts in a Longhorn-backed 5Gi volume.
+and user accounts in a Longhorn-backed 5Gi volume. Resource limits: 100m/256Mi
+request, 500m/1Gi limit.
 
 :::{note}
 Either backend is optional. The service works with just RKLLama (RK1 cluster),

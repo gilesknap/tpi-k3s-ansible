@@ -17,11 +17,20 @@ spec:
       labels:
         app: echo
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
       containers:
         - name: echo
-          image: ealen/echo-server:latest
+          image: ealen/echo-server:0.9.2
           ports:
             - containerPort: 80
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               cpu: 10m

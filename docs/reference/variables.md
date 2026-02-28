@@ -64,7 +64,6 @@ Set per-host in `hosts.yml` under the relevant host entry:
 |----------|---------|-------------|
 | `cluster_force` | `false` | Force ArgoCD reinstall |
 | `cluster_longhorn_version` | (version string) | Longhorn chart version (legacy, now in template) |
-| `cluster_keycloak_version` | (version string) | Keycloak version (legacy, unused) |
 
 ## Command-line overrides
 

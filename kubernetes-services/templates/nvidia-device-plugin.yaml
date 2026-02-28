@@ -25,9 +25,17 @@ spec:
             - key: nvidia.com/gpu
               operator: Exists
               effect: NoSchedule
+  ignoreDifferences:
+    - group: apps
+      kind: DaemonSet
+      name: nvidia-device-plugin
+      namespace: nvidia-device-plugin
+      jsonPointers:
+        - /spec/template/metadata/annotations
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true

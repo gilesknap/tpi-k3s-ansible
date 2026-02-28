@@ -30,10 +30,22 @@ node01 (<node01-ip>) SSH
 - All access attempts are logged in the Cloudflare Access audit trail.
 - Optionally, short-lived SSH certificates replace static keys entirely.
 
+## Two Cloudflare dashboards
+
+This guide uses **two separate Cloudflare dashboards** — it is easy to get confused
+between them:
+
+- [**one.dash.cloudflare.com**](https://one.dash.cloudflare.com/) — the **Zero Trust**
+  dashboard for managing tunnels, Access Applications, and security policies.
+- [**dash.cloudflare.com**](https://dash.cloudflare.com/) — the **main** dashboard for
+  managing DNS zones, WAF rules, and general site settings.
+
+The steps below will tell you which dashboard to use at each point.
+
 ## Prerequisites
 
 - A working Cloudflare Tunnel with `cloudflared` deployed in the cluster
-  (see [Set Up a Cloudflare Tunnel](cloudflare-tunnel.md)).
+  (see {doc}`cloudflare-tunnel`).
 - SSH enabled on `node01` (it is by default after Ansible provisioning).
 - `cloudflared` installed on your **client machine**:
 
@@ -47,47 +59,36 @@ curl -L --output /tmp/cloudflared.deb \
 sudo dpkg -i /tmp/cloudflared.deb
 ```
 
-## Part 1: Cloudflare Zero Trust — Access Application
+## Part 1: Add an SSH route to the tunnel
 
-This is the critical security gate. Without it, anyone with your DNS name could
-attempt connections.
+First, add an SSH public hostname to your existing Cloudflare tunnel so that
+traffic to `ssh.example.com` is forwarded to your control-plane node's SSH port.
 
-### 1.1 Create an Access Application
+In the **Zero Trust dashboard** ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)):
 
-1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com/) (the Cloudflare One dashboard — separate from the main Cloudflare dashboard).
-2. Navigate to **Access controls → Applications**.
-3. Select **Add an application → Self-hosted**.
-4. Configure as follows, then click **Add public hostname**:
+1. Navigate to **Networking → Tunnels**. You should see your existing tunnel listed
+   as Healthy.
 
-| Field | Value |
-|---|---|
-| Application name | `k3s SSH` |
-| Session duration | `24h` |
-| Domain | `example.com` |
-| Subdomain | `ssh` |
-| Path | none (leave blank) |
+```{figure} ../images/cloudflare-01.png
+:alt: Cloudflare Tunnels list
+:align: center
 
-4. Click **Save**.
+The Tunnels page showing the existing `gkcluster` tunnel with Healthy status.
+```
 
-### 1.2 Add an Access Policy
+2. Click on your tunnel name to open the tunnel details.
 
-| Field | Value |
-|---|---|
-| Policy name | `Owner only` |
-| Action | `Allow` |
-| Include rule | Emails → `your@email.com` |
+```{figure} ../images/cloudflare-02.png
+:alt: Tunnel overview with routes
+:align: center
 
-:::{warning}
-Keep this policy as restrictive as possible — ideally a single email address or a
-specific identity provider group. This policy is the primary security boundary.
-:::
+The tunnel overview shows active replicas, uptime, and published routes. Click
+**View all** under Routes to see the full list, or click **Add a route** to add
+the SSH hostname.
+```
 
-5. Click **Save**.
-
-## Part 2: Tunnel Public Hostname for SSH
-
-In the Cloudflare One dashboard ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)),
-go to **Networks → Tunnels**, open your existing tunnel, select **Public hostnames → Add a public hostname**:
+3. Click **Add a route** (or go to the **Routes** tab and click **Add route**).
+   Configure the new public hostname:
 
 | Field | Value |
 |---|---|
@@ -102,6 +103,18 @@ from the Type dropdown and enter `<node01-ip>:22` in the URL field — do not in
 the `ssh://` prefix in the URL field.
 :::
 
+After saving, the Routes tab shows all published applications including the new SSH
+route alongside any existing services (echo, headlamp, etc.):
+
+```{figure} ../images/cloudflare-03.png
+:alt: Tunnel routes showing SSH
+:align: center
+
+The Routes tab showing all published applications. The SSH route forwards to
+`ssh://192.168.1.81:22` on the cluster network. HTTP services route to the
+ingress-nginx controller.
+```
+
 Cloudflare automatically creates a proxied CNAME:
 
 ```
@@ -114,29 +127,96 @@ not need a DNS name, just a reachable IP. Using the control-plane IP directly is
 reliable than a hostname here.
 :::
 
-## Part 3: WAF Skip Rule
+## Part 2: Create a Zero Trust Access Application
 
-By default Cloudflare's WAF inspects all proxied traffic and may block requests to
-`ssh.example.com` before they ever reach the Access application — resulting in a
-generic "Why have I been blocked?" page and `failed to find Access application` from
-`cloudflared`. You must add a WAF skip rule to allow Access to handle authentication.
+This is the critical security gate. Without an Access Application, anyone with your
+DNS name could attempt connections through the tunnel. The Access Application
+enforces identity verification **before** any SSH session is established.
 
-In the **main Cloudflare dashboard** (`dash.cloudflare.com`, not the One dashboard):
+Still in the **Zero Trust dashboard** ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)):
 
-1. Select your `example.com` zone.
-2. Go to **Security → WAF → Custom rules → Create rule**.
-3. Configure:
+1. Navigate to **Access controls → Applications**.
+2. Click **Add an application** and select **Self-hosted**.
+3. Configure the application:
 
 | Field | Value |
 |---|---|
-| Rule name | `Allow SSH tunnel` |
+| Application name | `ssh` |
+| Session duration | `24h` |
+| Domain | `example.com` |
+| Subdomain | `ssh` |
+| Path | none (leave blank) |
+
+4. On the **Policies** tab, create an access policy:
+
+| Field | Value |
+|---|---|
+| Policy name | `Owner Only` |
+| Action | `Allow` |
+| Include rule | Emails → `your@email.com` |
+
+:::{warning}
+Keep this policy as restrictive as possible — ideally a single email address or a
+specific identity provider group. This policy is the primary security boundary.
+:::
+
+5. Click **Save application**.
+
+After saving, the Applications list shows your SSH application:
+
+```{figure} ../images/cloudflare-04.png
+:alt: Access Applications list
+:align: center
+
+The Access Applications page showing the `ssh` application at `ssh.gkcluster.org`
+with one policy assigned.
+```
+
+You can review or edit the policy at any time by clicking the application name
+and selecting the **Policies** tab:
+
+```{figure} ../images/cloudflare-05.png
+:alt: SSH application policy
+:align: center
+
+The policy editor showing the "Owner Only" ALLOW policy. Use the policy tester
+to verify your email is permitted before attempting to connect.
+```
+
+## Part 3: Add a WAF skip rule
+
+By default Cloudflare's WAF inspects all proxied traffic and may block requests to
+`ssh.example.com` before they ever reach the Access Application — resulting in a
+generic "Why have I been blocked?" page and `failed to find Access application` from
+`cloudflared`. You must add a WAF skip rule to let Access handle authentication
+for the SSH hostname.
+
+Switch to the **main Cloudflare dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
+
+1. Select your `example.com` zone.
+2. Go to **Security → Security rules** (formerly WAF → Custom rules).
+3. Click **Create rule**.
+4. Configure:
+
+| Field | Value |
+|---|---|
+| Rule name | `Allow ssh application` |
 | Expression | `http.host eq "ssh.example.com"` |
 | Action | `Skip` |
 
-4. Under **Skip**, tick:
+5. Under **Skip**, tick:
    - Skip all remaining **custom rules**
    - Skip all **managed rules** (WAF Managed Ruleset)
-5. Click **Deploy**.
+6. Click **Deploy**.
+
+```{figure} ../images/cloudflare-06.png
+:alt: WAF security rules
+:align: center
+
+The Security rules page showing the SSH skip rule alongside other WAF rules. The
+SSH rule must use **Skip** so that Cloudflare Access can handle authentication
+instead of the WAF blocking the request.
+```
 
 :::{warning}
 Without this rule, `cloudflared access login` returns
@@ -145,7 +225,7 @@ shows a WAF block page rather than the Cloudflare Access login prompt. The WAF
 intercepts the request before Access can issue its authentication challenge.
 :::
 
-## Part 4: Client SSH Configuration
+## Part 4: Client SSH configuration
 
 ### 4.1 Add a ProxyCommand entry to `~/.ssh/config`
 
@@ -167,19 +247,19 @@ cloudflared access login https://ssh.example.com
 
 This opens a browser window for Cloudflare Access authentication. After authenticating,
 a token is written to `~/.cloudflared/`. The token is reused for the session duration
-you configured.
+you configured (24 hours by default).
 
 :::{warning}
-Parts 1 (Access Application), 2 (Tunnel public hostname), and 3 (WAF skip rule) must
+Parts 1 (tunnel route), 2 (Access Application), and 3 (WAF skip rule) must
 all be completed before this command will work. If any is missing you will see:
 
-- `failed to find Access application` — either the Access Application (Part 1) does not
+- `failed to find Access application` — either the Access Application (Part 2) does not
   exist, the hostname does not exactly match `ssh.example.com`, or the WAF (Part 3)
   is blocking the request before Access can respond. Check
   **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/)
-  and **Security → WAF → Custom rules** at [dash.cloudflare.com](https://dash.cloudflare.com/).
-- `websocket: bad handshake` — the tunnel hostname in Part 2 is missing, so
-  Cloudflare has nowhere to forward the connection. Check **Networks → Tunnels → Public hostnames**.
+  and **Security → Security rules** at [dash.cloudflare.com](https://dash.cloudflare.com/).
+- `websocket: bad handshake` — the tunnel hostname in Part 1 is missing, so
+  Cloudflare has nowhere to forward the connection. Check **Networking → Tunnels → Public hostnames**.
 :::
 
 ### 4.3 Connect via SSH
@@ -191,7 +271,9 @@ ssh ssh.example.com
 Subsequent connections within the token's session duration connect immediately without
 re-authentication. When the token expires, re-run `cloudflared access login` first.
 
-## Part 5: Remote `kubectl` Access
+## Part 5: Remote `kubectl` access
+
+Once the SSH tunnel is working, you can use it to reach the Kubernetes API remotely.
 
 ### 5.1 Copy and patch your kubeconfig
 
@@ -217,7 +299,7 @@ kubectl get nodes
 
 Expected output: your cluster nodes in `Ready` state.
 
-## Part 6: Access Cluster Web Services Remotely
+## Part 6: Access cluster web services remotely
 
 Use SSH local port-forwarding to reach any cluster web service. The forwarding target
 is resolved from `node01` — so you can use internal cluster DNS or LAN IPs.
@@ -236,7 +318,7 @@ ssh -fNL 8080:<worker-ip>:443 \
 Or use `kubectl port-forward` once your tunnel API connection is active:
 
 ```bash
-# Forward ArgoCD (already connected via Part 4)
+# Forward ArgoCD (already connected via Part 5)
 kubectl port-forward svc/argocd-server -n argo-cd 8080:443 &
 
 # Forward Grafana
@@ -298,3 +380,9 @@ ssh ubuntu@<node01-ip>
 ```
 
 The node is only reachable via the Cloudflare tunnel with a valid Access session.
+
+## See also
+
+- {doc}`cloudflare-tunnel` — Setting up the base Cloudflare tunnel
+- {doc}`oauth-setup` — In-cluster OAuth authentication as an alternative to
+  Cloudflare Access
