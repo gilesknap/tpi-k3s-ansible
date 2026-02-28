@@ -14,18 +14,10 @@ all services.
 - **SD card** (≥8GB, ext4) inserted in each Turing Pi's BMC SD slot
 - Optional: NVMe drives in the M.2 slots for OS migration
 
-### Software (on your workstation)
-
-- **Linux** workstation (or WSL2 on Windows)
-- **podman** 4.3 or later (rootless container runtime)
-- **VS Code** with the
-  [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-  extension
-- **git**
-
-:::{note}
-Set the VS Code setting `dev.containers.dockerPath` to `podman` before proceeding.
-:::
+```{include} common-setup.md
+:start-after: <!-- begin:software-prereqs -->
+:end-before: <!-- end:software-prereqs -->
+```
 
 ### Networking
 
@@ -54,44 +46,19 @@ After the first boot, assign **fixed DHCP leases** (by MAC address) to each node
 router's DHCP settings. This prevents IP changes on reboot.
 :::
 
-## Step 1: Fork and clone the repository
+## Step 1: Fork, clone, and generate SSH key
 
-1. **Fork** the repository on GitHub: visit
-   [gilesknap/tpi-k3s-ansible](https://github.com/gilesknap/tpi-k3s-ansible)
-   and click **Fork**.
-
-2. Clone your fork:
-
-```bash
-git clone https://github.com/<your-username>/tpi-k3s-ansible.git
-cd tpi-k3s-ansible
+```{include} common-setup.md
+:start-after: <!-- begin:fork-clone -->
+:end-before: <!-- end:fork-clone -->
 ```
 
-:::{note}
-You need your own fork because ArgoCD tracks *your* repository for GitOps.
-Changes you push to your fork are automatically deployed to your cluster.
-
-The repo contains SealedSecret files encrypted for the original cluster —
-these won't work on yours and can be safely ignored until you create your
-own during {doc}`/how-to/cloudflare-tunnel` setup.
-:::
-
-## Step 2: Generate an SSH keypair
-
-Create a dedicated keypair for Ansible to use when connecting to all nodes:
-
-```bash
-# Run this on your HOST machine (outside the devcontainer)
-ssh-keygen -t rsa -b 4096 -C "ansible master key" -f $HOME/.ssh/ansible_rsa
+```{include} common-setup.md
+:start-after: <!-- begin:ssh-keygen -->
+:end-before: <!-- end:ssh-keygen -->
 ```
 
-Use a strong passphrase. Then copy the public key into the repo:
-
-```bash
-cp $HOME/.ssh/ansible_rsa.pub pub_keys/ansible_rsa.pub
-```
-
-## Step 3: Authorize the keypair on each Turing Pi BMC
+## Step 2: Authorize the keypair on each Turing Pi BMC
 
 Repeat for each Turing Pi board:
 
@@ -115,22 +82,14 @@ exit
 Ensure the SD card is mounted at `/mnt/sdcard` and formatted as ext4. This is where
 OS images are stored during flashing.
 
-## Step 4: Open the devcontainer
+## Step 3: Open the devcontainer
 
-Open the repository in VS Code:
-
-```bash
-code .
+```{include} common-setup.md
+:start-after: <!-- begin:devcontainer -->
+:end-before: <!-- end:devcontainer -->
 ```
 
-When prompted, select **"Reopen in Container"** (or use
-`Ctrl+Shift+P` → `Dev Containers: Reopen in Container`).
-
-The devcontainer provides Ansible (and its Python dependencies) out of the box.
-Cluster tools (kubectl, helm, kubeseal) are installed later by the `tools` role when
-you run the playbook. No additional installation is needed on your workstation.
-
-## Step 5: Configure the inventory
+## Step 4: Configure the inventory
 
 Edit `hosts.yml` to match your hardware. The default inventory describes a single Turing Pi
 with four nodes:
@@ -175,49 +134,14 @@ Key points:
 - `type` determines which OS image to flash (`rk1` or `pi4`).
 - `root_dev` is optional — set it to migrate the OS from eMMC to NVMe after flashing.
 
-## Step 6: Configure the cluster
+## Step 5: Configure the cluster
 
-Edit `group_vars/all.yml` — the primary Ansible configuration:
-
-```yaml
-# Change these to match your environment
-control_plane: node01              # Which node is the K3s control plane
-cluster_domain: example.com        # Your domain name
-domain_email: you@example.com      # For Let's Encrypt certificates
-repo_remote: https://github.com/<your-username>/tpi-k3s-ansible.git
-repo_branch: main                  # Git branch for ArgoCD to track
+```{include} common-setup.md
+:start-after: <!-- begin:configure-cluster -->
+:end-before: <!-- end:configure-cluster -->
 ```
 
-Then edit `kubernetes-services/values.yaml` — the ArgoCD runtime configuration:
-
-```yaml
-repo_branch: main                  # Must match the value in all.yml
-
-# OAuth2 email allowlist — GitHub-linked emails allowed to access
-# protected services. Remove the defaults and add your own:
-oauth2_emails:
-  - you@example.com
-
-# NFS configuration (optional — only needed for LLM features)
-rkllama:
-  nfs:
-    server: 192.168.1.3            # Your NFS server IP
-    path: /path/to/rkllm/models    # NFS export path for rkllm models
-llamacpp:
-  nfs:
-    server: 192.168.1.3
-    path: /path/to/gguf/models
-  model:
-    file: "your-model.gguf"
-```
-
-:::{tip}
-If you do not have an NFS server or do not plan to use the LLM features (rkllama,
-llamacpp), you can leave the NFS settings as-is. The services will deploy but remain
-idle until configured.
-:::
-
-## Step 7: Run the playbook
+## Step 6: Run the playbook
 
 From a terminal inside the devcontainer:
 
@@ -246,36 +170,14 @@ Ubuntu installed. But ommitting do_flash protects against accidental re-flashing
 nodes that are temporarily offline or have connectivity issues.
 :::
 
-## Step 8: Verify the cluster
+## Step 7: Verify the cluster
 
-After the playbook completes:
-
-```bash
-kubectl get nodes
+```{include} common-setup.md
+:start-after: <!-- begin:verify-cluster -->
+:end-before: <!-- end:verify-cluster -->
 ```
 
-Expected output shows all nodes in `Ready` state:
-
+```{include} common-setup.md
+:start-after: <!-- begin:next-steps -->
+:end-before: <!-- end:next-steps -->
 ```
-NAME     STATUS   ROLES                       AGE   VERSION
-node01   Ready    control-plane,etcd,master   5m    v1.31.x+k3s1
-node02   Ready    <none>                      4m    v1.31.x+k3s1
-node03   Ready    <none>                      4m    v1.31.x+k3s1
-node04   Ready    <none>                      4m    v1.31.x+k3s1
-```
-
-Check ArgoCD applications:
-
-```bash
-kubectl get applications -n argo-cd
-```
-
-All applications should eventually reach `Synced` and `Healthy` status.
-
-## Next Steps
-
-- {doc}`/how-to/bootstrap-cluster` — set up admin passwords and access cluster services
-- {doc}`/how-to/rkllama-models` — pull LLM models and start chatting via Open WebUI (RK1 nodes only)
-- {doc}`/how-to/cloudflare-tunnel` — expose services to the internet via Cloudflare
-- {doc}`/how-to/manage-sealed-secrets` — manage encrypted secrets in the repository
-- {doc}`/explanations/architecture` — understand how all the pieces fit together
