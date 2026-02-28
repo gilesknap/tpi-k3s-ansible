@@ -306,6 +306,11 @@ Optionally add a rate-limiting rule in **Security → WAF → Rate Limiting Rule
 
 ## Making a LAN-only service externally accessible
 
+:::{tip}
+To expose **all** OAuth-protected web services at once with a single toggle,
+see {doc}`cloudflare-web-tunnel` instead of the per-service steps below.
+:::
+
 To move a service from LAN-only to publicly accessible through the tunnel:
 
 1. **Add a public hostname in the tunnel.** In the Cloudflare dashboard, go to
@@ -356,8 +361,9 @@ For services that need authentication before reaching the cluster, use
 Cloudflare Access (part of Zero Trust). This adds identity verification
 at the Cloudflare edge with zero cluster overhead.
 
-See {doc}`cloudflare-ssh-tunnel` for a working example with SSH, and
-{doc}`oauth-setup` for in-cluster OAuth as an alternative.
+See {doc}`cloudflare-ssh-tunnel` for a working example with SSH,
+{doc}`cloudflare-web-tunnel` for exposing web services through the tunnel,
+and {doc}`oauth-setup` for in-cluster OAuth as an alternative or complement.
 
 ## Troubleshooting
 

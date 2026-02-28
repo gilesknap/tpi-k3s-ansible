@@ -83,6 +83,8 @@ ansible-playbook pb_all.yml \
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
+| `enable_oauth2_proxy` | `false` | Enable OAuth2 proxy authentication on protected services. Set `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
+| `enable_cloudflare_tunnel` | `false` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. Set `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
 | `oauth2_emails` | *(list of emails)* | GitHub-linked email addresses allowed through OAuth2 proxy |
 | `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
 | `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
