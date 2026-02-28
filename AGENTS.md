@@ -2,207 +2,204 @@
 
 ## Testing Before Committing
 
-**CRITICAL: Do not offer to commit or push until the user has tested the changes.**
+Do not offer to commit or push until the user has tested the changes.
 
 After implementing any change:
-1. Stop and tell the user what was changed and how to test it
-2. Wait for the user to confirm the test result
-3. Only proceed to `git commit` / `git push` when explicitly asked
+1. Tell the user what changed and how to test it
+2. Wait for confirmation
+3. Only `git commit` / `git push` when explicitly asked
 
 ---
 
-## Terminal Tool Usage
+## GitOps: Fix in the Repo, Never in the Cluster
 
-When using the `run_in_terminal` tool:
+ArgoCD manages all cluster state. Direct `kubectl apply/patch/edit` will be
+reverted by self-heal or create hidden drift.
 
-- The shell prompt is **two lines**, e.g.:
-  ```
-  root@ws03: /workspaces/tpi-k3s-llm llm-simplify
-  #
-  ```
-- `run_in_terminal` returns the command output **followed by** this two-line prompt as a terminator
-- When you see only the two prompt lines with nothing before them, the command produced no output (e.g. a silent `git add`) — this is normal and does not indicate failure
-- Read whatever appears **before** the prompt lines as the actual command output
-- Check the exit code in the `<context>` block to confirm success/failure — do not assume failure just because output looks minimal
-- **DO NOT use `terminal_last_command`** to try to retrieve output — it reads from the user's currently focused VS Code terminal, which is a completely different terminal from where `run_in_terminal` executes, so it will return unrelated output
-
-**CRITICAL: Avoid repeating commands**
-
-- The `<context>` block at the start of each user message contains terminal state including:
-  - `Last Command`: The command that was run
-  - `Exit Code`: Whether it succeeded (0) or failed
-- **BEFORE** running a command, check if the context already shows it ran successfully
-- **NEVER** re-run a command that the context shows already completed with exit code 0
-
-**When you need to capture output for later reading** (e.g. long output, or output needed across turns):
-
-Redirect to a temp file and read it back:
-```
-run_in_terminal: some-command > /tmp/out.txt 2>&1
-read_file: /tmp/out.txt
-```
-
----
-
-## GitOps: Always Fix in the Repo, Never in the Cluster
-
-**CRITICAL: Do not patch, edit, or apply resources directly to the cluster to fix problems.**
-
-ArgoCD manages all cluster state — any direct `kubectl apply`, `kubectl patch`, or `kubectl edit`
-will either be immediately reverted by ArgoCD's self-heal, or will create drift that obscures the
-true state of the system.
-
-The correct workflow for any fix is always:
-1. Edit the relevant file(s) in the repo
+**Correct workflow:**
+1. Edit files in the repo
 2. `git commit` and `git push`
-3. ArgoCD detects the change and reconciles the cluster automatically
+3. ArgoCD reconciles automatically
 
-The only legitimate `kubectl` commands during a fix are **read-only** (e.g. `kubectl get`,
-`kubectl logs`, `kubectl describe`) to diagnose the problem before editing the repo.
+Read-only kubectl (`get`, `logs`, `describe`) is fine for diagnosis.
 
-The one exception is generating and committing **SealedSecrets** — `kubeseal` reads from the
-live cluster's public key, but the resulting file is committed to the repo and applied by ArgoCD,
-so it still follows the GitOps flow.
+**Exception:** `kubeseal` reads the cluster's public key, but the resulting
+SealedSecret is committed to the repo.
+
+See: `docs/explanations/gitops-flow.md`
 
 ---
 
-## Ansible: Always Update Roles, Never Run Ad-hoc Commands
+## Ansible: Update Roles, Not Ad-hoc Commands
 
-**CRITICAL: Do not suggest or run ad-hoc `ansible` or `ansible-playbook` commands to fix or
-configure nodes.**
+All node configuration lives in `roles/`. Encode changes in the appropriate
+role so they are applied idempotently on every future provisioning.
 
-All node configuration is managed by Ansible roles in `roles/`. Any required package, setting,
-or file that needs to be present on cluster nodes must be encoded in the appropriate role so it
-is applied idempotently on every future node provisioning.
+**Key roles:**
 
-The correct workflow for any node-level change is always:
-1. Edit the relevant role task file (e.g. `roles/update_packages/tasks/main.yml`)
-2. `git commit` and `git push`
-3. The user re-runs the relevant playbook/tag against their cluster
+| Role | Purpose | Tag |
+|------|---------|-----|
+| `roles/update_packages` | OS packages on all nodes | `servers` |
+| `roles/tools` | CLI tools (helm, kubectl, kubeseal) | `tools` |
+| `roles/k3s` | K3s installation and config | `k3s` |
+| `roles/cluster` | ArgoCD bootstrap and cluster setup | `cluster` |
 
-Common roles to update:
-- **`roles/update_packages`** — OS packages that must be present on all nodes
-- **`roles/tools`** — CLI tools (helm, kubectl, kubeseal, etc.) installed on the control node
-- **`roles/k3s`** — K3s installation and configuration
-- **`roles/cluster`** — ArgoCD bootstrap and cluster-level setup
+**The playbook tag for node packages is `servers`, NOT `update_packages`.**
+`--tags update_packages` silently does nothing.
 
-**CRITICAL: Correct playbook tag for node packages is `servers`, NOT `update_packages`:**
 ```bash
 # All nodes
 ansible-playbook pb_all.yml --tags servers
 # Specific nodes
 ansible-playbook pb_all.yml --tags servers --limit node02,node03
 ```
-`--tags update_packages` silently does nothing — the role name is not a tag.
+
+See: `docs/reference/playbook-tags.md`
 
 ---
 
-## Cloudflare Tunnel UI Notes
+## Project Structure
 
-The Cloudflare Zero Trust dashboard public hostname configuration has **no separate "Service
-Type" field**. The protocol is specified as a prefix in the Service URL itself:
+**Two-file configuration** — all customisation lives in:
+- `group_vars/all.yml` — Ansible variables (bootstrap time)
+- `kubernetes-services/values.yaml` — ArgoCD Helm values (runtime)
 
-- Use `http://hostname:port` for plain HTTP to the backend
-- Use `https://hostname:port` for HTTPS to the backend
+See: `docs/reference/variables.md`
 
-Example: `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
+### Services directory
 
----
+```
+kubernetes-services/
+├── values.yaml
+├── templates/              # One ArgoCD Application per service
+│   ├── cert-manager.yaml
+│   ├── cloudflared.yaml
+│   ├── dashboard.yaml      # Headlamp
+│   ├── echo.yaml
+│   ├── grafana.yaml
+│   ├── ingress.yaml
+│   ├── kernel-settings.yaml
+│   ├── llamacpp.yaml
+│   ├── longhorn.yaml
+│   ├── nvidia-device-plugin.yaml
+│   ├── oauth2-proxy.yaml
+│   ├── open-webui.yaml
+│   ├── rkllama.yaml
+│   └── sealed-secrets.yaml
+└── additions/              # Extra manifests per service
+    ├── argocd/
+    ├── cert-manager/
+    ├── cloudflared/
+    ├── dashboard/
+    ├── echo/
+    ├── ingress/            # Reusable ingress sub-chart
+    ├── llamacpp/
+    ├── longhorn/
+    ├── oauth2-proxy/
+    └── rkllama/
+```
 
-## Project Overview
+See: `docs/explanations/kubernetes-services.md`, `docs/how-to/add-remove-services.md`
 
-This is an **Infrastructure-as-Code (IaC)** Ansible project that commissions a **K3s Kubernetes cluster** on Turing Pi v2.5 boards (with RK1 or CM4 compute modules) and arbitrary extra Linux nodes. It flashes Ubuntu 24.04 LTS, installs K3s, and deploys services via ArgoCD — all idempotent and repeatable.
+### Reusable ingress sub-chart
 
-**License:** Apache 2.0
-**Primary Runtime:** Ansible (Python-based), Helm, kubectl
-**Target OS:** Ubuntu 24.04 LTS on cluster nodes; Debian-based devcontainer for the execution environment
+`additions/ingress/` generates standardised Ingress resources. Supported toggles:
+- `oauth2_proxy: true` — protect with oauth2-proxy
+- `ssl_redirect: true/false` — HTTP→HTTPS redirect (default true)
+- `ssl_passthrough: true` — TLS passthrough mode
+- `basic_auth: true` — nginx basic-auth via `admin-auth` secret
 
-Full documentation lives in `docs/` (Sphinx + MyST). Build with `uv run tox -e docs`.
-See `README.md` for a quick-start summary.
+### OAuth2 architecture
+
+oauth2-proxy is a **gateway** only — services retain their native login/RBAC.
+- Protected: Grafana, Longhorn, Headlamp, Open WebUI
+- Not behind OAuth: ArgoCD (TLS passthrough, own login), RKLlama (internal API)
+- Email allowlist in `kubernetes-services/values.yaml` as `oauth2_emails`
+
+See: `docs/how-to/oauth-setup.md`
 
 ---
 
 ## GitOps Flow
 
-1. Ansible installs ArgoCD directly (via the `cluster` role)
-2. ArgoCD reads `kubernetes-services/` from the configured git repo/branch
-3. Each template in `kubernetes-services/templates/` becomes a child ArgoCD `Application`
-4. All apps auto-sync with prune + self-heal enabled
-5. **To update services: push changes to git** — ArgoCD picks them up automatically
+1. Ansible `cluster` role installs ArgoCD and creates the root Application
+2. ArgoCD reads `kubernetes-services/` from the configured repo/branch
+3. Each template becomes an auto-syncing child Application (prune + self-heal)
+4. **To update services: push to git** — ArgoCD picks it up automatically
 
-Most services use a reusable ingress sub-chart at `additions/ingress/` for standardized NGINX ingress + TLS. Extra manifests (RBAC, ClusterIssuers, etc.) go in `additions/<service>/`.
-
----
-
-## Inventory Conventions
-
-- **Node group naming:** Turing Pi node groups **must** be named `<bmc_hostname>_nodes` (e.g., `turingpi_nodes` for BMC host `turingpi`). The flash role discovers nodes using this convention.
-- **Per-node variables:** `slot_num` (BMC slot 1-4), `type` (`rk1` or `pi4`), `root_dev` (optional: target block device for NVME migration).
-- **Groups:** `all_nodes` is the union of all Turing Pi node groups + `extra_nodes`.
+See: `docs/explanations/gitops-flow.md`
 
 ---
 
-## Coding Conventions
+## Dual `repo_branch` — Always Update Both
 
-### Ansible Tasks
-- **Idempotency:** Every task uses `creates:`, `when:` guards, stat checks, or registration to be safe for re-runs.
-- **Force flags:** `do_flash`/`flash_force`, `k3s_force`, `cluster_force` — all default `false`, override via `-e`.
-- **Delegation:** BMC tasks use the `raw` module (no Python on BMC). Many tasks delegate to `localhost` or `{{ control_plane }}`.
-- **Linting:** `ansible-lint` is installed in the devcontainer. Suppress known exceptions with `# noqa <rule-name>` (e.g., `no-changed-when`, `no-handler`, `command-instead-of-shell`).
-- **YAML style:** 2-space indentation. Task names are sentence-case descriptions.
+Two separate `repo_branch` variables must stay in sync:
+1. **`group_vars/all.yml`** — Ansible bootstrap (creates root Application CR)
+2. **`kubernetes-services/values.yaml`** — ArgoCD runtime (`targetRevision`)
 
-### Kubernetes Manifests
-- Templates in `kubernetes-services/templates/` are ArgoCD `Application` CRDs using Helm values.
-- Additions in `kubernetes-services/additions/` are plain YAML or Helm values applied alongside the main charts.
-- Ingress resources follow a consistent pattern via the reusable `additions/ingress/` sub-chart.
+They cannot be unified — consumed by different systems at different stages.
 
-### Variables
-- Global vars in `group_vars/all.yml` (well-commented — read it directly). Role-specific vars in `roles/<role>/vars/main.yml`.
-- Sensitive values use `admin-auth` Kubernetes secrets created during bootstrap.
-
----
-
-## Important Warnings
-
-1. **`tpi flash` USB errors** — if `tpi flash` fails with `Error occured during flashing: "USB"`, power-cycle the BMC (not just the nodes). This is a BMC firmware USB enumeration bug. `ubuntu-rockchip-install` does NOT change the boot device — eMMC remains the bootloader — so re-flashing eMMC always restores the node fully.
-2. **`known_hosts` must be `serial: 1`** — parallel writes to `~/.ssh/known_hosts` cause race conditions.
-3. **Traefik is disabled** — K3s ships Traefik by default, but this project passes `--disable=traefik` and uses NGINX Ingress instead.
-4. **Working in branches** — `repo_branch` in `kubernetes-services/values.yaml` controls which branch ArgoCD child apps track. Each branch must set this value to match itself. See "Branch Propagation" below.
-5. **No automated tests** — changes should be validated by running the relevant playbook tags against a test cluster.
-
----
-
-## Dual repo_branch Variables — Always Update Both
-
-There are **two separate `repo_branch` variables** that must always be kept in sync:
-
-1. **`group_vars/all.yml`** — used by Ansible at bootstrap time to create the root ArgoCD Application CR
-2. **`kubernetes-services/values.yaml`** — used by ArgoCD's Helm engine at runtime to set `targetRevision` on all child apps
-
-They cannot be unified because they are consumed by completely different systems at different stages.
-**Whenever switching branches, update `repo_branch` in both files.**
-
----
-
-## Branch Propagation for ArgoCD Child Apps
-
-The root `all-cluster-services` ArgoCD Application passes `repo_branch` to child apps via Helm values. This value lives in `kubernetes-services/values.yaml`, which ArgoCD checks out at the same `targetRevision` as the root app — so it is always self-referential.
-
-**Rules:**
-- Each branch must set `repo_branch` in its own `kubernetes-services/values.yaml` to match the branch name.
-- The Ansible bootstrap also reads `repo_branch` from `group_vars/all.yml` when creating the root Application CR.
-
-**When switching the root app to a different branch:** the live `all-cluster-services` Application CR may retain an old `repo_branch` in its `valuesObject` that overrides `values.yaml`. Remove it:
+If switching the root app to a different branch and the old value persists:
 ```bash
 kubectl patch application all-cluster-services -n argo-cd --type json \
   -p '[{"op":"remove","path":"/spec/source/helm/valuesObject/repo_branch"}]'
 ```
 
+See: `docs/how-to/work-in-branches.md`
+
 ---
 
-## Hardware Reference
+## Coding Conventions
 
-- Turing Pi v2.5, 4 slots: node01=CM4 (slot 1), node02/03/04=RK1 (slots 2-4)
-- BMC hostname: `turingpi` → `192.168.1.80`
-- node01 (control plane) → `192.168.1.81`, workers on `.82`/`.83`/`.84`
-- DNS entries for `*.gkcluster.org` point to worker nodes (`.82`/`.83`/`.84` — ingress LoadBalancer IPs), **not** the control plane
+### Ansible
+- **Idempotency:** use `creates:`, `when:`, stat checks, or registration
+- **Force flags:** `do_flash`, `k3s_force`, `cluster_force` — all default false
+- **Linting:** `ansible-lint` in devcontainer; suppress with `# noqa <rule>`
+- **YAML:** 2-space indent, sentence-case task names
+
+### Kubernetes manifests
+- Templates in `templates/` are ArgoCD Application CRDs
+- Additions in `additions/` are plain YAML or Helm values
+- Use the reusable `additions/ingress/` sub-chart for ingress
+
+### Git workflow
+- Use `uv run` to execute git commits (pre-commit hooks need the uv venv)
+- Playbook is `pb_all.yml` (not `site.yml`)
+- `.gitleaks.toml` allowlists `*-secret.yaml` so SealedSecrets don't trigger false positives
+- Docs build: `python -m sphinx docs docs/_build`
+
+---
+
+## Inventory Conventions
+
+- **Node groups:** Turing Pi groups must be named `<bmc_hostname>_nodes`
+  (e.g. `turingpi_nodes` for BMC host `turingpi`)
+- **Per-node vars:** `slot_num` (1-4), `type` (`rk1`/`pi4`), `root_dev` (NVMe target)
+- **Groups:** `all_nodes` = all Turing Pi groups + `extra_nodes`
+
+See: `docs/reference/inventory.md`
+
+---
+
+## Important Warnings
+
+1. **`tpi flash` USB errors** — power-cycle the BMC (not just nodes). BMC firmware bug.
+2. **`known_hosts` must be `serial: 1`** — parallel writes cause race conditions.
+3. **Traefik disabled** — K3s ships Traefik but this project uses `--disable=traefik` with NGINX Ingress.
+4. **No automated tests** — validate by running playbook tags against the cluster.
+
+---
+
+## Cloudflare Tunnel UI
+
+The Zero Trust dashboard has no separate "Service Type" field. Specify the
+protocol as a URL prefix: `http://hostname:port` or `https://hostname:port`.
+
+See: `docs/how-to/cloudflare-tunnel.md`
+
+---
+
+## TODO
+
+- **Scope down Headlamp RBAC:** replace `cluster-admin` with a custom
+  ClusterRole in `kubernetes-services/additions/dashboard/rbac.yaml`
