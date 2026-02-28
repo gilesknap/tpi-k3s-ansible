@@ -38,10 +38,10 @@ Authenticated session
 This guide uses **two separate Cloudflare dashboards** — it is easy to get confused
 between them:
 
-- [**one.dash.cloudflare.com**](https://one.dash.cloudflare.com/) — the **Zero Trust**
-  dashboard for managing tunnels, Access Applications, and security policies.
 - [**dash.cloudflare.com**](https://dash.cloudflare.com/) — the **main** dashboard for
-  managing DNS zones, WAF rules, and general site settings.
+  managing DNS zones, WAF rules, tunnels, and general site settings.
+- [**one.dash.cloudflare.com**](https://one.dash.cloudflare.com/) — the **Zero Trust**
+  dashboard for managing Access Applications and security policies.
 
 The steps below will tell you which dashboard to use at each point.
 
@@ -77,7 +77,7 @@ still reasonable, but adding Access is strongly recommended.
 
 ## Part 1: Add public hostnames to the tunnel
 
-In the **Zero Trust dashboard** ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)):
+In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 1. Navigate to **Networking → Tunnels** and click on your tunnel name.
 2. Go to the **Public Hostname** tab and click **Add a public hostname** for each

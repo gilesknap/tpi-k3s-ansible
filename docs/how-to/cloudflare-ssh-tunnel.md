@@ -35,10 +35,10 @@ node01 (<node01-ip>) SSH
 This guide uses **two separate Cloudflare dashboards** — it is easy to get confused
 between them:
 
-- [**one.dash.cloudflare.com**](https://one.dash.cloudflare.com/) — the **Zero Trust**
-  dashboard for managing tunnels, Access Applications, and security policies.
 - [**dash.cloudflare.com**](https://dash.cloudflare.com/) — the **main** dashboard for
-  managing DNS zones, WAF rules, and general site settings.
+  managing DNS zones, WAF rules, tunnels, and general site settings.
+- [**one.dash.cloudflare.com**](https://one.dash.cloudflare.com/) — the **Zero Trust**
+  dashboard for managing Access Applications and security policies.
 
 The steps below will tell you which dashboard to use at each point.
 
@@ -64,7 +64,7 @@ sudo dpkg -i /tmp/cloudflared.deb
 First, add an SSH public hostname to your existing Cloudflare tunnel so that
 traffic to `ssh.example.com` is forwarded to your control-plane node's SSH port.
 
-In the **Zero Trust dashboard** ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)):
+In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 1. Navigate to **Networking → Tunnels**. You should see your existing tunnel listed
    as Healthy.
