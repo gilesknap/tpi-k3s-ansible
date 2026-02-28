@@ -36,7 +36,7 @@ These secrets are created during the setup guides:
 | Secret | Namespace | Purpose | File |
 |--------|-----------|---------|------|
 | `cloudflared-credentials` | `cloudflared` | Cloudflare tunnel token | additions/cloudflared/tunnel-secret.yaml |
-| `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/cloudflare-api-token-secret.yaml |
+| `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/templates/cloudflare-api-token-secret.yaml |
 | `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
 
 ## Prerequisites

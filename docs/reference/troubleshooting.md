@@ -185,7 +185,7 @@ Gateway.
    kubectl get challenge -A
    ```
 3. **Cloudflare API token valid?** The SealedSecret in
-   `additions/cert-manager/cloudflare-api-token-secret.yaml` must decrypt to a
+   `additions/cert-manager/templates/cloudflare-api-token-secret.yaml` must decrypt to a
    valid token with `Zone:DNS:Edit` permission.
 
 ## Cloudflare Tunnel
