@@ -183,13 +183,18 @@ The policy editor showing the "Owner Only" ALLOW policy. Use the policy tester
 to verify your email is permitted before attempting to connect.
 ```
 
-## Part 3: Add a WAF skip rule
+## Part 3: Add a WAF skip rule (if needed)
 
-By default Cloudflare's WAF inspects all proxied traffic and may block requests to
-`ssh.example.com` before they ever reach the Access Application — resulting in a
-generic "Why have I been blocked?" page and `failed to find Access application` from
-`cloudflared`. You must add a WAF skip rule to let Access handle authentication
-for the SSH hostname.
+:::{note}
+This step is only required if your Cloudflare zone has active WAF managed rules
+or custom security rules. The free plan has no WAF rules enabled by default, so
+most users can **skip to Part 4**. If `cloudflared access login` works without
+this rule, you don't need it.
+:::
+
+If Cloudflare's WAF is blocking requests to `ssh.example.com` before they reach
+the Access Application — showing a "Why have I been blocked?" page or
+`failed to find Access application` from `cloudflared` — add a WAF skip rule.
 
 Switch to the **main Cloudflare dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
@@ -208,22 +213,6 @@ Switch to the **main Cloudflare dashboard** ([dash.cloudflare.com](https://dash.
    - Skip all remaining **custom rules**
    - Skip all **managed rules** (WAF Managed Ruleset)
 6. Click **Deploy**.
-
-```{figure} ../images/cloudflare-06.png
-:alt: WAF security rules
-:align: center
-
-The Security rules page showing the SSH skip rule alongside other WAF rules. The
-SSH rule must use **Skip** so that Cloudflare Access can handle authentication
-instead of the WAF blocking the request.
-```
-
-:::{warning}
-Without this rule, `cloudflared access login` returns
-`failed to find Access application` and visiting `ssh.example.com` in a browser
-shows a WAF block page rather than the Cloudflare Access login prompt. The WAF
-intercepts the request before Access can issue its authentication challenge.
-:::
 
 ## Part 4: Client SSH configuration
 
@@ -250,14 +239,14 @@ a token is written to `~/.cloudflared/`. The token is reused for the session dur
 you configured (24 hours by default).
 
 :::{warning}
-Parts 1 (tunnel route), 2 (Access Application), and 3 (WAF skip rule) must
-all be completed before this command will work. If any is missing you will see:
+Parts 1 (tunnel route) and 2 (Access Application) must both be completed before
+this command will work. If either is missing you will see:
 
 - `failed to find Access application` — either the Access Application (Part 2) does not
-  exist, the hostname does not exactly match `ssh.example.com`, or the WAF (Part 3)
-  is blocking the request before Access can respond. Check
-  **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/)
-  and **Security → Security rules** at [dash.cloudflare.com](https://dash.cloudflare.com/).
+  exist, or the hostname does not exactly match `ssh.example.com`. Check
+  **Access controls → Applications** at [one.dash.cloudflare.com](https://one.dash.cloudflare.com/).
+  If the application exists but you still get this error, a WAF rule may be blocking the
+  request — see Part 3.
 - `websocket: bad handshake` — the tunnel hostname in Part 1 is missing, so
   Cloudflare has nowhere to forward the connection. Check **Networking → Tunnels → Public hostnames**.
 :::
