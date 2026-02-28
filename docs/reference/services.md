@@ -29,9 +29,9 @@ Manages TLS certificates via Let's Encrypt. Uses DNS-01 validation through the
 Cloudflare API. Includes a `ClusterIssuer` (`letsencrypt-prod`) and a SealedSecret
 for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi limit.
 
-**Additional manifests:** `additions/cert-manager/`
+**Additional manifests:** `additions/cert-manager/templates/`
 - `cloudflare-api-token-secret.yaml` — SealedSecret for DNS API token
-- `issuer-letsencrypt-prod.yaml` — ClusterIssuer for production Let's Encrypt
+- `issuer-letsencrypt-prod.yaml` — ClusterIssuer for production Let's Encrypt (uses `domain_email` for ACME notifications)
 
 ### cloudflared
 

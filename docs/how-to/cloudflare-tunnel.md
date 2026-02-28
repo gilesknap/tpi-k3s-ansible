@@ -90,19 +90,19 @@ printf '%s' "$TOKEN" | \
     --from-file=api-token=/dev/stdin \
     --dry-run=client -o yaml | \
   kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-    kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+    kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml
 unset TOKEN
 ```
 
 Commit and push:
 
 ```bash
-git add kubernetes-services/additions/cert-manager/cloudflare-api-token-secret.yaml
+git add kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml
 git commit -m "Add cert-manager Cloudflare DNS-01 API token SealedSecret"
 git push
 ```
 
-The `ClusterIssuer` at `kubernetes-services/additions/cert-manager/issuer-letsencrypt-prod.yaml`
+The `ClusterIssuer` at `kubernetes-services/additions/cert-manager/templates/issuer-letsencrypt-prod.yaml`
 is already configured to use DNS-01 with this token. cert-manager will now be able
 to issue Let's Encrypt certificates for all your ingress hostnames.
 
