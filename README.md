@@ -1,54 +1,75 @@
+[![Documentation](https://img.shields.io/badge/docs-online-blue)](https://gilesknap.github.io/tpi-k3s-ansible/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](https://github.com/gilesknap/tpi-k3s-ansible/blob/main/LICENSE)
+
 # K3s Cluster Commissioning
 
-[![Documentation](https://img.shields.io/badge/docs-online-blue)](https://gilesknap.github.io/tpi-k3s-ansible/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
+An **Infrastructure-as-Code** Ansible project that commissions a
+[K3s](https://k3s.io/) Kubernetes cluster on
+[Turing Pi](https://turingpi.com/) v2.5 boards (RK1 / CM4 compute modules)
+and arbitrary additional Linux servers — fully idempotent and repeatable.
 
-An **Infrastructure-as-Code** Ansible project that commissions a K3s Kubernetes
-cluster on [Turing Pi](https://turingpi.com/) v2.5 boards (RK1 / CM4 compute
-modules) and arbitrary additional Linux servers — fully idempotent and repeatable.
+All cluster customisation lives in just **two files**
+(`group_vars/all.yml` and `kubernetes-services/values.yaml`),
+so you can fork the repo, edit those files, and have your own cluster running
+in minutes.
+
+Source          | <https://github.com/gilesknap/tpi-k3s-ansible>
+:---:           | :---:
+Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 
 ## Features
 
+### Infrastructure
+
 - **Automated flashing** of Turing Pi compute modules with Ubuntu 24.04 LTS
-- **Optional NVME migration** — move the root filesystem to fast storage
+- **Optional NVMe migration** — move the root filesystem to fast storage
 - **K3s cluster** with one control-plane node and multiple workers
+- **Works with any Linux server** — Turing Pi hardware is optional
+- **Kernel tuning** — DaemonSet for network buffers and multipathd fixes
+
+### GitOps & Deployment
+
 - **GitOps via ArgoCD** — all services deployed and managed declaratively
-- **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates (DNS-01)
+- **Fork-friendly** — two-file configuration for easy customisation
+- **Sealed Secrets** — encrypt secrets safely in Git
+- **Reusable ingress sub-chart** — shared template with OAuth, SSL redirect,
+  SSL passthrough, and basic-auth toggles
+
+### Networking & Security
+
+- **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates
+  (DNS-01 via Cloudflare)
+- **OAuth2 authentication** — GitHub OAuth gateway (oauth2-proxy) protecting
+  Grafana, Longhorn, Headlamp, and Open WebUI
+- **Cloudflare Tunnel** — optional secure public access via cloudflared
+
+### Services
+
 - **Monitoring** — Prometheus + Grafana stack
 - **Distributed storage** — Longhorn with snapshots and backup
-- **Sealed Secrets** — encrypt secrets safely in Git
-- **Local LLM inference** — NPU-accelerated LLM server (RKLLama) on RK1 nodes
-- **Local LLM inference** — Nvidia GPU-accelerated LLM server on compatible servers
-- **Open WebUI chat** interface to above LLM models
-- **Devcontainer** — complete execution environment with zero host dependencies
-- Works with **any Linux server** — Turing Pi hardware is optional
+- **Kubernetes dashboard** — Headlamp with RBAC
+- **Local LLM inference** — NPU-accelerated RKLLama on RK1 nodes
+- **Local LLM inference** — NVIDIA GPU-accelerated llama.cpp on compatible servers
+- **Open WebUI** — chat interface to the above LLM backends
+- **Echo test service** — for verifying ingress, TLS, and headers
 
-## Quick start
+### Developer Experience
+
+- **Devcontainer** — complete execution environment with zero host dependencies
+- **Claude Code integration** — AI-assisted workflow with safe autonomy guardrails
+
+## Quick Start
 
 1. Install [Podman](https://podman.io/) and VS Code
-2. Clone this repo and reopen in the devcontainer
-3. Edit `hosts.yml`, `group_vars/all.yml`, `kubernetes-services/values.yaml` to match your environment
+2. Fork this repo, clone it, and reopen in the devcontainer
+3. Edit `group_vars/all.yml` and `kubernetes-services/values.yaml`
+   to match your environment
 4. Run:
 
 ```bash
 ansible-playbook pb_all.yml -e do_flash=true
 ```
 
-## Documentation
+<!-- README only content. Anything below this line won't be included in index.md -->
 
-Full documentation is available at
-**<https://gilesknap.github.io/tpi-k3s-ansible/>** and covers:
-
-- **Tutorials** — step-by-step setup for Turing Pi and generic Linux servers
-- **How-to guides** — bootstrap, services, secrets, Cloudflare, branches, and more
-- **Explanations** — architecture, GitOps flow, Ansible roles, networking
-- **Reference** — inventory format, variables, tags, services, CLI tools, troubleshooting
-
-## Acknowledgements
-
-- [@procinger](https://github.com/procinger) for ArgoCD patterns —
-  [turing-pi-v2-cluster](https://github.com/procinger/turing-pi-v2-cluster)
-- [drunkcoding.net](https://drunkcoding.net/posts/ks-00-series-k8s-setup-local-env-pi-cluster/)
-  for Kubernetes setup tutorials
-- [K3s](https://k3s.io/) — lightweight CNCF-certified Kubernetes
-- [Turing Pi](https://turingpi.com/) — compact multi-node compute platform
+See <https://gilesknap.github.io/tpi-k3s-ansible> for full documentation.
