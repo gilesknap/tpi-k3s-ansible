@@ -127,10 +127,14 @@ to oauth2-proxy.
 
 Services currently protected by OAuth:
 
-- Grafana (`grafana.yaml`)
+- Grafana (`grafana.yaml`) — auto-authenticates via `auth.proxy` mode, no
+  separate login form
 - Longhorn (`longhorn.yaml`)
-- Headlamp (`dashboard.yaml`)
+- Headlamp (`dashboard.yaml`) — still requires a service account token after
+  OAuth (Headlamp does not support proxy auth headers)
 - Open WebUI (`open-webui.yaml`)
+- ArgoCD (`argo-cd/ingress.yaml`) — uses `server.insecure` mode with OAuth
+  at the ingress layer (managed by Ansible, not the shared ingress template)
 
 ## Step 7: Restrict access (optional)
 
