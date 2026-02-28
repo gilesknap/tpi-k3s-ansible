@@ -157,8 +157,8 @@ Services currently protected by OAuth:
 - Longhorn (`longhorn.yaml`) — no native auth, OAuth is the only layer
 - Headlamp (`dashboard.yaml`) — requires a service account token after OAuth
 - Open WebUI (`open-webui.yaml`) — native login after OAuth gateway
-- ArgoCD (`argo-cd/ingress.yaml`) — uses TLS passthrough with its own login
-  (managed by Ansible, not the shared ingress template)
+- ArgoCD — not behind OAuth or the tunnel. Uses TLS passthrough with its own
+  login, managed by Ansible. Access on LAN or via SSH tunnel only.
 
 ## Step 8: Restrict access (optional)
 

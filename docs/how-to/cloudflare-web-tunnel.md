@@ -61,10 +61,14 @@ Before exposing services, consider the risk profile of each:
 | Grafana | Admin login + user accounts | Yes | Low — requires credentials |
 | Headlamp | Kubernetes service account token | Yes | Low — requires token |
 | Open WebUI | User accounts with registration | Yes | Low — requires login |
-| ArgoCD | Admin password + optional OIDC | No (SSL passthrough) | Low — requires credentials |
 
 **Services deliberately excluded:**
 
+- **ArgoCD** — uses SSL passthrough (TLS end-to-end), which is incompatible with
+  Cloudflare Access. Access terminates TLS at the edge to inspect requests, breaking
+  the passthrough. ArgoCD also has significant cluster control, so exposing it with
+  only a username/password is too risky. Access it on the LAN or via the SSH tunnel
+  (`ssh -L 8443:argocd.gkcluster.org:443` through `ssh.gkcluster.org`).
 - **Longhorn** — no native authentication. If OAuth is bypassed, an attacker gets
   full storage admin access. Keep it LAN-only.
 - **RKLlama** — internal API consumed by Open WebUI. No reason to expose directly.
@@ -88,8 +92,8 @@ In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 1. Select your domain zone.
 2. Go to **DNS → Records**.
-3. For each service you plan to tunnel (`grafana`, `headlamp`, `open-webui`, `oauth2`,
-   `argocd`), delete the existing A record.
+3. For each service you plan to tunnel (`grafana`, `headlamp`, `open-webui`, `oauth2`),
+   delete the existing A record. Keep the `argocd` A record — ArgoCD stays LAN-only.
 
 :::{note}
 After this change, LAN clients also route through Cloudflare for these services.
@@ -128,25 +132,18 @@ If this hostname is not reachable through the tunnel, login fails for all
 OAuth-protected services.
 :::
 
-### ArgoCD (HTTPS origin)
+### ArgoCD — not tunnelled
 
-ArgoCD uses SSL passthrough — it terminates TLS itself on port 443. This requires
-a different origin configuration:
+ArgoCD is deliberately excluded from the tunnel. Its SSL passthrough ingress is
+incompatible with Cloudflare Access (which terminates TLS at the edge), and
+exposing a cluster management tool with only password authentication is too
+risky. Access ArgoCD on the LAN or via the SSH tunnel:
 
-| Subdomain | Domain | URL |
-|-----------|--------|-----|
-| `argocd` | `example.com` | `https://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:443` |
-
-Under **Additional application settings → TLS**, enable:
-
-- **No TLS Verify** — `cloudflared` connects to ingress-nginx's TLS port but does
-  not verify the internal certificate. This is safe because the connection is
-  entirely within the cluster network.
-
-:::{note}
-ArgoCD does **not** need the `enable_cloudflare_tunnel` toggle — its SSL passthrough
-ingress works differently from the HTTP services. No code changes are needed.
-:::
+```bash
+# Port-forward through the Cloudflare SSH tunnel
+ssh -L 8443:argocd.gkcluster.org:443 ssh.gkcluster.org
+# Then browse https://localhost:8443
+```
 
 ## Part 3: Create Cloudflare Access policies (recommended)
 
@@ -222,7 +219,6 @@ Use a mobile hotspot or VPN to test from outside your home network:
 curl -I https://grafana.example.com
 curl -I https://headlamp.example.com
 curl -I https://open-webui.example.com
-curl -I https://argocd.example.com
 ```
 
 ### Check the OAuth flow
@@ -306,9 +302,9 @@ It should point to the `svc.cluster.local` address, not the public hostname.
 
 ### 502 Bad Gateway on ArgoCD
 
-Check that the ArgoCD tunnel hostname uses **HTTPS** origin (not HTTP) with
-**No TLS Verify** enabled. ArgoCD's SSL passthrough requires a TLS connection from
-`cloudflared`.
+ArgoCD should not be exposed through the tunnel — its SSL passthrough is
+incompatible with Cloudflare Access. Remove the `argocd` route from the tunnel
+and access ArgoCD on the LAN or via SSH port-forwarding instead.
 
 ### 403 Forbidden after authenticating
 

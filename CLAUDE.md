@@ -163,6 +163,9 @@ See: `docs/how-to/work-in-branches.md`
 - Use the reusable `additions/ingress/` sub-chart for ingress
 
 ### Git workflow
+- **Always work in a branch** — never commit directly to `main`. Point
+  ArgoCD at the feature branch while testing so debug commits stay off
+  `main`. Once the change is verified, squash-merge to keep `main` clean.
 - Use `uv run` to execute git commits (pre-commit hooks need the uv venv)
 - Playbook is `pb_all.yml` (not `site.yml`)
 - `.gitleaks.toml` allowlists `*-secret.yaml` so SealedSecrets don't trigger false positives
