@@ -141,8 +141,15 @@ helm:
     oauth2_proxy: true  # ← enables OAuth
 ```
 
-This adds nginx auth annotations that redirect unauthenticated requests
-to oauth2-proxy.
+This adds two nginx auth annotations:
+
+- **`auth-url`** — an internal subrequest URL that nginx calls server-side to
+  check authentication. This uses the in-cluster service address
+  (`http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth`) so it
+  works regardless of whether services are accessed via LAN or the Cloudflare
+  tunnel.
+- **`auth-signin`** — the external URL the browser is redirected to for login
+  (`https://oauth2.<domain>/oauth2/start`).
 
 Services currently protected by OAuth:
 
@@ -200,5 +207,6 @@ Verify the ingress annotations are present:
 kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep auth
 ```
 
-You should see `auth-url` and `auth-signin` annotations pointing to
+You should see `auth-url` pointing to
+`oauth2-proxy.oauth2-proxy.svc.cluster.local` and `auth-signin` pointing to
 `oauth2.<your-domain>`.

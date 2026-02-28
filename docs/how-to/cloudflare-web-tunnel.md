@@ -280,6 +280,30 @@ Ensure the `oauth2` hostname is included in the tunnel public hostnames. The
 browser must be able to reach `oauth2.example.com` to complete the GitHub OAuth
 flow.
 
+### 500 Internal Server Error on OAuth-protected services
+
+The nginx `auth-url` annotation must use the **internal** cluster service URL,
+not the external hostname. Nginx makes a server-side subrequest to verify
+authentication — if this subrequest goes through the Cloudflare tunnel it fails
+or loops, causing a 500 error.
+
+The ingress template uses:
+
+```
+http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+```
+
+The `auth-signin` URL remains external (`https://oauth2.example.com/...`)
+because it is a browser redirect, not a server-side call. If you see 500 errors
+after enabling OAuth with the tunnel, check the `auth-url` annotation on the
+affected ingress:
+
+```bash
+kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep auth-url
+```
+
+It should point to the `svc.cluster.local` address, not the public hostname.
+
 ### 502 Bad Gateway on ArgoCD
 
 Check that the ArgoCD tunnel hostname uses **HTTPS** origin (not HTTP) with
