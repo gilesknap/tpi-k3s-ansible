@@ -438,11 +438,22 @@ router’s DHCP settings. This prevents IP changes on reboot.</p>
 </div>
 </section>
 </section>
-<section id="step-1-clone-the-repository">
-<h2>Step 1: Clone the repository<a class="headerlink" href="#step-1-clone-the-repository" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/gilesknap/tpi-k3s-ansible.git
+<section id="step-1-fork-and-clone-the-repository">
+<h2>Step 1: Fork and clone the repository<a class="headerlink" href="#step-1-fork-and-clone-the-repository" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Fork</strong> the repository on GitHub: visit
+<a class="reference external" href="https://github.com/gilesknap/tpi-k3s-ansible">gilesknap/tpi-k3s-ansible</a>
+and click <strong>Fork</strong>.</p></li>
+<li><p>Clone your fork:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/&lt;your-username&gt;/tpi-k3s-ansible.git
 <span class="nb">cd</span><span class="w"> </span>tpi-k3s-ansible
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You need your own fork because ArgoCD tracks <em>your</em> repository for GitOps.
+Changes you push to your fork are automatically deployed to your cluster.</p>
 </div>
 </section>
 <section id="step-2-generate-an-ssh-keypair">
@@ -535,16 +546,43 @@ host <code class="docutils literal notranslate"><span class="pre">turingpi</span
 <li><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code> is optional — set it to migrate the OS from eMMC to NVMe after flashing.</p></li>
 </ul>
 </section>
-<section id="step-6-configure-global-variables">
-<h2>Step 6: Configure global variables<a class="headerlink" href="#step-6-configure-global-variables" title="Link to this heading">#</a></h2>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
+<section id="step-6-configure-the-cluster">
+<h2>Step 6: Configure the cluster<a class="headerlink" href="#step-6-configure-the-cluster" title="Link to this heading">#</a></h2>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> — the primary Ansible configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Change these to match your environment</span>
 <span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node01</span><span class="w">              </span><span class="c1"># Which node is the K3s control plane</span>
-<span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;domain&gt;</span><span class="w">           </span><span class="c1"># Your domain name</span>
+<span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example.com</span><span class="w">        </span><span class="c1"># Your domain name</span>
 <span class="nt">domain_email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">you@example.com</span><span class="w">      </span><span class="c1"># For Let&#39;s Encrypt certificates</span>
-<span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/gilesknap/tpi-k3s-ansible.git</span><span class="w">  </span><span class="c1"># Your fork URL</span>
+<span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/&lt;your-username&gt;/tpi-k3s-ansible.git</span>
 <span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span><span class="w">                  </span><span class="c1"># Git branch for ArgoCD to track</span>
 </pre></div>
+</div>
+<p>Then edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — the ArgoCD runtime configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span><span class="w">                  </span><span class="c1"># Must match the value in all.yml</span>
+
+<span class="c1"># OAuth2 email allowlist — GitHub-linked emails allowed to access</span>
+<span class="c1"># protected services. Remove the defaults and add your own:</span>
+<span class="nt">oauth2_emails</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">you@example.com</span>
+
+<span class="c1"># NFS configuration (optional — only needed for LLM features)</span>
+<span class="nt">rkllama</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">            </span><span class="c1"># Your NFS server IP</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/rkllm/models</span><span class="w">    </span><span class="c1"># NFS export path for rkllm models</span>
+<span class="nt">llamacpp</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/gguf/models</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-model.gguf&quot;</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you do not have an NFS server or do not plan to use the LLM features (rkllama,
+llamacpp), you can leave the NFS settings as-is. The services will deploy but remain
+idle until configured.</p>
 </div>
 </section>
 <section id="step-7-run-the-playbook">
@@ -658,12 +696,12 @@ nodes that are temporarily offline or have connectivity issues.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-clone-the-repository">Step 1: Clone the repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-fork-and-clone-the-repository">Step 1: Fork and clone the repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-generate-an-ssh-keypair">Step 2: Generate an SSH keypair</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-authorize-the-keypair-on-each-turing-pi-bmc">Step 3: Authorize the keypair on each Turing Pi BMC</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-open-the-devcontainer">Step 4: Open the devcontainer</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-configure-the-inventory">Step 5: Configure the inventory</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-configure-global-variables">Step 6: Configure global variables</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-configure-the-cluster">Step 6: Configure the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-run-the-playbook">Step 7: Run the playbook</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-8-verify-the-cluster">Step 8: Verify the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
