@@ -313,8 +313,8 @@ see {doc}`cloudflare-web-tunnel` instead of the per-service steps below.
 
 To move a service from LAN-only to publicly accessible through the tunnel:
 
-1. **Add a public hostname in the tunnel.** In the Cloudflare dashboard, go to
-   **Networking → Tunnels → your tunnel → Public Hostname → Add a public hostname**.
+1. **Add a route in the tunnel.** In the Cloudflare dashboard, go to
+   **Networking → Tunnels → your tunnel → Routes → Add route**.
 
    | Field | Value |
    |---|---|

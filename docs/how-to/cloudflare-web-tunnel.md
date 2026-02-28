@@ -80,8 +80,8 @@ still reasonable, but adding Access is strongly recommended.
 In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 1. Navigate to **Networking → Tunnels** and click on your tunnel name.
-2. Go to the **Public Hostname** tab and click **Add a public hostname** for each
-   service below.
+2. Go to the **Routes** tab (or click **View all** under Routes on the Overview tab)
+   and click **Add route** for each service below.
 
 ### HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)
 
