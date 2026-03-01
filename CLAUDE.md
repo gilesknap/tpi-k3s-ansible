@@ -2,7 +2,7 @@
 
 ## Hard Rules
 
-- **Never commit/push** until the user has tested and explicitly asks.
+- **Never commit/push** without asking.
 - **Never `kubectl apply/patch/edit`** — ArgoCD self-heals. Read-only kubectl is fine.
   Exception: `kubeseal` (reads cluster key; output is committed to repo).
 - **Never commit to `main`** — work in branches, squash-merge when verified.
