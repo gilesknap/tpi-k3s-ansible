@@ -37,4 +37,5 @@ for background on the ADR format.
 
 explanations/decisions/0001-unified-auth-framework
 explanations/decisions/0002-argocd-disable-ssl-passthrough
+explanations/decisions/0003-auth-security-trade-offs
 ```
