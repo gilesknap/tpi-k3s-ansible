@@ -30,6 +30,25 @@ spec:
               existingSecret: admin-auth
               userKey: user
               passwordKey: password
+            envFromSecrets:
+              - name: grafana-oauth
+                optional: true
+            grafana.ini:
+              server:
+                root_url: https://grafana.{{ .Values.cluster_domain }}
+              auth.generic_oauth:
+                enabled: true
+                name: GitHub
+                client_id: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_ID}
+                client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+                auth_url: https://github.com/login/oauth/authorize
+                token_url: https://github.com/login/oauth/access_token
+                api_url: https://api.github.com/user
+                scopes: user:email
+                allow_sign_up: true
+                # Map emails to Grafana roles. JMESPath expression evaluated
+                # against the GitHub /user API response (which has an `email` field).
+                role_attribute_path: "contains([{{ range $i, $e := .Values.grafana_admin_emails | default list }}{{ if $i }}, {{ end }}'{{ $e }}'{{ end }}], email) && 'Admin' || 'Viewer'"
             persistence:
               enabled: true
               type: sts

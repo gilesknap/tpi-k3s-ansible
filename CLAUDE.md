@@ -85,13 +85,15 @@ kubernetes-services/
 │   ├── oauth2-proxy.yaml
 │   ├── open-webui.yaml
 │   ├── rkllama.yaml
-│   └── sealed-secrets.yaml
+│   ├── sealed-secrets.yaml
+│   └── argocd-config.yaml  # ArgoCD's own ingress + config (post-bootstrap)
 └── additions/              # Extra manifests per service
-    ├── argocd/
+    ├── argocd/             # ConfigMap (Dex OIDC), RBAC ConfigMap
     ├── cert-manager/
     ├── cloudflared/
     ├── dashboard/
     ├── echo/
+    ├── grafana/            # OAuth SealedSecret for native GitHub login
     ├── ingress/            # Reusable ingress sub-chart
     ├── llamacpp/
     ├── longhorn/
@@ -111,12 +113,16 @@ See: `docs/explanations/kubernetes-services.md`, `docs/how-to/add-remove-service
 
 ### OAuth2 architecture
 
-oauth2-proxy is a **gateway** only — services retain their native login/RBAC.
-- Protected: Grafana, Longhorn, Headlamp, Open WebUI
-- Not behind OAuth: ArgoCD (TLS passthrough, own login), RKLlama (internal API)
-- Email allowlist in `kubernetes-services/values.yaml` as `oauth2_emails`
+Three-layer auth: Cloudflare Access (perimeter) → oauth2-proxy (ingress gateway) → native OIDC (per-service RBAC).
 
-See: `docs/how-to/oauth-setup.md`
+- **All services** behind oauth2-proxy: Grafana, Longhorn, Headlamp, Open WebUI, ArgoCD
+- **Native OIDC** for SSO + RBAC: Grafana (generic_oauth), ArgoCD (Dex + GitHub), Open WebUI (trusted header)
+- **Gateway-only** (no native OIDC): Longhorn, Headlamp
+- **Not behind OAuth**: RKLlama (internal API), LlamaCpp (no ingress)
+- Email allowlists in `kubernetes-services/values.yaml`: `oauth2_emails`, `argocd_admin_emails`, `grafana_admin_emails`
+- ArgoCD uses `server.insecure: true` — nginx terminates TLS (see ADR 0002)
+
+See: `docs/how-to/oauth-setup.md`, `docs/how-to/unified-auth.md`
 
 ---
 
@@ -211,5 +217,7 @@ See: `docs/how-to/cloudflare-tunnel.md`, `docs/how-to/cloudflare-web-tunnel.md`
 
 ## TODO
 
-- **Scope down Headlamp RBAC:** replace `cluster-admin` with a custom
-  ClusterRole in `kubernetes-services/additions/dashboard/rbac.yaml`
+- **Seal ArgoCD Dex credentials:** Create GitHub OAuth App and seal into
+  `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`
+- **Seal Grafana OAuth credentials:** Create GitHub OAuth App and seal into
+  `kubernetes-services/additions/grafana/grafana-oauth-secret.yaml`

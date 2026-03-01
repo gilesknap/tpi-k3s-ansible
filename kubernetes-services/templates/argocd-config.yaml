@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-config
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-cd
+  project: kubernetes
+  sources:
+    - path: ./kubernetes-services/additions/argocd
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: argocd
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: argocd-server
+          service_port: 80
+          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

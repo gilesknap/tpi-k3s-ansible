@@ -157,8 +157,11 @@ Services currently protected by OAuth:
 - Longhorn (`longhorn.yaml`) — no native auth, OAuth is the only layer
 - Headlamp (`dashboard.yaml`) — requires a service account token after OAuth
 - Open WebUI (`open-webui.yaml`) — native login after OAuth gateway
-- ArgoCD — not behind OAuth or the tunnel. Uses TLS passthrough with its own
-  login, managed by Ansible. Access on LAN or via SSH tunnel only.
+- ArgoCD — behind OAuth and the tunnel (``server.insecure`` mode). Also uses
+  native Dex OIDC for SSO and RBAC mapping.
+
+For native OIDC integration (SSO with role mapping) in Grafana, ArgoCD, and
+Open WebUI, see {doc}`unified-auth`.
 
 ## Step 8: Restrict access (optional)
 

@@ -1,4 +1,8 @@
 # Setup ArgoCD to deploy the services defined in /kubernetes-services
+#
+# Ansible bootstraps ArgoCD and the root Application only. Post-bootstrap
+# config (ingress, ConfigMap, RBAC) is managed by ArgoCD itself via the
+# argocd-config Application in kubernetes-services/templates/.
 
 - name: Install the helm chart for ArgoCD
   kubernetes.core.helm:
@@ -7,48 +11,30 @@
     release_name: argocd
     namespace: argo-cd
     create_namespace: true
-
-- name: Patch the ArgoCD ConfigMap
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'kubernetes-services/additions/argocd/argocd-cm.yml') }}"
-    namespace: argo-cd
-  register: argocd_cm
-
-- name: Rollout restart if configmap changed # noqa no-handler
-  ansible.builtin.command: >
-    kubectl rollout restart -n argo-cd statefulset argocd-application-controller
-  when: argocd_cm.changed
-  changed_when: true
+    values:
+      configs:
+        params:
+          # Let nginx terminate TLS so ArgoCD can sit behind oauth2-proxy
+          # and the Cloudflare tunnel. See ADR 0002.
+          server.insecure: true
 
 - name: Add an ArgoCD Project for the cluster
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-project.yaml') }}"
 
-- name: Add the Git Repo for the aboved project to track
+- name: Add the Git Repo for the above project to track
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-git-repository.yaml') }}"
 
-- name: Add an ingress for ArgoCD
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
-    namespace: argo-cd
 # How to access
-
-# 1. kubectl port-forward service/argocd-server -n argo-cd 8080:443
-#     and then open the browser on http://localhost:8080 and accept the certificate
-# 2. enable ingress in the values file `server.ingress.enabled` and either
-#       - Add the annotation for ssl passthrough: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-1-ssl-passthrough
-#       - Set the `configs.params."server.insecure"` in the values file and terminate
-# SSL at your ingress: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-2-multiple-ingress-objects-and-hosts
-
-# After reaching the UI the first time you can login with username: admin and the random
-# password generated during the installation. You can find the password by running:
-
+#
+# kubectl port-forward service/argocd-server -n argo-cd 8080:80
+# Then open http://localhost:8080 in the browser.
+#
+# Login with username: admin and the password from:
 # kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-
-# (You should delete the initial secret afterwards as suggested by the Getting Started
+#
+# (Delete the initial secret afterwards as suggested by the Getting Started
 # Guide: https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli)

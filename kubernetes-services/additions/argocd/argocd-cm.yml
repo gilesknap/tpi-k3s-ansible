@@ -3,18 +3,23 @@ kind: ConfigMap
 metadata:
   name: argocd-cm
 data:
-  # oauth2-proxy provides authentication in front of ArgoCD via the ingress.
-  # ArgoCD can also use OIDC natively for its own login page (optional).
-  # Uncomment and configure the oidc.config below to enable direct OIDC login.
-  # oidc.config: |
-  #   name: GitHub
-  #   issuer: https://token.actions.githubusercontent.com
-  #   clientID: $oidc.github.clientID
-  #   clientSecret: $oidc.github.clientSecret
-  #   requestedScopes:
-  #     - openid
-  #     - email
-  #     - profile
+  url: https://argocd.gkcluster.org
+
+  # Dex provides OIDC bridging for GitHub (GitHub is not a native OIDC
+  # provider). The GitHub OAuth App callback URL must be set to:
+  #   https://argocd.gkcluster.org/api/dex/callback
+  # Dex reads clientID and clientSecret from argocd-secret (keys
+  # dex.github.clientID and dex.github.clientSecret).
+  # See docs/how-to/unified-auth.md for setup instructions.
+  dex.config: |
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: $dex.github.clientID
+          clientSecret: $dex.github.clientSecret
+          loadAllGroups: true
 
   resource.customizations: |
     monitoring.coreos.com/Prometheus:

@@ -15,24 +15,31 @@ This page describes the security measures in place across the cluster.
 ### Kubernetes RBAC
 
 - The control plane uses the default K3s RBAC configuration.
-- Headlamp has a dedicated `headlamp-admin` ServiceAccount bound to `cluster-admin`
-  with a long-lived token Secret for dashboard access.
+- Headlamp has a dedicated `headlamp-admin` ServiceAccount bound to a scoped
+  `headlamp-dashboard` ClusterRole (read all, write to common workload resources).
 - ArgoCD has the `kubernetes` AppProject with `sourceRepos` restricted to the
   project's GitHub repo and trusted Helm chart registries.
 
 ### Service authentication
 
-| Service | Auth method | Notes |
-|---------|------------|-------|
-| ArgoCD | Username/password | bcrypt hash in `argocd-secret` |
-| Grafana | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Longhorn | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Headlamp | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Open WebUI | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Echo | None (intentional) | Public test service |
-| RKLlama | None (intentional) | Internal LLM API (fronted by Open WebUI) |
+Three layers of authentication protect cluster services:
 
-See {doc}`/how-to/oauth-setup` for how to configure OAuth.
+1. **Cloudflare Access** — perimeter defence at the tunnel edge (email-based TFA).
+2. **oauth2-proxy** — ingress-level gateway using GitHub OAuth with email allowlist.
+3. **Native OIDC** — per-service SSO and RBAC mapping via GitHub identity.
+
+| Service | oauth2-proxy | Native auth | RBAC mapping |
+|---------|-------------|-------------|--------------|
+| ArgoCD | Yes | Dex OIDC (GitHub) | Email → role:admin / role:readonly |
+| Grafana | Yes | generic_oauth (GitHub) | Email → Admin / Viewer |
+| Open WebUI | Yes | Trusted header auto-login | First user = admin |
+| Longhorn | Yes | None | OAuth gateway only |
+| Headlamp | Yes | Token login | Scoped ClusterRole |
+| Echo | No | None (intentional) | Public test service |
+| RKLlama | No | None (intentional) | Internal LLM API |
+
+See {doc}`/how-to/oauth-setup` for basic setup and {doc}`/how-to/unified-auth`
+for the full unified auth configuration.
 
 ## Secrets management
 
@@ -48,6 +55,8 @@ Current SealedSecrets:
 - `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` — Cloudflare tunnel token
 - `kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml` — DNS API token
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — OAuth client credentials
+- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — ArgoCD Dex OAuth credentials
+- `kubernetes-services/additions/grafana/grafana-oauth-secret.yaml` — Grafana OAuth credentials
 
 ### Admin password
 
@@ -92,9 +101,10 @@ No inbound ports need to be opened on your router for public-facing services.
 
 ### LAN isolation
 
-LAN-only services (ArgoCD, Grafana, Longhorn, Headlamp) use grey-cloud DNS records
-pointing to private RFC-1918 IP addresses. They are unreachable from outside the
-local network.
+LAN-only services (Longhorn) use grey-cloud DNS records pointing to private
+RFC-1918 IP addresses. They are unreachable from outside the local network.
+Tunnelled services (ArgoCD, Grafana, Headlamp, Open WebUI) are protected by
+Cloudflare Access at the perimeter.
 
 ### NetworkPolicies
 
@@ -108,7 +118,7 @@ All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
 - Certificates are automatically issued and renewed by cert-manager
 - DNS-01 validation via Cloudflare API (works for LAN-only services too)
 - HSTS headers are set by ingress-nginx by default
-- ArgoCD uses TLS passthrough (handles its own certificate)
+- ArgoCD uses ``server.insecure`` mode — nginx terminates TLS like all other services
 
 ## Recommendations
 

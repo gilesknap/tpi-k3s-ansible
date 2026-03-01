@@ -44,6 +44,14 @@ spec:
           pipelines:
             enabled: false
 
+          # When oauth2-proxy is enabled, trust the X-Auth-Request-Email header
+          # to auto-create and auto-login users. The first user becomes admin.
+          # This header is set by oauth2-proxy via the ingress auth-response-headers
+          # annotation and stripped by nginx for untrusted requests.
+          extraEnvVars:
+            - name: WEBUI_AUTH_TRUSTED_EMAIL_HEADER
+              value: "X-Auth-Request-Email"
+
           # Disable built-in websocket/Redis — not needed for single-replica chat.
           websocket:
             enabled: false
