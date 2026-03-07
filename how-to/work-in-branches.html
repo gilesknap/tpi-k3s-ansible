@@ -404,49 +404,50 @@
   <section id="work-in-branches-and-forks">
 <h1>Work in Branches and Forks<a class="headerlink" href="#work-in-branches-and-forks" title="Link to this heading">#</a></h1>
 <p>ArgoCD tracks a specific Git branch for all cluster services. When developing in
-a feature branch or a fork, you need to ensure ArgoCD syncs the correct branch.</p>
+a feature branch or a fork, you can switch the cluster to track any branch
+without pushing changes to that branch first.</p>
 <section id="how-branch-propagation-works">
 <h2>How branch propagation works<a class="headerlink" href="#how-branch-propagation-works" title="Link to this heading">#</a></h2>
-<p>The root <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> ArgoCD Application deploys the
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> Helm chart. This chart’s <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> contains:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-</pre></div>
-</div>
-<p>This value is passed to all child Applications as <code class="docutils literal notranslate"><span class="pre">{{</span> <span class="pre">.Values.repo_branch</span> <span class="pre">}}</span></code>, which
-they use as their <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code>. Since ArgoCD checks out <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> at the
-<strong>same</strong> <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> as the root app, the value is self-referential — whatever
-branch ArgoCD is tracking, it reads the <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> from that branch’s own
-<code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>.</p>
+<p>The root <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> ArgoCD Application is created by Ansible from
+<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-git-repository.yaml</span></code>. It sets <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> to the value of
+<code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and passes it down to all child apps via
+<code class="docutils literal notranslate"><span class="pre">valuesObject</span></code>. Child app templates use <code class="docutils literal notranslate"><span class="pre">{{</span> <span class="pre">.Values.repo_branch</span> <span class="pre">}}</span></code> for their
+own <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code>.</p>
+<p>This means <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> is the <strong>single source of truth</strong> for which
+branch the entire cluster tracks.</p>
 </section>
 <section id="working-in-a-feature-branch">
 <h2>Working in a feature branch<a class="headerlink" href="#working-in-a-feature-branch" title="Link to this heading">#</a></h2>
-<section id="step-1-update-values-yaml-in-your-branch">
-<h3>Step 1: Update <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> in your branch<a class="headerlink" href="#step-1-update-values-yaml-in-your-branch" title="Link to this heading">#</a></h3>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> on your branch:</p>
+<section id="step-1-update-group-vars-all-yml">
+<h3>Step 1: Update <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code><a class="headerlink" href="#step-1-update-group-vars-all-yml" title="Link to this heading">#</a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-feature-branch</span>
 </pre></div>
 </div>
-<p>Commit and push this change.</p>
 </section>
-<section id="step-2-redeploy-with-the-branch-name">
-<h3>Step 2: Redeploy with the branch name<a class="headerlink" href="#step-2-redeploy-with-the-branch-name" title="Link to this heading">#</a></h3>
+<section id="step-2-apply-with-the-cluster-tag">
+<h3>Step 2: Apply with the cluster tag<a class="headerlink" href="#step-2-apply-with-the-cluster-tag" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
+</pre></div>
+</div>
+<p>This updates the root ArgoCD Application’s <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> and passes the new
+branch to all child apps. No commit or push is needed — the playbook applies
+directly to the cluster.</p>
+<p>For a one-off switch without editing the file:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span>my-feature-branch
 </pre></div>
 </div>
-<p>This updates the root ArgoCD Application’s <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> to your branch.</p>
 </section>
 <section id="step-3-return-to-main">
 <h3>Step 3: Return to main<a class="headerlink" href="#step-3-return-to-main" title="Link to this heading">#</a></h3>
-<p>When done, switch the root app back to <code class="docutils literal notranslate"><span class="pre">main</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span>main
 </pre></div>
 </div>
-<p>And make sure <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> on <code class="docutils literal notranslate"><span class="pre">main</span></code> still says <code class="docutils literal notranslate"><span class="pre">repo_branch:</span> <span class="pre">main</span></code>.</p>
+<p>(Or edit <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> back to <code class="docutils literal notranslate"><span class="pre">main</span></code> and re-run.)</p>
 </section>
 </section>
 <section id="working-in-a-fork">
 <h2>Working in a fork<a class="headerlink" href="#working-in-a-fork" title="Link to this heading">#</a></h2>
-<p>If you forked the repository, permanently update the remote URL in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
+<p>If you forked the repository, update the remote URL in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/your-user/tpi-k3s-ansible.git</span>
 </pre></div>
 </div>
@@ -459,22 +460,6 @@ branch ArgoCD is tracking, it reads the <code class="docutils literal notranslat
 <span class="w">  </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span>your_branch<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span><span class="nv">repo_remote</span><span class="o">=</span>https://github.com/your-user/tpi-k3s-ansible.git
 </pre></div>
-</div>
-</section>
-<section id="fixing-stale-repo-branch-in-the-live-application">
-<h2>Fixing stale <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> in the live Application<a class="headerlink" href="#fixing-stale-repo-branch-in-the-live-application" title="Link to this heading">#</a></h2>
-<p>If you change the root Application’s <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> but the child apps still track
-an old branch, the live Application CR may have an old <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> baked into its
-<code class="docutils literal notranslate"><span class="pre">valuesObject</span></code> that overrides <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. Remove it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>patch<span class="w"> </span>application<span class="w"> </span>all-cluster-services<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>--type<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-p<span class="w"> </span><span class="s1">&#39;[{&quot;op&quot;:&quot;remove&quot;,&quot;path&quot;:&quot;/spec/source/helm/valuesObject/repo_branch&quot;}]&#39;</span>
-</pre></div>
-</div>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>Each branch <strong>must</strong> have the correct <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> value in its own
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. If they disagree, child apps may track the wrong
-branch.</p>
 </div>
 </section>
 </section>
@@ -528,13 +513,12 @@ branch.</p>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-branch-propagation-works">How branch propagation works</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#working-in-a-feature-branch">Working in a feature branch</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-update-values-yaml-in-your-branch">Step 1: Update <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> in your branch</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-redeploy-with-the-branch-name">Step 2: Redeploy with the branch name</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-update-group-vars-all-yml">Step 1: Update <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-apply-with-the-cluster-tag">Step 2: Apply with the cluster tag</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-return-to-main">Step 3: Return to main</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#working-in-a-fork">Working in a fork</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fixing-stale-repo-branch-in-the-live-application">Fixing stale <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> in the live Application</a></li>
 </ul>
   </nav></div>
 
