@@ -211,7 +211,24 @@ Cloudflare Access policies if desired (e.g. API endpoint open for MCP,
 Studio behind browser-based login).
 :::
 
-## 6 -- Configure Claude.ai MCP connector
+## 6 -- Access Supabase Studio
+
+Supabase Studio is the admin UI for browsing tables, running SQL, and
+managing the database schema.
+
+Via ingress (after Cloudflare tunnel setup): **https://supabase.\<your-domain\>**
+
+Via port-forward (works immediately):
+
+```bash
+kubectl port-forward svc/supabase-supabase-kong -n supabase 8000:8000
+# Open http://localhost:8000 in your browser
+```
+
+Login with the dashboard credentials you generated in step 2
+(default username: `admin`).
+
+## 7 -- Configure Claude.ai MCP connector
 
 In your [Claude.ai Project](https://claude.ai/) settings, add an MCP
 connector:
