@@ -24,3 +24,11 @@ explanations/network-policies
 explanations/security
 explanations/security-hardening
 ```
+
+## Decisions
+
+```{toctree}
+:maxdepth: 1
+
+explanations/decisions
+```

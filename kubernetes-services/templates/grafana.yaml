@@ -39,6 +39,13 @@ spec:
               size: 30Gi
               finalizers:
                 - kubernetes.io/pvc-protection
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+            nodeSelector:
+              kubernetes.io/hostname: ws03
 
           prometheus:
             annotations:
@@ -53,6 +60,41 @@ spec:
                     resources:
                       requests:
                         storage: 40Gi
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+              nodeSelector:
+                kubernetes.io/hostname: ws03
+
+          alertmanager:
+            alertmanagerSpec:
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+              nodeSelector:
+                kubernetes.io/hostname: ws03
+
+          prometheusOperator:
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+            nodeSelector:
+              kubernetes.io/hostname: ws03
+
+          kube-state-metrics:
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+            nodeSelector:
+              kubernetes.io/hostname: ws03
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
