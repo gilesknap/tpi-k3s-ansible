@@ -73,6 +73,12 @@ spec:
                   effect: NoSchedule
 
           prometheusOperator:
+            admissionWebhooks:
+              # Disabled: hook jobs (admission-create/patch) delete themselves before
+              # ArgoCD records Succeeded, causing every sync to get permanently stuck.
+              # Same fix as ingress-nginx (eaaa0f1). The webhook validates CRD syntax
+              # but is not required for operation.
+              enabled: false
             tolerations:
               - key: workstation
                 operator: Equal
