@@ -52,13 +52,18 @@ GitHub emails to ArgoCD RBAC roles.
 **Step 2:** Seal the Dex credentials:
 
 ```bash
+read -rp  'GitHub Client ID: ' CLIENT_ID
+read -rsp 'GitHub Client Secret: ' CLIENT_SECRET && echo
+
 kubectl create secret generic argocd-dex-credentials \
   --namespace argo-cd \
   --from-literal=dex.github.clientID="$CLIENT_ID" \
   --from-literal=dex.github.clientSecret="$CLIENT_SECRET" \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+  /workspaces/tpi-k3s-ansible/kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+
+unset CLIENT_ID CLIENT_SECRET
 ```
 
 **Step 3:** Edit RBAC in ``kubernetes-services/additions/argocd/argocd-rbac-cm.yml``:
@@ -94,13 +99,18 @@ Grafana authenticates directly with GitHub and maps emails to Grafana roles
 **Step 2:** Seal the credentials:
 
 ```bash
+read -rp  'GitHub Client ID: ' CLIENT_ID
+read -rsp 'GitHub Client Secret: ' CLIENT_SECRET && echo
+
 kubectl create secret generic grafana-oauth \
   --namespace monitoring \
   --from-literal=GF_AUTH_GENERIC_OAUTH_CLIENT_ID="$CLIENT_ID" \
   --from-literal=GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET="$CLIENT_SECRET" \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+  /workspaces/tpi-k3s-ansible/kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+
+unset CLIENT_ID CLIENT_SECRET
 ```
 
 **Step 3:** Edit admin emails in ``kubernetes-services/values.yaml``:
