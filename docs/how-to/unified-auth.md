@@ -55,7 +55,7 @@ GitHub emails to ArgoCD RBAC roles.
 read -rp  'GitHub Client ID: ' CLIENT_ID
 read -rsp 'GitHub Client Secret: ' CLIENT_SECRET && echo
 
-kubectl create secret generic argocd-dex-credentials \
+kubectl create secret generic argocd-secret \
   --namespace argo-cd \
   --from-literal=dex.github.clientID="$CLIENT_ID" \
   --from-literal=dex.github.clientSecret="$CLIENT_SECRET" \
@@ -177,11 +177,15 @@ To revert to basic oauth2-proxy gateway auth (no native OIDC):
 
 ### ArgoCD shows "Login" but Dex fails
 
-Check that the SealedSecret has been unsealed:
+Check that the SealedSecret has been unsealed and the Dex keys exist in
+``argocd-secret``:
 
 ```bash
-kubectl get secret argocd-dex-credentials -n argo-cd
+kubectl get secret argocd-secret -n argo-cd -o jsonpath='{.data}' | python3 -c "import sys,json; print(list(json.load(sys.stdin).keys()))"
 ```
+
+Expected keys include ``dex.github.clientID`` and ``dex.github.clientSecret``
+alongside the existing keys (``admin.password``, ``server.secretkey``, etc.).
 
 Check Dex logs:
 
