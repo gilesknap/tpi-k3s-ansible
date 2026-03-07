@@ -8,8 +8,8 @@ data:
   # Dex provides OIDC bridging for GitHub (GitHub is not a native OIDC
   # provider). The GitHub OAuth App callback URL must be set to:
   #   https://argocd.gkcluster.org/api/dex/callback
-  # Dex reads clientID and clientSecret from argocd-secret (keys
-  # dex.github.clientID and dex.github.clientSecret).
+  # Dex reads clientID and clientSecret from the argocd-dex-credentials
+  # secret using ArgoCD's $<secret>:<key> syntax (v2.8+).
   # See docs/how-to/unified-auth.md for setup instructions.
   dex.config: |
     connectors:
@@ -17,8 +17,8 @@ data:
         id: github
         name: GitHub
         config:
-          clientID: $dex.github.clientID
-          clientSecret: $dex.github.clientSecret
+          clientID: $argocd-dex-credentials:dex.github.clientID
+          clientSecret: $argocd-dex-credentials:dex.github.clientSecret
 
   resource.customizations: |
     monitoring.coreos.com/Prometheus:
