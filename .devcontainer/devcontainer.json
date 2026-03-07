@@ -55,11 +55,19 @@
 		"source=iac2-bin,target=/root/bin,type=volume",
 		"source=iac2-ssh,target=/root/.ssh,type=volume",
 		"source=iac2-kube,target=/root/.kube,type=volume",
+		// Mount in the user terminal config folder so it can be edited
+		{
+			"source": "${localEnv:HOME}/.config/terminal-config",
+			"target": "/user-terminal-config",
+			"type": "bind"
+		},
+		// Keep a persistent cross container cache for uv, pre-commit, and the venvs
 		{
 			"source": "devcontainer-shared-cache",
 			"target": "/cache",
 			"type": "volume"
 		},
+		// Mount in the .claude folder for claude user config access
 		"source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind"
 	],
 	"remoteEnv": {
