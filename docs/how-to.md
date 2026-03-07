@@ -22,6 +22,7 @@ how-to/oauth-setup
 
 how-to/rkllama-models
 how-to/llamacpp-models
+how-to/open-brain
 how-to/add-remove-services
 ```
 

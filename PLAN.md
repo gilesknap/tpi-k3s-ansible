@@ -19,7 +19,7 @@ Supabase Stack (k3s)
   - Auth, Storage, Studio
   |
   v
-NFS (192.168.1.3:/bigdisk/OpenBrain)
+Longhorn (block storage for Postgres)
 ```
 
 ## Components
@@ -30,7 +30,7 @@ NFS (192.168.1.3:/bigdisk/OpenBrain)
 | MCP Function | Edge Function with 4 tools (capture, search, list, stats) | supabase |
 | API Ingress | supabase-api.gkcluster.org (x-brain-key auth, no OAuth) | supabase |
 | Studio Ingress | supabase.gkcluster.org (behind OAuth2 proxy) | supabase |
-| NFS PV/PVC | Postgres data on NAS | supabase |
+| Longhorn PVC | Postgres data (block storage) | supabase |
 
 ## MCP Tools
 
