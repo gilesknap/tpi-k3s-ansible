@@ -15,275 +15,28 @@ spec:
     # Source 1: Supabase community Helm chart
     - chart: supabase
       repoURL: https://supabase-community.github.io/supabase-kubernetes
-      targetRevision: 0.2.*
+      targetRevision: 0.5.*
       helm:
         valuesObject:
-          # Disable unused components to save resources
-          analytics:
-            enabled: false
-          imgproxy:
-            enabled: false
-          vector:
-            enabled: false
-          minio:
-            enabled: false
-
-          # Core components
-          db:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 250m
-                memory: 512Mi
-              limits:
-                cpu: "1"
-                memory: 1Gi
-            persistence:
-              enabled: true
-              existingClaim: supabase-db-data
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-            # Database initialization: pgvector + thoughts schema
-            initdbScripts:
-              init-open-brain.sql: |
-                -- Enable pgvector extension
-                create extension if not exists vector with schema extensions;
-
-                -- thoughts table
-                create table if not exists public.thoughts (
-                  id uuid default gen_random_uuid() primary key,
-                  content text not null,
-                  embedding extensions.vector(1536),
-                  metadata jsonb default '{}'::jsonb,
-                  created_at timestamptz default now(),
-                  updated_at timestamptz default now()
-                );
-
-                -- indexes
-                create index if not exists thoughts_embedding_idx on public.thoughts
-                  using hnsw (embedding extensions.vector_cosine_ops);
-                create index if not exists thoughts_metadata_idx on public.thoughts
-                  using gin (metadata);
-                create index if not exists thoughts_created_at_idx on public.thoughts
-                  (created_at desc);
-
-                -- auto-update trigger
-                create or replace function public.update_updated_at()
-                returns trigger as $$
-                begin
-                  new.updated_at = now();
-                  return new;
-                end;
-                $$ language plpgsql;
-
-                drop trigger if exists thoughts_updated_at on public.thoughts;
-                create trigger thoughts_updated_at
-                  before update on public.thoughts
-                  for each row execute function public.update_updated_at();
-
-                -- semantic search function (ready for embeddings)
-                create or replace function public.match_thoughts(
-                  query_embedding extensions.vector(1536),
-                  match_threshold float default 0.7,
-                  match_count int default 10,
-                  filter jsonb default '{}'::jsonb
-                ) returns setof public.thoughts
-                language plpgsql as $$
-                begin
-                  return query
-                    select *
-                    from public.thoughts
-                    where
-                      (filter = '{}'::jsonb or metadata @> filter)
-                      and embedding is not null
-                      and 1 - (embedding <=> query_embedding) > match_threshold
-                    order by embedding <=> query_embedding
-                    limit match_count;
-                end;
-                $$;
-
-                -- RLS
-                alter table public.thoughts enable row level security;
-                do $$
-                begin
-                  if not exists (
-                    select 1 from pg_policies
-                    where tablename = 'thoughts' and policyname = 'Service role full access'
-                  ) then
-                    create policy "Service role full access" on public.thoughts
-                      for all using (auth.role() = 'service_role');
-                  end if;
-                end $$;
-
-          auth:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 128Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          rest:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          realtime:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 128Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          storage:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          functions:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 500m
-                memory: 512Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          studio:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 128Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          kong:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 500m
-                memory: 512Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          meta:
-            enabled: true
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
-              limits:
-                cpu: 250m
-                memory: 256Mi
-            nodeSelector:
-              kubernetes.io/arch: amd64
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
-
-          # Secret references — the supabase-credentials secret is created
-          # by kubeseal in additions/supabase/templates/
+          # -- Secrets: reference the SealedSecret we commit to the repo --
           secret:
             jwt:
               secretRef: supabase-credentials
               secretRefKey:
-                anonKey: jwt-anon-key
-                serviceKey: jwt-service-key
-                secret: jwt-secret
+                anonKey: anonKey
+                serviceKey: serviceKey
+                secret: secret
             db:
               secretRef: supabase-credentials
               secretRefKey:
-                username: db-username
-                password: db-password
+                password: password
+                database: database
             dashboard:
               secretRef: supabase-credentials
               secretRefKey:
-                username: dashboard-username
+                username: username
                 password: dashboard-password
+                openAiApiKey: openAiApiKey
             smtp:
               secretRef: supabase-credentials
               secretRefKey:
@@ -292,7 +45,270 @@ spec:
             analytics:
               secretRef: supabase-credentials
               secretRefKey:
-                apiKey: analytics-api-key
+                publicAccessToken: publicAccessToken
+                privateAccessToken: privateAccessToken
+            realtime:
+              secretRef: supabase-credentials
+              secretRefKey:
+                secretKeyBase: secretKeyBase
+            meta:
+              secretRef: supabase-credentials
+              secretRefKey:
+                cryptoKey: cryptoKey
+
+          # -- Deployment: enable/disable components, resources, scheduling --
+          deployment:
+            # Disable unused components
+            analytics:
+              enabled: false
+            imgproxy:
+              enabled: false
+            vector:
+              enabled: false
+            minio:
+              enabled: false
+
+            db:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            auth:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            rest:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            realtime:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            storage:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            functions:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            studio:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            kong:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+            meta:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+          # -- Persistence: use our NFS-backed PVC --
+          persistence:
+            db:
+              enabled: true
+              storageClassName: ""
+              existingClaim: supabase-db-data
+              size: 50Gi
+
+          # -- Database migration: pgvector + thoughts schema --
+          migration:
+            init-open-brain.sql: |
+              -- Enable pgvector extension
+              create extension if not exists vector with schema extensions;
+
+              -- thoughts table
+              create table if not exists public.thoughts (
+                id uuid default gen_random_uuid() primary key,
+                content text not null,
+                embedding extensions.vector(1536),
+                metadata jsonb default '{}'::jsonb,
+                created_at timestamptz default now(),
+                updated_at timestamptz default now()
+              );
+
+              -- indexes
+              create index if not exists thoughts_embedding_idx on public.thoughts
+                using hnsw (embedding extensions.vector_cosine_ops);
+              create index if not exists thoughts_metadata_idx on public.thoughts
+                using gin (metadata);
+              create index if not exists thoughts_created_at_idx on public.thoughts
+                (created_at desc);
+
+              -- auto-update trigger
+              create or replace function public.update_updated_at()
+              returns trigger as $$
+              begin
+                new.updated_at = now();
+                return new;
+              end;
+              $$ language plpgsql;
+
+              drop trigger if exists thoughts_updated_at on public.thoughts;
+              create trigger thoughts_updated_at
+                before update on public.thoughts
+                for each row execute function public.update_updated_at();
+
+              -- semantic search function (ready for embeddings)
+              create or replace function public.match_thoughts(
+                query_embedding extensions.vector(1536),
+                match_threshold float default 0.7,
+                match_count int default 10,
+                filter jsonb default '{}'::jsonb
+              ) returns setof public.thoughts
+              language plpgsql as $$
+              begin
+                return query
+                  select *
+                  from public.thoughts
+                  where
+                    (filter = '{}'::jsonb or metadata @> filter)
+                    and embedding is not null
+                    and 1 - (embedding <=> query_embedding) > match_threshold
+                  order by embedding <=> query_embedding
+                  limit match_count;
+              end;
+              $$;
+
+              -- RLS
+              alter table public.thoughts enable row level security;
+              do $$
+              begin
+                if not exists (
+                  select 1 from pg_policies
+                  where tablename = 'thoughts' and policyname = 'Service role full access'
+                ) then
+                  create policy "Service role full access" on public.thoughts
+                    for all using (auth.role() = 'service_role');
+                end if;
+              end $$;
 
     # Source 2: Reusable ingress for Studio (behind oauth2-proxy)
     - path: ./kubernetes-services/additions/ingress
@@ -302,8 +318,8 @@ spec:
         valuesObject:
           name: supabase
           cluster_domain: {{ .Values.cluster_domain }}
-          service_name: supabase-studio
-          service_port: 3000
+          service_name: supabase-kong
+          service_port: 8000
           oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
 
