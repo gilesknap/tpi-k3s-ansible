@@ -121,6 +121,51 @@ kubectl patch application all-cluster-services -n argo-cd --type json \
 
 See [](../how-to/work-in-branches.md) for full details.
 
+## Browser
+
+### Service shows blank page or stale UI after config change
+
+**Symptom:** A web service (typically Headlamp) loads the page chrome but shows
+no content, or displays an outdated version of the UI. Works correctly in
+incognito/private mode.
+
+**Cause:** Browsers aggressively cache JavaScript bundles, service workers, and
+API responses. After a cluster reconfiguration or branch switch, the cached
+assets may not match the current backend state.
+
+**Fix (per-site):**
+
+1. Open DevTools (`F12`) → **Application** tab → **Storage** → click
+   **Clear site data** (tick all boxes including "Unregister service workers")
+2. Hard-reload: `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (macOS)
+
+**Fix (nuclear — reset all Chrome state for one site):**
+
+1. Navigate to the affected URL
+2. Click the padlock/tune icon in the address bar → **Site settings**
+3. Click **Clear data** to remove cookies, cache, and local storage for that
+   origin
+4. Reload the page
+
+**Fix (Chrome profile reset — if the above doesn't help):**
+
+Chrome can cache redirect state in places that "Clear site data" doesn't reach.
+A profile reset clears this without deleting bookmarks or saved passwords:
+
+1. Navigate to ``chrome://settings/reset``
+2. Click **Restore settings to their original defaults**
+3. Reload the affected page
+
+**Fix (other browsers):**
+
+- Firefox: **Settings** → **Privacy** → **Clear Data** → **Cached Web Content**
+- Try an incognito/private window first to confirm it's a caching issue
+
+:::{tip}
+When testing cluster changes that affect web UIs, use an incognito window first.
+This avoids polluting your browser cache with intermediate states.
+:::
+
 ## Longhorn
 
 ### Cannot uninstall Longhorn
