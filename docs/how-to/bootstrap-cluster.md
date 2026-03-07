@@ -70,6 +70,19 @@ kubectl patch application all-cluster-services -n argo-cd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
+## Generate a Headlamp Login Token
+
+Headlamp uses Kubernetes token authentication rather than the shared admin
+password. Generate a token for the pre-configured ``headlamp-admin`` service
+account:
+
+```bash
+kubectl create token headlamp-admin -n headlamp --duration=24h
+```
+
+Paste the token into the Headlamp login screen. Tokens expire after the
+specified duration — re-run the command to generate a new one.
+
 ## Clean Up the Initial Admin Secret
 
 After verifying everything works, delete the auto-generated secret:
