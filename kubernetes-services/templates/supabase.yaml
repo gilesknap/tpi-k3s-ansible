@@ -78,12 +78,6 @@ spec:
                 limits:
                   cpu: "1"
                   memory: 1Gi
-              # NFS root_squash prevents chown — run as postgres user
-              podSecurityContext:
-                fsGroup: 999
-              securityContext:
-                runAsUser: 999
-                runAsGroup: 999
               nodeSelector:
                 kubernetes.io/arch: amd64
               tolerations:
@@ -236,12 +230,11 @@ spec:
                   value: "true"
                   effect: NoSchedule
 
-          # -- Persistence: use our NFS-backed PVC --
+          # -- Persistence: use Longhorn for DB (NFS is unreliable for Postgres) --
           persistence:
             db:
               enabled: true
-              storageClassName: ""
-              existingClaim: supabase-db-data
+              storageClassName: longhorn
               size: 50Gi
 
           # -- Database migration: pgvector + thoughts schema --
