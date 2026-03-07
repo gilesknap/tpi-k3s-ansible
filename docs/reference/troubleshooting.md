@@ -104,22 +104,6 @@ kubectl -n argo-cd delete app <app-name>
 # ArgoCD will re-create it from the parent all-cluster-services app
 ```
 
-### Stale `valuesObject` after branch switch
-
-**Symptom:** ArgoCD child apps still track the old branch after switching
-`targetRevision` in the root app.
-
-**Cause:** A `valuesObject` field in the live Application CR overrides the
-`repo_branch` from `values.yaml`.
-
-**Fix:**
-
-```bash
-kubectl patch application all-cluster-services -n argo-cd --type json \
-  -p '[{"op":"remove","path":"/spec/source/helm/valuesObject/repo_branch"}]'
-```
-
-See [](../how-to/work-in-branches.md) for full details.
 
 ## Browser
 

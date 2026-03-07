@@ -12,9 +12,8 @@
 
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
-- **Dual `repo_branch`** — must update both `group_vars/all.yml` AND
-  `kubernetes-services/values.yaml` when switching branches. They cannot be
-  unified (Ansible bootstrap vs ArgoCD runtime).
+- **Branch switching** — only edit `group_vars/all.yml` `repo_branch`, then
+  run `--tags cluster`. The root app passes it down to all child apps.
 - **`known_hosts` task must be `serial: 1`** — parallel writes race.
 - **Traefik is disabled** — project uses `--disable=traefik` with NGINX Ingress.
 - **No automated tests** — validate by running playbook tags against the cluster.
