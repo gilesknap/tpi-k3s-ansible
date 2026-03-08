@@ -1,0 +1,831 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Open Brain (AI Memory) &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/open-brain';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Connect Claude.ai to Cluster Services via MCP" href="claude-ai-mcp.html" />
+    <link rel="prev" title="llama.cpp CUDA Models" href="llamacpp-models.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Open Brain (AI Memory)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Open Brain (AI Memory)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="open-brain-ai-memory">
+<h1>Open Brain (AI Memory)<a class="headerlink" href="#open-brain-ai-memory" title="Link to this heading">#</a></h1>
+<p>Open Brain is an optional self-hosted <a class="reference external" href="https://supabase.com/">Supabase</a> stack
+that provides persistent AI memory accessible via
+<a class="reference external" href="https://modelcontextprotocol.io/">MCP</a> (Model Context Protocol). It lets
+Claude.ai (or any MCP-compatible tool) capture, search, and recall thoughts
+across conversations.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This feature requires an <strong>x86/amd64 node</strong> in your cluster. The Supabase
+container images do not reliably support ARM64.</p>
+</div>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>An x86/amd64 node in your cluster (any node with <code class="docutils literal notranslate"><span class="pre">kubernetes.io/arch:</span> <span class="pre">amd64</span></code>)</p></li>
+<li><p>An NFS export for database backups (optional — the database uses Longhorn
+by default)</p></li>
+<li><p><a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc std std-doc">Cloudflare Tunnel</span></a> configured (for external access)</p></li>
+<li><p><a class="reference internal" href="oauth-setup.html"><span class="doc std std-doc">OAuth2 proxy</span></a> configured (for Studio dashboard access)</p></li>
+</ul>
+</section>
+<section id="enable-supabase-in-values-yaml">
+<h2>1 – Enable Supabase in values.yaml<a class="headerlink" href="#enable-supabase-in-values-yaml" title="Link to this heading">#</a></h2>
+<p>Edit <strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></strong> and add at the end:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Supabase self-hosted stack for Open Brain AI memory.</span>
+<span class="nt">enable_supabase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="nt">supabase</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">      </span><span class="c1"># your NFS server IP</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/OpenBrain</span><span class="w">  </span><span class="c1"># NFS export path (for future use)</span>
+
+<span class="c1"># Standalone MCP server for Claude.ai (OAuth 2.1 + GitHub identity).</span>
+<span class="nt">enable_open_brain_mcp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The NFS settings are currently used only by the additions chart for potential
+future storage needs. The PostgreSQL database uses Longhorn block storage,
+which is more reliable for database workloads.</p>
+</div>
+</section>
+<section id="generate-and-seal-credentials">
+<h2>2 – Generate and seal credentials<a class="headerlink" href="#generate-and-seal-credentials" title="Link to this heading">#</a></h2>
+<p>Generate all the secrets Supabase needs. You will need <code class="docutils literal notranslate"><span class="pre">openssl</span></code>, <code class="docutils literal notranslate"><span class="pre">python3</span></code>
+with <code class="docutils literal notranslate"><span class="pre">PyJWT</span></code>, and <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>.</p>
+<section id="generate-raw-credentials">
+<h3>Generate raw credentials<a class="headerlink" href="#generate-raw-credentials" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># JWT secret (signs all Supabase tokens)</span>
+<span class="nv">JWT_SECRET</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+
+<span class="c1"># Postgres password</span>
+<span class="nv">DB_PASSWORD</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+
+<span class="c1"># Realtime secret key base (Phoenix framework)</span>
+<span class="nv">REALTIME_SECRET</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">64</span><span class="k">)</span>
+
+<span class="c1"># Meta crypto key (encrypts metadata at rest)</span>
+<span class="nv">META_CRYPTO_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+
+<span class="c1"># MCP access key (your x-brain-key for API auth)</span>
+<span class="nv">MCP_ACCESS_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+
+<span class="c1"># Dashboard password</span>
+<span class="nv">DASHBOARD_PASSWORD</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">24</span><span class="k">)</span>
+
+<span class="c1"># Analytics key (required even though analytics is disabled)</span>
+<span class="nv">ANALYTICS_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+</pre></div>
+</div>
+</section>
+<section id="generate-supabase-jwts">
+<h3>Generate Supabase JWTs<a class="headerlink" href="#generate-supabase-jwts" title="Link to this heading">#</a></h3>
+<p>Install PyJWT if needed (<code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">PyJWT</span></code>), then generate the anon
+and service_role tokens:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<span class="s2">import jwt, time</span>
+<span class="s2">secret = &#39;</span><span class="nv">$JWT_SECRET</span><span class="s2">&#39;</span>
+<span class="s2">print(&#39;ANON_KEY=&#39; + jwt.encode(</span>
+<span class="s2">    {&#39;role&#39;: &#39;anon&#39;, &#39;iss&#39;: &#39;supabase&#39;,</span>
+<span class="s2">     &#39;iat&#39;: int(time.time()), &#39;exp&#39;: int(time.time()) + 10*365*24*3600},</span>
+<span class="s2">    secret, algorithm=&#39;HS256&#39;))</span>
+<span class="s2">print(&#39;SERVICE_KEY=&#39; + jwt.encode(</span>
+<span class="s2">    {&#39;role&#39;: &#39;service_role&#39;, &#39;iss&#39;: &#39;supabase&#39;,</span>
+<span class="s2">     &#39;iat&#39;: int(time.time()), &#39;exp&#39;: int(time.time()) + 10*365*24*3600},</span>
+<span class="s2">    secret, algorithm=&#39;HS256&#39;))</span>
+<span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Save the output — you will need the <code class="docutils literal notranslate"><span class="pre">ANON_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">SERVICE_KEY</span></code>, and especially
+the <code class="docutils literal notranslate"><span class="pre">MCP_ACCESS_KEY</span></code> later.</p>
+</section>
+<section id="create-the-namespace-and-seal-the-secret">
+<h3>Create the namespace and seal the secret<a class="headerlink" href="#create-the-namespace-and-seal-the-secret" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create namespace so kubeseal can scope the encryption</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>supabase
+
+<span class="c1"># Create and seal all credentials</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>supabase-credentials<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="o">=</span>supabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">secret</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$JWT_SECRET</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">anonKey</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ANON_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">serviceKey</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">password</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$DB_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">database</span><span class="o">=</span>postgres<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">username</span><span class="o">=</span>admin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>dashboard-password<span class="o">=</span><span class="s2">&quot;</span><span class="nv">$DASHBOARD_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>smtp-username<span class="o">=</span>noreply@example.com<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>smtp-password<span class="o">=</span>dummy-not-configured<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">secretKeyBase</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$REALTIME_SECRET</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">cryptoKey</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$META_CRYPTO_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>mcp-access-key<span class="o">=</span><span class="s2">&quot;</span><span class="nv">$MCP_ACCESS_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">publicAccessToken</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ANALYTICS_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">privateAccessToken</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ANALYTICS_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">openAiApiKey</span><span class="o">=</span>not-configured<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubeseal<span class="w"> </span>--format<span class="w"> </span>yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>kubernetes-services/additions/supabase/templates/supabase-secret.yaml
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Save your <code class="docutils literal notranslate"><span class="pre">MCP_ACCESS_KEY</span></code> somewhere secure — you will need it to configure
+the Claude.ai MCP connector. The sealed secret file is safe to commit to Git.</p>
+</div>
+</section>
+</section>
+<section id="commit-and-deploy">
+<h2>3 – Commit and deploy<a class="headerlink" href="#commit-and-deploy" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>kubernetes-services/additions/supabase/templates/supabase-secret.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Enable Open Brain (Supabase) with sealed credentials&quot;</span>
+git<span class="w"> </span>push
+</pre></div>
+</div>
+<p>Then deploy via the playbook:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
+</pre></div>
+</div>
+<p>ArgoCD will create the <code class="docutils literal notranslate"><span class="pre">supabase</span></code> Application and deploy all components.
+Monitor progress:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Watch ArgoCD app status</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>app<span class="w"> </span>supabase<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>-w
+
+<span class="c1"># Watch pods come up</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>-w
+</pre></div>
+</div>
+<p>All 9 pods should reach <code class="docutils literal notranslate"><span class="pre">Running</span></code> status within a few minutes:
+db, auth, rest, realtime, storage, functions, studio, kong, meta.</p>
+</section>
+<section id="verify-the-deployment">
+<h2>4 – Verify the deployment<a class="headerlink" href="#verify-the-deployment" title="Link to this heading">#</a></h2>
+<section id="check-the-database-schema">
+<h3>Check the database schema<a class="headerlink" href="#check-the-database-schema" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verify pgvector extension</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>supabase_admin<span class="w"> </span>-d<span class="w"> </span>postgres<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span><span class="s2">&quot;SELECT extname FROM pg_extension WHERE extname=&#39;vector&#39;;&quot;</span>
+
+<span class="c1"># Verify thoughts table</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>supabase_admin<span class="w"> </span>-d<span class="w"> </span>postgres<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;\dt public.*&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="test-the-postgrest-api">
+<h3>Test the PostgREST API<a class="headerlink" href="#test-the-postgrest-api" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Insert a test thought (use your SERVICE_KEY)</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;apikey: </span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Prefer: return=representation&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;content&quot;:&quot;Test thought&quot;,&quot;metadata&quot;:{&quot;type&quot;:&quot;test&quot;}}&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://<span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-kong<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.spec.clusterIP}&#39;</span><span class="k">)</span>:8000/rest/v1/thoughts
+
+<span class="c1"># Retrieve it</span>
+curl<span class="w"> </span>-s<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;apikey: </span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://<span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-kong<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.spec.clusterIP}&#39;</span><span class="k">)</span>:8000/rest/v1/thoughts
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configure-cloudflare-tunnel">
+<h2>5 – Configure Cloudflare Tunnel<a class="headerlink" href="#configure-cloudflare-tunnel" title="Link to this heading">#</a></h2>
+<p>In the <a class="reference external" href="https://one.dash.cloudflare.com/">Cloudflare Zero Trust dashboard</a>,
+add three public hostnames for your tunnel:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Hostname</p></th>
+<th class="head"><p>Service</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">supabase.&lt;your-domain&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://supabase-supabase-kong.supabase.svc.cluster.local:8000</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;your-domain&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://supabase-supabase-kong.supabase.svc.cluster.local:8000</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">brain.&lt;your-domain&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The first two hostnames point to Kong (Supabase API gateway). The third
+routes to the standalone MCP server via ingress-nginx. Configure a
+Cloudflare Access <strong>bypass</strong> for <code class="docutils literal notranslate"><span class="pre">brain.&lt;your-domain&gt;</span></code> so the OAuth flow
+is not blocked by browser-based Cloudflare authentication.</p>
+</div>
+</section>
+<section id="access-supabase-studio">
+<h2>6 – Access Supabase Studio<a class="headerlink" href="#access-supabase-studio" title="Link to this heading">#</a></h2>
+<p>Supabase Studio is the admin UI for browsing tables, running SQL, and
+managing the database schema.</p>
+<p>Via ingress (after Cloudflare tunnel setup): <strong>https://supabase.&lt;your-domain&gt;</strong></p>
+<p>Via port-forward (works immediately):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/supabase-supabase-kong<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="m">8000</span>:8000
+<span class="c1"># Open http://localhost:8000 in your browser</span>
+</pre></div>
+</div>
+<p>Login with the dashboard credentials you generated in step 2
+(default username: <code class="docutils literal notranslate"><span class="pre">admin</span></code>).</p>
+</section>
+<section id="connect-claude-ai-and-other-clients">
+<h2>7 – Connect Claude.ai and other clients<a class="headerlink" href="#connect-claude-ai-and-other-clients" title="Link to this heading">#</a></h2>
+<p>Open Brain exposes two interfaces:</p>
+<ul class="simple">
+<li><p><strong>MCP server</strong> (<code class="docutils literal notranslate"><span class="pre">brain.&lt;your-domain&gt;/mcp</span></code>) — for Claude.ai and other
+MCP-compatible clients. Uses OAuth 2.1 with GitHub identity. See
+<a class="reference internal" href="claude-ai-mcp.html"><span class="doc">Connect Claude.ai to Cluster Services via MCP</span></a> for the full setup guide.</p></li>
+<li><p><strong>REST API</strong> (<code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;your-domain&gt;/functions/v1/open-brain-mcp</span></code>) —
+for scripts, CLI tools, and direct API access. Uses <code class="docutils literal notranslate"><span class="pre">x-brain-key</span></code> header
+auth.</p></li>
+</ul>
+<p>See <a class="reference internal" href="claude-ai-mcp.html"><span class="doc">Connect Claude.ai to Cluster Services via MCP</span></a> for connecting Claude.ai via the MCP server,
+including GitHub OAuth App setup, project instructions, and troubleshooting.</p>
+</section>
+<section id="disable-open-brain">
+<h2>Disable Open Brain<a class="headerlink" href="#disable-open-brain" title="Link to this heading">#</a></h2>
+<p>To remove Supabase from your cluster, set <code class="docutils literal notranslate"><span class="pre">enable_supabase:</span> <span class="pre">false</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, commit, push, and re-run the playbook.
+ArgoCD will prune all Supabase resources. The Longhorn PVC retains your
+data until manually deleted.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="kong-oomkilled">
+<h3>Kong OOMKilled<a class="headerlink" href="#kong-oomkilled" title="Link to this heading">#</a></h3>
+<p>Kong requires at least 2Gi memory limit. If it keeps restarting with
+<code class="docutils literal notranslate"><span class="pre">OOMKilled</span></code>, check the resource limits in <code class="docutils literal notranslate"><span class="pre">templates/supabase.yaml</span></code>.</p>
+</section>
+<section id="no-api-key-found-in-request">
+<h3>“No API key found in request”<a class="headerlink" href="#no-api-key-found-in-request" title="Link to this heading">#</a></h3>
+<p>Supabase Kong uses the <code class="docutils literal notranslate"><span class="pre">apikey</span></code> header (not <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> alone).
+Always include both headers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>-H<span class="w"> </span><span class="s2">&quot;apikey: </span><span class="nv">$KEY</span><span class="s2">&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$KEY</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="database-pod-crashloopbackoff">
+<h3>Database pod CrashLoopBackOff<a class="headerlink" href="#database-pod-crashloopbackoff" title="Link to this heading">#</a></h3>
+<p>If the DB pod fails with <code class="docutils literal notranslate"><span class="pre">chown:</span> <span class="pre">Operation</span> <span class="pre">not</span> <span class="pre">permitted</span></code>, the storage
+backend does not support ownership changes. The default configuration uses
+Longhorn which handles this correctly. If you switched to NFS, you need
+<code class="docutils literal notranslate"><span class="pre">no_root_squash</span></code> on the NFS export.</p>
+</section>
+<section id="argocd-not-permitted-in-project">
+<h3>ArgoCD “not permitted in project”<a class="headerlink" href="#argocd-not-permitted-in-project" title="Link to this heading">#</a></h3>
+<p>The Supabase Helm chart repo must be in the ArgoCD project’s <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code>.
+Check <code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code> includes:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;https://supabase-community.github.io/supabase-kubernetes&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="llamacpp-models.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">llama.cpp CUDA Models</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="claude-ai-mcp.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Connect Claude.ai to Cluster Services via MCP</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#enable-supabase-in-values-yaml">1 – Enable Supabase in values.yaml</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generate-and-seal-credentials">2 – Generate and seal credentials</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generate-raw-credentials">Generate raw credentials</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#generate-supabase-jwts">Generate Supabase JWTs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-the-namespace-and-seal-the-secret">Create the namespace and seal the secret</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-and-deploy">3 – Commit and deploy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-the-deployment">4 – Verify the deployment</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-database-schema">Check the database schema</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-postgrest-api">Test the PostgREST API</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-cloudflare-tunnel">5 – Configure Cloudflare Tunnel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#access-supabase-studio">6 – Access Supabase Studio</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-claude-ai-and-other-clients">7 – Connect Claude.ai and other clients</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disable-open-brain">Disable Open Brain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kong-oomkilled">Kong OOMKilled</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#no-api-key-found-in-request">“No API key found in request”</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#database-pod-crashloopbackoff">Database pod CrashLoopBackOff</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-not-permitted-in-project">ArgoCD “not permitted in project”</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/open-brain.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/open-brain.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

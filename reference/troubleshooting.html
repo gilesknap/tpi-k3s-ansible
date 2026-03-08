@@ -481,6 +481,25 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w">
 </pre></div>
 </div>
 </section>
+<section id="application-stuck-in-running-operation-admission-webhooks">
+<h3>Application stuck in “Running” operation (admission webhooks)<a class="headerlink" href="#application-stuck-in-running-operation-admission-webhooks" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> An ArgoCD application shows a perpetual <code class="docutils literal notranslate"><span class="pre">Running</span></code> operation and
+never reaches <code class="docutils literal notranslate"><span class="pre">Synced</span></code>, even though all resources are healthy.</p>
+<p><strong>Cause:</strong> Charts like <code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> and <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> include
+admission webhook jobs with <code class="docutils literal notranslate"><span class="pre">helm.sh/hook-delete-policy:</span> <span class="pre">hook-succeeded</span></code>. The
+job deletes itself before ArgoCD records completion, leaving the operation stuck.</p>
+<p><strong>Fix:</strong> Disable admission webhooks in the chart values:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># In kubernetes-services/values.yaml (under the affected app)</span>
+<span class="nt">admissionWebhooks</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>If the operation is already stuck, clear it manually:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>patch<span class="w"> </span>app<span class="w"> </span>&lt;app-name&gt;<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>--type<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-p<span class="w"> </span><span class="s1">&#39;[{&quot;op&quot;: &quot;remove&quot;, &quot;path&quot;: &quot;/operation&quot;}]&#39;</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="browser">
 <h2>Browser<a class="headerlink" href="#browser" title="Link to this heading">#</a></h2>
@@ -695,6 +714,44 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class=
 <p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
 </section>
 </section>
+<section id="supabase">
+<h2>Supabase<a class="headerlink" href="#supabase" title="Link to this heading">#</a></h2>
+<section id="postgres-fails-on-nfs-storage">
+<h3>Postgres fails on NFS storage<a class="headerlink" href="#postgres-fails-on-nfs-storage" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Supabase Postgres pod crashes with <code class="docutils literal notranslate"><span class="pre">chown</span></code> or permission errors.</p>
+<p><strong>Cause:</strong> NFS with <code class="docutils literal notranslate"><span class="pre">root_squash</span></code> prevents the Postgres container (UID 105,
+GID 106) from changing file ownership. Unlike most Postgres images that use
+UID/GID 999, the Supabase image uses non-standard IDs.</p>
+<p><strong>Fix:</strong> Use Longhorn (or another block storage provider) instead of NFS for
+the Postgres PVC. See <a class="reference internal" href="../explanations/decisions/0006-supabase-nfs-storage.html"><span class="doc">6. Supabase Database Storage on NAS via NFS</span></a>.</p>
+</section>
+<section id="kong-oomkilled">
+<h3>Kong OOMKilled<a class="headerlink" href="#kong-oomkilled" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Supabase Kong pod restarts repeatedly with <code class="docutils literal notranslate"><span class="pre">OOMKilled</span></code>.</p>
+<p><strong>Fix:</strong> Set Kong memory limit to at least 2Gi. Lower values (512Mi–1Gi)
+cause consistent OOM kills under normal load.</p>
+</section>
+<section id="edge-function-not-updating-after-configmap-change">
+<h3>Edge Function not updating after ConfigMap change<a class="headerlink" href="#edge-function-not-updating-after-configmap-change" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Supabase Edge Function serves stale code after updating the
+ConfigMap.</p>
+<p><strong>Cause:</strong> subPath ConfigMap mounts do not receive automatic updates from
+Kubernetes. The pod must be restarted to pick up changes.</p>
+<p><strong>Fix:</strong> Delete the Edge Function pod to force a restart:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/name<span class="o">=</span>supabase-functions
+</pre></div>
+</div>
+</section>
+<section id="edge-function-returns-404">
+<h3>Edge Function returns 404<a class="headerlink" href="#edge-function-returns-404" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Requests to the Edge Function return 404 Not Found.</p>
+<p><strong>Cause:</strong> The Supabase Edge Runtime requires the <code class="docutils literal notranslate"><span class="pre">basePath</span></code> in the Hono
+application to match the function directory name (the subPath mount point).</p>
+<p><strong>Fix:</strong> Ensure the <code class="docutils literal notranslate"><span class="pre">basePath</span></code> in the function code matches the directory name.
+For example, if the function is mounted at <code class="docutils literal notranslate"><span class="pre">/open-brain-mcp</span></code>, the Hono app must
+use <code class="docutils literal notranslate"><span class="pre">basePath:</span> <span class="pre">'/open-brain-mcp'</span></code>.</p>
+</section>
+</section>
 <section id="hardware">
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
@@ -791,6 +848,7 @@ tpi<span class="w"> </span>info
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">ArgoCD</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-syncing">Application stuck in “Syncing”</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-running-operation-admission-webhooks">Application stuck in “Running” operation (admission webhooks)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser">Browser</a><ul class="nav section-nav flex-column">
@@ -821,6 +879,13 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-control-plane">K3s Control Plane</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api-server-unreachable">API server unreachable</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-database-too-large">etcd database too large</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase">Supabase</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#postgres-fails-on-nfs-storage">Postgres fails on NFS storage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kong-oomkilled">Kong OOMKilled</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-not-updating-after-configmap-change">Edge Function not updating after ConfigMap change</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-returns-404">Edge Function returns 404</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">

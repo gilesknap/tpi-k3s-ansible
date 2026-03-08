@@ -193,6 +193,54 @@ create separate applications for each subdomain. The SSH application from
 
 4. Click **Save application**.
 
+### Bypass application for API endpoints
+
+Some hostnames serve programmatic API traffic (e.g. `supabase-api`) that must
+not be gated by browser-based email authentication. For these, create a
+**second** Access application with a bypass policy:
+
+1. In **Access controls → Applications**, click **Add an application** →
+   **Self-hosted**.
+2. Set:
+
+| Field | Value |
+|---|---|
+| Application name | A descriptive name (e.g. `API passthrough`) |
+| Subdomain | The API hostname (e.g. `supabase-api`) |
+| Domain | `example.com` |
+
+3. On the **Policies** tab, add a policy:
+
+| Field | Value |
+|---|---|
+| Policy name | `Bypass` |
+| Action | **Bypass** |
+| Include rule | **Everyone** |
+
+4. Click **Save application**.
+
+Cloudflare evaluates the most specific hostname match first, so this
+application takes priority over the wildcard for the API hostname. The API
+endpoint authenticates via its own mechanism (e.g. an API key header) instead
+of Cloudflare Access.
+
+### Editing existing Access applications
+
+To find and edit an application you created previously:
+
+1. In the **Zero Trust dashboard** ([one.dash.cloudflare.com](https://one.dash.cloudflare.com/)),
+   navigate to **Access controls → Applications**.
+2. All your applications are listed with their hostnames. Click the
+   **application name** to open its settings.
+3. Use the tabs at the top (**Overview**, **Policies**, **Authentication**,
+   **Settings**) to modify the application.
+
+:::{tip}
+If you cannot find an application, check the search/filter bar — it filters
+by application name and URL. Also verify you are in the correct Cloudflare
+account if you have multiple.
+:::
+
 ## Part 4: Enable the tunnel toggle
 
 Edit `kubernetes-services/values.yaml`:

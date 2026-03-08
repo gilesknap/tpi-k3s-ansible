@@ -97,6 +97,27 @@ an **NVIDIA GPU** node. The services will deploy on any cluster but inference ne
 the appropriate hardware.
 :::
 
+## Supabase Studio (Open Brain)
+
+Supabase Studio is the admin UI for the Open Brain database — browse tables,
+run SQL queries, and manage the `thoughts` schema.
+
+:::{note}
+Only available if you have enabled Open Brain — see {doc}`open-brain`.
+:::
+
+Via ingress: **https://supabase.\<domain\>** (behind OAuth2 proxy)
+
+Via port-forward:
+
+```bash
+kubectl port-forward svc/supabase-supabase-kong -n supabase 8000:8000
+# Open http://localhost:8000
+```
+
+Login with the dashboard username and password you generated during
+{doc}`open-brain` setup (default username: `admin`).
+
 ## Echo Test Service
 
 The echo service at **https://echo.\<domain\>** returns a JSON response with all

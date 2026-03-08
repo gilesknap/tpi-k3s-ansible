@@ -327,6 +327,8 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
 <ul class="nav bd-sidenav">
@@ -680,6 +682,83 @@ create separate applications for each subdomain. The SSH application from
 <ol class="arabic simple" start="4">
 <li><p>Click <strong>Save application</strong>.</p></li>
 </ol>
+<section id="bypass-application-for-api-endpoints">
+<h3>Bypass application for API endpoints<a class="headerlink" href="#bypass-application-for-api-endpoints" title="Link to this heading">#</a></h3>
+<p>Some hostnames serve programmatic API traffic (e.g. <code class="docutils literal notranslate"><span class="pre">supabase-api</span></code>) that must
+not be gated by browser-based email authentication. For these, create a
+<strong>second</strong> Access application with a bypass policy:</p>
+<ol class="arabic simple">
+<li><p>In <strong>Access controls → Applications</strong>, click <strong>Add an application</strong> →
+<strong>Self-hosted</strong>.</p></li>
+<li><p>Set:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Application name</p></td>
+<td><p>A descriptive name (e.g. <code class="docutils literal notranslate"><span class="pre">API</span> <span class="pre">passthrough</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Subdomain</p></td>
+<td><p>The API hostname (e.g. <code class="docutils literal notranslate"><span class="pre">supabase-api</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p>Domain</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>On the <strong>Policies</strong> tab, add a policy:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Policy name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Bypass</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Action</p></td>
+<td><p><strong>Bypass</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Include rule</p></td>
+<td><p><strong>Everyone</strong></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>Click <strong>Save application</strong>.</p></li>
+</ol>
+<p>Cloudflare evaluates the most specific hostname match first, so this
+application takes priority over the wildcard for the API hostname. The API
+endpoint authenticates via its own mechanism (e.g. an API key header) instead
+of Cloudflare Access.</p>
+</section>
+<section id="editing-existing-access-applications">
+<h3>Editing existing Access applications<a class="headerlink" href="#editing-existing-access-applications" title="Link to this heading">#</a></h3>
+<p>To find and edit an application you created previously:</p>
+<ol class="arabic simple">
+<li><p>In the <strong>Zero Trust dashboard</strong> (<a class="reference external" href="https://one.dash.cloudflare.com/">one.dash.cloudflare.com</a>),
+navigate to <strong>Access controls → Applications</strong>.</p></li>
+<li><p>All your applications are listed with their hostnames. Click the
+<strong>application name</strong> to open its settings.</p></li>
+<li><p>Use the tabs at the top (<strong>Overview</strong>, <strong>Policies</strong>, <strong>Authentication</strong>,
+<strong>Settings</strong>) to modify the application.</p></li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you cannot find an application, check the search/filter bar — it filters
+by application name and URL. Also verify you are in the correct Cloudflare
+account if you have multiple.</p>
+</div>
+</section>
 </section>
 <section id="part-4-enable-the-tunnel-toggle">
 <h2>Part 4: Enable the tunnel toggle<a class="headerlink" href="#part-4-enable-the-tunnel-toggle" title="Link to this heading">#</a></h2>
@@ -850,7 +929,11 @@ DNS resolver to return private IPs for the service hostnames.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-https-origin">ArgoCD (HTTPS origin)</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-create-cloudflare-access-policies-recommended">Part 3: Create Cloudflare Access policies (recommended)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-3-create-cloudflare-access-policies-recommended">Part 3: Create Cloudflare Access policies (recommended)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bypass-application-for-api-endpoints">Bypass application for API endpoints</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#editing-existing-access-applications">Editing existing Access applications</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-4-enable-the-tunnel-toggle">Part 4: Enable the tunnel toggle</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-5-verify">Part 5: Verify</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-outside-your-lan">From outside your LAN</a></li>

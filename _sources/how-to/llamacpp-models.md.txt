@@ -13,14 +13,14 @@ In `hosts.yml`, add your GPU machine to `extra_nodes` with `nvidia_gpu_node: tru
 ```yaml
 extra_nodes:
   hosts:
-    ws03:
+    my-gpu-node:                   # ← your GPU node's hostname
       nvidia_gpu_node: true  # installs NVIDIA container toolkit
 ```
 
 Then run the full provisioning for that node:
 
 ```bash
-ansible-playbook pb_all.yml --tags servers,k3s --limit ws03
+ansible-playbook pb_all.yml --tags servers,k3s --limit my-gpu-node
 ```
 
 This will:

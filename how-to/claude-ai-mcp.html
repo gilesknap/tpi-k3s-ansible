@@ -1,0 +1,774 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Connect Claude.ai to Cluster Services via MCP &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/claude-ai-mcp';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Add or Remove Services" href="add-remove-services.html" />
+    <link rel="prev" title="Open Brain (AI Memory)" href="open-brain.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Connect Claude.ai to Cluster Services via MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Connect Claude.ai to Cluster Services via MCP</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="connect-claude-ai-to-cluster-services-via-mcp">
+<h1>Connect Claude.ai to Cluster Services via MCP<a class="headerlink" href="#connect-claude-ai-to-cluster-services-via-mcp" title="Link to this heading">#</a></h1>
+<p>This guide explains how to connect <a class="reference external" href="https://claude.ai/">Claude.ai</a> to the
+Open Brain MCP server running in your cluster, giving Claude persistent tool
+access to your self-hosted AI memory system.</p>
+<p>The Open Brain MCP server speaks the
+<a class="reference external" href="https://modelcontextprotocol.io/">MCP protocol</a> (JSON-RPC over Streamable
+HTTP) and authenticates via OAuth 2.1 using GitHub as the identity provider.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>A working Cloudflare Tunnel with <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> deployed (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
+<li><p>The Open Brain stack deployed and healthy (<a class="reference internal" href="open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a>).</p></li>
+<li><p>A <strong>GitHub OAuth App</strong> configured for the MCP server (created in step 2 below).</p></li>
+<li><p>A Cloudflare Access <strong>bypass</strong> application for the MCP hostname so the
+OAuth flow is not blocked by browser-based Cloudflare authentication
+(see “Bypass application for API endpoints” in <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
+<li><p>A <a class="reference external" href="https://claude.ai/">Claude.ai</a> account with MCP integration access.</p></li>
+</ul>
+</section>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Claude</span><span class="o">.</span><span class="n">ai</span> <span class="p">(</span><span class="n">cloud</span><span class="p">)</span>
+  <span class="o">|</span>  <span class="n">OAuth</span> <span class="mf">2.1</span> <span class="n">flow</span> <span class="p">(</span><span class="n">GitHub</span> <span class="n">identity</span><span class="p">)</span>
+  <span class="o">|</span>  <span class="n">then</span><span class="p">:</span> <span class="n">Authorization</span><span class="p">:</span> <span class="n">Bearer</span> <span class="o">&lt;</span><span class="n">JWT</span><span class="o">&gt;</span>
+  <span class="n">v</span>
+<span class="n">Cloudflare</span> <span class="n">Edge</span> <span class="p">(</span><span class="n">bypass</span> <span class="n">Access</span> <span class="n">app</span> <span class="k">for</span> <span class="n">brain</span><span class="o">.&lt;</span><span class="n">your</span><span class="o">-</span><span class="n">domain</span><span class="o">&gt;</span><span class="p">)</span>
+  <span class="n">v</span>
+<span class="n">cloudflared</span> <span class="o">-&gt;</span> <span class="n">ingress</span><span class="o">-</span><span class="n">nginx</span>
+  <span class="n">v</span>
+<span class="nb">open</span><span class="o">-</span><span class="n">brain</span><span class="o">-</span><span class="n">mcp</span> <span class="n">pod</span> <span class="p">(</span><span class="n">Python</span><span class="p">,</span> <span class="n">port</span> <span class="mi">8000</span><span class="p">)</span>
+  <span class="o">|--</span> <span class="n">OAuth</span> <span class="n">endpoints</span> <span class="p">(</span><span class="o">/</span><span class="n">authorize</span><span class="p">,</span> <span class="o">/</span><span class="n">callback</span><span class="p">,</span> <span class="o">/</span><span class="n">token</span><span class="p">)</span>
+  <span class="s1">&#39;-- /mcp -&gt; MCP Streamable HTTP (JSON-RPC)</span>
+  <span class="n">v</span>
+<span class="n">PostgreSQL</span> <span class="p">(</span><span class="n">Supabase</span> <span class="n">DB</span><span class="p">,</span> <span class="n">internal</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Claude.ai initiates an OAuth 2.1 authorization code flow against the MCP
+server. The user authenticates with GitHub, the MCP server issues a JWT, and
+subsequent MCP requests include the token in the <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> header. The
+MCP server connects directly to the Supabase PostgreSQL database for all
+data operations.</p>
+</section>
+<section id="verify-the-health-endpoint">
+<h2>1 – Verify the health endpoint<a class="headerlink" href="#verify-the-health-endpoint" title="Link to this heading">#</a></h2>
+<p>Before configuring anything, confirm the MCP server is running and reachable
+externally:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Should return a 200 response with status info</span>
+curl<span class="w"> </span>-s<span class="w"> </span>https://brain.&lt;your-domain&gt;/health
+</pre></div>
+</div>
+<p>If this hangs or returns a Cloudflare error page, check:</p>
+<ul class="simple">
+<li><p>The tunnel route exists for <code class="docutils literal notranslate"><span class="pre">brain.&lt;your-domain&gt;</span></code> in the Cloudflare
+dashboard.</p></li>
+<li><p>The Cloudflare Access bypass application is configured for this hostname.</p></li>
+<li><p>The ingress resource exists in the cluster
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">open-brain-mcp</span></code>).</p></li>
+<li><p>The MCP server pod is running: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">open-brain-mcp</span></code>.</p></li>
+</ul>
+</section>
+<section id="create-a-github-oauth-app">
+<h2>2 – Create a GitHub OAuth App<a class="headerlink" href="#create-a-github-oauth-app" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Go to <a class="reference external" href="https://github.com/settings/developers">GitHub Settings &gt; Developer settings &gt; OAuth Apps</a>.</p></li>
+<li><p>Click <strong>New OAuth App</strong>.</p></li>
+<li><p>Fill in:</p>
+<ul class="simple">
+<li><p><strong>Application name</strong>: something descriptive (e.g. “Open Brain MCP”)</p></li>
+<li><p><strong>Homepage URL</strong>: <code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;</span></code></p></li>
+<li><p><strong>Authorization callback URL</strong>: <code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;/callback</span></code></p></li>
+</ul>
+</li>
+<li><p>Click <strong>Register application</strong>.</p></li>
+<li><p>Note the <strong>Client ID</strong> and generate a <strong>Client secret</strong>.</p></li>
+</ol>
+<p>Keep these values — you will need them in the next step.</p>
+</section>
+<section id="create-and-seal-the-mcp-server-secret">
+<h2>3 – Create and seal the MCP server secret<a class="headerlink" href="#create-and-seal-the-mcp-server-secret" title="Link to this heading">#</a></h2>
+<p>The MCP server needs four secret values. A helper script prompts for the
+GitHub OAuth credentials interactively (hidden input) and fetches the
+database password from the cluster automatically:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./scripts/seal-mcp-secret
+</pre></div>
+</div>
+<p>The script generates a random <code class="docutils literal notranslate"><span class="pre">MCP_JWT_SECRET</span></code>, constructs the <code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code>
+from the existing <code class="docutils literal notranslate"><span class="pre">supabase-credentials</span></code> secret, and writes the sealed output
+to the SealedSecret manifest.</p>
+</section>
+<section id="commit-and-deploy-the-sealed-secret">
+<h2>4 – Commit and deploy the sealed secret<a class="headerlink" href="#commit-and-deploy-the-sealed-secret" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Seal open-brain-mcp credentials&quot;</span>
+git<span class="w"> </span>push
+</pre></div>
+</div>
+<p>ArgoCD will pick up the change and create the secret in the cluster.</p>
+</section>
+<section id="add-the-mcp-connector-in-claude-ai">
+<h2>5 – Add the MCP connector in Claude.ai<a class="headerlink" href="#add-the-mcp-connector-in-claude-ai" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Open <a class="reference external" href="https://claude.ai/">claude.ai</a> and navigate to a <strong>Project</strong> (or
+create a new one).</p></li>
+<li><p>Open <strong>Project settings &gt; Integrations</strong>.</p></li>
+<li><p>Click <strong>Add integration</strong> (or <strong>Connect an MCP server</strong>, depending on the
+current UI).</p></li>
+<li><p>Enter the <strong>URL</strong>: <code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;/mcp</span></code></p></li>
+</ol>
+<p>Claude.ai will automatically initiate the OAuth flow — you will be redirected
+to GitHub to authorize the application. No manual API key or header
+configuration is needed.</p>
+</section>
+<section id="add-project-instructions">
+<h2>6 – Add project instructions<a class="headerlink" href="#add-project-instructions" title="Link to this heading">#</a></h2>
+<p>In the same project, add these <strong>Project Instructions</strong> so Claude knows when
+and how to use the tools:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">## Memory (Open Brain)</span>
+
+<span class="n">You</span> <span class="n">have</span> <span class="n">access</span> <span class="n">to</span> <span class="n">a</span> <span class="n">persistent</span> <span class="n">memory</span> <span class="n">system</span> <span class="n">via</span> <span class="n">MCP</span> <span class="n">tools</span><span class="o">.</span>
+
+<span class="c1">### On capture</span>
+<span class="n">When</span> <span class="n">the</span> <span class="n">user</span> <span class="n">shares</span> <span class="n">something</span> <span class="n">worth</span> <span class="n">remembering</span> <span class="p">(</span><span class="n">decisions</span><span class="p">,</span> <span class="n">ideas</span><span class="p">,</span> <span class="n">learnings</span><span class="p">,</span>
+<span class="n">meeting</span> <span class="n">notes</span><span class="p">,</span> <span class="n">tasks</span><span class="p">),</span> <span class="n">extract</span> <span class="n">metadata</span> <span class="ow">and</span> <span class="n">call</span> <span class="n">capture_thought</span><span class="p">:</span>
+<span class="o">-</span> <span class="nb">type</span><span class="p">:</span> <span class="n">idea</span> <span class="o">|</span> <span class="n">decision</span> <span class="o">|</span> <span class="n">learning</span> <span class="o">|</span> <span class="n">question</span> <span class="o">|</span> <span class="n">reference</span> <span class="o">|</span> <span class="n">meeting</span> <span class="o">|</span> <span class="n">task</span>
+<span class="o">-</span> <span class="n">topics</span><span class="p">:</span> <span class="n">relevant</span> <span class="n">topic</span> <span class="n">tags</span>
+<span class="o">-</span> <span class="n">people</span><span class="p">:</span> <span class="n">people</span> <span class="n">mentioned</span>
+<span class="o">-</span> <span class="n">action_items</span><span class="p">:</span> <span class="nb">any</span> <span class="n">action</span> <span class="n">items</span> <span class="n">identified</span>
+<span class="o">-</span> <span class="n">source</span><span class="p">:</span> <span class="n">conversation</span> <span class="n">context</span>
+
+<span class="c1">### On recall</span>
+<span class="n">When</span> <span class="n">context</span> <span class="kn">from</span><span class="w"> </span><span class="nn">past</span> <span class="n">conversations</span> <span class="n">would</span> <span class="n">help</span><span class="p">,</span> <span class="n">use</span> <span class="n">search_thoughts</span> <span class="ow">or</span>
+<span class="n">list_thoughts</span> <span class="n">to</span> <span class="n">find</span> <span class="n">relevant</span> <span class="n">memories</span> <span class="n">before</span> <span class="n">responding</span><span class="o">.</span>
+
+<span class="c1">### On review</span>
+<span class="n">Use</span> <span class="n">thought_stats</span> <span class="n">to</span> <span class="n">get</span> <span class="n">an</span> <span class="n">overview</span> <span class="n">of</span> <span class="n">stored</span> <span class="n">memories</span> <span class="n">when</span> <span class="n">asked</span><span class="o">.</span>
+</pre></div>
+</div>
+</section>
+<section id="test-the-integration">
+<h2>7 – Test the integration<a class="headerlink" href="#test-the-integration" title="Link to this heading">#</a></h2>
+<p>In a new conversation within the project:</p>
+<ol class="arabic simple">
+<li><p>Ask Claude to check its tools — it should list the Open Brain tools
+(<code class="docutils literal notranslate"><span class="pre">capture_thought</span></code>, <code class="docutils literal notranslate"><span class="pre">search_thoughts</span></code>, <code class="docutils literal notranslate"><span class="pre">list_thoughts</span></code>, <code class="docutils literal notranslate"><span class="pre">thought_stats</span></code>).</p></li>
+<li><p>Ask Claude to run <code class="docutils literal notranslate"><span class="pre">thought_stats</span></code> — it should return a count (possibly zero
+if the database is empty).</p></li>
+<li><p>Tell Claude something worth remembering and check that it calls
+<code class="docutils literal notranslate"><span class="pre">capture_thought</span></code>.</p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="unable-to-connect-in-claude-ai">
+<h3>“Unable to connect” in Claude.ai<a class="headerlink" href="#unable-to-connect-in-claude-ai" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Verify the health endpoint is reachable externally (step 1).</p></li>
+<li><p>Check that the Cloudflare Access bypass is active for <code class="docutils literal notranslate"><span class="pre">brain.&lt;your-domain&gt;</span></code>.</p></li>
+<li><p>Ensure the URL is <code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;/mcp</span></code> (not just the domain).</p></li>
+</ul>
+</section>
+<section id="oauth-flow-fails-or-loops">
+<h3>OAuth flow fails or loops<a class="headerlink" href="#oauth-flow-fails-or-loops" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Confirm the GitHub OAuth App callback URL exactly matches
+<code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;/callback</span></code> (no trailing slash).</p></li>
+<li><p>Check the MCP server logs for OAuth errors:
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">open-brain-mcp</span> <span class="pre">deploy/open-brain-mcp</span></code>.</p></li>
+<li><p>Verify the <code class="docutils literal notranslate"><span class="pre">GITHUB_CLIENT_ID</span></code> and <code class="docutils literal notranslate"><span class="pre">GITHUB_CLIENT_SECRET</span></code> values in the
+Kubernetes secret match the GitHub OAuth App settings.</p></li>
+</ul>
+</section>
+<section id="misdirected-request-on-mcp">
+<h3>421 Misdirected Request on /mcp<a class="headerlink" href="#misdirected-request-on-mcp" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The MCP SDK validates the <code class="docutils literal notranslate"><span class="pre">Host</span></code> header for DNS rebinding protection.
+If the external hostname is not in <code class="docutils literal notranslate"><span class="pre">allowed_hosts</span></code>, requests are rejected
+with 421.</p></li>
+<li><p>Fix: ensure <code class="docutils literal notranslate"><span class="pre">SERVER_URL</span></code> env var matches the external hostname. The server
+extracts the hostname and adds it to the SDK’s <code class="docutils literal notranslate"><span class="pre">TransportSecuritySettings</span></code>.</p></li>
+</ul>
+</section>
+<section id="mcpendpointnotfound-after-successful-oauth">
+<h3>“McpEndpointNotFound” after successful OAuth<a class="headerlink" href="#mcpendpointnotfound-after-successful-oauth" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Claude.ai found the OAuth server but not the MCP endpoint. Check that
+the connector URL is exactly <code class="docutils literal notranslate"><span class="pre">https://brain.&lt;your-domain&gt;/mcp</span></code> (not the
+old Supabase URL).</p></li>
+<li><p>Verify <code class="docutils literal notranslate"><span class="pre">/.well-known/oauth-protected-resource</span></code> returns the correct
+<code class="docutils literal notranslate"><span class="pre">resource</span></code> URL pointing to <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>.</p></li>
+</ul>
+</section>
+<section id="mcpservererror-temporary-error-after-oauth">
+<h3>“McpServerError: temporary error” after OAuth<a class="headerlink" href="#mcpservererror-temporary-error-after-oauth" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>OAuth succeeded but the MCP handler crashed. Check pod logs:
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">open-brain-mcp</span> <span class="pre">deploy/open-brain-mcp</span></code>.</p></li>
+<li><p>Common cause: the <code class="docutils literal notranslate"><span class="pre">StreamableHTTPSessionManager</span></code> task group was not
+started — this is handled in <code class="docutils literal notranslate"><span class="pre">server.py</span></code> lifespan but may break if the
+startup order changes.</p></li>
+</ul>
+</section>
+<section id="tools-not-discovered">
+<h3>Tools not discovered<a class="headerlink" href="#tools-not-discovered" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Confirm the MCP server is running and the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> endpoint responds.</p></li>
+<li><p>Check the MCP server logs for JSON-RPC errors.</p></li>
+</ul>
+</section>
+<section id="unauthorized-or-401-errors">
+<h3>“Unauthorized” or 401 errors<a class="headerlink" href="#unauthorized-or-401-errors" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The JWT may have expired — disconnect and reconnect the integration in
+Claude.ai to trigger a fresh OAuth flow.</p></li>
+<li><p>Verify the MCP server can reach GitHub’s API (for token exchange) from
+within the cluster.</p></li>
+</ul>
+</section>
+<section id="timeout-errors">
+<h3>Timeout errors<a class="headerlink" href="#timeout-errors" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The Cloudflare tunnel adds latency. If the MCP server pod is restarting,
+the first request may time out.</p></li>
+<li><p>Check pod status: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">open-brain-mcp</span> <span class="pre">-l</span> <span class="pre">app=open-brain-mcp</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> — Deploy the Open Brain memory system</p></li>
+<li><p><a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a> — Expose services via Cloudflare Tunnel</p></li>
+<li><p><a class="reference external" href="https://modelcontextprotocol.io/">MCP Protocol specification</a></p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="open-brain.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Open Brain (AI Memory)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="add-remove-services.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Add or Remove Services</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-the-health-endpoint">1 – Verify the health endpoint</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-github-oauth-app">2 – Create a GitHub OAuth App</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-and-seal-the-mcp-server-secret">3 – Create and seal the MCP server secret</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-and-deploy-the-sealed-secret">4 – Commit and deploy the sealed secret</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-the-mcp-connector-in-claude-ai">5 – Add the MCP connector in Claude.ai</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-project-instructions">6 – Add project instructions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-integration">7 – Test the integration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unable-to-connect-in-claude-ai">“Unable to connect” in Claude.ai</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-flow-fails-or-loops">OAuth flow fails or loops</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#misdirected-request-on-mcp">421 Misdirected Request on /mcp</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mcpendpointnotfound-after-successful-oauth">“McpEndpointNotFound” after successful OAuth</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mcpservererror-temporary-error-after-oauth">“McpServerError: temporary error” after OAuth</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools-not-discovered">Tools not discovered</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unauthorized-or-401-errors">“Unauthorized” or 401 errors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#timeout-errors">Timeout errors</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/claude-ai-mcp.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/claude-ai-mcp.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -105,6 +105,30 @@ kubectl -n argo-cd delete app <app-name>
 ```
 
 
+### Application stuck in "Running" operation (admission webhooks)
+
+**Symptom:** An ArgoCD application shows a perpetual `Running` operation and
+never reaches `Synced`, even though all resources are healthy.
+
+**Cause:** Charts like `kube-prometheus-stack` and `ingress-nginx` include
+admission webhook jobs with `helm.sh/hook-delete-policy: hook-succeeded`. The
+job deletes itself before ArgoCD records completion, leaving the operation stuck.
+
+**Fix:** Disable admission webhooks in the chart values:
+
+```yaml
+# In kubernetes-services/values.yaml (under the affected app)
+admissionWebhooks:
+  enabled: false
+```
+
+If the operation is already stuck, clear it manually:
+
+```bash
+kubectl patch app <app-name> -n argo-cd --type json \
+  -p '[{"op": "remove", "path": "/operation"}]'
+```
+
 ## Browser
 
 ### Service shows blank page or stale UI after config change
@@ -317,6 +341,51 @@ sudo systemctl restart k3s
 ```
 
 K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
+
+## Supabase
+
+### Postgres fails on NFS storage
+
+**Symptom:** Supabase Postgres pod crashes with `chown` or permission errors.
+
+**Cause:** NFS with `root_squash` prevents the Postgres container (UID 105,
+GID 106) from changing file ownership. Unlike most Postgres images that use
+UID/GID 999, the Supabase image uses non-standard IDs.
+
+**Fix:** Use Longhorn (or another block storage provider) instead of NFS for
+the Postgres PVC. See {doc}`/explanations/decisions/0006-supabase-nfs-storage`.
+
+### Kong OOMKilled
+
+**Symptom:** Supabase Kong pod restarts repeatedly with `OOMKilled`.
+
+**Fix:** Set Kong memory limit to at least 2Gi. Lower values (512Mi–1Gi)
+cause consistent OOM kills under normal load.
+
+### Edge Function not updating after ConfigMap change
+
+**Symptom:** Supabase Edge Function serves stale code after updating the
+ConfigMap.
+
+**Cause:** subPath ConfigMap mounts do not receive automatic updates from
+Kubernetes. The pod must be restarted to pick up changes.
+
+**Fix:** Delete the Edge Function pod to force a restart:
+
+```bash
+kubectl delete pod -n supabase -l app.kubernetes.io/name=supabase-functions
+```
+
+### Edge Function returns 404
+
+**Symptom:** Requests to the Edge Function return 404 Not Found.
+
+**Cause:** The Supabase Edge Runtime requires the `basePath` in the Hono
+application to match the function directory name (the subPath mount point).
+
+**Fix:** Ensure the `basePath` in the function code matches the directory name.
+For example, if the function is mounted at `/open-brain-mcp`, the Hono app must
+use `basePath: '/open-brain-mcp'`.
 
 ## Hardware
 

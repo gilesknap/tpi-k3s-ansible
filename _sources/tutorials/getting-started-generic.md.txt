@@ -1,5 +1,11 @@
 # Getting Started without Turing Pi
 
+:::{tip}
+For an interactive experience, try the {doc}`ai-guided-setup` instead — Claude Code
+will walk you through these steps, configure files, generate secrets, and run the
+playbooks for you.
+:::
+
 This tutorial walks you through deploying a K3s cluster on **any set of Linux servers**
 that are already running Ubuntu 24.04 LTS — no Turing Pi hardware required.
 

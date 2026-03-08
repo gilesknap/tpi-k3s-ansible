@@ -154,3 +154,38 @@ kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-ke
 
 Store this backup **securely** (not in Git!) — it can decrypt all your SealedSecrets.
 :::
+
+## Gotchas
+
+### Encryption is bound to name and namespace
+
+SealedSecrets are encrypted for a **specific Secret name and namespace**. You
+cannot rename a SealedSecret YAML file's `metadata.name` or `metadata.namespace`
+and expect it to decrypt — you must re-run `kubeseal` with the new name/namespace.
+
+### Merging into existing Secrets
+
+If a Secret already exists in the cluster (e.g., created by a Helm chart) and you
+want the sealed-secrets controller to manage it, add this annotation to the
+**existing** Secret:
+
+```yaml
+metadata:
+  annotations:
+    sealedsecrets.bitnami.com/managed: "true"
+```
+
+Without this annotation, the controller will not overwrite the existing Secret.
+
+### Avoid sealing into `argocd-secret`
+
+The ArgoCD `argocd-secret` in the `argo-cd` namespace is managed by ArgoCD itself.
+Sealing values into it causes conflicts — ArgoCD and the sealed-secrets controller
+fight over the Secret contents. Use a separate SealedSecret and mount it where
+needed instead.
+
+### File naming for gitleaks
+
+SealedSecret files must be named `*-secret.yaml` (singular) to match the
+`.gitleaks.toml` allowlist. Files named `*-secrets.yaml` (plural) will be flagged
+as leaked secrets by the pre-commit hook.

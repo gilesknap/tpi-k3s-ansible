@@ -5,6 +5,9 @@ how the pieces fit together from hardware to running services.
 
 ## System overview
 
+*The diagram below shows an example topology from the author's cluster. Your
+node names and counts will vary.*
+
 ```mermaid
 flowchart TB
     subgraph Workstation["Developer Workstation"]
