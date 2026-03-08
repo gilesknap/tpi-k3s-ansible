@@ -228,11 +228,19 @@ kubectl port-forward svc/supabase-supabase-kong -n supabase 8000:8000
 Login with the dashboard credentials you generated in step 2
 (default username: `admin`).
 
-## 7 -- Configure Claude.ai MCP connector
+## 7 -- Connect Claude.ai and other clients
 
-See {doc}`claude-ai-mcp` for the full guide on connecting Claude.ai to the
-Open Brain endpoint, including endpoint verification, key retrieval, project
-instructions, and troubleshooting.
+Open Brain exposes two interfaces:
+
+- **MCP server** (`brain.<your-domain>/mcp`) — for Claude.ai and other
+  MCP-compatible clients. Uses OAuth 2.1 with GitHub identity. See
+  {doc}`claude-ai-mcp` for the full setup guide.
+- **REST API** (`supabase-api.<your-domain>/functions/v1/open-brain-mcp`) —
+  for scripts, CLI tools, and direct API access. Uses `x-brain-key` header
+  auth.
+
+See {doc}`claude-ai-mcp` for connecting Claude.ai via the MCP server,
+including GitHub OAuth App setup, project instructions, and troubleshooting.
 
 ## Disable Open Brain
 

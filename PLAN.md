@@ -9,12 +9,14 @@ Self-hosted Supabase stack providing persistent AI memory accessible via MCP
 Claude.ai Project
   |  (extracts metadata, calls MCP tools)
   v
-MCP Server (Supabase Edge Function)
-  |  (dumb CRUD — no AI logic)
+MCP Server (open-brain-mcp pod, Python, port 8000)
+  |  OAuth 2.1 (GitHub identity)
+  |  MCP Streamable HTTP (JSON-RPC)
   v
 Supabase Stack (k3s)
   - Kong API Gateway (port 8000)
   - PostgREST (REST API)
+  - Edge Function (REST, x-brain-key auth)
   - PostgreSQL + pgvector
   - Auth, Storage, Studio
   |
@@ -27,9 +29,11 @@ Longhorn (block storage for Postgres)
 | Component | Purpose | Namespace |
 |-----------|---------|-----------|
 | Supabase (Helm) | Full platform: db, auth, rest, functions, studio, kong | supabase |
+| open-brain-mcp | Standalone MCP server (Python, OAuth 2.1 via GitHub) | supabase |
 | MCP Function | Edge Function with 4 tools (capture, search, list, stats) | supabase |
-| API Ingress | supabase-api.gkcluster.org (x-brain-key auth, no OAuth) | supabase |
-| Studio Ingress | supabase.gkcluster.org (behind OAuth2 proxy) | supabase |
+| API Ingress | supabase-api.\<your-domain\> (x-brain-key auth, no OAuth) | supabase |
+| MCP Ingress | brain.\<your-domain\> (OAuth 2.1 via GitHub) | supabase |
+| Studio Ingress | supabase.\<your-domain\> (behind OAuth2 proxy) | supabase |
 | Longhorn PVC | Postgres data (block storage) | supabase |
 
 ## MCP Tools
@@ -42,7 +46,8 @@ Longhorn (block storage for Postgres)
 ## Auth
 
 - Studio: OAuth2 proxy (browser-based, GitHub login)
-- API: `x-brain-key` header with 64-char hex access key
+- MCP server: OAuth 2.1 with GitHub as identity provider (per-user JWTs)
+- REST API: `x-brain-key` header with 64-char hex access key (shared secret)
 - Database: Supabase service_role JWT (internal)
 
 ## ws03 Taint Strategy

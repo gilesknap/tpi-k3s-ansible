@@ -1,0 +1,43 @@
+{{- if .Values.enable_open_brain_mcp }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: open-brain-mcp
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: open-brain-mcp
+  project: kubernetes
+  sources:
+    # Source 1: Open Brain MCP server — Deployment, Service, SealedSecret
+    - path: ./kubernetes-services/additions/open-brain-mcp
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          image:
+            repository: ghcr.io/gilesknap/open-brain-mcp
+            tag: latest
+          github_allowed_users: "gilesknap"
+          server_url: "https://brain.{{ .Values.cluster_domain }}"
+    # Source 2: Reusable ingress sub-chart
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: brain
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: open-brain-mcp
+          service_port: 8000
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

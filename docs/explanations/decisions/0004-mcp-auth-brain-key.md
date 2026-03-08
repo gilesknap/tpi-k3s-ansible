@@ -1,6 +1,6 @@
 # 4. Use x-brain-key Header Auth for MCP API
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 0010 — MCP Protocol with GitHub OAuth](0010-mcp-protocol-github-oauth.md)
 
 ## Context
 

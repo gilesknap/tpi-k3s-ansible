@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-brain-mcp
+  labels:
+    app: open-brain-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-brain-mcp
+  template:
+    metadata:
+      labels:
+        app: open-brain-mcp
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: open-brain-mcp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: open-brain-mcp-secret
+          env:
+            - name: GITHUB_ALLOWED_USERS
+              value: {{ .Values.github_allowed_users | quote }}
+            - name: SERVER_URL
+              value: {{ .Values.server_url | quote }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
