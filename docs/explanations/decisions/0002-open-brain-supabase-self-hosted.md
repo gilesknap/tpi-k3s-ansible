@@ -21,6 +21,7 @@ Kong) using the `supabase-community/supabase-kubernetes` Helm chart.
 - All data stays on our NAS (privacy, no cloud dependency)
 - ~2.5GB RAM footprint across all components
 - Studio UI for visual database management
-- Edge Functions host the MCP server without additional infrastructure
+- Edge Functions provide a REST API for direct access (MCP protocol is now
+  served by a standalone Python server — see ADR 0010)
 - Dependency on community Helm chart for upgrades
 - Kong gateway provides unified API routing

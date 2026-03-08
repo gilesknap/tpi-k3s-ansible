@@ -9,19 +9,17 @@ Self-hosted Supabase stack providing persistent AI memory accessible via MCP
 Claude.ai Project
   |  (extracts metadata, calls MCP tools)
   v
-MCP Server (open-brain-mcp pod, Python, port 8000)
-  |  OAuth 2.1 (GitHub identity)
-  |  MCP Streamable HTTP (JSON-RPC)
-  v
-Supabase Stack (k3s)
-  - Kong API Gateway (port 8000)
-  - PostgREST (REST API)
-  - Edge Function (REST, x-brain-key auth)
-  - PostgreSQL + pgvector
-  - Auth, Storage, Studio
-  |
-  v
-Longhorn (block storage for Postgres)
+MCP Server (open-brain-mcp pod, port 8000)       REST clients
+  |  OAuth 2.1 (GitHub identity)                   |  x-brain-key header
+  |  MCP Streamable HTTP (JSON-RPC)                v
+  |                                    Kong -> Edge Function (Deno)
+  |                                                |
+  +----> PostgreSQL (asyncpg, direct) <------------+
+              |
+              v
+         Longhorn (block storage)
+
+Supabase Stack (k3s): Kong, PostgREST, Auth, Storage, Studio
 ```
 
 ## Components
@@ -29,10 +27,10 @@ Longhorn (block storage for Postgres)
 | Component | Purpose | Namespace |
 |-----------|---------|-----------|
 | Supabase (Helm) | Full platform: db, auth, rest, functions, studio, kong | supabase |
-| open-brain-mcp | Standalone MCP server (Python, OAuth 2.1 via GitHub) | supabase |
-| MCP Function | Edge Function with 4 tools (capture, search, list, stats) | supabase |
+| open-brain-mcp | Standalone MCP server (Python, OAuth 2.1 + PKCE via GitHub) | open-brain-mcp |
+| Edge Function | REST API with 4 tools (capture, search, list, stats) | supabase |
 | API Ingress | supabase-api.\<your-domain\> (x-brain-key auth, no OAuth) | supabase |
-| MCP Ingress | brain.\<your-domain\> (OAuth 2.1 via GitHub) | supabase |
+| MCP Ingress | brain.\<your-domain\> (OAuth 2.1 via GitHub) | open-brain-mcp |
 | Studio Ingress | supabase.\<your-domain\> (behind OAuth2 proxy) | supabase |
 | Longhorn PVC | Postgres data (block storage) | supabase |
 
@@ -55,9 +53,9 @@ Longhorn (block storage for Postgres)
 ws03 is a workstation that may reboot. Taint `workstation=true:NoSchedule`
 limits scheduling to intentional workloads:
 
-- **Tolerates taint**: llamacpp (GPU), monitoring (grafana/prometheus), supabase
-- **Avoids ws03**: general workloads (scheduled on RK1 nodes)
-- **Status**: Code committed, taint NOT applied until nuc2 (second x86 node) is added
+- **Tolerates taint**: llamacpp (GPU), monitoring (grafana/prometheus)
+- **Avoids ws03**: general workloads, Supabase, open-brain-mcp (scheduled on RK1/nuc2 nodes)
+- **Status**: Taint applied; Supabase migrated to nuc2 (dedicated x86 worker)
 
 ## Phase 2 (deferred)
 

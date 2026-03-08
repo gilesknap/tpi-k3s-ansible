@@ -58,8 +58,8 @@ If this hangs or returns a Cloudflare error page, check:
   dashboard.
 - The Cloudflare Access bypass application is configured for this hostname.
 - The ingress resource exists in the cluster
-  (`kubectl get ingress -n supabase`).
-- The MCP server pod is running: `kubectl get pods -n supabase -l app=open-brain-mcp`.
+  (`kubectl get ingress -n open-brain-mcp`).
+- The MCP server pod is running: `kubectl get pods -n open-brain-mcp`.
 
 ## 2 -- Create a GitHub OAuth App
 
@@ -163,7 +163,7 @@ In a new conversation within the project:
   `https://brain.<your-domain>/callback` (no trailing slash).
 - Check the MCP server logs for OAuth errors:
   `kubectl logs -n open-brain-mcp deploy/open-brain-mcp`.
-- Verify the `github-client-id` and `github-client-secret` values in the
+- Verify the `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` values in the
   Kubernetes secret match the GitHub OAuth App settings.
 
 ### 421 Misdirected Request on /mcp
@@ -206,7 +206,7 @@ In a new conversation within the project:
 
 - The Cloudflare tunnel adds latency. If the MCP server pod is restarting,
   the first request may time out.
-- Check pod status: `kubectl get pods -n open-brain-mcp deploy/open-brain-mcp`.
+- Check pod status: `kubectl get pods -n open-brain-mcp -l app=open-brain-mcp`.
 
 ## See also
 

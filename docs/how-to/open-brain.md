@@ -13,8 +13,7 @@ container images do not reliably support ARM64.
 
 ## Prerequisites
 
-- An x86 node in your cluster (e.g. `ws03`) with `nvidia_gpu_node` or similar
-  entry in `hosts.yml`
+- An x86/amd64 node in your cluster (any node with `kubernetes.io/arch: amd64`)
 - An NFS export for database backups (optional — the database uses Longhorn
   by default)
 - [Cloudflare Tunnel](cloudflare-web-tunnel) configured (for external access)
@@ -32,6 +31,9 @@ supabase:
   nfs:
     server: 192.168.1.3      # your NFS server IP
     path: /bigdisk/OpenBrain  # NFS export path (for future use)
+
+# Standalone MCP server for Claude.ai (OAuth 2.1 + GitHub identity).
+enable_open_brain_mcp: true
 ```
 
 :::{tip}
@@ -197,18 +199,19 @@ curl -s \
 ## 5 -- Configure Cloudflare Tunnel
 
 In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/),
-add two public hostnames for your tunnel:
+add three public hostnames for your tunnel:
 
 | Hostname | Service |
 |----------|---------|
 | `supabase.<your-domain>` | `http://supabase-supabase-kong.supabase.svc.cluster.local:8000` |
 | `supabase-api.<your-domain>` | `http://supabase-supabase-kong.supabase.svc.cluster.local:8000` |
+| `brain.<your-domain>` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 
 :::{note}
-Both hostnames point to Kong. The Studio ingress routes through Kong on
-port 8000. The separate hostnames exist so you can apply different
-Cloudflare Access policies if desired (e.g. API endpoint open for MCP,
-Studio behind browser-based login).
+The first two hostnames point to Kong (Supabase API gateway). The third
+routes to the standalone MCP server via ingress-nginx. Configure a
+Cloudflare Access **bypass** for `brain.<your-domain>` so the OAuth flow
+is not blocked by browser-based Cloudflare authentication.
 :::
 
 ## 6 -- Access Supabase Studio

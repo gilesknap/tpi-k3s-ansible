@@ -13,7 +13,8 @@ header auth (ADR 0004) cannot participate in Claude.ai's OAuth flow, so
 Claude.ai can no longer connect to the Supabase Edge Function directly.
 
 A standalone MCP server is needed that speaks the MCP wire protocol and
-implements the OAuth 2.1 authorization code flow that Claude.ai initiates.
+implements the OAuth 2.1 authorization code flow with PKCE (S256) that
+Claude.ai initiates.
 
 ## Decision
 
