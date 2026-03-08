@@ -63,6 +63,14 @@ async def well_known_metadata(request: Request) -> JSONResponse:
     })
 
 
+async def well_known_protected_resource(request: Request) -> JSONResponse:
+    """RFC 9728 OAuth Protected Resource Metadata."""
+    return JSONResponse({
+        "resource": f"{SERVER_URL}/mcp",
+        "authorization_servers": [SERVER_URL],
+    })
+
+
 async def authorize(request: Request) -> Response:
     """Start the authorization flow — validate params then redirect to GitHub."""
     params = request.query_params
@@ -209,6 +217,7 @@ async def token(request: Request) -> JSONResponse:
 
 oauth_routes = [
     Route("/.well-known/oauth-authorization-server", well_known_metadata),
+    Route("/.well-known/oauth-protected-resource", well_known_protected_resource),
     Route("/authorize", authorize),
     Route("/callback", callback),
     Route("/token", token, methods=["POST"]),
