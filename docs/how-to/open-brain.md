@@ -245,6 +245,73 @@ Open Brain exposes two interfaces:
 See {doc}`claude-ai-mcp` for connecting Claude.ai via the MCP server,
 including GitHub OAuth App setup, project instructions, and troubleshooting.
 
+## 8 -- Connect Claude Code (local MCP server)
+
+The local MCP server gives Claude Code direct access to Open Brain via stdio,
+with file upload/download that bypasses the MCP context window.
+
+### Quick setup
+
+If you have `uv` and `claude` installed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gilesknap/tpi-k3s-ansible/main/scripts/setup-brain-cli | bash
+```
+
+The script prompts for three credentials:
+
+- **BRAIN_API_URL** — your Supabase API URL (e.g. `https://supabase-api.example.com`)
+- **BRAIN_API_KEY** — the `x-brain-key` shared secret (the `MCP_ACCESS_KEY` from step 2)
+- **BRAIN_SERVICE_KEY** — the Supabase `SERVICE_KEY` JWT (from step 2)
+
+It installs the `open-brain-cli` package and adds an entry to
+`~/.claude/mcp.json`. Restart Claude Code and verify with `/mcp`.
+
+### Manual setup
+
+If you prefer to configure manually:
+
+```bash
+# Clone and install
+git clone https://github.com/gilesknap/tpi-k3s-ansible.git
+cd tpi-k3s-ansible/open-brain-cli
+uv sync
+```
+
+Add to `~/.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "open-brain": {
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/open-brain-cli", "open-brain-cli"],
+      "env": {
+        "BRAIN_API_URL": "https://supabase-api.example.com",
+        "BRAIN_API_KEY": "your-mcp-access-key",
+        "BRAIN_SERVICE_KEY": "your-service-role-jwt"
+      }
+    }
+  }
+}
+```
+
+### Available tools
+
+The local MCP server provides six tools:
+
+| Tool | Description |
+|------|-------------|
+| `capture_thought` | Save text with structured metadata |
+| `search_thoughts` | Search by keyword and metadata filters |
+| `list_thoughts` | List recent thoughts with filters |
+| `thought_stats` | Aggregate statistics |
+| `upload_attachment` | Upload a local file to a thought |
+| `download_attachment` | Download an attachment to `/tmp` |
+
+File uploads go directly to the Supabase Storage API over HTTP — no base64
+through the context window.
+
 ## File Attachments (Images, PDFs)
 
 Open Brain supports saving file attachments alongside thoughts using MinIO
@@ -253,11 +320,13 @@ Storage bucket (`brain-attachments`) backed by a Longhorn PVC.
 
 ### How it works
 
-1. The MCP `capture_thought` tool accepts an optional `attachments` parameter —
-   a list of `{filename, content_base64, mime_type}` objects
-2. Files are uploaded to MinIO via the Supabase Storage REST API
-3. Storage paths are saved in the thought's `metadata.attachments` array
-4. The `get_attachment` tool returns a time-limited signed URL for retrieval
+- **File uploads** go directly to the Supabase Storage API, never through
+  the MCP context window. The local CLI (`upload_attachment`) and future
+  Slack bot both use this path.
+- **Text capture** via the public MCP server (`capture_thought`) is text-only.
+  Claude.ai summarises binary content as text before saving.
+- **File retrieval** via the public MCP server (`get_attachment`) downloads
+  from MinIO and returns base64 — works for viewing individual files.
 
 ### Enable MinIO
 
@@ -274,8 +343,8 @@ kubectl get pvc -n supabase | grep minio
 
 ### Add the Supabase service key to the MCP secret
 
-The MCP server needs the Supabase service-role key to upload files. Re-seal the
-`open-brain-mcp-secret` using the provided script, which fetches the database
+The MCP server needs the Supabase service-role key for `get_attachment`. Re-seal
+the `open-brain-mcp-secret` using the provided script, which fetches the database
 password and service key from the cluster automatically:
 
 ```bash
@@ -283,26 +352,7 @@ password and service key from the cluster automatically:
 ```
 
 The script prompts for GitHub OAuth credentials and auto-generates the JWT
-secret. Commit and push the updated sealed secret. The `SUPABASE_URL` env var
-is already set in the deployment template (pointing to the in-cluster Kong
-gateway).
-
-### Usage from Claude.ai
-
-Once MinIO is running, Claude.ai can save attachments through the MCP tools:
-
-- **Capture with attachment**: Claude reads an image/PDF, then calls
-  `capture_thought` with the file content base64-encoded in the `attachments`
-  parameter
-- **Retrieve attachment**: Call `get_attachment` with the thought ID and
-  filename — the file content is returned directly so Claude can display
-  images or read PDFs
-
-:::{note}
-Claude.ai can read images and PDFs shared in the conversation. When you ask
-it to "save this to Open Brain", it will extract text content and metadata
-as usual, plus upload the original file as an attachment.
-:::
+secret. Commit and push the updated sealed secret.
 
 ## Disable Open Brain
 
