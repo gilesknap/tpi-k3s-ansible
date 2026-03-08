@@ -14,4 +14,5 @@ decisions/0005-ws03-workstation-taint
 decisions/0006-supabase-nfs-storage
 decisions/0007-supabase-x86-node-affinity
 decisions/0008-embedding-pipeline-deferred
+decisions/0009-longhorn-exclude-workstations
 ```

@@ -28,6 +28,13 @@
 - Reusable ingress sub-chart: `kubernetes-services/additions/ingress/`
 - SSH to nodes: `ssh ansible@<node>` (not root)
 
+## Documentation
+
+- **Docs are generic** — this repo is intended to be reusable across clusters.
+  Write all docs (ADRs, how-tos, explanations) for a general audience.
+  Specific node names (ws03, nuc2, node01) are fine as examples but must be
+  clearly labelled as such (e.g. "in the author's cluster, ws03 is…").
+
 ## Conventions
 
 - Ansible: 2-space indent, sentence-case task names, idempotent tasks

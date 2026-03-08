@@ -1,22 +1,27 @@
-# 5. Taint ws03 as Workstation Node
+# 5. Taint Workstation Nodes
 
-**Status:** Accepted (deferred application)
+**Status:** Accepted (applied)
 
 ## Context
 
-ws03 is a workstation that may reboot for updates or user activity. Only GPU
-workloads and monitoring should run there intentionally. General pods should
-prefer the always-on RK1 nodes.
+Nodes marked `workstation: true` in the inventory are machines that may reboot
+for desktop updates or user activity. Only GPU workloads and monitoring should
+run there intentionally. General pods should prefer always-on nodes.
+
+*Example: in the author's cluster, ws03 is a desktop workstation with an
+NVIDIA GPU that doubles as a K3s worker.*
 
 ## Decision
 
 Apply `workstation=true:NoSchedule` taint driven by `workstation: true` in
-hosts.yml. Add tolerations to llamacpp (GPU workload), monitoring (grafana,
-prometheus, alertmanager), and supabase (x86-only).
+hosts.yml. Add tolerations to GPU workloads (llamacpp) and monitoring
+(grafana, prometheus, alertmanager). Other services should not tolerate the
+taint — they belong on dedicated, always-on worker nodes.
 
 ## Consequences
 
-- General pods automatically avoid ws03
+- General pods automatically avoid workstation nodes
 - Intentional workloads explicitly opt in via tolerations
-- Taint application deferred until nuc2 (second x86 node) is added to cluster
-- Code committed and ready — just run `--tags servers` when nuc2 is online
+- x86-only services (e.g. Supabase) should run on dedicated x86 workers, not
+  workstations — add a second x86 node before applying the taint
+- Longhorn storage excluded from workstations (see ADR 0009)

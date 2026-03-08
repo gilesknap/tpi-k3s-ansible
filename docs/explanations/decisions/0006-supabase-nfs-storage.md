@@ -5,8 +5,10 @@
 ## Context
 
 Supabase PostgreSQL needs persistent storage that survives pod restarts and
-rescheduling. The NAS at 192.168.1.3 already serves NFS exports for LLM models
-(rkllama, llamacpp).
+rescheduling. An existing NAS on the LAN already serves NFS exports for LLM
+models (rkllama, llamacpp).
+
+*Example: in the author's cluster, the NAS is at 192.168.1.3.*
 
 ## Decision
 
