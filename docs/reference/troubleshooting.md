@@ -353,7 +353,7 @@ GID 106) from changing file ownership. Unlike most Postgres images that use
 UID/GID 999, the Supabase image uses non-standard IDs.
 
 **Fix:** Use Longhorn (or another block storage provider) instead of NFS for
-the Postgres PVC. See {doc}`/explanations/decisions/0006-longhorn-not-nfs`.
+the Postgres PVC. See {doc}`/explanations/decisions/0006-supabase-nfs-storage`.
 
 ### Kong OOMKilled
 
