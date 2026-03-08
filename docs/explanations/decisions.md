@@ -16,4 +16,5 @@ decisions/0007-supabase-x86-node-affinity
 decisions/0008-embedding-pipeline-deferred
 decisions/0009-longhorn-exclude-workstations
 decisions/0010-mcp-protocol-github-oauth
+decisions/0011-minio-file-attachments
 ```

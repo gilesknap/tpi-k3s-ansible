@@ -245,6 +245,49 @@ Open Brain exposes two interfaces:
 See {doc}`claude-ai-mcp` for connecting Claude.ai via the MCP server,
 including GitHub OAuth App setup, project instructions, and troubleshooting.
 
+## File Attachments (Images, PDFs)
+
+Open Brain supports saving file attachments alongside thoughts using MinIO
+as an S3-compatible object store. Files are stored in a private Supabase
+Storage bucket (`brain-attachments`) backed by a Longhorn PVC.
+
+### How it works
+
+1. The MCP `capture_thought` tool accepts an optional `attachments` parameter —
+   a list of `{filename, content_base64, mime_type}` objects
+2. Files are uploaded to MinIO via the Supabase Storage REST API
+3. Storage paths are saved in the thought's `metadata.attachments` array
+4. The `get_attachment_url` tool returns a time-limited signed URL for retrieval
+
+### Enable MinIO
+
+MinIO is enabled by default in the Supabase Helm values. If you deployed before
+this feature was added, verify that `deployment.minio.enabled: true` is set in
+`kubernetes-services/templates/supabase.yaml`. After pushing the change, ArgoCD
+will deploy MinIO automatically.
+
+The MinIO pod needs its own Longhorn PVC. Verify it is provisioned:
+
+```bash
+kubectl get pvc -n supabase | grep minio
+```
+
+### Usage from Claude.ai
+
+Once MinIO is running, Claude.ai can save attachments through the MCP tools:
+
+- **Capture with attachment**: Claude reads an image/PDF, then calls
+  `capture_thought` with the file content base64-encoded in the `attachments`
+  parameter
+- **Retrieve attachment**: Call `get_attachment_url` with the thought ID and
+  filename to get a signed download URL
+
+:::{note}
+Claude.ai can read images and PDFs shared in the conversation. When you ask
+it to "save this to Open Brain", it will extract text content and metadata
+as usual, plus upload the original file as an attachment.
+:::
+
 ## Disable Open Brain
 
 To remove Supabase from your cluster, set `enable_supabase: false` in
