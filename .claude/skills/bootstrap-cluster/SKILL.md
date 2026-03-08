@@ -102,6 +102,9 @@ Based on answers, edit these files (read each before editing):
 - For generic servers: configure `extra_nodes` group with hostnames
 - Add `nvidia_gpu_node: true` to GPU nodes
 - Add `workstation: true` to workstation nodes if applicable
+- For multi-homed nodes (multiple NICs on different subnets): set `node_ip`
+  to the IP on the cluster subnet and `flannel_iface` to the matching
+  interface name — otherwise K3s and flannel may auto-detect the wrong subnet
 
 ### `group_vars/all.yml`
 - Set `control_plane`, `cluster_domain`, `domain_email`, `repo_remote`,

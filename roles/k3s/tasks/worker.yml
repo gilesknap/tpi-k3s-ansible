@@ -51,6 +51,7 @@
       INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
       K3S_URL="https://{{ control_plane_ip }}:6443"
       K3S_TOKEN="{{ node_token.stdout }}"
+      {% if node_ip is defined or flannel_iface is defined %}INSTALL_K3S_EXEC="{% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}{% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}"{% endif %}
       /usr/local/bin/k3s-install.sh
   register: k3s_installed
   changed_when: true
