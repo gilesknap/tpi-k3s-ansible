@@ -100,10 +100,14 @@ def create_app() -> Starlette:
         if not database_url:
             raise RuntimeError("DATABASE_URL environment variable is required")
         state["pool"] = await db.create_pool(database_url)
-        try:
-            yield
-        finally:
-            await state["pool"].close()
+        # The MCP session manager needs its task group started.
+        # streamable_http_app() sets its own lifespan, but that inner
+        # lifespan is not invoked when mounted inside another Starlette app.
+        async with mcp_server.session_manager.run():
+            try:
+                yield
+            finally:
+                await state["pool"].close()
 
     routes = [
         Route("/health", health),
