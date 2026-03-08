@@ -35,6 +35,9 @@
 - Lint: `ansible-lint`; suppress with `# noqa <rule>`
 - Docs: `python -m sphinx docs docs/_build`
 - `.gitleaks.toml` allowlists `*-secret.yaml` (SealedSecrets)
+- **SealedSecret file naming** — must be `*-secret.yaml` (singular).
+  Files named `*-secrets.yaml` are not in the `.gitleaks.toml` allowlist
+  and the pre-commit hook will block the commit with no obvious reason.
 
 ## On-Demand Knowledge
 
