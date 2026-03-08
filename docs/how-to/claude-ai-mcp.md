@@ -143,7 +143,8 @@ Use thought_stats to get an overview of stored memories when asked.
 In a new conversation within the project:
 
 1. Ask Claude to check its tools — it should list the Open Brain tools
-   (`capture_thought`, `search_thoughts`, `list_thoughts`, `thought_stats`).
+   (`capture_thought`, `search_thoughts`, `list_thoughts`, `thought_stats`,
+   `get_attachment`).
 2. Ask Claude to run `thought_stats` — it should return a count (possibly zero
    if the database is empty).
 3. Tell Claude something worth remembering and check that it calls

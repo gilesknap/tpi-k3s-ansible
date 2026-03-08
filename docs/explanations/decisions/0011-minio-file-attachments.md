@@ -1,6 +1,6 @@
 # 11. MinIO for Open Brain File Attachments
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
@@ -43,7 +43,9 @@ storage paths. The actual blobs live in MinIO.
 - One additional pod (MinIO) and one additional Longhorn PVC (~50Gi)
 - All data remains self-hosted on cluster storage
 - Files are accessible via signed URLs with time-limited access
-- The MCP server gains new tools (`attach_file`, `get_attachment`) and
-  `capture_thought` gains an optional `attachments` parameter
+- The remote MCP server gains `get_attachment` for base64 file retrieval;
+  `capture_thought` remains text-only (binary data exhausts the MCP context
+  window). The local CLI MCP server (`open-brain-cli/`) provides
+  `upload_attachment` and `download_attachment` for direct HTTP file transfer
 - MinIO is a well-understood, widely-deployed component — low operational risk
 - Backup strategy must now cover MinIO PVC in addition to Postgres PVC

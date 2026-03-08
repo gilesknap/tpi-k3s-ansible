@@ -157,8 +157,8 @@ kubectl get app supabase -n argo-cd -w
 kubectl get pods -n supabase -w
 ```
 
-All 9 pods should reach `Running` status within a few minutes:
-db, auth, rest, realtime, storage, functions, studio, kong, meta.
+All 10 pods should reach `Running` status within a few minutes:
+db, auth, rest, realtime, storage, functions, studio, kong, meta, minio.
 
 ## 4 -- Verify the deployment
 
@@ -233,7 +233,7 @@ Login with the dashboard credentials you generated in step 2
 
 ## 7 -- Connect Claude.ai and other clients
 
-Open Brain exposes two interfaces:
+Open Brain exposes three interfaces:
 
 - **MCP server** (`brain.<your-domain>/mcp`) — for Claude.ai and other
   MCP-compatible clients. Uses OAuth 2.1 with GitHub identity. See
@@ -241,6 +241,8 @@ Open Brain exposes two interfaces:
 - **REST API** (`supabase-api.<your-domain>/functions/v1/open-brain-mcp`) —
   for scripts, CLI tools, and direct API access. Uses `x-brain-key` header
   auth.
+- **Local CLI MCP server** (`open-brain-cli/`) — stdio-based MCP server for
+  Claude Code with 6 tools including file upload/download. See section 8 below.
 
 See {doc}`claude-ai-mcp` for connecting Claude.ai via the MCP server,
 including GitHub OAuth App setup, project instructions, and troubleshooting.

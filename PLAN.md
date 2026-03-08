@@ -43,12 +43,13 @@ Supabase Stack (k3s): Kong, PostgREST, Auth, Storage, MinIO, Studio
 | MinIO | S3-compatible object store for file attachments | supabase |
 | Longhorn PVCs | Postgres data + MinIO blobs (block storage) | supabase |
 
-## MCP Tools
+## MCP Tools (Remote Server)
 
-1. **capture_thought** — store content + pre-extracted metadata
+1. **capture_thought** — store content + pre-extracted metadata (text-only)
 2. **search_thoughts** — filter by topic, person, type, keyword
 3. **list_thoughts** — recent items with filters
 4. **thought_stats** — counts, distributions, top topics
+5. **get_attachment** — retrieve a file from MinIO as base64
 
 ## Auth
 
@@ -66,10 +67,12 @@ limits scheduling to intentional workloads:
 - **Avoids ws03**: general workloads, Supabase, open-brain-mcp (scheduled on RK1/nuc2 nodes)
 - **Status**: Taint applied; Supabase migrated to nuc2 (dedicated x86 worker)
 
-## Phase 2a — File Attachments (MinIO + Supabase Storage)
+## Phase 2a — File Attachments (MinIO + Supabase Storage) ✓
 
-Replace Obsidian's image/PDF storage with in-cluster object storage so that
-`capture_thought` can accept file attachments alongside text.
+*Completed. The design diverged from the original plan — see implementation
+notes below.*
+
+Replace Obsidian's image/PDF storage with in-cluster object storage.
 
 ### Why MinIO
 
@@ -80,37 +83,44 @@ backed by Longhorn without adding external dependencies.
 
 ### Implementation Steps
 
-1. **Enable MinIO in Supabase Helm values**
+1. **Enable MinIO in Supabase Helm values** ✓
    - Set `deployment.minio.enabled: true` in `kubernetes-services/templates/supabase.yaml`
    - Add Longhorn PVC for MinIO data (`storageClassName: longhorn`, 50Gi)
    - Add `nodeSelector: kubernetes.io/arch: amd64` (matches other Supabase pods)
    - Configure MinIO credentials in the existing `supabase-credentials` SealedSecret
 
-2. **Create a storage bucket**
+2. **Create a storage bucket** ✓
    - Add SQL migration to create a `brain-attachments` bucket in
      `storage.buckets` (Supabase manages buckets in Postgres)
    - Set bucket policy: private (service_role access only)
 
-3. **Extend the MCP server (`open-brain-mcp`)**
-   - Add `httpx` dependency (used internally by the MCP server to talk to the
-     Supabase Storage REST API — this is a server-to-server call within the
-     cluster, invisible to MCP clients)
-   - Extend `capture_thought` with optional `attachments` parameter (list of
-     `{filename, content_base64, mime_type}`). From Claude.ai's perspective this
-     is still a single MCP call — the server handles the file upload internally:
-     1. INSERT thought into Postgres (asyncpg, as today)
-     2. Upload blob to Supabase Storage API (httpx, MCP pod → Kong → MinIO)
-     3. Store storage paths in `metadata.attachments`
-     4. Return thought ID + attachment info
-   - New tool: `get_attachment` — downloads a file from MinIO and returns
-     it as base64 with MIME type so Claude can display images/PDFs directly
-   - Update `list_thoughts` / `search_thoughts` responses to include attachment
-     info when present
+3. **MCP server changes (`open-brain-mcp`)** ✓
+   - `capture_thought` is **text-only** — no `attachments` parameter. Binary
+     data through MCP tool calls exhausts Claude.ai's context window (a typical
+     screenshot base64-encodes to 1-4 MB of text). Claude.ai summarises binary
+     content as text before calling `capture_thought`.
+   - `get_attachment` implemented — downloads a file from MinIO via Supabase
+     Storage and returns base64 with MIME type. Works for viewing individual
+     files in Claude.ai.
+   - File uploads are handled outside the remote MCP server:
+     - **Local CLI** (`open-brain-cli/`): `upload_attachment` sends files
+       directly to Supabase Storage API over HTTP (no context window).
+     - **Supabase Storage API**: direct HTTP uploads for scripts and future
+       clients (e.g. Slack bot).
+   - `list_thoughts` / `search_thoughts` include attachment info when present.
 
-4. **Update Edge Function (optional)**
-   - Mirror attachment support in the Deno edge function for REST API parity
+4. **Local CLI MCP server (`open-brain-cli/`)** ✓
+   - Stdio-based MCP server for Claude Code, installed via `scripts/setup-brain-cli`.
+   - Wraps the REST and Supabase Storage APIs using `x-brain-key` auth.
+   - Six tools: `capture_thought`, `search_thoughts`, `list_thoughts`,
+     `thought_stats`, `upload_attachment`, `download_attachment`.
+   - File upload/download goes directly over HTTP — no base64 through the
+     context window.
 
-5. **Update documentation**
+5. **Update Edge Function (optional)**
+   - Not yet updated — REST API parity deferred
+
+6. **Update documentation**
    - ADR 0011: MinIO for file attachments
    - Update `docs/how-to/open-brain.md` with attachment examples
 
