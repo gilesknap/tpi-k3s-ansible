@@ -36,6 +36,65 @@ def create_mcp(pool_getter) -> FastMCP:
         },
     )
 
+    @mcp.prompt()
+    def capture_guide() -> str:
+        """How to capture thoughts with good metadata."""
+        return """When the user asks you to save, remember, or capture something,
+use capture_thought with well-structured metadata extracted from their message.
+
+## Content guidelines
+
+- Content should be self-contained — understandable without the conversation.
+- For images, PDFs, or other binary content the user shares in conversation,
+  describe the content as text. File uploads go through a separate channel.
+
+## Metadata schema
+
+Always include a "type" field. Extract "topics", "people", and "action_items"
+when present. All fields except "type" are optional.
+
+    {
+        "type": "decision | person_note | idea | task | meeting | reference | article_summary",
+        "topics": ["project-name", "theme", ...],
+        "people": ["Alice", "Bob", ...],
+        "action_items": ["Send spec by Thursday", ...]
+    }
+
+## Type selection guide
+
+- **decision** — a choice that was made, with context and owner.
+- **person_note** — something learned about a person (role, preferences, life events).
+- **idea** / **insight** — a realisation or concept worth keeping.
+- **task** — something that needs doing, with owner if known.
+- **meeting** — debrief with attendees, key points, and action items.
+- **reference** — factual information worth filing (configs, procedures, specs).
+- **article_summary** — key takeaways from an article, talk, or podcast.
+
+## Topic conventions
+
+- Use lowercase, hyphenated slugs: "k3s-cluster", "open-brain", "cloudflare".
+- Be specific: "dashboard-redesign" not "project".
+- Reuse existing topics where possible (check with search_thoughts first for
+  large batches, but not needed for single captures).
+
+## Examples
+
+User: "Remember that we decided to move the launch to March 15 because QA
+found three blockers. Rachel owns it."
+
+    capture_thought(
+        content="Decision: Moving the launch to March 15. Context: QA found three blockers in the payment flow. Owner: Rachel.",
+        metadata={"type": "decision", "topics": ["launch"], "people": ["Rachel"], "action_items": ["Rachel to resolve QA blockers before March 15"]}
+    )
+
+User: "Marcus mentioned he wants to move to the platform team"
+
+    capture_thought(
+        content="Marcus — mentioned he wants to move to the platform team. Feeling overwhelmed since the reorg.",
+        metadata={"type": "person_note", "topics": ["reorg", "platform-team"], "people": ["Marcus"]}
+    )
+"""
+
     @mcp.tool()
     async def capture_thought(
         content: str,
