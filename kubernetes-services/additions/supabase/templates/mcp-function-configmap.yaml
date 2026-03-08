@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: open-brain-mcp-function
+  namespace: supabase
+data:
+  index.ts: |
+    import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // Edge Runtime passes the full path including function name prefix.
+    // Use basePath so routes like /capture match /open-brain-mcp/capture.
+    const app = new Hono().basePath("/open-brain-mcp");
+
+    // Auth middleware — validate x-brain-key header
+    app.use("*", async (c, next) => {
+      const key = c.req.header("x-brain-key");
+      const expected = Deno.env.get("MCP_ACCESS_KEY");
+      if (!key || key !== expected) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+      await next();
+    });
+
+    function getSupabase() {
+      return createClient(
+        Deno.env.get("SUPABASE_URL") ?? "http://supabase-supabase-kong.supabase.svc.cluster.local:8000",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      );
+    }
+
+    // Tool: capture_thought
+    app.post("/capture", async (c) => {
+      const { content, metadata } = await c.req.json();
+      if (!content) return c.json({ error: "content is required" }, 400);
+
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from("thoughts")
+        .insert({ content, metadata: metadata ?? {} })
+        .select()
+        .single();
+
+      if (error) return c.json({ error: error.message }, 500);
+      return c.json({ thought: data });
+    });
+
+    // Tool: search_thoughts (metadata-based filtering)
+    app.post("/search", async (c) => {
+      const { topic, person, type: thoughtType, keyword, limit: maxResults } = await c.req.json();
+      const supabase = getSupabase();
+
+      let query = supabase
+        .from("thoughts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(maxResults ?? 10);
+
+      if (topic) query = query.contains("metadata", { topics: [topic] });
+      if (person) query = query.contains("metadata", { people: [person] });
+      if (thoughtType) query = query.eq("metadata->>type", thoughtType);
+      if (keyword) query = query.ilike("content", `%${keyword}%`);
+
+      const { data, error } = await query;
+      if (error) return c.json({ error: error.message }, 500);
+      return c.json({ thoughts: data });
+    });
+
+    // Tool: list_thoughts (recent items with filters)
+    app.post("/list", async (c) => {
+      const { type: thoughtType, topic, person, days, limit: maxResults } = await c.req.json();
+      const supabase = getSupabase();
+
+      let query = supabase
+        .from("thoughts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(maxResults ?? 20);
+
+      if (thoughtType) query = query.eq("metadata->>type", thoughtType);
+      if (topic) query = query.contains("metadata", { topics: [topic] });
+      if (person) query = query.contains("metadata", { people: [person] });
+      if (days) {
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        query = query.gte("created_at", since);
+      }
+
+      const { data, error } = await query;
+      if (error) return c.json({ error: error.message }, 500);
+      return c.json({ thoughts: data });
+    });
+
+    // Tool: thought_stats
+    app.get("/stats", async (c) => {
+      const supabase = getSupabase();
+
+      const { count } = await supabase
+        .from("thoughts")
+        .select("*", { count: "exact", head: true });
+
+      const { data: recent } = await supabase
+        .from("thoughts")
+        .select("metadata")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      const types: Record<string, number> = {};
+      const topics: Record<string, number> = {};
+      const people: Record<string, number> = {};
+
+      for (const row of recent ?? []) {
+        const m = row.metadata as Record<string, unknown>;
+        if (m?.type) types[m.type as string] = (types[m.type as string] ?? 0) + 1;
+        for (const t of (m?.topics as string[]) ?? []) topics[t] = (topics[t] ?? 0) + 1;
+        for (const p of (m?.people as string[]) ?? []) people[p] = (people[p] ?? 0) + 1;
+      }
+
+      return c.json({
+        total_thoughts: count,
+        type_distribution: types,
+        top_topics: Object.entries(topics).sort((a, b) => b[1] - a[1]).slice(0, 10),
+        frequent_people: Object.entries(people).sort((a, b) => b[1] - a[1]).slice(0, 10),
+      });
+    });
+
+    // MCP tool definitions endpoint
+    app.get("/tools", (c) => {
+      return c.json({
+        tools: [
+          {
+            name: "capture_thought",
+            description: "Store a thought with pre-extracted metadata. Claude.ai should extract metadata (type, topics, people, action_items) from the conversation before calling this.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                content: { type: "string", description: "The thought content" },
+                metadata: {
+                  type: "object",
+                  description: "Pre-extracted metadata",
+                  properties: {
+                    type: { type: "string", enum: ["idea", "decision", "learning", "question", "reference", "meeting", "task"] },
+                    topics: { type: "array", items: { type: "string" } },
+                    people: { type: "array", items: { type: "string" } },
+                    action_items: { type: "array", items: { type: "string" } },
+                    source: { type: "string" },
+                  },
+                },
+              },
+              required: ["content"],
+            },
+          },
+          {
+            name: "search_thoughts",
+            description: "Search thoughts by metadata filters (topic, person, type, keyword)",
+            inputSchema: {
+              type: "object",
+              properties: {
+                topic: { type: "string" },
+                person: { type: "string" },
+                type: { type: "string" },
+                keyword: { type: "string" },
+                limit: { type: "number", default: 10 },
+              },
+            },
+          },
+          {
+            name: "list_thoughts",
+            description: "List recent thoughts with optional filters",
+            inputSchema: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                topic: { type: "string" },
+                person: { type: "string" },
+                days: { type: "number", description: "Only show thoughts from last N days" },
+                limit: { type: "number", default: 20 },
+              },
+            },
+          },
+          {
+            name: "thought_stats",
+            description: "Get statistics about stored thoughts",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      });
+    });
+
+    // Health check
+    app.get("/health", (c) => c.json({ status: "ok" }));
+
+    Deno.serve(app.fetch);

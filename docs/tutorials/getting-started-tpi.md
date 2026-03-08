@@ -1,5 +1,11 @@
 # Getting Started with Turing Pi
 
+:::{tip}
+For an interactive experience, try the {doc}`ai-guided-setup` instead — Claude Code
+will walk you through these steps, configure files, generate secrets, and run the
+playbooks for you.
+:::
+
 This tutorial walks you through setting up a K3s cluster on one or more Turing Pi v2.5
 boards, from initial hardware setup to a fully deployed cluster with ArgoCD managing
 all services.

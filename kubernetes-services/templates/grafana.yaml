@@ -39,6 +39,11 @@ spec:
               size: 30Gi
               finalizers:
                 - kubernetes.io/pvc-protection
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
 
           prometheus:
             annotations:
@@ -53,6 +58,39 @@ spec:
                     resources:
                       requests:
                         storage: 40Gi
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+          alertmanager:
+            alertmanagerSpec:
+              tolerations:
+                - key: workstation
+                  operator: Equal
+                  value: "true"
+                  effect: NoSchedule
+
+          prometheusOperator:
+            admissionWebhooks:
+              # Disabled: hook jobs (admission-create/patch) delete themselves before
+              # ArgoCD records Succeeded, causing every sync to get permanently stuck.
+              # Same fix as ingress-nginx (eaaa0f1). The webhook validates CRD syntax
+              # but is not required for operation.
+              enabled: false
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+
+          kube-state-metrics:
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}

@@ -1,0 +1,64 @@
+name: Open Brain MCP Container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "open-brain-mcp/**"
+  pull_request:
+    paths:
+      - "open-brain-mcp/**"
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and export to Docker local cache
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./open-brain-mcp
+          platforms: linux/amd64
+          load: true
+          tags: open-brain-mcp:test
+
+      - name: Create tags for publishing image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/open-brain-mcp
+          tags: |
+            # On main: "latest" + short SHA
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # On PR/branch: "beta" + short SHA
+            type=raw,value=beta,enable=${{ github.ref != 'refs/heads/main' }}
+            type=sha,prefix=
+
+      - name: Push image to container registry
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: ./open-brain-mcp
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -16,7 +16,13 @@
   run `--tags cluster`. The root app passes it down to all child apps.
 - **`known_hosts` task must be `serial: 1`** — parallel writes race.
 - **Traefik is disabled** — project uses `--disable=traefik` with NGINX Ingress.
+- **Multi-homed nodes** — K3s and flannel auto-detect the IP from the default
+  route, which may be the wrong subnet. Set `node_ip` and `flannel_iface` in
+  `hosts.yml` for any node with multiple NICs.
 - **No automated tests** — validate by running playbook tags against the cluster.
+- **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
+  header is not in `allowed_hosts` (421 Misdirected Request). When deploying
+  behind a reverse proxy, add the external hostname via `transport_security`.
 
 ## Key Paths
 
@@ -28,6 +34,13 @@
 - Reusable ingress sub-chart: `kubernetes-services/additions/ingress/`
 - SSH to nodes: `ssh ansible@<node>` (not root)
 
+## Documentation
+
+- **Docs are generic** — this repo is intended to be reusable across clusters.
+  Write all docs (ADRs, how-tos, explanations) for a general audience.
+  Specific node names (ws03, nuc2, node01) are fine as examples but must be
+  clearly labelled as such (e.g. "in the author's cluster, ws03 is…").
+
 ## Conventions
 
 - Ansible: 2-space indent, sentence-case task names, idempotent tasks
@@ -35,6 +48,9 @@
 - Lint: `ansible-lint`; suppress with `# noqa <rule>`
 - Docs: `python -m sphinx docs docs/_build`
 - `.gitleaks.toml` allowlists `*-secret.yaml` (SealedSecrets)
+- **SealedSecret file naming** — must be `*-secret.yaml` (singular).
+  Files named `*-secrets.yaml` are not in the `.gitleaks.toml` allowlist
+  and the pre-commit hook will block the commit with no obvious reason.
 
 ## On-Demand Knowledge
 

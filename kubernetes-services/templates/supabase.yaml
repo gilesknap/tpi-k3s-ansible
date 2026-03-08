@@ -1,0 +1,308 @@
+{{- if .Values.enable_supabase }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: supabase
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: supabase
+  project: kubernetes
+  sources:
+    # Source 1: Supabase community Helm chart
+    - chart: supabase
+      repoURL: https://supabase-community.github.io/supabase-kubernetes
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          # -- Secrets: reference the SealedSecret we commit to the repo --
+          secret:
+            jwt:
+              secretRef: supabase-credentials
+              secretRefKey:
+                anonKey: anonKey
+                serviceKey: serviceKey
+                secret: secret
+            db:
+              secretRef: supabase-credentials
+              secretRefKey:
+                password: password
+                database: database
+            dashboard:
+              secretRef: supabase-credentials
+              secretRefKey:
+                username: username
+                password: dashboard-password
+                openAiApiKey: openAiApiKey
+            smtp:
+              secretRef: supabase-credentials
+              secretRefKey:
+                username: smtp-username
+                password: smtp-password
+            analytics:
+              secretRef: supabase-credentials
+              secretRefKey:
+                publicAccessToken: publicAccessToken
+                privateAccessToken: privateAccessToken
+            realtime:
+              secretRef: supabase-credentials
+              secretRefKey:
+                secretKeyBase: secretKeyBase
+            meta:
+              secretRef: supabase-credentials
+              secretRefKey:
+                cryptoKey: cryptoKey
+
+          # -- Deployment: enable/disable components, resources, scheduling --
+          deployment:
+            # Disable unused components
+            analytics:
+              enabled: false
+            imgproxy:
+              enabled: false
+            vector:
+              enabled: false
+            minio:
+              enabled: false
+
+            db:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            auth:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            rest:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            realtime:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            storage:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            functions:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              envFrom:
+                - secretRef:
+                    name: supabase-mcp-env
+              volumeMounts:
+                - mountPath: /home/deno/functions/open-brain-mcp/index.ts
+                  name: mcp-function
+                  subPath: index.ts
+              volumes:
+                - name: mcp-function
+                  configMap:
+                    name: open-brain-mcp-function
+
+            studio:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            kong:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+            meta:
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
+
+          # -- Persistence: use Longhorn for DB (NFS is unreliable for Postgres) --
+          persistence:
+            db:
+              enabled: true
+              storageClassName: longhorn
+              size: 50Gi
+
+          # -- Database migration: pgvector + thoughts schema --
+          migration:
+            init-open-brain.sql: |
+              -- Enable pgvector extension
+              create extension if not exists vector with schema extensions;
+
+              -- thoughts table
+              create table if not exists public.thoughts (
+                id uuid default gen_random_uuid() primary key,
+                content text not null,
+                embedding extensions.vector(1536),
+                metadata jsonb default '{}'::jsonb,
+                created_at timestamptz default now(),
+                updated_at timestamptz default now()
+              );
+
+              -- indexes
+              create index if not exists thoughts_embedding_idx on public.thoughts
+                using hnsw (embedding extensions.vector_cosine_ops);
+              create index if not exists thoughts_metadata_idx on public.thoughts
+                using gin (metadata);
+              create index if not exists thoughts_created_at_idx on public.thoughts
+                (created_at desc);
+
+              -- auto-update trigger
+              create or replace function public.update_updated_at()
+              returns trigger as $$
+              begin
+                new.updated_at = now();
+                return new;
+              end;
+              $$ language plpgsql;
+
+              drop trigger if exists thoughts_updated_at on public.thoughts;
+              create trigger thoughts_updated_at
+                before update on public.thoughts
+                for each row execute function public.update_updated_at();
+
+              -- semantic search function (ready for embeddings)
+              create or replace function public.match_thoughts(
+                query_embedding extensions.vector(1536),
+                match_threshold float default 0.7,
+                match_count int default 10,
+                filter jsonb default '{}'::jsonb
+              ) returns setof public.thoughts
+              language plpgsql as $$
+              begin
+                return query
+                  select *
+                  from public.thoughts
+                  where
+                    (filter = '{}'::jsonb or metadata @> filter)
+                    and embedding is not null
+                    and 1 - (embedding <=> query_embedding) > match_threshold
+                  order by embedding <=> query_embedding
+                  limit match_count;
+              end;
+              $$;
+
+              -- RLS
+              alter table public.thoughts enable row level security;
+              do $$
+              begin
+                if not exists (
+                  select 1 from pg_policies
+                  where tablename = 'thoughts' and policyname = 'Service role full access'
+                ) then
+                  create policy "Service role full access" on public.thoughts
+                    for all using (auth.role() = 'service_role');
+                end if;
+              end $$;
+
+    # Source 2: Reusable ingress for Studio (behind oauth2-proxy)
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: supabase
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: supabase-supabase-kong
+          service_port: 8000
+          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+
+    # Source 3: Additional resources (secrets, API ingress, NFS PV/PVC, MCP function)
+    - path: ./kubernetes-services/additions/supabase
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          nfs:
+            server: {{ .Values.supabase.nfs.server | quote }}
+            path: {{ .Values.supabase.nfs.path | quote }}
+          cluster_domain: {{ .Values.cluster_domain }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}
