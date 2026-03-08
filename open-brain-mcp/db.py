@@ -223,13 +223,13 @@ async def upload_attachment(
     return path
 
 
-async def get_signed_url(
+async def download_attachment(
     thought_id: str,
     filename: str,
     storage_url: str,
     service_key: str,
-) -> str:
-    """Create a signed URL for a stored attachment.
+) -> tuple[bytes, str]:
+    """Download a file from Supabase Storage.
 
     Args:
         thought_id: UUID of the parent thought.
@@ -238,26 +238,20 @@ async def get_signed_url(
         service_key: Supabase service-role key for auth.
 
     Returns:
-        A time-limited signed URL string.
+        Tuple of (file_bytes, mime_type).
     """
     path = f"{thought_id}/{filename}"
-    url = f"{storage_url}/storage/v1/object/sign/brain-attachments/{path}"
+    url = f"{storage_url}/storage/v1/object/brain-attachments/{path}"
 
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
+        resp = await client.get(
             url,
-            json={"expiresIn": 3600},
-            headers={
-                "Authorization": f"Bearer {service_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {service_key}"},
         )
         resp.raise_for_status()
-        data = resp.json()
 
-    # Supabase returns {"signedURL": "/object/sign/..."} — prepend the base.
-    signed_path = data.get("signedURL", "")
-    return f"{storage_url}/storage/v1{signed_path}"
+    mime_type = resp.headers.get("content-type", "application/octet-stream")
+    return resp.content, mime_type
 
 
 async def update_thought_attachments(

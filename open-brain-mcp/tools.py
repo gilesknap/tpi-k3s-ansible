@@ -90,11 +90,14 @@ def create_mcp(pool_getter) -> FastMCP:
         return json.dumps(result)
 
     @mcp.tool()
-    async def get_attachment_url(
+    async def get_attachment(
         thought_id: str,
         filename: str,
     ) -> str:
-        """Get a time-limited signed URL for a thought attachment.
+        """Retrieve a file attachment from a thought.
+
+        Returns the file content as base64 with its MIME type, so Claude
+        can display images or read PDFs directly.
 
         Args:
             thought_id: UUID of the thought that owns the attachment.
@@ -104,10 +107,14 @@ def create_mcp(pool_getter) -> FastMCP:
             return json.dumps({"error": "Supabase storage is not configured"})
 
         try:
-            url = await db.get_signed_url(
+            content_bytes, mime_type = await db.download_attachment(
                 thought_id, filename, SUPABASE_URL, SUPABASE_SERVICE_KEY,
             )
-            return json.dumps({"signed_url": url})
+            return json.dumps({
+                "filename": filename,
+                "mime_type": mime_type,
+                "content_base64": base64.b64encode(content_bytes).decode("ascii"),
+            })
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc)})
 
