@@ -102,7 +102,8 @@ backed by Longhorn without adding external dependencies.
      2. Upload blob to Supabase Storage API (httpx, MCP pod → Kong → MinIO)
      3. Store storage paths in `metadata.attachments`
      4. Return thought ID + attachment info
-   - New tool: `get_attachment_url` — returns a signed URL for a stored file
+   - New tool: `get_attachment` — downloads a file from MinIO and returns
+     it as base64 with MIME type so Claude can display images/PDFs directly
    - Update `list_thoughts` / `search_thoughts` responses to include attachment
      info when present
 

@@ -43,7 +43,7 @@ storage paths. The actual blobs live in MinIO.
 - One additional pod (MinIO) and one additional Longhorn PVC (~50Gi)
 - All data remains self-hosted on cluster storage
 - Files are accessible via signed URLs with time-limited access
-- The MCP server gains new tools (`attach_file`, `get_attachment_url`) and
+- The MCP server gains new tools (`attach_file`, `get_attachment`) and
   `capture_thought` gains an optional `attachments` parameter
 - MinIO is a well-understood, widely-deployed component — low operational risk
 - Backup strategy must now cover MinIO PVC in addition to Postgres PVC

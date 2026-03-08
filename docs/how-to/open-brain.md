@@ -257,7 +257,7 @@ Storage bucket (`brain-attachments`) backed by a Longhorn PVC.
    a list of `{filename, content_base64, mime_type}` objects
 2. Files are uploaded to MinIO via the Supabase Storage REST API
 3. Storage paths are saved in the thought's `metadata.attachments` array
-4. The `get_attachment_url` tool returns a time-limited signed URL for retrieval
+4. The `get_attachment` tool returns a time-limited signed URL for retrieval
 
 ### Enable MinIO
 
@@ -294,8 +294,9 @@ Once MinIO is running, Claude.ai can save attachments through the MCP tools:
 - **Capture with attachment**: Claude reads an image/PDF, then calls
   `capture_thought` with the file content base64-encoded in the `attachments`
   parameter
-- **Retrieve attachment**: Call `get_attachment_url` with the thought ID and
-  filename to get a signed download URL
+- **Retrieve attachment**: Call `get_attachment` with the thought ID and
+  filename — the file content is returned directly so Claude can display
+  images or read PDFs
 
 :::{note}
 Claude.ai can read images and PDFs shared in the conversation. When you ask
