@@ -230,35 +230,9 @@ Login with the dashboard credentials you generated in step 2
 
 ## 7 -- Configure Claude.ai MCP connector
 
-In your [Claude.ai Project](https://claude.ai/) settings, add an MCP
-connector:
-
-- **URL**: `https://supabase-api.<your-domain>/functions/v1/open-brain-mcp`
-- **Header**: `x-brain-key: <your MCP_ACCESS_KEY>`
-
-Then add these **Project Instructions** to tell Claude how to use the memory:
-
-```
-## Memory (Open Brain)
-
-You have access to a persistent memory system via MCP tools.
-
-### On capture
-When the user shares something worth remembering (decisions, ideas, learnings,
-meeting notes, tasks), extract metadata and call capture_thought:
-- type: idea | decision | learning | question | reference | meeting | task
-- topics: relevant topic tags
-- people: people mentioned
-- action_items: any action items identified
-- source: conversation context
-
-### On recall
-When context from past conversations would help, use search_thoughts or
-list_thoughts to find relevant memories before responding.
-
-### On review
-Use thought_stats to get an overview of stored memories when asked.
-```
+See {doc}`claude-ai-mcp` for the full guide on connecting Claude.ai to the
+Open Brain endpoint, including endpoint verification, key retrieval, project
+instructions, and troubleshooting.
 
 ## Disable Open Brain
 
