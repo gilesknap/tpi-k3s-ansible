@@ -64,6 +64,8 @@ limits scheduling to intentional workloads:
 - Embedding pipeline: add OpenRouter API key, generate vector embeddings on capture
 - Semantic search: `match_thoughts` function ready, needs embeddings populated
 - ARM migration: move Supabase to ARM nodes if/when images support it
+- Multi-arch container: add linux/arm64 build to open-brain-mcp CI
+  (use native ARM runner to avoid slow QEMU emulation)
 
 ## Decision Records
 
