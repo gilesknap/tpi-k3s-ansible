@@ -72,12 +72,74 @@ If this hangs or returns a Cloudflare error page, check:
 4. Click **Register application**.
 5. Note the **Client ID** and generate a **Client secret**.
 
-These values are stored in the MCP server's Kubernetes secret and referenced
-by the deployment. If you have not yet created the sealed secret for the MCP
-server, add `github-client-id` and `github-client-secret` to the secret
-manifest alongside the other credentials.
+Keep these values — you will need them in the next step.
 
-## 3 -- Add the MCP connector in Claude.ai
+## 3 -- Create and seal the MCP server secret
+
+The MCP server needs four secret values. The script below prompts for each
+one interactively so nothing ends up in your shell history.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAMESPACE=open-brain-mcp
+SECRET_NAME=open-brain-mcp-secret
+OUTPUT=kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
+
+# Prompt for secrets (input hidden)
+read -rsp "DATABASE_URL (e.g. postgresql://supabase_admin:PASS@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres): " DATABASE_URL; echo
+read -rsp "GITHUB_CLIENT_ID: " GITHUB_CLIENT_ID; echo
+read -rsp "GITHUB_CLIENT_SECRET: " GITHUB_CLIENT_SECRET; echo
+
+# Generate a random JWT signing secret
+MCP_JWT_SECRET=$(openssl rand -hex 32)
+echo "Generated MCP_JWT_SECRET (random 64-char hex)."
+
+# Create namespace if it doesn't exist
+kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+# Create and seal
+kubectl create secret generic "$SECRET_NAME" \
+  --namespace="$NAMESPACE" \
+  --from-literal=DATABASE_URL="$DATABASE_URL" \
+  --from-literal=MCP_JWT_SECRET="$MCP_JWT_SECRET" \
+  --from-literal=GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
+  --from-literal=GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET" \
+  --dry-run=client -o yaml | \
+  kubeseal --format yaml \
+    --controller-name sealed-secrets \
+    --controller-namespace kube-system \
+  > "$OUTPUT"
+
+echo "Sealed secret written to $OUTPUT"
+```
+
+:::{tip}
+The `DATABASE_URL` connects to the Supabase PostgreSQL instance inside the
+cluster. If you followed the Open Brain setup guide, the password is in the
+`supabase-credentials` secret:
+
+```bash
+kubectl get secret supabase-credentials -n supabase \
+  -o jsonpath='{.data.password}' | base64 -d
+```
+
+Then construct the URL:
+`postgresql://supabase_admin:<password>@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres`
+:::
+
+## 4 -- Commit and deploy the sealed secret
+
+```bash
+git add kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
+git commit -m "Seal open-brain-mcp credentials"
+git push
+```
+
+ArgoCD will pick up the change and create the secret in the cluster.
+
+## 5 -- Add the MCP connector in Claude.ai
 
 1. Open [claude.ai](https://claude.ai/) and navigate to a **Project** (or
    create a new one).
@@ -90,7 +152,7 @@ Claude.ai will automatically initiate the OAuth flow — you will be redirected
 to GitHub to authorize the application. No manual API key or header
 configuration is needed.
 
-## 4 -- Add project instructions
+## 6 -- Add project instructions
 
 In the same project, add these **Project Instructions** so Claude knows when
 and how to use the tools:
@@ -117,7 +179,7 @@ list_thoughts to find relevant memories before responding.
 Use thought_stats to get an overview of stored memories when asked.
 ```
 
-## 5 -- Test the integration
+## 7 -- Test the integration
 
 In a new conversation within the project:
 
