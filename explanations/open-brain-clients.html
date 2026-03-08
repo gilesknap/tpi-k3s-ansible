@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Security Hardening &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Open Brain Client Options &#8212; K3s Cluster Commissioning  documentation</title>
   
   
   
@@ -47,11 +47,11 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/security-hardening';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/open-brain-clients';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Open Brain Client Options" href="open-brain-clients.html" />
-    <link rel="prev" title="Security Model" href="security.html" />
+    <link rel="next" title="Decision Records" href="decisions.html" />
+    <link rel="prev" title="Security Hardening" href="security-hardening.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -322,14 +322,14 @@
 <li class="toctree-l1"><a class="reference internal" href="kubernetes-services.html">Kubernetes Services Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ansible-roles.html">Ansible Roles in Detail</a></li>
 </ul>
-<ul class="current nav bd-sidenav">
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="networking.html">Networking</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network-policies.html">Network Policies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="security.html">Security Model</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Security Hardening</a></li>
+<li class="toctree-l1"><a class="reference internal" href="security-hardening.html">Security Hardening</a></li>
 </ul>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="open-brain-clients.html">Open Brain Client Options</a></li>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Open Brain Client Options</a></li>
 </ul>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="decisions.html">Decision Records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -389,7 +389,7 @@
     
     <li class="breadcrumb-item"><a href="../explanations.html" class="nav-link">Explanations</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Security Hardening</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Open Brain Client Options</span></li>
   </ul>
 </nav>
 </div>
@@ -406,122 +406,216 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="security-hardening">
-<h1>Security Hardening<a class="headerlink" href="#security-hardening" title="Link to this heading">#</a></h1>
-<p>This page describes the security hardening measures applied to the cluster
-and the principles behind them.</p>
-<section id="pod-security-standards">
-<h2>Pod Security Standards<a class="headerlink" href="#pod-security-standards" title="Link to this heading">#</a></h2>
-<p>Kubernetes defines three Pod Security Standards: Privileged, Baseline, and
-Restricted. This cluster applies security contexts at the individual
-workload level rather than enforcing a cluster-wide standard, because some
-workloads (kernel tuning, NPU access) require privileged access.</p>
-<section id="security-context-summary">
-<h3>Security context summary<a class="headerlink" href="#security-context-summary" title="Link to this heading">#</a></h3>
+  <section id="open-brain-client-options">
+<h1>Open Brain Client Options<a class="headerlink" href="#open-brain-client-options" title="Link to this heading">#</a></h1>
+<p>An analysis of client interfaces for Open Brain, covering file handling
+constraints, architectural trade-offs, and potential directions.</p>
+<section id="current-state">
+<h2>Current State<a class="headerlink" href="#current-state" title="Link to this heading">#</a></h2>
+<p>Open Brain stores thoughts (text + structured metadata) in Supabase PostgreSQL,
+with MinIO providing S3-compatible object storage for file attachments. Three
+server interfaces exist:</p>
+<ul class="simple">
+<li><p><strong>MCP server</strong> (<code class="docutils literal notranslate"><span class="pre">brain.&lt;domain&gt;/mcp</span></code>) — OAuth 2.1 via GitHub, used by Claude.ai.
+Text-only capture (<code class="docutils literal notranslate"><span class="pre">capture_thought</span></code> accepts content + metadata, no file uploads).
+Can retrieve attachments via <code class="docutils literal notranslate"><span class="pre">get_attachment</span></code>.</p></li>
+<li><p><strong>Local stdio MCP server</strong> (<code class="docutils literal notranslate"><span class="pre">open-brain-cli/</span></code>) — wraps REST and Storage APIs,
+used by Claude Code. Supports file upload/download directly over HTTP.</p></li>
+<li><p><strong>REST API</strong> (<code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;domain&gt;/functions/v1/open-brain-mcp</span></code>) — x-brain-key
+header auth, used by scripts and CLI tools</p></li>
+</ul>
+</section>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<p>The system separates text capture from file uploads to avoid pushing binary data
+through MCP context windows:</p>
+<ul class="simple">
+<li><p><strong>Text capture</strong> — <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code> on the public MCP server (Claude.ai) or
+via the REST API wrapper (local CLI). Claude.ai should summarise binary content
+as text before calling <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code>.</p></li>
+<li><p><strong>File uploads</strong> — always go directly to Supabase Storage API, never through
+the MCP context window. The local CLI and future Slack bot both use this path.</p></li>
+<li><p><strong>File retrieval</strong> — <code class="docutils literal notranslate"><span class="pre">get_attachment</span></code> on the public MCP server downloads from
+MinIO via Supabase Storage and returns base64. Works for viewing individual
+attachments, not for bulk transfers.</p></li>
+<li><p><strong>Queries</strong> — <code class="docutils literal notranslate"><span class="pre">search_thoughts</span></code>, <code class="docutils literal notranslate"><span class="pre">list_thoughts</span></code>, and <code class="docutils literal notranslate"><span class="pre">thought_stats</span></code> are
+available on both MCP servers.</p></li>
+</ul>
+</section>
+<section id="the-file-upload-problem">
+<h2>The File Upload Problem<a class="headerlink" href="#the-file-upload-problem" title="Link to this heading">#</a></h2>
+<p>MCP tool calls pass all data through the AI’s context window. A typical
+screenshot (1-3 MB) base64-encoded inflates to ~1.3-4 MB of text, which
+exhausts Claude.ai’s context in a single tool call. This is a fundamental
+limitation of the MCP protocol as implemented by Claude.ai — there is no
+side-channel for binary data.</p>
+<p><strong>Approaches considered and rejected:</strong></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
-<tr class="row-odd"><th class="head"><p>Workload</p></th>
-<th class="head"><p>runAsNonRoot</p></th>
-<th class="head"><p>readOnlyRootFilesystem</p></th>
-<th class="head"><p>Privileged</p></th>
-<th class="head"><p>Reason</p></th>
+<tr class="row-odd"><th class="head"><p>Approach</p></th>
+<th class="head"><p>Why it fails</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>cloudflared</p></td>
-<td><p>Yes (65532)</p></td>
-<td><p>Yes</p></td>
-<td><p>No</p></td>
-<td><p>Network-only, no special access needed</p></td>
+<tr class="row-even"><td><p>Base64 in tool params</p></td>
+<td><p>Fills context window on any non-trivial image</p></td>
 </tr>
-<tr class="row-odd"><td><p>echo</p></td>
-<td><p>Yes (65534)</p></td>
-<td><p>Yes</p></td>
-<td><p>No</p></td>
-<td><p>Stateless test service</p></td>
+<tr class="row-odd"><td><p>Chunked uploads</p></td>
+<td><p>Chunks accumulate in conversation history — same problem</p></td>
 </tr>
-<tr class="row-even"><td><p>llamacpp</p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>No</p></td>
-<td><p>Drops all capabilities; needs GPU device</p></td>
+<tr class="row-even"><td><p>URL fetch from server</p></td>
+<td><p>Only works for publicly-hosted files, not conversation uploads</p></td>
 </tr>
-<tr class="row-odd"><td><p>rkllama</p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Yes</p></td>
-<td><p>Requires <code class="docutils literal notranslate"><span class="pre">/dev/rknpu</span></code> NPU access</p></td>
-</tr>
-<tr class="row-even"><td><p>rkllama (nginx)</p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>No</p></td>
-<td><p>Drops capabilities, adds NET_BIND_SERVICE</p></td>
-</tr>
-<tr class="row-odd"><td><p>kernel-settings</p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Yes</p></td>
-<td><p>Needs sysctl and host filesystem access</p></td>
+<tr class="row-odd"><td><p>Resize/thumbnail</p></td>
+<td><p>Lossy; defeats the purpose of storing the original</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-</section>
-</section>
-<section id="container-image-pinning">
-<h2>Container image pinning<a class="headerlink" href="#container-image-pinning" title="Link to this heading">#</a></h2>
-<p>All container images are pinned to specific version tags rather than
-<code class="docutils literal notranslate"><span class="pre">latest</span></code> or branch tags. This ensures:</p>
+<p><strong>What does work:</strong></p>
 <ul class="simple">
-<li><p><strong>Reproducibility</strong> — the same image runs in every deployment.</p></li>
-<li><p><strong>Auditability</strong> — you can verify exactly which version is running.</p></li>
-<li><p><strong>Stability</strong> — an upstream push to <code class="docutils literal notranslate"><span class="pre">latest</span></code> cannot break your cluster.</p></li>
-</ul>
-<p>Renovate bot monitors all pinned images and raises PRs when new versions
-are available.</p>
-</section>
-<section id="rbac-principles">
-<h2>RBAC principles<a class="headerlink" href="#rbac-principles" title="Link to this heading">#</a></h2>
-<section id="headlamp-dashboard">
-<h3>Headlamp dashboard<a class="headerlink" href="#headlamp-dashboard" title="Link to this heading">#</a></h3>
-<p>The Headlamp service account currently uses <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>. A future
-improvement is to scope this down to a read-heavy custom ClusterRole once
-the required permissions are mapped out.</p>
-</section>
-<section id="argocd-project">
-<h3>ArgoCD project<a class="headerlink" href="#argocd-project" title="Link to this heading">#</a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> AppProject restricts <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> to the project’s
-GitHub repository and the specific Helm chart registries used by the
-cluster services. This prevents an attacker who gains ArgoCD access from
-deploying arbitrary manifests from untrusted repositories.</p>
-</section>
-</section>
-<section id="secret-management">
-<h2>Secret management<a class="headerlink" href="#secret-management" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>All sensitive values are stored as SealedSecrets (encrypted in Git).</p></li>
-<li><p>The ArgoCD initial admin password is not displayed in plaintext during
-provisioning — the bootstrap script directs users to retrieve it
-securely via <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>.</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret (used by Grafana and basic-auth services) is
-created manually during bootstrap and not stored in Git.</p></li>
+<li><p><strong>File retrieval</strong> via MCP is fine — <code class="docutils literal notranslate"><span class="pre">get_attachment</span></code> downloads from MinIO and
+returns base64. A 143 KB PNG takes ~20 seconds round trip (Claude.ai → MCP →
+Kong → Storage → MinIO → back). Functional but not fast.</p></li>
+<li><p><strong>Text capture</strong> via MCP works perfectly — thoughts with structured metadata
+are small and well within context limits.</p></li>
 </ul>
 </section>
-<section id="secret-rotation">
-<h2>Secret rotation<a class="headerlink" href="#secret-rotation" title="Link to this heading">#</a></h2>
-<p>To rotate secrets:</p>
+<section id="client-comparison">
+<h2>Client Comparison<a class="headerlink" href="#client-comparison" title="Link to this heading">#</a></h2>
+<section id="claude-ai-mcp">
+<h3>Claude.ai (MCP)<a class="headerlink" href="#claude-ai-mcp" title="Link to this heading">#</a></h3>
+<p><strong>Pros:</strong></p>
+<ul class="simple">
+<li><p>Uses existing MAX subscription (no API costs)</p></li>
+<li><p>Rich AI reasoning for metadata extraction, search, and classification</p></li>
+<li><p>Project instructions customise behaviour</p></li>
+<li><p>OAuth 2.1 authentication (secure, no shared secrets)</p></li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul class="simple">
+<li><p>Text-only capture — <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code> does not accept file attachments
+(binary data would exhaust the context window). Claude.ai should summarise
+binary content as text before calling <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code>.</p></li>
+<li><p>File retrieval is slow (~20s for a small image)</p></li>
+<li><p>No persistent state between conversations</p></li>
+<li><p>Conversation length limits can interrupt workflows</p></li>
+</ul>
+<p><strong>Best for:</strong> Text capture (including AI-summarised descriptions of binary
+content), search, querying, analysis of existing thoughts.</p>
+</section>
+<section id="claude-code-local-stdio-mcp-server">
+<h3>Claude Code (local stdio MCP server)<a class="headerlink" href="#claude-code-local-stdio-mcp-server" title="Link to this heading">#</a></h3>
+<p><strong>Tested:</strong> A local stdio MCP server (<code class="docutils literal notranslate"><span class="pre">open-brain-cli/</span></code>) wraps the REST and
+Storage APIs. Claude Code connects via <code class="docutils literal notranslate"><span class="pre">.mcp.json</span></code> and gets 6 tools including
+<code class="docutils literal notranslate"><span class="pre">upload_attachment</span></code> and <code class="docutils literal notranslate"><span class="pre">download_attachment</span></code> that handle files directly from
+disk — no base64 through the context window.</p>
+<p><strong>Pros:</strong></p>
+<ul class="simple">
+<li><p>File upload/download works — binary goes directly over HTTP, not through context</p></li>
+<li><p>File retrieval is fast — download to <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>, Claude Code reads it (multimodal)</p></li>
+<li><p>Text capture and search work well via the REST API wrapper</p></li>
+<li><p>Uses MAX subscription (no API costs)</p></li>
+<li><p>Works remotely via Cloudflare tunnel (x-brain-key auth over HTTPS)</p></li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul class="simple">
+<li><p><strong>File capture is clumsy</strong> — pasted/dropped images in Claude Code are in-memory
+conversation data, not files on disk. To upload, the user must first save the
+file somewhere, then tell Claude Code the path. This defeats the goal of quick,
+frictionless capture.</p></li>
+<li><p>Claude Code can <em>see</em> images (multimodal) but cannot <em>save</em> them from the
+conversation to a file path — there is no tool for that.</p></li>
+<li><p>Retrieved images are described in text, not displayed visually (terminal limitation)</p></li>
+</ul>
+<p><strong>Best for:</strong> Text-only thought capture and search from a workstation. File
+uploads are possible but too manual for a “quick capture” workflow.</p>
+<p><strong>Verdict:</strong> Good for querying and text capture, but not a replacement for
+drag-and-drop file capture. The friction of “save file to disk first” makes
+it unsuitable as the primary capture interface for images/PDFs.</p>
+</section>
+<section id="slack-bot-direct-api">
+<h3>Slack Bot (direct API)<a class="headerlink" href="#slack-bot-direct-api" title="Link to this heading">#</a></h3>
+<p><strong>Pros:</strong></p>
+<ul class="simple">
+<li><p>Native file upload handling — Slack receives files out-of-band, bot downloads
+via API, uploads directly to MinIO. No context window involvement.</p></li>
+<li><p>Mobile-friendly — capture from phone</p></li>
+<li><p>Thread-based conversations provide natural context</p></li>
+<li><p>Proven pattern — the predecessor project (2ndBrain) used this successfully
+with Gemini for AI classification and Obsidian for storage</p></li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul class="simple">
+<li><p>Requires Claude API key for AI features (classification, metadata extraction),
+adding cost on top of MAX subscription. Without AI, it’s just a dumb file uploader.</p></li>
+<li><p>Another service to deploy and maintain in the cluster</p></li>
+<li><p>Slack dependency (external service)</p></li>
+<li><p>Socket Mode needs a persistent WebSocket connection</p></li>
+</ul>
+<p><strong>Best for:</strong> File uploads (images, PDFs, screenshots), mobile capture,
+quick notes on the go.</p>
+</section>
+<section id="web-ui-custom">
+<h3>Web UI (custom)<a class="headerlink" href="#web-ui-custom" title="Link to this heading">#</a></h3>
+<p><strong>Pros:</strong></p>
+<ul class="simple">
+<li><p>Full control over UX, drag-and-drop file upload</p></li>
+<li><p>Direct upload to Supabase Storage API (fast)</p></li>
+<li><p>Could use Supabase Auth for login</p></li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul class="simple">
+<li><p>Significant development effort</p></li>
+<li><p>Yet another service to maintain</p></li>
+<li><p>Doesn’t leverage AI for classification without API costs</p></li>
+</ul>
+<p><strong>Best for:</strong> Only if other options prove insufficient.</p>
+</section>
+</section>
+<section id="the-2ndbrain-precedent">
+<h2>The 2ndBrain Precedent<a class="headerlink" href="#the-2ndbrain-precedent" title="Link to this heading">#</a></h2>
+<p>The predecessor project used Slack + Gemini + Obsidian:</p>
 <ol class="arabic simple">
-<li><p>Generate new credentials.</p></li>
-<li><p>Re-seal with <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code> (see <a class="reference internal" href="../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
-<li><p>Commit and push — ArgoCD applies the new SealedSecret automatically.</p></li>
-<li><p>Restart affected pods to pick up the new secret values.</p></li>
+<li><p>User sends message/file to Slack DM</p></li>
+<li><p>Slack bot downloads attachments, fetches thread context</p></li>
+<li><p>Gemini Flash classifies intent and extracts metadata (two-call pattern)</p></li>
+<li><p>Content filed into Obsidian vault with YAML frontmatter</p></li>
+<li><p>Bot replies in-thread with confirmation</p></li>
+</ol>
+<p>This worked well but required a Gemini API key (cost) and stored everything
+in Obsidian (file-based, harder to query programmatically). Open Brain replaces
+the storage layer with Supabase (structured, queryable) and MinIO (object
+storage), but the client interface question remains open.</p>
+</section>
+<section id="recommended-direction">
+<h2>Recommended Direction<a class="headerlink" href="#recommended-direction" title="Link to this heading">#</a></h2>
+<p>Claude.ai is the primary client for both capture and retrieval. Text-only
+capture covers the vast majority of use cases — Claude.ai’s AI reasoning
+extracts structured metadata before calling <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">get_attachment</span></code> handles file retrieval when needed.</p>
+<ol class="arabic simple">
+<li><p><strong>Claude.ai</strong> — primary capture and retrieval interface. Text capture with
+rich AI metadata extraction, search, and analysis. File retrieval via
+<code class="docutils literal notranslate"><span class="pre">get_attachment</span></code>. Uses MAX subscription (no API costs).</p></li>
+<li><p><strong>Claude Code</strong> — workstation text capture and programmatic access. The
+local stdio MCP server (<code class="docutils literal notranslate"><span class="pre">open-brain-cli/</span></code>) provides fast search, text
+capture, and file upload/download for power-user workflows.</p></li>
+<li><p><strong>Slack bot</strong> — deferred. Would handle drag-and-drop file capture (images,
+PDFs, mobile screenshots) if text-only capture proves insufficient. The
+predecessor project (2ndBrain) proved the pattern works, but the added
+complexity (API costs, another service) is not justified until the pain
+of not having file capture is actually felt.</p></li>
 </ol>
 </section>
-<section id="networkpolicies">
-<h2>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h2>
-<p>See <a class="reference internal" href="network-policies.html"><span class="doc">Network Policies</span></a> for a discussion of NetworkPolicies and when
-to deploy them.</p>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Continue using Claude.ai as the primary capture and retrieval client</p></li>
+<li><p>Use Claude Code local CLI for workstation-based workflows and file uploads</p></li>
+<li><p>Revisit Slack bot if file capture becomes a frequent pain point</p></li>
+<li><p>Phase 2b: embedding pipeline for semantic search (see ADR 0008)</p></li>
+</ul>
 </section>
 </section>
 
@@ -536,20 +630,20 @@ to deploy them.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="security.html"
+       href="security-hardening.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Security Model</p>
+        <p class="prev-next-title">Security Hardening</p>
       </div>
     </a>
     <a class="right-next"
-       href="open-brain-clients.html"
+       href="decisions.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Open Brain Client Options</p>
+        <p class="prev-next-title">Decision Records</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -572,19 +666,19 @@ to deploy them.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pod-security-standards">Pod Security Standards</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#security-context-summary">Security context summary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-state">Current State</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-file-upload-problem">The File Upload Problem</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#client-comparison">Client Comparison</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#claude-ai-mcp">Claude.ai (MCP)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#claude-code-local-stdio-mcp-server">Claude Code (local stdio MCP server)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#slack-bot-direct-api">Slack Bot (direct API)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#web-ui-custom">Web UI (custom)</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#container-image-pinning">Container image pinning</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rbac-principles">RBAC principles</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp-dashboard">Headlamp dashboard</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-project">ArgoCD project</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#secret-management">Secret management</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#secret-rotation">Secret rotation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#networkpolicies">NetworkPolicies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-2ndbrain-precedent">The 2ndBrain Precedent</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-direction">Recommended Direction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
 </ul>
   </nav></div>
 
@@ -592,7 +686,7 @@ to deploy them.</p>
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/security-hardening.md">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/open-brain-clients.md">
       <i class="fa-solid fa-pencil"></i>
       
       
@@ -608,7 +702,7 @@ to deploy them.</p>
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
     <ul class="this-page-menu">
-      <li><a href="../_sources/explanations/security-hardening.md.txt"
+      <li><a href="../_sources/explanations/open-brain-clients.md.txt"
             rel="nofollow">Show Source</a></li>
     </ul>
    </div></div>

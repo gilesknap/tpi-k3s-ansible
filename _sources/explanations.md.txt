@@ -25,6 +25,14 @@ explanations/security
 explanations/security-hardening
 ```
 
+## Open Brain
+
+```{toctree}
+:maxdepth: 1
+
+explanations/open-brain-clients
+```
+
 ## Decisions
 
 ```{toctree}

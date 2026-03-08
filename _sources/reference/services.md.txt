@@ -19,7 +19,9 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.18.2 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | Open WebUI | `open-webui/open-webui` | 12.5.0 | `open-webui` | `open-webui.<domain>` | OAuth | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| Open Brain MCP | Helm chart (local) | — | `open-brain-mcp` | `brain.<domain>` | OAuth 2.1 (GitHub) | Standalone MCP server for AI memory |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.3 | `kube-system` | — | — | Encrypted secrets in Git |
+| Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | OAuth (Studio), x-brain-key (API) | Self-hosted backend-as-a-service platform |
 
 ## Service details
 
@@ -198,10 +200,46 @@ via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as so
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see {doc}`/how-to/llamacpp-models`).
 
+### Open Brain MCP
+
+Standalone MCP (Model Context Protocol) server providing persistent AI memory
+for Claude.ai and Claude Code. Authenticates via OAuth 2.1 with GitHub as
+identity provider. Connects directly to the Supabase PostgreSQL database for
+thought storage and to Supabase Storage (MinIO) for file attachments.
+
+Five tools: `capture_thought` (text-only), `search_thoughts`, `list_thoughts`,
+`thought_stats`, `get_attachment` (base64 file retrieval from MinIO).
+
+A local stdio MCP server (`open-brain-cli/`) extends this with
+`upload_attachment` and `download_attachment` for Claude Code use.
+
+**Additional manifests:** `additions/open-brain-mcp/`
+- `templates/open-brain-mcp-secret.yaml` — SealedSecret for GitHub OAuth credentials, DB URL, and JWT secret
+
+See {doc}`/how-to/open-brain` for deployment and {doc}`/how-to/claude-ai-mcp` for
+connecting Claude.ai.
+
 ### Sealed Secrets
 
 Bitnami Sealed Secrets controller. Installed in `kube-system` namespace. Decrypts
 `SealedSecret` resources into regular Kubernetes Secrets.
+
+### Supabase
+
+Self-hosted Supabase platform providing PostgreSQL, authentication, REST API
+(PostgREST), realtime subscriptions, edge functions, storage, and an admin
+dashboard (Studio). Used as the backend for Open Brain AI memory.
+
+Components: db, auth, rest, realtime, storage, functions, studio, kong, meta,
+minio (10 pods total). All pods scheduled on x86/amd64 nodes.
+
+MinIO provides S3-compatible object storage for file attachments, backed by a
+Longhorn PVC. Studio is protected by OAuth via oauth2-proxy.
+
+**Additional manifests:** `additions/supabase/`
+- `templates/supabase-secret.yaml` — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)
+
+See {doc}`/how-to/open-brain` for deployment.
 
 ## ArgoCD itself
 

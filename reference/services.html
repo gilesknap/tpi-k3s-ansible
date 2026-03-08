@@ -505,13 +505,29 @@
 <td><p>OAuth</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
+<tr class="row-odd"><td><p>Open Brain MCP</p></td>
+<td><p>Helm chart (local)</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">open-brain-mcp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">brain.&lt;domain&gt;</span></code></p></td>
+<td><p>OAuth 2.1 (GitHub)</p></td>
+<td><p>Standalone MCP server for AI memory</p></td>
+</tr>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.3</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Encrypted secrets in Git</p></td>
+</tr>
+<tr class="row-odd"><td><p>Supabase</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">supabase-community/supabase-kubernetes</span></code></p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">supabase</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">supabase.&lt;domain&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;domain&gt;</span></code></p></td>
+<td><p>OAuth (Studio), x-brain-key (API)</p></td>
+<td><p>Self-hosted backend-as-a-service platform</p></td>
 </tr>
 </tbody>
 </table>
@@ -690,10 +706,42 @@ via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</s
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>).</p>
 </section>
+<section id="open-brain-mcp">
+<h3>Open Brain MCP<a class="headerlink" href="#open-brain-mcp" title="Link to this heading">#</a></h3>
+<p>Standalone MCP (Model Context Protocol) server providing persistent AI memory
+for Claude.ai and Claude Code. Authenticates via OAuth 2.1 with GitHub as
+identity provider. Connects directly to the Supabase PostgreSQL database for
+thought storage and to Supabase Storage (MinIO) for file attachments.</p>
+<p>Five tools: <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code> (text-only), <code class="docutils literal notranslate"><span class="pre">search_thoughts</span></code>, <code class="docutils literal notranslate"><span class="pre">list_thoughts</span></code>,
+<code class="docutils literal notranslate"><span class="pre">thought_stats</span></code>, <code class="docutils literal notranslate"><span class="pre">get_attachment</span></code> (base64 file retrieval from MinIO).</p>
+<p>A local stdio MCP server (<code class="docutils literal notranslate"><span class="pre">open-brain-cli/</span></code>) extends this with
+<code class="docutils literal notranslate"><span class="pre">upload_attachment</span></code> and <code class="docutils literal notranslate"><span class="pre">download_attachment</span></code> for Claude Code use.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/open-brain-mcp/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/open-brain-mcp-secret.yaml</span></code> — SealedSecret for GitHub OAuth credentials, DB URL, and JWT secret</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> for deployment and <a class="reference internal" href="../how-to/claude-ai-mcp.html"><span class="doc">Connect Claude.ai to Cluster Services via MCP</span></a> for
+connecting Claude.ai.</p>
+</section>
 <section id="sealed-secrets">
 <h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
 <p>Bitnami Sealed Secrets controller. Installed in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace. Decrypts
 <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> resources into regular Kubernetes Secrets.</p>
+</section>
+<section id="supabase">
+<h3>Supabase<a class="headerlink" href="#supabase" title="Link to this heading">#</a></h3>
+<p>Self-hosted Supabase platform providing PostgreSQL, authentication, REST API
+(PostgREST), realtime subscriptions, edge functions, storage, and an admin
+dashboard (Studio). Used as the backend for Open Brain AI memory.</p>
+<p>Components: db, auth, rest, realtime, storage, functions, studio, kong, meta,
+minio (10 pods total). All pods scheduled on x86/amd64 nodes.</p>
+<p>MinIO provides S3-compatible object storage for file attachments, backed by a
+Longhorn PVC. Studio is protected by OAuth via oauth2-proxy.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/supabase/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/supabase-secret.yaml</span></code> — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> for deployment.</p>
 </section>
 </section>
 <section id="argocd-itself">
@@ -767,7 +815,9 @@ foundation that all other services depend on.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llama-cpp-cuda">llama.cpp (CUDA)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui">Open WebUI</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-brain-mcp">Open Brain MCP</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase">Supabase</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-itself">ArgoCD itself</a></li>

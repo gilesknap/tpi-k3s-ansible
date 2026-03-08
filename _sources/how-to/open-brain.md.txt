@@ -157,8 +157,8 @@ kubectl get app supabase -n argo-cd -w
 kubectl get pods -n supabase -w
 ```
 
-All 9 pods should reach `Running` status within a few minutes:
-db, auth, rest, realtime, storage, functions, studio, kong, meta.
+All 10 pods should reach `Running` status within a few minutes:
+db, auth, rest, realtime, storage, functions, studio, kong, meta, minio.
 
 ## 4 -- Verify the deployment
 
@@ -233,7 +233,7 @@ Login with the dashboard credentials you generated in step 2
 
 ## 7 -- Connect Claude.ai and other clients
 
-Open Brain exposes two interfaces:
+Open Brain exposes three interfaces:
 
 - **MCP server** (`brain.<your-domain>/mcp`) — for Claude.ai and other
   MCP-compatible clients. Uses OAuth 2.1 with GitHub identity. See
@@ -241,9 +241,109 @@ Open Brain exposes two interfaces:
 - **REST API** (`supabase-api.<your-domain>/functions/v1/open-brain-mcp`) —
   for scripts, CLI tools, and direct API access. Uses `x-brain-key` header
   auth.
+- **Local CLI MCP server** (`open-brain-cli/`) — stdio-based MCP server for
+  Claude Code with 6 tools including file upload/download. See section 8 below.
 
 See {doc}`claude-ai-mcp` for connecting Claude.ai via the MCP server,
 including GitHub OAuth App setup, project instructions, and troubleshooting.
+
+## 8 -- Connect Claude Code (local MCP server)
+
+The local MCP server gives Claude Code direct access to Open Brain via stdio,
+with file upload/download that bypasses the MCP context window.
+
+### Quick setup
+
+If you have `uv` and `claude` installed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gilesknap/tpi-k3s-ansible/main/scripts/setup-brain-cli | bash
+```
+
+The script prompts for three credentials:
+
+- **BRAIN_API_URL** — your Supabase API URL (e.g. `https://supabase-api.example.com`)
+- **BRAIN_API_KEY** — the `x-brain-key` shared secret (the `MCP_ACCESS_KEY` from step 2)
+- **BRAIN_SERVICE_KEY** — the Supabase `SERVICE_KEY` JWT (from step 2)
+
+It installs the `open-brain-cli` package and adds an entry to
+the MCP server via `claude mcp add`. Restart Claude Code and verify with `/mcp`.
+
+### Manual setup
+
+If you prefer to configure manually:
+
+```bash
+# Clone and install
+git clone https://github.com/gilesknap/tpi-k3s-ansible.git
+cd tpi-k3s-ansible/open-brain-cli
+uv sync
+
+# Register with Claude Code
+claude mcp add open-brain \
+    -e "BRAIN_API_URL=https://supabase-api.example.com" \
+    -e "BRAIN_API_KEY=your-mcp-access-key" \
+    -e "BRAIN_SERVICE_KEY=your-service-role-jwt" \
+    -- uv run --project /path/to/open-brain-cli open-brain-cli
+```
+
+### Available tools
+
+The local MCP server provides six tools:
+
+| Tool | Description |
+|------|-------------|
+| `capture_thought` | Save text with structured metadata |
+| `search_thoughts` | Search by keyword and metadata filters |
+| `list_thoughts` | List recent thoughts with filters |
+| `thought_stats` | Aggregate statistics |
+| `upload_attachment` | Upload a local file to a thought |
+| `download_attachment` | Download an attachment to `/tmp` |
+
+File uploads go directly to the Supabase Storage API over HTTP — no base64
+through the context window.
+
+## File Attachments (Images, PDFs)
+
+Open Brain supports saving file attachments alongside thoughts using MinIO
+as an S3-compatible object store. Files are stored in a private Supabase
+Storage bucket (`brain-attachments`) backed by a Longhorn PVC.
+
+### How it works
+
+- **File uploads** go directly to the Supabase Storage API, never through
+  the MCP context window. The local CLI (`upload_attachment`) and future
+  Slack bot both use this path.
+- **Text capture** via the public MCP server (`capture_thought`) is text-only.
+  Claude.ai summarises binary content as text before saving.
+- **File retrieval** via the public MCP server (`get_attachment`) downloads
+  from MinIO and returns base64 — works for viewing individual files.
+
+### Enable MinIO
+
+MinIO is enabled by default in the Supabase Helm values. If you deployed before
+this feature was added, verify that `deployment.minio.enabled: true` is set in
+`kubernetes-services/templates/supabase.yaml`. After pushing the change, ArgoCD
+will deploy MinIO automatically.
+
+The MinIO pod needs its own Longhorn PVC. Verify it is provisioned:
+
+```bash
+kubectl get pvc -n supabase | grep minio
+```
+
+### Add the Supabase service key to the MCP secret
+
+The MCP server needs the Supabase service-role key for `get_attachment`. Re-seal
+the `open-brain-mcp-secret` using the provided script, which fetches the database
+password and service key from the cluster automatically:
+
+```bash
+./scripts/seal-mcp-secret
+```
+
+The script prompts for GitHub OAuth credentials and auto-generates the JWT
+secret. Commit and push the updated sealed secret.
 
 ## Disable Open Brain
 

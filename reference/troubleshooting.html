@@ -752,6 +752,52 @@ For example, if the function is mounted at <code class="docutils literal notrans
 use <code class="docutils literal notranslate"><span class="pre">basePath:</span> <span class="pre">'/open-brain-mcp'</span></code>.</p>
 </section>
 </section>
+<section id="minio-supabase-storage">
+<h2>MinIO / Supabase Storage<a class="headerlink" href="#minio-supabase-storage" title="Link to this heading">#</a></h2>
+<section id="minio-crashloopbackoff-file-access-denied">
+<h3>MinIO CrashLoopBackOff — file access denied<a class="headerlink" href="#minio-crashloopbackoff-file-access-denied" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> MinIO pod crashes with <code class="docutils literal notranslate"><span class="pre">unable</span> <span class="pre">to</span> <span class="pre">rename</span> <span class="pre">/data/.minio.sys/tmp</span> <span class="pre">—</span> <span class="pre">file</span> <span class="pre">access</span> <span class="pre">denied,</span> <span class="pre">drive</span> <span class="pre">may</span> <span class="pre">be</span> <span class="pre">faulty</span></code>.</p>
+<p><strong>Cause:</strong> The Chainguard MinIO image (<code class="docutils literal notranslate"><span class="pre">cgr.dev/chainguard/minio</span></code>) runs as
+UID 65532 (nonroot). Longhorn PVCs are created with root ownership, so MinIO
+cannot write to the volume.</p>
+<p><strong>Fix:</strong> Add <code class="docutils literal notranslate"><span class="pre">podSecurityContext.fsGroup:</span> <span class="pre">65532</span></code> to the MinIO deployment
+config in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/supabase.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deployment</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">minio</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">podSecurityContext</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">fsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65532</span>
+</pre></div>
+</div>
+</section>
+<section id="storage-bucket-not-found-after-sql-migration">
+<h3>Storage bucket not found after SQL migration<a class="headerlink" href="#storage-bucket-not-found-after-sql-migration" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Supabase Storage returns <code class="docutils literal notranslate"><span class="pre">404</span> <span class="pre">Bucket</span> <span class="pre">not</span> <span class="pre">found</span></code> even though
+the bucket exists in <code class="docutils literal notranslate"><span class="pre">storage.buckets</span></code> table.</p>
+<p><strong>Cause:</strong> SQL migrations create the bucket row in PostgreSQL but MinIO
+needs to be notified separately. Supabase Storage syncs bucket state on
+startup.</p>
+<p><strong>Fix:</strong> Restart the storage pod after creating buckets via SQL:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment<span class="w"> </span>supabase-supabase-storage<span class="w"> </span>-n<span class="w"> </span>supabase
+</pre></div>
+</div>
+<p>Alternatively, create buckets via the Supabase Storage REST API (<code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/storage/v1/bucket</span></code>) which handles both PostgreSQL and MinIO in one call.</p>
+</section>
+<section id="minio-pvc-created-with-wrong-size">
+<h3>MinIO PVC created with wrong size<a class="headerlink" href="#minio-pvc-created-with-wrong-size" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pvc</span></code> shows MinIO PVC at 1Gi instead of the
+configured 50Gi.</p>
+<p><strong>Cause:</strong> PVC size is set at creation time. If the Helm values were
+incorrect when the PVC was first created, fixing the values won’t resize
+the existing PVC.</p>
+<p><strong>Fix:</strong> Delete the PVC (safe if MinIO has no data yet) and let ArgoCD
+recreate it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/name<span class="o">=</span>supabase-minio
+kubectl<span class="w"> </span>delete<span class="w"> </span>pvc<span class="w"> </span>supabase-minio<span class="w"> </span>-n<span class="w"> </span>supabase
+<span class="c1"># ArgoCD recreates both with correct size</span>
+</pre></div>
+</div>
+</section>
+</section>
 <section id="hardware">
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
@@ -886,6 +932,12 @@ tpi<span class="w"> </span>info
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kong-oomkilled">Kong OOMKilled</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-not-updating-after-configmap-change">Edge Function not updating after ConfigMap change</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-returns-404">Edge Function returns 404</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-supabase-storage">MinIO / Supabase Storage</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-crashloopbackoff-file-access-denied">MinIO CrashLoopBackOff — file access denied</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#storage-bucket-not-found-after-sql-migration">Storage bucket not found after SQL migration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-pvc-created-with-wrong-size">MinIO PVC created with wrong size</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">
