@@ -23,6 +23,14 @@
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
+- **ArgoCD valuesObject overrides values.yaml** — for child apps like
+  `open-brain-mcp`, the image tag is set in `templates/*.yaml` `valuesObject`,
+  not in `additions/*/values.yaml`. Changing only `values.yaml` has no effect.
+- **Supabase SQL migrations only run on DB init** — adding a new migration
+  SQL block won't execute on an existing database. Run it manually via
+  `kubectl exec` or the Supabase Storage API.
+- **MinIO persistence key is `persistence.minio`** — not `persistence.storage`
+  (which maps to the Supabase Storage component, a different thing).
 
 ## Key Paths
 

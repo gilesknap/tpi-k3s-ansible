@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# setup-brain-cli — install the Open Brain local MCP server for Claude Code.
+#
+# Downloads the open-brain-cli package and configures Claude Code to use it
+# as a stdio MCP server. Requires uv (https://docs.astral.sh/uv/).
+#
+# TODO: Publishing open-brain-cli to PyPI would simplify this script
+# significantly — the entire install section (clone/copy/sync) could be
+# replaced with `uvx open-brain-cli` in the claude mcp add command.
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/gilesknap/tpi-k3s-ansible/main/scripts/setup-brain-cli | bash
+#
+# Or clone the repo and run directly:
+#   ./scripts/setup-brain-cli
+#
+# Environment variables (prompted interactively if not set):
+#   BRAIN_API_URL    — Supabase API base URL (e.g. https://supabase-api.example.com)
+#   BRAIN_API_KEY    — x-brain-key shared secret
+#   BRAIN_SERVICE_KEY — Supabase service-role JWT (for Storage API)
+
+set -euo pipefail
+
+INSTALL_DIR="${BRAIN_CLI_DIR:-$HOME/.local/share/open-brain-cli}"
+
+# --- helpers ---------------------------------------------------------------
+
+info()  { printf '\033[1;34m%s\033[0m\n' "$*"; }
+error() { printf '\033[1;31mError: %s\033[0m\n' "$*" >&2; exit 1; }
+
+check_dep() {
+    command -v "$1" >/dev/null 2>&1 || error "'$1' is required but not found. $2"
+}
+
+prompt_secret() {
+    local var_name="$1" prompt_text="$2" current
+    current="${!var_name:-}"
+    if [ -n "$current" ]; then
+        info "  $var_name already set in environment"
+        return
+    fi
+    printf '%s: ' "$prompt_text"
+    read -r value
+    [ -n "$value" ] || error "$var_name cannot be empty"
+    eval "$var_name=\$value"
+}
+
+# --- preflight -------------------------------------------------------------
+
+info "Open Brain CLI — local MCP server setup"
+echo
+
+check_dep uv "Install from https://docs.astral.sh/uv/"
+check_dep claude "Install Claude Code first: https://docs.anthropic.com/en/docs/claude-code"
+
+# --- collect credentials ---------------------------------------------------
+
+info "Configuring credentials..."
+prompt_secret BRAIN_API_URL   "Supabase API URL (e.g. https://supabase-api.example.com)"
+prompt_secret BRAIN_API_KEY   "x-brain-key (MCP access key)"
+prompt_secret BRAIN_SERVICE_KEY "Supabase service-role JWT"
+
+# --- install package -------------------------------------------------------
+
+info "Installing open-brain-cli to $INSTALL_DIR..."
+
+if [ -d "$INSTALL_DIR/.git" ]; then
+    info "  Updating existing installation..."
+    git -C "$INSTALL_DIR" pull --ff-only
+elif [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/pyproject.toml" ]; then
+    info "  Found existing installation (non-git), overwriting..."
+    rm -rf "$INSTALL_DIR"
+fi
+
+if [ ! -d "$INSTALL_DIR" ]; then
+    # Resolve the repo root from the script's own location (works even when
+    # invoked from outside the repo, e.g. ~/code/repo/scripts/setup-brain-cli)
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
+    repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null || true)"
+
+    if [ -n "$repo_root" ] && [ -d "$repo_root/open-brain-cli" ]; then
+        info "  Copying from local repo..."
+        cp -r "$repo_root/open-brain-cli" "$INSTALL_DIR"
+    fi
+fi
+
+if [ ! -d "$INSTALL_DIR" ]; then
+    info "  Downloading from GitHub..."
+    tmp="$(mktemp -d)"
+    git clone --depth 1 --filter=blob:none --sparse \
+        https://github.com/gilesknap/tpi-k3s-ansible.git "$tmp/repo"
+    git -C "$tmp/repo" sparse-checkout set open-brain-cli
+    mv "$tmp/repo/open-brain-cli" "$INSTALL_DIR"
+    rm -rf "$tmp"
+fi
+
+# Sync dependencies
+uv sync --project "$INSTALL_DIR"
+
+# --- configure Claude Code MCP ---------------------------------------------
+
+info "Configuring Claude Code MCP..."
+
+claude mcp add open-brain \
+    -e "BRAIN_API_URL=$BRAIN_API_URL" \
+    -e "BRAIN_API_KEY=$BRAIN_API_KEY" \
+    -e "BRAIN_SERVICE_KEY=$BRAIN_SERVICE_KEY" \
+    -- uv run --project "$INSTALL_DIR" open-brain-cli
+
+# --- done ------------------------------------------------------------------
+
+echo
+info "Setup complete!"
+echo
+echo "Claude Code will now have these Open Brain tools:"
+echo "  - capture_thought    save text with structured metadata"
+echo "  - search_thoughts    search by keyword and metadata filters"
+echo "  - list_thoughts      list recent thoughts with filters"
+echo "  - thought_stats      aggregate statistics"
+echo "  - upload_attachment   upload a local file to a thought"
+echo "  - download_attachment download an attachment to /tmp"
+echo
+echo "Start Claude Code and the tools will be available automatically."
+echo "To verify: claude and then type /mcp"

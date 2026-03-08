@@ -23,14 +23,14 @@ flowchart TB
     end
 
     subgraph Extra["Extra Nodes"]
-        E1[nuc1<br/>Worker]
+        E1[ws03<br/>Worker]
         E2[nuc2<br/>Worker]
     end
 
     subgraph Cluster["K3s Cluster"]
         K3S[K3s Control Plane]
         ARGO[ArgoCD]
-        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Longhorn, Grafana, etc.]
+        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Longhorn, Grafana, Supabase,<br/>Open Brain, etc.]
     end
 
     subgraph Git["Git Repository"]

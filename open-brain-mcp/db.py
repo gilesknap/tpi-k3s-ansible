@@ -7,6 +7,7 @@ from collections import Counter
 from typing import Any
 
 import asyncpg
+import httpx
 
 
 async def create_pool(database_url: str) -> asyncpg.Pool:
@@ -176,6 +177,41 @@ async def thought_stats(pool: asyncpg.Pool) -> dict[str, Any]:
         "top_topics": dict(topic_counter.most_common(10)),
         "frequent_people": dict(people_counter.most_common(10)),
     }
+
+
+# ---------------------------------------------------------------------------
+# attachment storage
+# ---------------------------------------------------------------------------
+
+async def download_attachment(
+    thought_id: str,
+    filename: str,
+    storage_url: str,
+    service_key: str,
+) -> tuple[bytes, str]:
+    """Download a file from Supabase Storage.
+
+    Args:
+        thought_id: UUID of the parent thought.
+        filename: Name of the stored file.
+        storage_url: Supabase Kong gateway URL.
+        service_key: Supabase service-role key for auth.
+
+    Returns:
+        Tuple of (file_bytes, mime_type).
+    """
+    path = f"{thought_id}/{filename}"
+    url = f"{storage_url}/storage/v1/object/brain-attachments/{path}"
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {service_key}"},
+        )
+        resp.raise_for_status()
+
+    mime_type = resp.headers.get("content-type", "application/octet-stream")
+    return resp.content, mime_type
 
 
 # ---------------------------------------------------------------------------

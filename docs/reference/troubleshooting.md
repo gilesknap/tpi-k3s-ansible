@@ -387,6 +387,63 @@ application to match the function directory name (the subPath mount point).
 For example, if the function is mounted at `/open-brain-mcp`, the Hono app must
 use `basePath: '/open-brain-mcp'`.
 
+## MinIO / Supabase Storage
+
+### MinIO CrashLoopBackOff — file access denied
+
+**Symptom:** MinIO pod crashes with `unable to rename /data/.minio.sys/tmp —
+file access denied, drive may be faulty`.
+
+**Cause:** The Chainguard MinIO image (`cgr.dev/chainguard/minio`) runs as
+UID 65532 (nonroot). Longhorn PVCs are created with root ownership, so MinIO
+cannot write to the volume.
+
+**Fix:** Add `podSecurityContext.fsGroup: 65532` to the MinIO deployment
+config in `kubernetes-services/templates/supabase.yaml`:
+
+```yaml
+deployment:
+  minio:
+    podSecurityContext:
+      fsGroup: 65532
+```
+
+### Storage bucket not found after SQL migration
+
+**Symptom:** Supabase Storage returns `404 Bucket not found` even though
+the bucket exists in `storage.buckets` table.
+
+**Cause:** SQL migrations create the bucket row in PostgreSQL but MinIO
+needs to be notified separately. Supabase Storage syncs bucket state on
+startup.
+
+**Fix:** Restart the storage pod after creating buckets via SQL:
+
+```bash
+kubectl rollout restart deployment supabase-supabase-storage -n supabase
+```
+
+Alternatively, create buckets via the Supabase Storage REST API (`POST
+/storage/v1/bucket`) which handles both PostgreSQL and MinIO in one call.
+
+### MinIO PVC created with wrong size
+
+**Symptom:** `kubectl get pvc` shows MinIO PVC at 1Gi instead of the
+configured 50Gi.
+
+**Cause:** PVC size is set at creation time. If the Helm values were
+incorrect when the PVC was first created, fixing the values won't resize
+the existing PVC.
+
+**Fix:** Delete the PVC (safe if MinIO has no data yet) and let ArgoCD
+recreate it:
+
+```bash
+kubectl delete pod -n supabase -l app.kubernetes.io/name=supabase-minio
+kubectl delete pvc supabase-minio -n supabase
+# ArgoCD recreates both with correct size
+```
+
 ## Hardware
 
 ### RK1 module not detected in slot

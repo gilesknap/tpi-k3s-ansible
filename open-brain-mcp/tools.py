@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -13,6 +14,8 @@ from mcp.server.fastmcp import FastMCP
 import db
 
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:8000")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
 
 def create_mcp(pool_getter) -> FastMCP:
@@ -38,15 +41,56 @@ def create_mcp(pool_getter) -> FastMCP:
         content: str,
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Capture a new thought.
+        """Capture a new thought as text with optional structured metadata.
+
+        Content should be self-contained — understandable without the
+        original conversation context. For images or binary content shared
+        in conversation, describe the content as text rather than uploading.
 
         Args:
             content: The thought content text.
-            metadata: Optional JSON metadata (type, topics, people, etc.).
+            metadata: Optional JSON metadata. Always include "type". Extract
+                "topics", "people", and "action_items" when present.
+
+                type: decision | person_note | idea | task | meeting |
+                    reference | article_summary
+                topics: list of lowercase hyphenated slugs, e.g.
+                    ["k3s-cluster", "dashboard-redesign"]
+                people: list of names mentioned
+                action_items: list of tasks with owners/deadlines if known
         """
         pool = pool_getter()
         result = await db.capture_thought(pool, content, metadata)
         return json.dumps(result)
+
+    @mcp.tool()
+    async def get_attachment(
+        thought_id: str,
+        filename: str,
+    ) -> str:
+        """Retrieve a file attachment from a thought.
+
+        Returns the file content as base64 with its MIME type, so Claude
+        can display images or read PDFs directly.
+
+        Args:
+            thought_id: UUID of the thought that owns the attachment.
+            filename: Name of the attached file.
+        """
+        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+            return json.dumps({"error": "Supabase storage is not configured"})
+
+        try:
+            content_bytes, mime_type = await db.download_attachment(
+                thought_id, filename, SUPABASE_URL, SUPABASE_SERVICE_KEY,
+            )
+            return json.dumps({
+                "filename": filename,
+                "mime_type": mime_type,
+                "content_base64": base64.b64encode(content_bytes).decode("ascii"),
+            })
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc)})
 
     @mcp.tool()
     async def search_thoughts(
