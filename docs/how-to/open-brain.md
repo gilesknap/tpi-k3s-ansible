@@ -267,7 +267,7 @@ The script prompts for three credentials:
 - **BRAIN_SERVICE_KEY** — the Supabase `SERVICE_KEY` JWT (from step 2)
 
 It installs the `open-brain-cli` package and adds an entry to
-`~/.claude/mcp.json`. Restart Claude Code and verify with `/mcp`.
+the MCP server via `claude mcp add`. Restart Claude Code and verify with `/mcp`.
 
 ### Manual setup
 
@@ -278,24 +278,13 @@ If you prefer to configure manually:
 git clone https://github.com/gilesknap/tpi-k3s-ansible.git
 cd tpi-k3s-ansible/open-brain-cli
 uv sync
-```
 
-Add to `~/.claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "open-brain": {
-      "command": "uv",
-      "args": ["run", "--project", "/path/to/open-brain-cli", "open-brain-cli"],
-      "env": {
-        "BRAIN_API_URL": "https://supabase-api.example.com",
-        "BRAIN_API_KEY": "your-mcp-access-key",
-        "BRAIN_SERVICE_KEY": "your-service-role-jwt"
-      }
-    }
-  }
-}
+# Register with Claude Code
+claude mcp add open-brain \
+    -e "BRAIN_API_URL=https://supabase-api.example.com" \
+    -e "BRAIN_API_KEY=your-mcp-access-key" \
+    -e "BRAIN_SERVICE_KEY=your-service-role-jwt" \
+    -- uv run --project /path/to/open-brain-cli open-brain-cli
 ```
 
 ### Available tools
