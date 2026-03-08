@@ -15,7 +15,7 @@ Cloudflare tunnel.
   in {doc}`open-brain`).
 - A Cloudflare Access **bypass** application for the API hostname so
   programmatic requests are not blocked by browser-based authentication
-  ({doc}`cloudflare-web-tunnel`).
+  (see "Bypass application for API endpoints" in {doc}`cloudflare-web-tunnel`).
 - A [Claude.ai](https://claude.ai/) account with MCP integration access.
 
 ## Architecture
