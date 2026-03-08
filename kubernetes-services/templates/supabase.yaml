@@ -66,7 +66,17 @@ spec:
             vector:
               enabled: false
             minio:
-              enabled: false
+              enabled: true
+              replicaCount: 1
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 512Mi
+              nodeSelector:
+                kubernetes.io/arch: amd64
 
             db:
               enabled: true
@@ -202,6 +212,10 @@ spec:
               enabled: true
               storageClassName: longhorn
               size: 50Gi
+            storage:
+              enabled: true
+              storageClassName: longhorn
+              size: 50Gi
 
           # -- Database migration: pgvector + thoughts schema --
           migration:
@@ -274,6 +288,33 @@ spec:
                     for all using (auth.role() = 'service_role');
                 end if;
               end $$;
+
+            init-brain-storage.sql: |
+              -- Create brain-attachments bucket for Open Brain file storage
+              INSERT INTO storage.buckets (id, name, public, allowed_mime_types)
+              VALUES (
+                'brain-attachments',
+                'brain-attachments',
+                false,
+                ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp',
+                      'application/pdf', 'text/plain', 'text/markdown']
+              )
+              ON CONFLICT (id) DO NOTHING;
+
+              -- Allow service_role full access to brain-attachments bucket
+              DO $$
+              BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM pg_policies
+                  WHERE tablename = 'objects' AND schemaname = 'storage'
+                    AND policyname = 'Service role brain-attachments access'
+                ) THEN
+                  CREATE POLICY "Service role brain-attachments access"
+                    ON storage.objects FOR ALL
+                    USING (bucket_id = 'brain-attachments' AND auth.role() = 'service_role')
+                    WITH CHECK (bucket_id = 'brain-attachments' AND auth.role() = 'service_role');
+                END IF;
+              END $$;
 
     # Source 2: Reusable ingress for Studio (behind oauth2-proxy)
     - path: ./kubernetes-services/additions/ingress

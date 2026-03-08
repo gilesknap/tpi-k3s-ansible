@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -13,6 +14,8 @@ from mcp.server.fastmcp import FastMCP
 import db
 
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:8000")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
 
 def create_mcp(pool_getter) -> FastMCP:
@@ -37,16 +40,76 @@ def create_mcp(pool_getter) -> FastMCP:
     async def capture_thought(
         content: str,
         metadata: dict[str, Any] | None = None,
+        attachments: list[dict[str, str]] | None = None,
     ) -> str:
-        """Capture a new thought.
+        """Capture a new thought, optionally with file attachments.
 
         Args:
             content: The thought content text.
             metadata: Optional JSON metadata (type, topics, people, etc.).
+            attachments: Optional list of file attachments. Each dict must
+                contain ``filename`` (str), ``content_base64`` (str), and
+                ``mime_type`` (str).
         """
         pool = pool_getter()
         result = await db.capture_thought(pool, content, metadata)
+
+        if attachments and SUPABASE_URL and SUPABASE_SERVICE_KEY:
+            thought_id = result["id"]
+            stored: list[dict[str, str]] = []
+            errors: list[str] = []
+
+            for att in attachments:
+                try:
+                    content_bytes = base64.b64decode(att["content_base64"])
+                    path = await db.upload_attachment(
+                        pool,
+                        thought_id,
+                        att["filename"],
+                        content_bytes,
+                        att["mime_type"],
+                        SUPABASE_URL,
+                        SUPABASE_SERVICE_KEY,
+                    )
+                    stored.append({
+                        "filename": att["filename"],
+                        "path": path,
+                        "mime_type": att["mime_type"],
+                    })
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{att.get('filename', '?')}: {exc}")
+
+            if stored:
+                await db.update_thought_attachments(pool, thought_id, stored)
+                result.setdefault("metadata", {})
+                result["metadata"]["attachments"] = stored
+
+            if errors:
+                result["attachment_errors"] = errors
+
         return json.dumps(result)
+
+    @mcp.tool()
+    async def get_attachment_url(
+        thought_id: str,
+        filename: str,
+    ) -> str:
+        """Get a time-limited signed URL for a thought attachment.
+
+        Args:
+            thought_id: UUID of the thought that owns the attachment.
+            filename: Name of the attached file.
+        """
+        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+            return json.dumps({"error": "Supabase storage is not configured"})
+
+        try:
+            url = await db.get_signed_url(
+                thought_id, filename, SUPABASE_URL, SUPABASE_SERVICE_KEY,
+            )
+            return json.dumps({"signed_url": url})
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"error": str(exc)})
 
     @mcp.tool()
     async def search_thoughts(

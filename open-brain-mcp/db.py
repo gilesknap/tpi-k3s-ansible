@@ -7,6 +7,7 @@ from collections import Counter
 from typing import Any
 
 import asyncpg
+import httpx
 
 
 async def create_pool(database_url: str) -> asyncpg.Pool:
@@ -176,6 +177,114 @@ async def thought_stats(pool: asyncpg.Pool) -> dict[str, Any]:
         "top_topics": dict(topic_counter.most_common(10)),
         "frequent_people": dict(people_counter.most_common(10)),
     }
+
+
+# ---------------------------------------------------------------------------
+# attachment storage
+# ---------------------------------------------------------------------------
+
+async def upload_attachment(
+    pool: asyncpg.Pool,
+    thought_id: str,
+    filename: str,
+    content_bytes: bytes,
+    mime_type: str,
+    storage_url: str,
+    service_key: str,
+) -> str:
+    """Upload a file to Supabase Storage and return the storage path.
+
+    Args:
+        pool: asyncpg connection pool (unused but kept for consistency).
+        thought_id: UUID of the parent thought.
+        filename: Name of the file to store.
+        content_bytes: Raw file content.
+        mime_type: MIME type of the file.
+        storage_url: Supabase Kong gateway URL.
+        service_key: Supabase service-role key for auth.
+
+    Returns:
+        The storage path ``{thought_id}/{filename}``.
+    """
+    path = f"{thought_id}/{filename}"
+    url = f"{storage_url}/storage/v1/object/brain-attachments/{path}"
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.put(
+            url,
+            content=content_bytes,
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": mime_type,
+            },
+        )
+        resp.raise_for_status()
+
+    return path
+
+
+async def get_signed_url(
+    thought_id: str,
+    filename: str,
+    storage_url: str,
+    service_key: str,
+) -> str:
+    """Create a signed URL for a stored attachment.
+
+    Args:
+        thought_id: UUID of the parent thought.
+        filename: Name of the stored file.
+        storage_url: Supabase Kong gateway URL.
+        service_key: Supabase service-role key for auth.
+
+    Returns:
+        A time-limited signed URL string.
+    """
+    path = f"{thought_id}/{filename}"
+    url = f"{storage_url}/storage/v1/object/sign/brain-attachments/{path}"
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            url,
+            json={"expiresIn": 3600},
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    # Supabase returns {"signedURL": "/object/sign/..."} — prepend the base.
+    signed_path = data.get("signedURL", "")
+    return f"{storage_url}/storage/v1{signed_path}"
+
+
+async def update_thought_attachments(
+    pool: asyncpg.Pool,
+    thought_id: str,
+    attachments: list[dict],
+) -> None:
+    """Store attachment metadata on a thought's metadata JSONB column.
+
+    Args:
+        pool: asyncpg connection pool.
+        thought_id: UUID of the thought to update.
+        attachments: List of attachment dicts (filename, path, mime_type).
+    """
+    await pool.execute(
+        """
+        UPDATE thoughts
+        SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{attachments}',
+            $2::jsonb
+        )
+        WHERE id = $1::uuid
+        """,
+        thought_id,
+        json.dumps(attachments),
+    )
 
 
 # ---------------------------------------------------------------------------

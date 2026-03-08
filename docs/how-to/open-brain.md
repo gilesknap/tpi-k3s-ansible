@@ -272,6 +272,30 @@ The MinIO pod needs its own Longhorn PVC. Verify it is provisioned:
 kubectl get pvc -n supabase | grep minio
 ```
 
+### Add the Supabase service key to the MCP secret
+
+The MCP server needs the Supabase service-role key to upload files. Re-seal the
+`open-brain-mcp-secret` to include it:
+
+```bash
+kubectl create secret generic open-brain-mcp-secret \
+  --namespace=open-brain-mcp \
+  --from-literal=DATABASE_URL="$DATABASE_URL" \
+  --from-literal=GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
+  --from-literal=GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET" \
+  --from-literal=MCP_JWT_SECRET="$MCP_JWT_SECRET" \
+  --from-literal=SUPABASE_SERVICE_KEY="$SERVICE_KEY" \
+  --dry-run=client -o yaml | \
+  kubeseal --format yaml \
+    --controller-name sealed-secrets \
+    --controller-namespace kube-system \
+  > kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
+```
+
+Commit and push the updated sealed secret. The `SUPABASE_URL` env var is
+already set in the deployment template (pointing to the in-cluster Kong
+gateway).
+
 ### Usage from Claude.ai
 
 Once MinIO is running, Claude.ai can save attachments through the MCP tools:
