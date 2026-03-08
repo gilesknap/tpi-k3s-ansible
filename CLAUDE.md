@@ -20,6 +20,9 @@
   route, which may be the wrong subnet. Set `node_ip` and `flannel_iface` in
   `hosts.yml` for any node with multiple NICs.
 - **No automated tests** — validate by running playbook tags against the cluster.
+- **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
+  header is not in `allowed_hosts` (421 Misdirected Request). When deploying
+  behind a reverse proxy, add the external hostname via `transport_security`.
 
 ## Key Paths
 

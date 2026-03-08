@@ -162,9 +162,33 @@ In a new conversation within the project:
 - Confirm the GitHub OAuth App callback URL exactly matches
   `https://brain.<your-domain>/callback` (no trailing slash).
 - Check the MCP server logs for OAuth errors:
-  `kubectl logs -n supabase -l app=open-brain-mcp`.
+  `kubectl logs -n open-brain-mcp deploy/open-brain-mcp`.
 - Verify the `github-client-id` and `github-client-secret` values in the
   Kubernetes secret match the GitHub OAuth App settings.
+
+### 421 Misdirected Request on /mcp
+
+- The MCP SDK validates the `Host` header for DNS rebinding protection.
+  If the external hostname is not in `allowed_hosts`, requests are rejected
+  with 421.
+- Fix: ensure `SERVER_URL` env var matches the external hostname. The server
+  extracts the hostname and adds it to the SDK's `TransportSecuritySettings`.
+
+### "McpEndpointNotFound" after successful OAuth
+
+- Claude.ai found the OAuth server but not the MCP endpoint. Check that
+  the connector URL is exactly `https://brain.<your-domain>/mcp` (not the
+  old Supabase URL).
+- Verify `/.well-known/oauth-protected-resource` returns the correct
+  `resource` URL pointing to `/mcp`.
+
+### "McpServerError: temporary error" after OAuth
+
+- OAuth succeeded but the MCP handler crashed. Check pod logs:
+  `kubectl logs -n open-brain-mcp deploy/open-brain-mcp`.
+- Common cause: the `StreamableHTTPSessionManager` task group was not
+  started — this is handled in `server.py` lifespan but may break if the
+  startup order changes.
 
 ### Tools not discovered
 
@@ -182,7 +206,7 @@ In a new conversation within the project:
 
 - The Cloudflare tunnel adds latency. If the MCP server pod is restarting,
   the first request may time out.
-- Check pod status: `kubectl get pods -n supabase -l app=open-brain-mcp`.
+- Check pod status: `kubectl get pods -n open-brain-mcp deploy/open-brain-mcp`.
 
 ## See also
 
