@@ -2,10 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy all source files (pyproject.toml + *.py) then install.
-# pip install . reads pyproject.toml and installs the declared dependencies.
-COPY pyproject.toml *.py ./
-RUN pip install --no-cache-dir .
+# Install dependencies first (layer cache optimisation).
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir $(python -c "
+import tomllib, pathlib
+d = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+print(' '.join(d['project']['dependencies']))
+")
+
+COPY *.py ./
 
 EXPOSE 8000
 
