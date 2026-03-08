@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import os
+
 import asyncpg
 from mcp.server.fastmcp import FastMCP
 
 import db
+
+SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:8000")
 
 
 def create_mcp(pool_getter) -> FastMCP:
@@ -17,7 +21,17 @@ def create_mcp(pool_getter) -> FastMCP:
     Args:
         pool_getter: A callable that returns the current asyncpg pool.
     """
-    mcp = FastMCP("open-brain")
+    # Extract hostname from SERVER_URL for DNS rebinding protection.
+    from urllib.parse import urlparse
+    host = urlparse(SERVER_URL).hostname or "localhost"
+
+    mcp = FastMCP(
+        "open-brain",
+        transport_security={
+            "enable_dns_rebinding_protection": True,
+            "allowed_hosts": [host],
+        },
+    )
 
     @mcp.tool()
     async def capture_thought(
