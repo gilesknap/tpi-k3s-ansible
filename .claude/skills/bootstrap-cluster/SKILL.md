@@ -18,6 +18,42 @@ credentials summary file.
 - Use `uv run` for any git commits (pre-commit hooks need the uv venv).
 - Run `ansible-playbook` commands from within the devcontainer.
 
+## Topology-aware constraints
+
+After gathering hardware info, apply these rules automatically. Inform the
+user what was decided and why — don't silently skip features.
+
+### Node count rules
+
+| Nodes | Control plane taint | Longhorn | Cloudflared replicas |
+|-------|---------------------|----------|----------------------|
+| 1     | **Disabled** (workloads must run on control plane) | Replica count **1** (no redundancy — warn user) | **1** |
+| 2     | **Offer as option** (default: disabled) | Replica count **2** (warn: no full redundancy) | **2** |
+| 3+    | **Enabled by default** | Replica count **3** (default) | **2** |
+
+When Longhorn replica count is reduced, edit `kubernetes-services/templates/longhorn.yaml`
+and change `defaultClassReplicaCount` from 3 to the appropriate value.
+
+### Hardware-gated features
+
+Only **offer** these features if the cluster has the required hardware.
+If the hardware is absent, tell the user the feature is unavailable and why.
+
+| Feature | Requirement | Reason |
+|---------|-------------|--------|
+| **Open Brain (Supabase)** | At least one **x86/amd64** node | Container images lack reliable ARM64 support |
+| **RKLLama** | At least one **RK1** node (`type: rk1`) | Needs Rockchip NPU (`/dev/rknpu`) |
+| **llama.cpp** | A node with **NVIDIA GPU** (`nvidia_gpu_node: true`) | Needs CUDA for inference |
+| **NFS storage** | Only ask if user wants **rkllama or llamacpp** | NFS is only used for LLM model storage |
+
+### Single-node cluster notes
+
+Single-node clusters work fine — K3s runs as both control plane and worker.
+Warn the user about these trade-offs:
+- No storage redundancy (Longhorn replica count 1)
+- No high availability (single point of failure)
+- All workloads compete for the same node's resources
+
 ## Phase 1: Gather information
 
 Ask the user the following questions **one group at a time** (don't overwhelm
@@ -29,8 +65,12 @@ with all questions at once). Use sensible defaults where noted.
    - If yes: How many boards? How many nodes per board? What types (RK1/CM4)?
      Which slots? NVMe drives?
    - If no: How many Linux servers? Hostnames or IPs? Which is the control plane?
+     What architecture are they? (x86/ARM/mixed)
 
 2. **Do any nodes have an NVIDIA GPU?** (yes/no, which node?)
+
+After these answers, calculate total node count, available architectures, and
+which hardware-gated features can be offered.
 
 ### Cluster personalisation
 
@@ -41,10 +81,16 @@ with all questions at once). Use sensible defaults where noted.
 
 ### Optional features
 
-7. **NFS server?** (yes/no) — If yes, IP and export paths for LLM models
-8. **OAuth2 proxy?** (yes/no, default: no — enable later)
-9. **Cloudflare tunnel?** (yes/no, default: no — enable later)
-10. **Open Brain (Supabase)?** (yes/no, default: no — enable later)
+Only present features the hardware supports (see constraints above).
+
+7. **Control plane taint?** (skip for 1 node, offer for 2, default yes for 3+)
+8. **NFS server?** — Only ask if rkllama or llamacpp is possible.
+   If yes, IP and export paths for LLM models.
+9. **OAuth2 proxy?** (yes/no, default: no — enable later)
+10. **Cloudflare tunnel?** (yes/no, default: no — enable later)
+11. **Open Brain (Supabase)?** — Only if x86 node exists. (default: no — enable later)
+12. **RKLLama?** — Only if RK1 nodes exist.
+13. **llama.cpp?** — Only if NVIDIA GPU node exists.
 
 ## Phase 2: Configure files
 
@@ -61,9 +107,12 @@ Based on answers, edit these files (read each before editing):
 - Set `control_plane`, `cluster_domain`, `domain_email`, `repo_remote`,
   `repo_branch`
 
+### `kubernetes-services/templates/longhorn.yaml`
+- If <3 nodes: change `defaultClassReplicaCount` to match node count (1 or 2)
+
 ### `kubernetes-services/values.yaml`
 - Set `repo_branch` to match `all.yml`
-- Configure NFS settings if applicable
+- Configure NFS settings if applicable (only if rkllama/llamacpp selected)
 - Set `enable_oauth2_proxy: false` (user enables later)
 - Set `enable_cloudflare_tunnel: false` (user enables later)
 - Set `enable_supabase: false` unless user wants Open Brain now
