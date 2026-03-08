@@ -40,53 +40,19 @@ def create_mcp(pool_getter) -> FastMCP:
     async def capture_thought(
         content: str,
         metadata: dict[str, Any] | None = None,
-        attachments: list[dict[str, str]] | None = None,
     ) -> str:
-        """Capture a new thought, optionally with file attachments.
+        """Capture a new thought as text with optional structured metadata.
+
+        For file attachments, upload directly to Supabase Storage via the
+        local CLI or Slack bot — binary data should not pass through the
+        MCP context window.
 
         Args:
             content: The thought content text.
             metadata: Optional JSON metadata (type, topics, people, etc.).
-            attachments: Optional list of file attachments. Each dict must
-                contain ``filename`` (str), ``content_base64`` (str), and
-                ``mime_type`` (str).
         """
         pool = pool_getter()
         result = await db.capture_thought(pool, content, metadata)
-
-        if attachments and SUPABASE_URL and SUPABASE_SERVICE_KEY:
-            thought_id = result["id"]
-            stored: list[dict[str, str]] = []
-            errors: list[str] = []
-
-            for att in attachments:
-                try:
-                    content_bytes = base64.b64decode(att["content_base64"])
-                    path = await db.upload_attachment(
-                        pool,
-                        thought_id,
-                        att["filename"],
-                        content_bytes,
-                        att["mime_type"],
-                        SUPABASE_URL,
-                        SUPABASE_SERVICE_KEY,
-                    )
-                    stored.append({
-                        "filename": att["filename"],
-                        "path": path,
-                        "mime_type": att["mime_type"],
-                    })
-                except Exception as exc:  # noqa: BLE001
-                    errors.append(f"{att.get('filename', '?')}: {exc}")
-
-            if stored:
-                await db.update_thought_attachments(pool, thought_id, stored)
-                result.setdefault("metadata", {})
-                result["metadata"]["attachments"] = stored
-
-            if errors:
-                result["attachment_errors"] = errors
-
         return json.dumps(result)
 
     @mcp.tool()

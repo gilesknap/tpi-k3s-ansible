@@ -183,46 +183,6 @@ async def thought_stats(pool: asyncpg.Pool) -> dict[str, Any]:
 # attachment storage
 # ---------------------------------------------------------------------------
 
-async def upload_attachment(
-    pool: asyncpg.Pool,
-    thought_id: str,
-    filename: str,
-    content_bytes: bytes,
-    mime_type: str,
-    storage_url: str,
-    service_key: str,
-) -> str:
-    """Upload a file to Supabase Storage and return the storage path.
-
-    Args:
-        pool: asyncpg connection pool (unused but kept for consistency).
-        thought_id: UUID of the parent thought.
-        filename: Name of the file to store.
-        content_bytes: Raw file content.
-        mime_type: MIME type of the file.
-        storage_url: Supabase Kong gateway URL.
-        service_key: Supabase service-role key for auth.
-
-    Returns:
-        The storage path ``{thought_id}/{filename}``.
-    """
-    path = f"{thought_id}/{filename}"
-    url = f"{storage_url}/storage/v1/object/brain-attachments/{path}"
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.put(
-            url,
-            content=content_bytes,
-            headers={
-                "Authorization": f"Bearer {service_key}",
-                "Content-Type": mime_type,
-            },
-        )
-        resp.raise_for_status()
-
-    return path
-
-
 async def download_attachment(
     thought_id: str,
     filename: str,
@@ -252,33 +212,6 @@ async def download_attachment(
 
     mime_type = resp.headers.get("content-type", "application/octet-stream")
     return resp.content, mime_type
-
-
-async def update_thought_attachments(
-    pool: asyncpg.Pool,
-    thought_id: str,
-    attachments: list[dict],
-) -> None:
-    """Store attachment metadata on a thought's metadata JSONB column.
-
-    Args:
-        pool: asyncpg connection pool.
-        thought_id: UUID of the thought to update.
-        attachments: List of attachment dicts (filename, path, mime_type).
-    """
-    await pool.execute(
-        """
-        UPDATE thoughts
-        SET metadata = jsonb_set(
-            COALESCE(metadata, '{}'::jsonb),
-            '{attachments}',
-            $2::jsonb
-        )
-        WHERE id = $1::uuid
-        """,
-        thought_id,
-        json.dumps(attachments),
-    )
 
 
 # ---------------------------------------------------------------------------

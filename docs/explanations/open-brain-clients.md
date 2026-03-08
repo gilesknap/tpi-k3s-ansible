@@ -6,12 +6,32 @@ constraints, architectural trade-offs, and potential directions.
 ## Current State
 
 Open Brain stores thoughts (text + structured metadata) in Supabase PostgreSQL,
-with MinIO providing S3-compatible object storage for file attachments. Two
+with MinIO providing S3-compatible object storage for file attachments. Three
 server interfaces exist:
 
-- **MCP server** (`brain.<domain>/mcp`) — OAuth 2.1 via GitHub, used by Claude.ai
+- **MCP server** (`brain.<domain>/mcp`) — OAuth 2.1 via GitHub, used by Claude.ai.
+  Text-only capture (`capture_thought` accepts content + metadata, no file uploads).
+  Can retrieve attachments via `get_attachment`.
+- **Local stdio MCP server** (`open-brain-cli/`) — wraps REST and Storage APIs,
+  used by Claude Code. Supports file upload/download directly over HTTP.
 - **REST API** (`supabase-api.<domain>/functions/v1/open-brain-mcp`) — x-brain-key
   header auth, used by scripts and CLI tools
+
+## Architecture
+
+The system separates text capture from file uploads to avoid pushing binary data
+through MCP context windows:
+
+- **Text capture** — `capture_thought` on the public MCP server (Claude.ai) or
+  via the REST API wrapper (local CLI). Claude.ai should summarise binary content
+  as text before calling `capture_thought`.
+- **File uploads** — always go directly to Supabase Storage API, never through
+  the MCP context window. The local CLI and future Slack bot both use this path.
+- **File retrieval** — `get_attachment` on the public MCP server downloads from
+  MinIO via Supabase Storage and returns base64. Works for viewing individual
+  attachments, not for bulk transfers.
+- **Queries** — `search_thoughts`, `list_thoughts`, and `thought_stats` are
+  available on both MCP servers.
 
 ## The File Upload Problem
 
@@ -49,12 +69,15 @@ side-channel for binary data.
 - OAuth 2.1 authentication (secure, no shared secrets)
 
 **Cons:**
-- Cannot upload files (context window limit)
+- Text-only capture — `capture_thought` does not accept file attachments
+  (binary data would exhaust the context window). Claude.ai should summarise
+  binary content as text before calling `capture_thought`.
 - File retrieval is slow (~20s for a small image)
 - No persistent state between conversations
 - Conversation length limits can interrupt workflows
 
-**Best for:** Text capture, search, querying, analysis of existing thoughts.
+**Best for:** Text capture (including AI-summarised descriptions of binary
+content), search, querying, analysis of existing thoughts.
 
 ### Claude Code (local stdio MCP server)
 
