@@ -67,16 +67,20 @@ Ensure `extra_nodes` is listed under `all_nodes.children`.
 - Flash will happen during playbook run with `-e do_flash=true`
 
 ### Standalone server
-Run the bootstrap playbook to create the `ansible` user:
+The bootstrap playbook creates the `ansible` user and copies the SSH key.
+It requires `-K` for an interactive sudo password prompt, which does not work
+inside Claude Code's shell. **Ask the user to run it manually** from their
+terminal:
 
 ```bash
-ansible-playbook pb_add_nodes.yml -u <existing-user> -K
+ansible-playbook pb_add_nodes.yml --limit <hostname> -e "ansible_user=<existing-user>" -K
 ```
 
-Ask the user for the existing SSH username on the new server. The `-K` flag
-prompts for the sudo password.
+The `-e "ansible_user=<existing-user>"` override is needed because the
+`extra_nodes` group sets `ansible_user` to the ansible account, which doesn't
+exist yet. Ask the user for the existing SSH username on the new server.
 
-Verify access:
+Once the user confirms it completed, verify access:
 
 ```bash
 ansible <hostname> -m ping
