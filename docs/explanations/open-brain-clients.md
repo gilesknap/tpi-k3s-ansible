@@ -56,26 +56,35 @@ side-channel for binary data.
 
 **Best for:** Text capture, search, querying, analysis of existing thoughts.
 
-### Claude Code (MCP and/or REST)
+### Claude Code (local stdio MCP server)
+
+**Tested:** A local stdio MCP server (`open-brain-cli/`) wraps the REST and
+Storage APIs. Claude Code connects via `.mcp.json` and gets 6 tools including
+`upload_attachment` and `download_attachment` that handle files directly from
+disk — no base64 through the context window.
 
 **Pros:**
-- Could connect via the same MCP server (already deployed)
-- Could also act as a REST client to the Supabase API directly
-- Has filesystem access — could upload files by reading them locally
-- Local execution avoids context window limits for file operations
-- Primary workstation interface for development workflows
+- File upload/download works — binary goes directly over HTTP, not through context
+- File retrieval is fast — download to `/tmp`, Claude Code reads it (multimodal)
+- Text capture and search work well via the REST API wrapper
+- Uses MAX subscription (no API costs)
+- Works remotely via Cloudflare tunnel (x-brain-key auth over HTTPS)
 
 **Cons:**
-- MCP support and capabilities in Claude Code are evolving
-- REST client approach would need the x-brain-key configured locally
-- Untested — needs experimentation to understand current capabilities
+- **File capture is clumsy** — pasted/dropped images in Claude Code are in-memory
+  conversation data, not files on disk. To upload, the user must first save the
+  file somewhere, then tell Claude Code the path. This defeats the goal of quick,
+  frictionless capture.
+- Claude Code can *see* images (multimodal) but cannot *save* them from the
+  conversation to a file path — there is no tool for that.
+- Retrieved images are described in text, not displayed visually (terminal limitation)
 
-**Best for:** Workstation use, development-adjacent capture, file uploads
-from local filesystem. Worth investigating as the primary interface.
+**Best for:** Text-only thought capture and search from a workstation. File
+uploads are possible but too manual for a "quick capture" workflow.
 
-**Open question:** Claude Code may be able to call MCP tools *and* make direct
-HTTP requests to the REST API, giving it the best of both worlds — AI-powered
-metadata extraction via MCP for text, direct HTTP uploads for files.
+**Verdict:** Good for querying and text capture, but not a replacement for
+drag-and-drop file capture. The friction of "save file to disk first" makes
+it unsuitable as the primary capture interface for images/PDFs.
 
 ### Slack Bot (direct API)
 
@@ -130,21 +139,32 @@ storage), but the client interface question remains open.
 
 A hybrid approach, using each client for what it does best:
 
-1. **Claude.ai / Claude Code** — primary interface for text capture, search,
-   and retrieval. AI-powered metadata extraction included in MAX subscription.
-2. **Slack bot** (lightweight, no AI) — file ingestion only. Receives files,
-   uploads to MinIO, creates a thought with basic metadata (filename, type,
-   timestamp). No API key needed — just a pipeline.
-3. **Claude.ai / Claude Code** — enrich Slack-uploaded thoughts later. Search
-   for recent unclassified thoughts, view the attachment, add proper metadata.
+1. **Slack bot** — primary capture interface. Handles text, images, PDFs, and
+   quick notes with drag-and-drop ease. Slack's native file handling means
+   binary data never touches a context window. Mobile-friendly for on-the-go
+   capture. The predecessor project (2ndBrain) proved this pattern works well.
+2. **Claude.ai** — search, query, and analysis of existing thoughts. Rich AI
+   reasoning for exploring the knowledge base, finding connections, and
+   generating summaries. Uses MAX subscription (no API costs).
+3. **Claude Code** — workstation text capture and programmatic access. The
+   local stdio MCP server provides fast search and text-only capture. File
+   uploads are possible but too manual for casual use.
 
-This avoids API costs while covering all capture scenarios. The Slack bot is
-deliberately simple — a "file drop" rather than a full AI agent.
+### The AI question for Slack
+
+The Slack bot needs to decide whether to include AI for metadata extraction:
+
+- **With AI (Claude API):** Automatic classification, topic extraction, and
+  filing — like 2ndBrain did with Gemini. Costs money per token.
+- **Without AI:** Dumb pipeline — saves files and raw text with basic metadata
+  (timestamp, filename, source). Relies on Claude.ai / Claude Code to enrich
+  thoughts later. No API cost.
+- **Hybrid:** Use a small/cheap model (Haiku) for lightweight classification
+  only. Keeps costs low while still providing useful auto-tagging.
 
 ## Next Steps
 
-- Test Claude Code as an MCP client and REST client for Open Brain
-- Explore the Claude Code tab on claude.ai for potential unified experience
-- Decide whether a lightweight Slack file-ingestion bot is worth building
-- Consider whether the REST API (x-brain-key) needs updating to support
-  the same attachment workflow
+- Build a Slack bot for file and text capture into Open Brain
+- Decide on AI integration level for the Slack bot
+- Consider whether the Slack bot should reuse the 2ndBrain agent architecture
+  or be a simpler purpose-built service
