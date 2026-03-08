@@ -76,58 +76,17 @@ Keep these values — you will need them in the next step.
 
 ## 3 -- Create and seal the MCP server secret
 
-The MCP server needs four secret values. The script below prompts for each
-one interactively so nothing ends up in your shell history.
+The MCP server needs four secret values. A helper script prompts for the
+GitHub OAuth credentials interactively (hidden input) and fetches the
+database password from the cluster automatically:
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-NAMESPACE=open-brain-mcp
-SECRET_NAME=open-brain-mcp-secret
-OUTPUT=kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
-
-# Prompt for secrets (input hidden)
-read -rsp "DATABASE_URL (e.g. postgresql://supabase_admin:PASS@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres): " DATABASE_URL; echo
-read -rsp "GITHUB_CLIENT_ID: " GITHUB_CLIENT_ID; echo
-read -rsp "GITHUB_CLIENT_SECRET: " GITHUB_CLIENT_SECRET; echo
-
-# Generate a random JWT signing secret
-MCP_JWT_SECRET=$(openssl rand -hex 32)
-echo "Generated MCP_JWT_SECRET (random 64-char hex)."
-
-# Create namespace if it doesn't exist
-kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-
-# Create and seal
-kubectl create secret generic "$SECRET_NAME" \
-  --namespace="$NAMESPACE" \
-  --from-literal=DATABASE_URL="$DATABASE_URL" \
-  --from-literal=MCP_JWT_SECRET="$MCP_JWT_SECRET" \
-  --from-literal=GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
-  --from-literal=GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET" \
-  --dry-run=client -o yaml | \
-  kubeseal --format yaml \
-    --controller-name sealed-secrets \
-    --controller-namespace kube-system \
-  > "$OUTPUT"
-
-echo "Sealed secret written to $OUTPUT"
+./scripts/seal-mcp-secret
 ```
 
-:::{tip}
-The `DATABASE_URL` connects to the Supabase PostgreSQL instance inside the
-cluster. If you followed the Open Brain setup guide, the password is in the
-`supabase-credentials` secret:
-
-```bash
-kubectl get secret supabase-credentials -n supabase \
-  -o jsonpath='{.data.password}' | base64 -d
-```
-
-Then construct the URL:
-`postgresql://supabase_admin:<password>@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres`
-:::
+The script generates a random `MCP_JWT_SECRET`, constructs the `DATABASE_URL`
+from the existing `supabase-credentials` secret, and writes the sealed output
+to the SealedSecret manifest.
 
 ## 4 -- Commit and deploy the sealed secret
 
