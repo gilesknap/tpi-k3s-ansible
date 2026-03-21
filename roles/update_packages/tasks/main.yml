@@ -28,7 +28,19 @@
       - open-iscsi
       - original-awk
       - nfs-common   # required for Longhorn ReadWriteMany (RWX) volumes
+      - linux-tools-generic  # provides usbip userspace tools
     update_cache: false
+
+- name: Load vhci-hcd kernel module
+  community.general.modprobe:
+    name: vhci_hcd
+    state: present
+
+- name: Persist vhci-hcd module across reboots
+  ansible.builtin.copy:
+    content: "vhci_hcd\n"
+    dest: /etc/modules-load.d/vhci_hcd.conf
+    mode: "0644"
 
 # NVIDIA container toolkit — only installed on nodes with nvidia_gpu_node: true in inventory.
 # Required so that containerd can pass GPU devices into pods requesting nvidia.com/gpu.
