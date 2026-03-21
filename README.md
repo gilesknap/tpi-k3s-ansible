@@ -48,10 +48,18 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Monitoring** — Prometheus + Grafana stack
 - **Distributed storage** — Longhorn with snapshots and backup
 - **Kubernetes dashboard** — Headlamp with RBAC
-- **Local LLM inference** — NPU-accelerated RKLLama on RK1 nodes
-- **Local LLM inference** — NVIDIA GPU-accelerated llama.cpp on compatible servers
-- **Open WebUI** — chat interface to the above LLM backends
+- **Supabase** — self-hosted backend with PostgreSQL + pgvector, Auth, Storage
+  (MinIO-backed), and Studio UI
 - **Echo test service** — for verifying ingress, TLS, and headers
+
+### AI / LLM
+
+- **Local LLM inference** — NPU-accelerated RKLLama on RK1 nodes
+- **Local LLM inference** — NVIDIA GPU-accelerated llama.cpp on compatible
+  servers (with automatic device plugin for GPU scheduling)
+- **Open WebUI** — chat interface to the above LLM backends
+- **Open Brain** — MCP server providing AI memory and semantic search for
+  Claude.ai, backed by Supabase with GitHub OAuth access control
 
 ### Developer Experience
 
