@@ -15,7 +15,18 @@
 
 - name: Reboot the server (if required)
   ansible.builtin.reboot:
-  when: reboot_required_file.stat.exists
+  when:
+    - reboot_required_file.stat.exists
+    - not (workstation | default(false))
+
+- name: Warn that workstation node requires a manual reboot
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ inventory_hostname }} needs a reboot but is marked as a
+      workstation. Reboot it manually when convenient.
+  when:
+    - reboot_required_file.stat.exists
+    - workstation | default(false)
 
 - name: Remove dependencies that are no longer required
   ansible.builtin.apt:
@@ -28,7 +39,19 @@
       - open-iscsi
       - original-awk
       - nfs-common   # required for Longhorn ReadWriteMany (RWX) volumes
+      - linux-tools-generic  # provides usbip userspace tools
     update_cache: false
+
+- name: Load vhci-hcd kernel module
+  community.general.modprobe:
+    name: vhci_hcd
+    state: present
+
+- name: Persist vhci-hcd module across reboots
+  ansible.builtin.copy:
+    content: "vhci_hcd\n"
+    dest: /etc/modules-load.d/vhci_hcd.conf
+    mode: "0644"
 
 # NVIDIA container toolkit — only installed on nodes with nvidia_gpu_node: true in inventory.
 # Required so that containerd can pass GPU devices into pods requesting nvidia.com/gpu.
