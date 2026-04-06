@@ -8,4 +8,6 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     dnsutils \
     gh \
     just \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$(dpkg --print-architecture) \
+       -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq

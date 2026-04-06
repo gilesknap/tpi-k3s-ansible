@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-monitor
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-monitor
+  project: kubernetes
+  sources:
+    - chart: argocd-monitor
+      targetRevision: 0.5.1
+      repoURL: ghcr.io/epics-containers/charts
+      helm:
+        valuesObject:
+          argocd:
+            url: https://argocd-server.argo-cd.svc.cluster.local
+          nodeSelector:
+            kubernetes.io/arch: amd64
+          service:
+            type: ClusterIP
+            port: 80
+          ingress:
+            enabled: false
+          oauth2Proxy:
+            enabled: true
+            clientId: argocd-monitor
+            issuerUrl: https://argocd.{{ .Values.cluster_domain }}/api/dex
+            existingSecret: argocd-monitor-oauth
+            extraArgs:
+              - --redirect-url=https://argocd-monitor.{{ .Values.cluster_domain }}/oauth2/callback
+              - --scope=openid profile email audience:server:client_id:argo-cd
+
+    - path: ./kubernetes-services/additions/argocd-monitor
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: argocd-monitor
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: argocd-monitor
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

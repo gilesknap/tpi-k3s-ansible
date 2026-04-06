@@ -19,6 +19,9 @@
 - **Multi-homed nodes** — K3s and flannel auto-detect the IP from the default
   route, which may be the wrong subnet. Set `node_ip` and `flannel_iface` in
   `hosts.yml` for any node with multiple NICs.
+- **Chrome browser is not incognito** — never navigate to Google services or
+  GitHub in browser automation. The browser has active logged-in sessions.
+  Use CLI tools (`gh`, `curl`, `kubectl`) instead.
 - **No automated tests** — validate by running playbook tags against the cluster.
 - **`gh pr edit` fails on this repo** — classic projects warning causes a
   GraphQL error. Use `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...`
