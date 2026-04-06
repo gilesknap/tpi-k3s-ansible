@@ -982,13 +982,12 @@ that have no Cloudflare certificate. This results in
 (public) or a grey-cloud A record (LAN-only).</p>
 </section>
 </section>
-<section id="argocd-ssl-passthrough">
-<h2>ArgoCD SSL passthrough<a class="headerlink" href="#argocd-ssl-passthrough" title="Link to this heading">#</a></h2>
-<p>ArgoCD’s gRPC API uses TLS natively. The ArgoCD Ingress is configured with
-<code class="docutils literal notranslate"><span class="pre">nginx.ingress.kubernetes.io/ssl-passthrough:</span> <span class="pre">&quot;true&quot;</span></code> — NGINX terminates the TCP
-connection but passes TLS directly to the ArgoCD server on port 443.</p>
-<p>This means ArgoCD handles its own TLS certificate and the ingress does not decrypt
-traffic.</p>
+<section id="argocd-tls-termination">
+<h2>ArgoCD TLS termination<a class="headerlink" href="#argocd-tls-termination" title="Link to this heading">#</a></h2>
+<p>ArgoCD runs with <code class="docutils literal notranslate"><span class="pre">server.insecure:</span> <span class="pre">true</span></code>, serving plain HTTP internally.
+TLS is terminated at the nginx ingress using a Let’s Encrypt certificate
+(the same pattern as every other service). This allows ArgoCD to be routed
+through the Cloudflare tunnel and protected by Cloudflare Access.</p>
 </section>
 </section>
 
@@ -1055,7 +1054,7 @@ traffic.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-no-wildcard-dns">Why no wildcard DNS?</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-ssl-passthrough">ArgoCD SSL passthrough</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-tls-termination">ArgoCD TLS termination</a></li>
 </ul>
   </nav></div>
 

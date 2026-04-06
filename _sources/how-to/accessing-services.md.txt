@@ -18,8 +18,8 @@ Via port-forward:
 ```bash
 argo.sh
 # Or manually:
-kubectl port-forward svc/argocd-server -n argo-cd 8080:443
-# Open https://localhost:8080 (accept the self-signed certificate warning)
+kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
+# Open http://localhost:8080
 ```
 
 Click **Log in via GitHub** to authenticate through Dex. The built-in admin

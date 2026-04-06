@@ -892,7 +892,7 @@ receive admin privileges; everyone else gets a read-only or user role.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>ArgoCD</p></td>
-<td><p>LAN only (SSL passthrough)</p></td>
+<td><p>Cloudflare Access</p></td>
 <td><p>Dex (native)</p></td>
 <td><p>email → <code class="docutils literal notranslate"><span class="pre">role:admin</span></code> / <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code></p></td>
 </tr>
@@ -997,13 +997,10 @@ existing ArgoCD server pod.</p>
 disabled; all users log in via GitHub through Dex.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>ArgoCD is the only service <strong>not</strong> routed through the Cloudflare tunnel.
-It uses SSL passthrough (TLS is terminated inside the ArgoCD pod, not at
-nginx), which is incompatible with the tunnel’s L7 HTTP routing. Instead,
-its DNS record is a grey-cloud A record pointing to a private RFC-1918
-address (e.g. <code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code>). This address resolves publicly but is not
-routable on the internet — only devices on the LAN can reach it. Dex
-(GitHub login) provides the authentication layer.</p>
+<p>ArgoCD runs with <code class="docutils literal notranslate"><span class="pre">server.insecure:</span> <span class="pre">true</span></code> so that TLS is terminated at
+nginx rather than inside the pod. This allows it to be routed through the
+Cloudflare tunnel and protected by Cloudflare Access like every other
+service.</p>
 </div>
 <pre  class="mermaid">
         sequenceDiagram
@@ -1129,6 +1126,7 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
         NGINX[ingress-nginx]
 
         subgraph DexAuth[&quot;Dex OIDC (native)&quot;]
+            ArgoCD
             Monitor[argocd-monitor]
             Grafana
             OpenWebUI[Open WebUI]
@@ -1140,7 +1138,6 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
             Supabase[Supabase Studio]
         end
 
-        ArgoCD[&quot;ArgoCD&lt;br/&gt;(SSL passthrough, LAN only)&quot;]
         Echo
 
         OAP[oauth2-proxy pod]
@@ -1151,8 +1148,8 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
 
     Internet --&gt; CFA --&gt; CFT --&gt; NGINX
     LAN --&gt; NGINX
-    LAN --&gt; ArgoCD
 
+    NGINX --&gt; ArgoCD
     NGINX --&gt; Monitor
     NGINX --&gt; Grafana
     NGINX --&gt; OpenWebUI
@@ -1172,10 +1169,8 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
     DexPod &lt;-.-&gt; GH
     OAP &lt;-.-&gt; GH
     </pre><p>Solid lines show request flow; dashed lines show authentication redirects.
-Almost all services are exposed via the Cloudflare tunnel and pass through
-Cloudflare Access (email allowlist) first. ArgoCD is the exception — it
-uses SSL passthrough and is accessible only from the LAN or via
-port-forward.</p>
+All services are exposed via the Cloudflare tunnel and pass through
+Cloudflare Access (email allowlist) before reaching the cluster.</p>
 </section>
 <section id="managing-access">
 <h2>Managing access<a class="headerlink" href="#managing-access" title="Link to this heading">#</a></h2>

@@ -447,7 +447,7 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 </thead>
 <tbody>
 <tr class="row-even"><td><p>ArgoCD</p></td>
-<td><p>LAN only (SSL passthrough)</p></td>
+<td><p>Cloudflare Access</p></td>
 <td><p>Dex (native OIDC)</p></td>
 <td><p>email → admin / readonly</p></td>
 </tr>
@@ -580,13 +580,11 @@ kube-proxy). For single-node clusters the taint is skipped so all workloads can 
 <p>The Cloudflare tunnel uses an <strong>outbound-only</strong> connection from the <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod.
 No inbound ports need to be opened on your router for public-facing services.</p>
 </section>
-<section id="lan-isolation">
-<h3>LAN isolation<a class="headerlink" href="#lan-isolation" title="Link to this heading">#</a></h3>
-<p>ArgoCD uses SSL passthrough and is not routed through the Cloudflare
-tunnel — it is accessible only from the LAN or via <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code>.
-All other services are tunnel-exposed with Cloudflare Access email-gate
-protection (except <code class="docutils literal notranslate"><span class="pre">supabase-api</span></code>, which uses a bypass policy for API
-access authenticated by <code class="docutils literal notranslate"><span class="pre">x-brain-key</span></code>).</p>
+<section id="cloudflare-access">
+<h3>Cloudflare Access<a class="headerlink" href="#cloudflare-access" title="Link to this heading">#</a></h3>
+<p>All services are routed through the Cloudflare tunnel and protected by a
+Cloudflare Access email-gate policy. The only exception is <code class="docutils literal notranslate"><span class="pre">supabase-api</span></code>,
+which uses a bypass policy (authenticated by <code class="docutils literal notranslate"><span class="pre">x-brain-key</span></code> instead).</p>
 </section>
 <section id="networkpolicies">
 <h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
@@ -681,7 +679,7 @@ the rationale and guidance on implementing them if needed.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#control-plane-taint">Control plane taint</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-protection">Cloudflare protection</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#no-inbound-firewall-ports">No inbound firewall ports</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lan-isolation">LAN isolation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-access">Cloudflare Access</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networkpolicies">NetworkPolicies</a></li>
 </ul>
 </li>

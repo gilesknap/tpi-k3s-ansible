@@ -128,11 +128,9 @@ that have no Cloudflare certificate. This results in
 Instead, each service gets an explicit DNS record: either a proxied tunnel CNAME
 (public) or a grey-cloud A record (LAN-only).
 
-## ArgoCD SSL passthrough
+## ArgoCD TLS termination
 
-ArgoCD's gRPC API uses TLS natively. The ArgoCD Ingress is configured with
-`nginx.ingress.kubernetes.io/ssl-passthrough: "true"` — NGINX terminates the TCP
-connection but passes TLS directly to the ArgoCD server on port 443.
-
-This means ArgoCD handles its own TLS certificate and the ingress does not decrypt
-traffic.
+ArgoCD runs with `server.insecure: true`, serving plain HTTP internally.
+TLS is terminated at the nginx ingress using a Let's Encrypt certificate
+(the same pattern as every other service). This allows ArgoCD to be routed
+through the Cloudflare tunnel and protected by Cloudflare Access.
