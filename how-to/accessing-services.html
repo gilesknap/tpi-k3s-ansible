@@ -423,7 +423,15 @@ kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/argocd-se
 <span class="c1"># Open https://localhost:8080 (accept the self-signed certificate warning)</span>
 </pre></div>
 </div>
-<p>Login with <code class="docutils literal notranslate"><span class="pre">admin</span></code> and the shared admin password.</p>
+<p>Click <strong>Log in via GitHub</strong> to authenticate through Dex. The built-in admin
+account is disabled.</p>
+</section>
+<section id="argocd-monitor">
+<h2>argocd-monitor<a class="headerlink" href="#argocd-monitor" title="Link to this heading">#</a></h2>
+<p>Via ingress: <strong>https://argocd-monitor.&lt;domain&gt;</strong></p>
+<p>Authenticates via Dex (GitHub) using an oauth2-proxy sidecar. Click
+<strong>Sign in</strong> to log in with your GitHub account. The dashboard inherits
+your ArgoCD RBAC role (admin or readonly).</p>
 </section>
 <section id="grafana">
 <h2>Grafana<a class="headerlink" href="#grafana" title="Link to this heading">#</a></h2>
@@ -435,17 +443,19 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="
 <span class="c1"># Open http://localhost:3000</span>
 </pre></div>
 </div>
-<p>Login with <code class="docutils literal notranslate"><span class="pre">admin</span></code> and the shared admin password. Grafana comes preconfigured with
-the <code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> dashboards for cluster monitoring.</p>
+<p>Click <strong>Sign in with GitHub (via Dex)</strong> to log in. Password login is
+disabled. Emails in the <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> list get the Admin role; everyone
+else gets Viewer. Grafana comes preconfigured with the
+<code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> dashboards for cluster monitoring.</p>
 </section>
 <section id="longhorn-ui">
 <h2>Longhorn UI<a class="headerlink" href="#longhorn-ui" title="Link to this heading">#</a></h2>
-<p>Via ingress: <strong>https://longhorn.&lt;domain&gt;</strong> (basic-auth prompt)</p>
+<p>Via ingress: <strong>https://longhorn.&lt;domain&gt;</strong> (oauth2-proxy login)</p>
 <p>Via port-forward:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>longhorn.sh
 </pre></div>
 </div>
-<p>Login with <code class="docutils literal notranslate"><span class="pre">admin</span></code> and the shared admin password. The UI shows storage volumes,
+<p>Authenticate via GitHub (oauth2-proxy). The UI shows storage volumes,
 replicas, and backup status.</p>
 </section>
 <section id="headlamp-kubernetes-dashboard">
@@ -473,9 +483,10 @@ kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/headlamp<
 <span class="c1"># Open http://localhost:8080</span>
 </pre></div>
 </div>
-<p>First-time access requires creating an account — the first account registered
-automatically becomes the admin. Models appear in the dropdown once pulled — see
-<a class="reference internal" href="rkllama-models.html"><span class="doc">Download RKLLama Models</span></a> or <a class="reference internal" href="llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>.</p>
+<p>Click the OAuth button to log in via GitHub (through Dex). Password login is
+disabled. Emails in the <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> list get admin access; others get the
+user role. Models appear in the dropdown once pulled — see <a class="reference internal" href="rkllama-models.html"><span class="doc">Download RKLLama Models</span></a>
+or <a class="reference internal" href="llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>RKLLama requires <strong>RK1 compute modules</strong> with the Rockchip NPU. llama.cpp requires
@@ -491,14 +502,16 @@ run SQL queries, and manage the <code class="docutils literal notranslate"><span
 <p class="admonition-title">Note</p>
 <p>Only available if you have enabled Open Brain — see <a class="reference internal" href="open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a>.</p>
 </div>
-<p>Via ingress: <strong>https://supabase.&lt;domain&gt;</strong> (behind OAuth2 proxy)</p>
+<p>Via ingress: <strong>https://supabase.&lt;domain&gt;</strong> (behind oauth2-proxy)</p>
 <p>Via port-forward:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/supabase-supabase-kong<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="m">8000</span>:8000
 <span class="c1"># Open http://localhost:8000</span>
 </pre></div>
 </div>
-<p>Login with the dashboard username and password you generated during
-<a class="reference internal" href="open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> setup (default username: <code class="docutils literal notranslate"><span class="pre">admin</span></code>).</p>
+<p>Two authentication steps: first authenticate via GitHub (oauth2-proxy),
+then log in with the Supabase dashboard username and password generated
+during <a class="reference internal" href="open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> setup. Use <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">supabase-creds</span></code> to retrieve the
+dashboard credentials.</p>
 </section>
 <section id="echo-test-service">
 <h2>Echo Test Service<a class="headerlink" href="#echo-test-service" title="Link to this heading">#</a></h2>
@@ -566,6 +579,7 @@ Chrome extension to view the response pretty-printed in your browser.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">ArgoCD</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-monitor">argocd-monitor</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana">Grafana</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn-ui">Longhorn UI</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp-kubernetes-dashboard">Headlamp (Kubernetes Dashboard)</a></li>

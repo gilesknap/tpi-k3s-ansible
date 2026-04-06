@@ -47,6 +47,441 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/oauth-setup';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -405,36 +840,50 @@
                   
   <section id="set-up-oauth-authentication">
 <h1>Set Up OAuth Authentication<a class="headerlink" href="#set-up-oauth-authentication" title="Link to this heading">#</a></h1>
-<p>This guide walks through securing cluster services with
-<a class="reference external" href="https://oauth2-proxy.github.io/oauth2-proxy/">oauth2-proxy</a> and GitHub
-as the OIDC provider.</p>
-<section id="architecture">
-<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Browser → ingress-nginx → oauth2-proxy (auth check) → backend service
-                ↕
-         GitHub OAuth (OIDC login)
-</pre></div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For a high-level overview of how authentication works across all services,
+see <a class="reference internal" href="../explanations/authentication.html"><span class="doc">Authentication Architecture</span></a>.</p>
 </div>
-<p>oauth2-proxy acts as an authentication middleware. When a user visits a
-protected service, nginx checks with oauth2-proxy before forwarding the
-request. If the user is not authenticated, they are redirected to GitHub
-to log in.</p>
-<p><strong>Why oauth2-proxy?</strong> Authentik and Keycloak each need ~2 GB of RAM — too
-heavy for a small ARM cluster. oauth2-proxy uses ~128 Mi and integrates
-directly with the existing ingress-nginx annotations.</p>
-</section>
-<section id="prerequisites">
+<p>This guide walks through configuring both authentication paths used by the
+cluster:</p>
+<ul class="simple">
+<li><p><strong>Part A</strong> — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)</p></li>
+<li><p><strong>Part B</strong> — oauth2-proxy (Longhorn, Headlamp, Supabase Studio)</p></li>
+</ul>
+<pre  class="mermaid">
+        flowchart LR
+    GH[GitHub]
+    DEX[Dex inside ArgoCD]
+    OAP[oauth2-proxy]
+
+    GH --&gt;|OAuth App 1| DEX
+    GH --&gt;|OAuth App 2| OAP
+
+    DEX --&gt; ArgoCD
+    DEX --&gt; Grafana
+    DEX --&gt; Open-WebUI
+    DEX --&gt; argocd-monitor
+
+    OAP --&gt; Longhorn
+    OAP --&gt; Headlamp
+    OAP --&gt; Supabase
+    </pre><section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>A working cluster with ingress-nginx and cert-manager</p></li>
 <li><p>A GitHub account (the OAuth provider)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubeseal</span></code> installed locally (see <a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>)</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code> namespace must exist (ArgoCD creates it automatically
-via <code class="docutils literal notranslate"><span class="pre">CreateNamespace=true</span></code>)</p></li>
 </ul>
 </section>
-<section id="step-1-create-a-github-oauth-app">
-<h2>Step 1: Create a GitHub OAuth App<a class="headerlink" href="#step-1-create-a-github-oauth-app" title="Link to this heading">#</a></h2>
+<hr class="docutils" />
+<section id="part-a-dex-oidc-setup">
+<h2>Part A: Dex OIDC setup<a class="headerlink" href="#part-a-dex-oidc-setup" title="Link to this heading">#</a></h2>
+<p>Dex runs inside the ArgoCD server pod and acts as a shared OIDC provider
+for all services that support native OIDC login. It uses a GitHub OAuth App
+as its upstream identity source.</p>
+<section id="a1-create-a-github-oauth-app-for-dex">
+<h3>A1: Create a GitHub OAuth App for Dex<a class="headerlink" href="#a1-create-a-github-oauth-app-for-dex" title="Link to this heading">#</a></h3>
 <ol class="arabic simple">
 <li><p>Go to <a class="reference external" href="https://github.com/settings/developers">github.com/settings/developers</a>.</p></li>
 <li><p>Click <strong>New OAuth App</strong>.</p></li>
@@ -448,7 +897,124 @@ via <code class="docutils literal notranslate"><span class="pre">CreateNamespace
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Application name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">k3s-cluster</span></code> (or any name)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s-dex</span></code> (or any name)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Homepage URL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Authorization callback URL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;/api/dex/callback</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ol class="arabic simple" start="4">
+<li><p>Click <strong>Register application</strong>.</p></li>
+<li><p>Copy the <strong>Client ID</strong>.</p></li>
+<li><p>Click <strong>Generate a new client secret</strong> and copy it immediately.</p></li>
+</ol>
+</section>
+<section id="a2-generate-dex-client-secrets">
+<h3>A2: Generate Dex client secrets<a class="headerlink" href="#a2-generate-dex-client-secrets" title="Link to this heading">#</a></h3>
+<p>Each Dex static client needs its own secret. Generate them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># One secret per client</span>
+<span class="k">for</span><span class="w"> </span>client<span class="w"> </span><span class="k">in</span><span class="w"> </span>argo-cd<span class="w"> </span>argocd-monitor<span class="w"> </span>grafana<span class="w"> </span>open-webui<span class="w"> </span>headlamp<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$client</span><span class="s2">: </span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import secrets; print(secrets.token_urlsafe(32))&#39;</span><span class="k">)</span><span class="s2">&quot;</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> client secret has a special requirement — it must equal
+<code class="docutils literal notranslate"><span class="pre">base64url(SHA256(server.secretkey)[:30</span> <span class="pre">bytes])</span></code>. The <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-argocd-dex</span></code>
+recipe handles this automatically.</p>
+</div>
+</section>
+<section id="a3-create-and-seal-the-dex-secret">
+<h3>A3: Create and seal the Dex secret<a class="headerlink" href="#a3-create-and-seal-the-dex-secret" title="Link to this heading">#</a></h3>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-argocd-dex</span></code> recipe, which prompts for the GitHub
+credentials and client secrets, then creates the SealedSecret:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>seal-argocd-dex
+</pre></div>
+</div>
+<p>This creates <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd/argocd-dex-secret.yaml</span></code>.</p>
+</section>
+<section id="a4-seal-per-service-oauth-secrets">
+<h3>A4: Seal per-service OAuth secrets<a class="headerlink" href="#a4-seal-per-service-oauth-secrets" title="Link to this heading">#</a></h3>
+<p>Grafana and Open WebUI each need their own SealedSecret containing the
+Dex client secret:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Grafana</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>grafana-oauth-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">CLIENT_SECRET</span><span class="o">=</span><span class="s2">&quot;&lt;grafana-client-secret&gt;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+
+<span class="c1"># Open WebUI</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>open-webui-oauth-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>open-webui<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>client-secret<span class="o">=</span><span class="s2">&quot;&lt;open-webui-client-secret&gt;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+</pre></div>
+</div>
+</section>
+<section id="a5-configure-admin-emails">
+<h3>A5: Configure admin emails<a class="headerlink" href="#a5-configure-admin-emails" title="Link to this heading">#</a></h3>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and set the emails that should
+receive admin privileges across all services:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">oauth2_emails</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alice@example.com</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bob@example.com</span>
+</pre></div>
+</div>
+</section>
+<section id="a6-deploy">
+<h3>A6: Deploy<a class="headerlink" href="#a6-deploy" title="Link to this heading">#</a></h3>
+<p>Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
+restart pods that read secrets from environment variables:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/grafana-prometheus<span class="w"> </span>-n<span class="w"> </span>monitoring
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/open-webui<span class="w"> </span>-n<span class="w"> </span>open-webui
+</pre></div>
+</div>
+</section>
+<section id="adding-a-new-dex-static-client">
+<h3>Adding a new Dex static client<a class="headerlink" href="#adding-a-new-dex-static-client" title="Link to this heading">#</a></h3>
+<p>To add a new service that authenticates via Dex:</p>
+<ol class="arabic simple">
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">staticClients</span></code> entry in <code class="docutils literal notranslate"><span class="pre">additions/argocd/argocd-cm.yml</span></code> with
+the service’s redirect URI and a reference to its secret key in
+<code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>.</p></li>
+<li><p>Re-seal <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> with the new client secret included.</p></li>
+<li><p>Configure the service’s OIDC settings to point at
+<code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;/api/dex</span></code>.</p></li>
+<li><p>Commit, push, and restart the ArgoCD server pod.</p></li>
+</ol>
+</section>
+</section>
+<hr class="docutils" />
+<section id="part-b-oauth2-proxy-setup">
+<h2>Part B: oauth2-proxy setup<a class="headerlink" href="#part-b-oauth2-proxy-setup" title="Link to this heading">#</a></h2>
+<p>oauth2-proxy is a lightweight reverse proxy that authenticates users
+directly with GitHub. It protects services that lack native OIDC support.</p>
+<section id="b1-create-a-github-oauth-app-for-oauth2-proxy">
+<h3>B1: Create a GitHub OAuth App for oauth2-proxy<a class="headerlink" href="#b1-create-a-github-oauth-app-for-oauth2-proxy" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Go to <a class="reference external" href="https://github.com/settings/developers">github.com/settings/developers</a>.</p></li>
+<li><p>Click <strong>New OAuth App</strong>.</p></li>
+<li><p>Fill in the form:</p></li>
+</ol>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Application name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s-oauth2-proxy</span></code> (or any name)</p></td>
 </tr>
 <tr class="row-odd"><td><p>Homepage URL</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">https://oauth2.&lt;your-domain&gt;</span></code></p></td>
@@ -461,18 +1027,17 @@ via <code class="docutils literal notranslate"><span class="pre">CreateNamespace
 </div>
 <ol class="arabic simple" start="4">
 <li><p>Click <strong>Register application</strong>.</p></li>
-<li><p>Copy the <strong>Client ID</strong>.</p></li>
-<li><p>Click <strong>Generate a new client secret</strong> and copy it immediately.</p></li>
+<li><p>Copy the <strong>Client ID</strong> and generate a <strong>Client Secret</strong>.</p></li>
 </ol>
 </section>
-<section id="step-2-generate-a-cookie-secret">
-<h2>Step 2: Generate a cookie secret<a class="headerlink" href="#step-2-generate-a-cookie-secret" title="Link to this heading">#</a></h2>
+<section id="b2-generate-a-cookie-secret">
+<h3>B2: Generate a cookie secret<a class="headerlink" href="#b2-generate-a-cookie-secret" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())&#39;</span>
 </pre></div>
 </div>
 </section>
-<section id="step-3-create-and-seal-the-credentials">
-<h2>Step 3: Create and seal the credentials<a class="headerlink" href="#step-3-create-and-seal-the-credentials" title="Link to this heading">#</a></h2>
+<section id="b3-create-and-seal-the-credentials">
+<h3>B3: Create and seal the credentials<a class="headerlink" href="#b3-create-and-seal-the-credentials" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;GitHub Client ID: &#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-r<span class="w"> </span>CLIENT_ID
 <span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;GitHub Client Secret: &#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>CLIENT_SECRET<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span>
 <span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;Cookie Secret: &#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>COOKIE_SECRET<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span>
@@ -489,17 +1054,10 @@ kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-
 <span class="nb">unset</span><span class="w"> </span>CLIENT_ID<span class="w"> </span>CLIENT_SECRET<span class="w"> </span>COOKIE_SECRET
 </pre></div>
 </div>
-<p>Commit and push:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml
-git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add oauth2-proxy credentials SealedSecret&quot;</span>
-git<span class="w"> </span>push
-</pre></div>
-</div>
 </section>
-<section id="step-4-add-a-dns-record">
-<h2>Step 4: Add a DNS record<a class="headerlink" href="#step-4-add-a-dns-record" title="Link to this heading">#</a></h2>
-<p>Add a grey-cloud (DNS-only) A record in the Cloudflare dashboard for the
-oauth2-proxy ingress:</p>
+<section id="b4-add-a-dns-record">
+<h3>B4: Add a DNS record<a class="headerlink" href="#b4-add-a-dns-record" title="Link to this heading">#</a></h3>
+<p>Add a grey-cloud (DNS-only) A record for the oauth2-proxy ingress:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Type</p></th>
@@ -511,86 +1069,50 @@ oauth2-proxy ingress:</p>
 <tbody>
 <tr class="row-even"><td><p>A</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;worker-node-ip&gt;</span></code></p></td>
 <td><p>DNS only</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Use one of your worker node IPs. This is the same pattern as other LAN-only
-services (see <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> Part 3).</p>
 </section>
-<section id="step-5-deploy-oauth2-proxy">
-<h2>Step 5: Deploy oauth2-proxy<a class="headerlink" href="#step-5-deploy-oauth2-proxy" title="Link to this heading">#</a></h2>
-<p>oauth2-proxy is deployed as an ArgoCD Application defined in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>. After pushing the
-SealedSecret, ArgoCD syncs automatically.</p>
-<p>Verify the deployment:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
-kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
-</pre></div>
-</div>
-<p>Visit <code class="docutils literal notranslate"><span class="pre">https://oauth2.&lt;your-domain&gt;</span></code> — you should see a GitHub login page.</p>
-</section>
-<section id="step-6-enable-the-oauth-toggle">
-<h2>Step 6: Enable the OAuth toggle<a class="headerlink" href="#step-6-enable-the-oauth-toggle" title="Link to this heading">#</a></h2>
-<p>Now that oauth2-proxy is running, enable it for all protected services by editing
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<section id="b5-enable-oauth2-proxy">
+<h3>B5: Enable oauth2-proxy<a class="headerlink" href="#b5-enable-oauth2-proxy" title="Link to this heading">#</a></h3>
+<p>In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
-<p>Commit and push:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/values.yaml
-git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Enable OAuth2 proxy for cluster services&quot;</span>
-git<span class="w"> </span>push
-</pre></div>
-</div>
-<p>ArgoCD will pick up the change and add OAuth annotations to all protected ingresses.</p>
+<p>Commit and push. ArgoCD adds OAuth annotations to all protected ingresses.</p>
 </section>
-<section id="step-7-how-oauth-is-wired-to-services">
-<h2>Step 7: How OAuth is wired to services<a class="headerlink" href="#step-7-how-oauth-is-wired-to-services" title="Link to this heading">#</a></h2>
+<section id="how-oauth2-proxy-is-wired-to-services">
+<h3>How oauth2-proxy is wired to services<a class="headerlink" href="#how-oauth2-proxy-is-wired-to-services" title="Link to this heading">#</a></h3>
 <p>Services use the shared ingress template at
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/templates/ingress.yaml</span></code>. To protect
-a service with OAuth, set <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in its ingress values:</p>
+a service, set <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in its ingress values:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># In the ArgoCD Application template (e.g. dashboard.yaml)</span>
 <span class="nt">helm</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">valuesObject</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">headlamp</span>
-<span class="w">    </span><span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example.com</span>
-<span class="w">    </span><span class="nt">service_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">headlamp</span>
-<span class="w">    </span><span class="nt">service_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
-<span class="w">    </span><span class="nt">oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># ← enables OAuth</span>
+<span class="w">    </span><span class="nt">oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># ← enables auth annotations</span>
 </pre></div>
 </div>
-<p>This adds nginx auth annotations that redirect unauthenticated requests
-to oauth2-proxy.</p>
-<p>Services currently protected by OAuth:</p>
+<p>This adds nginx <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations that check with
+oauth2-proxy before forwarding each request.</p>
+<p>Services protected by oauth2-proxy:</p>
 <ul class="simple">
-<li><p>Grafana (<code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>) — native login after OAuth gateway</p></li>
-<li><p>Longhorn (<code class="docutils literal notranslate"><span class="pre">longhorn.yaml</span></code>) — no native auth, OAuth is the only layer</p></li>
-<li><p>Headlamp (<code class="docutils literal notranslate"><span class="pre">dashboard.yaml</span></code>) — requires a service account token after OAuth</p></li>
-<li><p>Open WebUI (<code class="docutils literal notranslate"><span class="pre">open-webui.yaml</span></code>) — native login after OAuth gateway</p></li>
-<li><p>ArgoCD (<code class="docutils literal notranslate"><span class="pre">argo-cd/ingress.yaml</span></code>) — uses TLS passthrough with its own login
-(managed by Ansible, not the shared ingress template)</p></li>
+<li><p><strong>Longhorn</strong> — no native auth; OAuth is the only access control</p></li>
+<li><p><strong>Headlamp</strong> — requires a ServiceAccount token after OAuth login</p></li>
+<li><p><strong>Supabase Studio</strong> — requires a dashboard password after OAuth login</p></li>
 </ul>
 </section>
-<section id="step-8-restrict-access-optional">
-<h2>Step 8: Restrict access (optional)<a class="headerlink" href="#step-8-restrict-access-optional" title="Link to this heading">#</a></h2>
-<p>To restrict access to members of a specific GitHub organisation, add the
-<code class="docutils literal notranslate"><span class="pre">github-org</span></code> flag in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extraArgs</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">github-org</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-org-name&quot;</span>
-</pre></div>
-</div>
-<p>To restrict to specific email addresses, replace <code class="docutils literal notranslate"><span class="pre">email-domain:</span> <span class="pre">&quot;*&quot;</span></code> with
-a comma-separated list of allowed emails.</p>
 </section>
+<hr class="docutils" />
 <section id="integrating-with-cloudflare-access">
 <h2>Integrating with Cloudflare Access<a class="headerlink" href="#integrating-with-cloudflare-access" title="Link to this heading">#</a></h2>
-<p>For services exposed via the Cloudflare tunnel (e.g. Open WebUI), you can
-add a second authentication layer using Cloudflare Access at zero cluster
-overhead. See <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> for how Access Applications
-work, and apply the same pattern to any tunnelled service.</p>
+<p>For services exposed via the Cloudflare tunnel, add a second
+authentication layer using Cloudflare Access at zero cluster overhead.
+Configure an Access Application in the Cloudflare Zero Trust dashboard
+with an email allowlist matching <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code>. See
+<a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> for how Access Applications work.</p>
 </section>
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
@@ -602,13 +1124,12 @@ ingress values.</p>
 </section>
 <section id="after-github-login">
 <h3>403 after GitHub login<a class="headerlink" href="#after-github-login" title="Link to this heading">#</a></h3>
-<p>Check the <code class="docutils literal notranslate"><span class="pre">email-domain</span></code> or <code class="docutils literal notranslate"><span class="pre">github-org</span></code> restrictions in the oauth2-proxy
-configuration. Verify that the authenticated email matches the allowed
-list.</p>
+<p>Check the <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> list in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. The authenticated GitHub
+email must be in the list.</p>
 </section>
 <section id="cookie-domain-mismatch">
 <h3>Cookie domain mismatch<a class="headerlink" href="#cookie-domain-mismatch" title="Link to this heading">#</a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">cookie-domain</span></code> must match your cluster domain (e.g. <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code>).
+<p>The <code class="docutils literal notranslate"><span class="pre">cookie-domain</span></code> must match your cluster domain (e.g. <code class="docutils literal notranslate"><span class="pre">.&lt;your-domain&gt;</span></code>).
 All protected services must be subdomains of this domain.</p>
 </section>
 <section id="oauth-not-enforced-service-loads-without-login">
@@ -617,8 +1138,20 @@ All protected services must be subdomains of this domain.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>auth
 </pre></div>
 </div>
-<p>You should see <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations pointing to
-<code class="docutils literal notranslate"><span class="pre">oauth2.&lt;your-domain&gt;</span></code>.</p>
+<p>You should see <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations.</p>
+</section>
+<section id="dex-login-returns-404">
+<h3>Dex login returns 404<a class="headerlink" href="#dex-login-returns-404" title="Link to this heading">#</a></h3>
+<p>Ensure the OIDC discovery URL includes the full path:
+<code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;/api/dex/.well-known/openid-configuration</span></code>.
+The base path <code class="docutils literal notranslate"><span class="pre">/api/dex</span></code> redirects to <code class="docutils literal notranslate"><span class="pre">/api/dex/</span></code> which returns 404 —
+some OIDC libraries do not follow this redirect.</p>
+</section>
+<section id="dex-rejects-redirect-uri">
+<h3>Dex rejects redirect URI<a class="headerlink" href="#dex-rejects-redirect-uri" title="Link to this heading">#</a></h3>
+<p>Cloudflare Tunnel services may generate <code class="docutils literal notranslate"><span class="pre">http://</span></code> callback URIs. Add both
+<code class="docutils literal notranslate"><span class="pre">http://</span></code> and <code class="docutils literal notranslate"><span class="pre">https://</span></code> redirect URIs to the Dex static client
+configuration.</p>
 </section>
 </section>
 </section>
@@ -670,22 +1203,34 @@ All protected services must be subdomains of this domain.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-a-github-oauth-app">Step 1: Create a GitHub OAuth App</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-generate-a-cookie-secret">Step 2: Generate a cookie secret</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-create-and-seal-the-credentials">Step 3: Create and seal the credentials</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-add-a-dns-record">Step 4: Add a DNS record</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-deploy-oauth2-proxy">Step 5: Deploy oauth2-proxy</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-enable-the-oauth-toggle">Step 6: Enable the OAuth toggle</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-how-oauth-is-wired-to-services">Step 7: How OAuth is wired to services</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-8-restrict-access-optional">Step 8: Restrict access (optional)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-a-dex-oidc-setup">Part A: Dex OIDC setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a1-create-a-github-oauth-app-for-dex">A1: Create a GitHub OAuth App for Dex</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a2-generate-dex-client-secrets">A2: Generate Dex client secrets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a3-create-and-seal-the-dex-secret">A3: Create and seal the Dex secret</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a4-seal-per-service-oauth-secrets">A4: Seal per-service OAuth secrets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a5-configure-admin-emails">A5: Configure admin emails</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a6-deploy">A6: Deploy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-a-new-dex-static-client">Adding a new Dex static client</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-b-oauth2-proxy-setup">Part B: oauth2-proxy setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b1-create-a-github-oauth-app-for-oauth2-proxy">B1: Create a GitHub OAuth App for oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b2-generate-a-cookie-secret">B2: Generate a cookie secret</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b3-create-and-seal-the-credentials">B3: Create and seal the credentials</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b4-add-a-dns-record">B4: Add a DNS record</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b5-enable-oauth2-proxy">B5: Enable oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-oauth2-proxy-is-wired-to-services">How oauth2-proxy is wired to services</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-with-cloudflare-access">Integrating with Cloudflare Access</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-after-enabling-oauth">Redirect loop after enabling OAuth</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-github-login">403 after GitHub login</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cookie-domain-mismatch">Cookie domain mismatch</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-not-enforced-service-loads-without-login">OAuth not enforced (service loads without login)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dex-login-returns-404">Dex login returns 404</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dex-rejects-redirect-uri">Dex rejects redirect URI</a></li>
 </ul>
 </li>
 </ul>

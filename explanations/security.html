@@ -324,6 +324,7 @@
 </ul>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="authentication.html">Authentication Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="network-policies.html">Network Policies</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Security Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="security-hardening.html">Security Hardening</a></li>
@@ -433,46 +434,67 @@ project’s GitHub repo and trusted Helm chart registries.</p></li>
 </section>
 <section id="service-authentication">
 <h3>Service authentication<a class="headerlink" href="#service-authentication" title="Link to this heading">#</a></h3>
+<p>Authentication uses a three-layer model: Cloudflare Access (edge gate),
+Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
+<a class="reference internal" href="authentication.html"><span class="doc">Authentication Architecture</span></a> for the full architecture with diagrams.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Service</p></th>
-<th class="head"><p>Auth method</p></th>
-<th class="head"><p>Notes</p></th>
+<th class="head"><p>Layer 1 (Cloudflare)</p></th>
+<th class="head"><p>Layer 2 (Ingress)</p></th>
+<th class="head"><p>Layer 3 (App RBAC)</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>ArgoCD</p></td>
-<td><p>Username/password</p></td>
-<td><p>bcrypt hash in <code class="docutils literal notranslate"><span class="pre">argocd-secret</span></code></p></td>
+<td><p>LAN only (SSL passthrough)</p></td>
+<td><p>Dex (native OIDC)</p></td>
+<td><p>email → admin / readonly</p></td>
 </tr>
-<tr class="row-odd"><td><p>Grafana</p></td>
-<td><p>OAuth (GitHub)</p></td>
-<td><p>via oauth2-proxy + nginx ingress</p></td>
+<tr class="row-odd"><td><p>argocd-monitor</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>Dex (sidecar)</p></td>
+<td><p>Inherits ArgoCD RBAC</p></td>
 </tr>
-<tr class="row-even"><td><p>Longhorn</p></td>
-<td><p>OAuth (GitHub)</p></td>
-<td><p>via oauth2-proxy + nginx ingress</p></td>
+<tr class="row-even"><td><p>Grafana</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>Dex (<code class="docutils literal notranslate"><span class="pre">generic_oauth</span></code>)</p></td>
+<td><p>email → Admin / Viewer</p></td>
 </tr>
-<tr class="row-odd"><td><p>Headlamp</p></td>
-<td><p>OAuth (GitHub)</p></td>
-<td><p>via oauth2-proxy + nginx ingress</p></td>
+<tr class="row-odd"><td><p>Open WebUI</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>Dex (native OIDC)</p></td>
+<td><p>email → admin / user</p></td>
 </tr>
-<tr class="row-even"><td><p>Open WebUI</p></td>
-<td><p>OAuth (GitHub)</p></td>
-<td><p>via oauth2-proxy + nginx ingress</p></td>
+<tr class="row-even"><td><p>Headlamp</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>Token auth</p></td>
+</tr>
+<tr class="row-odd"><td><p>Longhorn</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-even"><td><p>Supabase Studio</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>Dashboard password</p></td>
 </tr>
 <tr class="row-odd"><td><p>Echo</p></td>
-<td><p>None (intentional)</p></td>
-<td><p>Public test service</p></td>
+<td><p>Cloudflare Access</p></td>
+<td><p>None</p></td>
+<td><p>None (public test)</p></td>
 </tr>
 <tr class="row-even"><td><p>RKLlama</p></td>
-<td><p>None (intentional)</p></td>
-<td><p>Internal LLM API (fronted by Open WebUI)</p></td>
+<td><p>—</p></td>
+<td><p>None</p></td>
+<td><p>Internal API (fronted by Open WebUI)</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> for how to configure OAuth.</p>
+<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> for setup instructions.</p>
 </section>
 </section>
 <section id="secrets-management">
@@ -487,14 +509,19 @@ controller can decrypt them.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cloudflared/tunnel-secret.yaml</span></code> — Cloudflare tunnel token</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml</span></code> — DNS API token</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml</span></code> — OAuth client credentials</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd/argocd-dex-secret.yaml</span></code> — GitHub connector + all 5 Dex client secrets</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/grafana-oauth-secret.yaml</span></code> — Grafana’s Dex client secret</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml</span></code> — Open WebUI’s Dex client secret</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml</span></code> — argocd-monitor Dex client + cookie secret</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml</span></code> — GitHub OAuth App credentials + cookie secret</p></li>
 </ul>
 </section>
-<section id="admin-password">
-<h3>Admin password<a class="headerlink" href="#admin-password" title="Link to this heading">#</a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> Kubernetes secret is created manually during bootstrap (see
-<a class="reference internal" href="../how-to/bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>). It stores htpasswd credentials used by
-Grafana.</p>
+<section id="admin-access">
+<h3>Admin access<a class="headerlink" href="#admin-access" title="Link to this heading">#</a></h3>
+<p>Admin email addresses are configured in <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. This single list drives admin role
+assignment across Grafana, Open WebUI, and the oauth2-proxy email
+allowlist. See <a class="reference internal" href="authentication.html"><span class="doc">Authentication Architecture</span></a> for details.</p>
 </section>
 </section>
 <section id="devcontainer-credential-isolation">
@@ -555,9 +582,11 @@ No inbound ports need to be opened on your router for public-facing services.</p
 </section>
 <section id="lan-isolation">
 <h3>LAN isolation<a class="headerlink" href="#lan-isolation" title="Link to this heading">#</a></h3>
-<p>LAN-only services (ArgoCD, Grafana, Longhorn, Headlamp) use grey-cloud DNS records
-pointing to private RFC-1918 IP addresses. They are unreachable from outside the
-local network.</p>
+<p>ArgoCD uses SSL passthrough and is not routed through the Cloudflare
+tunnel — it is accessible only from the LAN or via <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code>.
+All other services are tunnel-exposed with Cloudflare Access email-gate
+protection (except <code class="docutils literal notranslate"><span class="pre">supabase-api</span></code>, which uses a bypass policy for API
+access authenticated by <code class="docutils literal notranslate"><span class="pre">x-brain-key</span></code>).</p>
 </section>
 <section id="networkpolicies">
 <h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
@@ -578,7 +607,6 @@ the rationale and guidance on implementing them if needed.</p>
 <section id="recommendations">
 <h2>Recommendations<a class="headerlink" href="#recommendations" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
-<li><p><strong>Enable OAuth</strong> — replace basic-auth with GitHub OAuth via oauth2-proxy.</p></li>
 <li><p><strong>Rotate SealedSecrets periodically</strong> — re-seal with fresh values.</p></li>
 <li><p><strong>Back up the sealed-secrets key</strong> — without it, a cluster rebuild requires re-creating all secrets.</p></li>
 <li><p><strong>Keep nodes updated</strong> — <code class="docutils literal notranslate"><span class="pre">unattended-upgrades</span></code> handles security patches automatically.</p></li>
@@ -643,7 +671,7 @@ the rationale and guidance on implementing them if needed.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#secrets-management">Secrets management</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#admin-password">Admin password</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#admin-access">Admin access</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#devcontainer-credential-isolation">Devcontainer credential isolation</a></li>

@@ -430,7 +430,7 @@
 <td><p>82.4.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth</p></td>
+<td><p>Dex (OIDC)</p></td>
 <td><p>Monitoring and dashboards</p></td>
 </tr>
 <tr class="row-even"><td><p>Headlamp</p></td>
@@ -438,7 +438,7 @@
 <td><p>0.40.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth</p></td>
+<td><p>oauth2-proxy</p></td>
 <td><p>Kubernetes dashboard</p></td>
 </tr>
 <tr class="row-odd"><td><p>ingress-nginx</p></td>
@@ -471,7 +471,7 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
 <td><p>GitHub</p></td>
-<td><p>OAuth authentication proxy</p></td>
+<td><p>OAuth proxy for Longhorn, Headlamp, Supabase</p></td>
 </tr>
 <tr class="row-odd"><td><p>RKLlama</p></td>
 <td><p>Helm chart (local)</p></td>
@@ -502,7 +502,7 @@
 <td><p>12.5.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth</p></td>
+<td><p>Dex (OIDC)</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
 <tr class="row-odd"><td><p>Open Brain MCP</p></td>
@@ -526,7 +526,7 @@
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">supabase</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">supabase.&lt;domain&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth (Studio), x-brain-key (API)</p></td>
+<td><p>oauth2-proxy (Studio) + dashboard password, x-brain-key (API)</p></td>
 <td><p>Self-hosted backend-as-a-service platform</p></td>
 </tr>
 </tbody>
@@ -571,14 +571,16 @@ Image pinned to <code class="docutils literal notranslate"><span class="pre">0.9
 <section id="grafana-prometheus-kube-prometheus-stack">
 <h3>Grafana + Prometheus (kube-prometheus-stack)<a class="headerlink" href="#grafana-prometheus-kube-prometheus-stack" title="Link to this heading">#</a></h3>
 <p>Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
-Alertmanager for alerts. Protected by OAuth via oauth2-proxy. Longhorn persistent
+Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
+emails in <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> get Admin role, others get Viewer. Longhorn persistent
 volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
 100m/256Mi request, 500m/512Mi limit.</p>
 <p>Uses <code class="docutils literal notranslate"><span class="pre">ServerSideApply=true</span></code> sync option due to large CRDs.</p>
 </section>
 <section id="headlamp">
 <h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
-<p>Modern Kubernetes dashboard. Protected by OAuth via oauth2-proxy. Uses a
+<p>Modern Kubernetes dashboard. Protected by oauth2-proxy (a Dex client is
+pre-registered for future native OIDC migration). Uses a
 ServiceAccount with <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> binding and a long-lived token Secret.
 Resource limits: 50m/128Mi request, 200m/256Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/dashboard/</span></code></p>
@@ -613,8 +615,9 @@ oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.</p>
 <section id="oauth2-proxy">
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Integrated with nginx ingress annotations. Resource limits: 10m/64Mi
-request, 100m/128Mi limit.</p>
+for login. Protects services without native OIDC support: Longhorn, Headlamp,
+and Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+10m/64Mi request, 100m/128Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-secret.yaml</span></code> — SealedSecret for GitHub OAuth credentials</p></li>
@@ -687,8 +690,9 @@ default and survives k3s-agent restarts.</p>
 </section>
 <section id="open-webui">
 <h3>Open WebUI<a class="headerlink" href="#open-webui" title="Link to this heading">#</a></h3>
-<p>ChatGPT-style web interface for interacting with LLMs. Protected by OAuth via
-oauth2-proxy. Connects to both:</p>
+<p>ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
+(OIDC) with GitHub — emails in <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> get admin role, others get
+user role. Password login is disabled. Connects to both:</p>
 <ul class="simple">
 <li><p><strong>RKLLama</strong> (Ollama-compatible API) on the RK1 NPU — via <code class="docutils literal notranslate"><span class="pre">ollamaUrls</span></code></p></li>
 <li><p><strong>llama.cpp</strong> (OpenAI-compatible API) on an NVIDIA GPU — via <code class="docutils literal notranslate"><span class="pre">openaiBaseApiUrl</span></code></p></li>
@@ -701,7 +705,7 @@ request, 500m/1Gi limit.</p>
 <p>Either backend is optional. The service works with just RKLLama (RK1 cluster),
 just llama.cpp (NVIDIA GPU node), or both simultaneously.</p>
 </div>
-<p>The first user to register becomes the admin. RK1 models appear after being pulled
+<p>RK1 models appear after being pulled
 via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</span></code> (see <a class="reference internal" href="../how-to/rkllama-models.html"><span class="doc">Download RKLLama Models</span></a>). CUDA models appear as soon
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>).</p>
@@ -749,7 +753,11 @@ Longhorn PVC. Studio is protected by OAuth via oauth2-proxy.</p>
 <p>ArgoCD is not in the <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code> directory — it is installed
 directly by the Ansible <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role using the OCI Helm chart (v7.8.3). It is the
 foundation that all other services depend on.</p>
+<p>Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
+emails to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code> or <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code> via <code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code>.</p>
 <p>Access: <code class="docutils literal notranslate"><span class="pre">argocd.&lt;domain&gt;</span></code> (SSL passthrough) or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span> <span class="pre">svc/argocd-server</span> <span class="pre">-n</span> <span class="pre">argo-cd</span> <span class="pre">8080:443</span></code>.</p>
+<p>See <a class="reference internal" href="../explanations/authentication.html"><span class="doc">Authentication Architecture</span></a> for details on how Dex is shared
+across services.</p>
 </section>
 </section>
 

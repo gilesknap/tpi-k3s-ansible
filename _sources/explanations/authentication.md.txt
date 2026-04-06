@@ -1,0 +1,364 @@
+# Authentication Architecture
+
+This page explains how authentication works across all cluster services —
+from the outer Cloudflare layer through to per-service role assignment.
+
+## Three-layer auth model
+
+Every request to a cluster service passes through up to three authentication
+layers. Not all services use all three layers.
+
+```{mermaid}
+flowchart TB
+    subgraph L1["Layer 1 — Cloudflare Access"]
+        CF[Cloudflare Access<br/>email allowlist]
+    end
+
+    subgraph L2["Layer 2 — Ingress auth"]
+        DEX[Dex OIDC<br/>native provider]
+        OAP[oauth2-proxy<br/>GitHub gateway]
+    end
+
+    subgraph L3["Layer 3 — App RBAC"]
+        RBAC[Per-service roles<br/>admin / viewer / user]
+    end
+
+    CF --> DEX
+    CF --> OAP
+    DEX --> RBAC
+    OAP --> RBAC
+```
+
+**Layer 1 — Cloudflare Access** gates tunnel-exposed services at the edge.
+Users must authenticate with an email on the allowlist before traffic
+reaches the cluster. LAN-only services skip this layer entirely.
+
+**Layer 2 — Ingress auth** verifies identity at the cluster boundary.
+Services either use Dex (ArgoCD's built-in OIDC provider with a GitHub
+connector) or oauth2-proxy (a lightweight reverse-proxy that redirects to
+GitHub directly).
+
+**Layer 3 — App RBAC** maps the authenticated identity to a role inside
+the application. Emails in the `oauth2_emails` list in `values.yaml`
+receive admin privileges; everyone else gets a read-only or user role.
+
+## Auth method summary
+
+| Service | Layer 1 (Cloudflare) | Layer 2 (Ingress) | Layer 3 (App RBAC) |
+|---------|---------------------|-------------------|-------------------|
+| ArgoCD | LAN only (SSL passthrough) | Dex (native) | email → `role:admin` / `role:readonly` |
+| argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
+| Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
+| Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
+| Headlamp | Cloudflare Access | oauth2-proxy | Token auth (ServiceAccount) |
+| Longhorn | Cloudflare Access | oauth2-proxy | None (full access after auth) |
+| Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
+| Echo | Cloudflare Access | None | None (public test service) |
+| Open Brain MCP | Cloudflare Access | OAuth 2.1 (GitHub) | x-brain-key |
+| Supabase API | Bypass (no Access) | x-brain-key | — |
+
+## Dex as shared OIDC provider
+
+ArgoCD ships with [Dex](https://dexidp.io/), a federated OIDC provider.
+Rather than deploying a separate identity provider, all OIDC-capable
+services share ArgoCD's Dex instance. Dex connects to GitHub as its
+upstream identity source and issues tokens to five registered static
+clients.
+
+```{mermaid}
+flowchart LR
+    GH[GitHub OAuth App]
+
+    subgraph Dex["ArgoCD Dex Server"]
+        CON[GitHub connector]
+        CON --> C1[argo-cd]
+        CON --> C2[argocd-monitor]
+        CON --> C3[grafana]
+        CON --> C4[open-webui]
+        CON --> C5[headlamp]
+    end
+
+    GH --> CON
+
+    C1 --> ArgoCD
+    C2 --> argocd-monitor
+    C3 --> Grafana
+    C4 --> Open-WebUI
+    C5 --> Headlamp-future["Headlamp<br/>(pre-registered)"]
+```
+
+All five clients authenticate through a single GitHub OAuth App whose
+callback URL points to `https://argocd.<your-domain>/api/dex/callback`.
+Each client has its own `client_secret` stored in the `argocd-dex-secret`
+SealedSecret.
+
+:::{note}
+The Headlamp client is pre-registered in Dex for future migration but is
+not yet active — Headlamp currently uses the cluster-wide oauth2-proxy.
+:::
+
+### Why Dex?
+
+Full-featured identity providers like Authentik or Keycloak need ~2 GB of
+RAM — too heavy for a small ARM cluster. Dex is a lightweight OIDC
+federation layer that adds negligible overhead because it runs inside the
+existing ArgoCD server pod.
+
+## Per-service auth flows
+
+### ArgoCD — native Dex login
+
+ArgoCD has first-class Dex integration. The built-in admin account is
+disabled; all users log in via GitHub through Dex.
+
+:::{note}
+ArgoCD is the only service **not** routed through the Cloudflare tunnel.
+It uses SSL passthrough (TLS is terminated inside the ArgoCD pod, not at
+nginx), which is incompatible with the tunnel's L7 HTTP routing. Instead,
+its DNS record is a grey-cloud A record pointing to a private RFC-1918
+address (e.g. `192.168.1.82`). This address resolves publicly but is not
+routable on the internet — only devices on the LAN can reach it. Dex
+(GitHub login) provides the authentication layer.
+:::
+
+```{mermaid}
+sequenceDiagram
+    actor User
+    participant ArgoCD
+    participant Dex
+    participant GitHub
+
+    User->>ArgoCD: Visit argocd.<domain>
+    ArgoCD->>Dex: Redirect to /api/dex/auth
+    Dex->>GitHub: Redirect to GitHub OAuth
+    GitHub->>Dex: Auth code + user info
+    Dex->>ArgoCD: ID token (email scope)
+    ArgoCD->>ArgoCD: Map email → role:admin or role:readonly
+    ArgoCD->>User: Logged in
+```
+
+RBAC is configured in `argocd-rbac-cm.yml`. The `scopes` field is set to
+`[email]`, and policy rules map specific emails to `role:admin`. Everyone
+else gets `role:readonly` (can view applications and logs but not modify).
+
+### argocd-monitor — Dex cross-client auth
+
+argocd-monitor is a dashboard that queries the ArgoCD API. It runs its own
+oauth2-proxy **sidecar** (separate from the cluster-wide oauth2-proxy) that
+authenticates against Dex.
+
+```{mermaid}
+sequenceDiagram
+    actor User
+    participant Sidecar as oauth2-proxy sidecar
+    participant Dex
+    participant GitHub
+    participant API as ArgoCD API
+
+    User->>Sidecar: Visit argocd-monitor.<domain>
+    Sidecar->>Dex: Auth request (scope: audience:server:client_id:argo-cd)
+    Dex->>GitHub: Redirect to GitHub OAuth
+    GitHub->>Dex: Auth code + user info
+    Dex->>Sidecar: ID token with argo-cd audience
+    Sidecar->>API: Forward request with token
+    API->>API: Validate token (argo-cd audience accepted)
+    API->>User: Dashboard data
+```
+
+The cross-client flow works because the `argo-cd` static client lists
+`argocd-monitor` in its `trustedPeers`. This lets Dex issue tokens with
+the `argo-cd` audience to the `argocd-monitor` client, so the ArgoCD API
+accepts them.
+
+### Grafana — generic OAuth via Dex
+
+Grafana uses its built-in `auth.generic_oauth` provider pointed at the Dex
+endpoints. Password login is disabled — the login page shows only a
+"Sign in with GitHub (via Dex)" button.
+
+The `role_attribute_path` JMESPath expression grants `Admin` to emails in
+the `oauth2_emails` list and `Viewer` to everyone else. The client secret
+is injected from the `grafana-oauth-secret` SealedSecret.
+
+### Open WebUI — native OIDC via Dex
+
+Open WebUI uses its built-in OIDC support via environment variables. The
+`OPENID_PROVIDER_URL` points to the Dex discovery endpoint. Password login
+is disabled — the login page shows only an OAuth button.
+
+The `OAUTH_ADMIN_EMAIL` variable (populated from `oauth2_emails`) controls
+who gets the admin role. Everyone else gets the `user` role. The client
+secret comes from the `open-webui-oauth-secret` SealedSecret.
+
+:::{important}
+The discovery URL must be the full path including
+`.well-known/openid-configuration` — Open WebUI's OIDC library does not
+follow the 301 redirect from `/api/dex` to `/api/dex/`.
+:::
+
+### oauth2-proxy services — Longhorn, Headlamp, Supabase Studio
+
+Services without native OIDC support use the cluster-wide oauth2-proxy.
+This is a separate authentication path that goes directly to GitHub (not
+through Dex).
+
+```{mermaid}
+sequenceDiagram
+    actor User
+    participant NGINX as ingress-nginx
+    participant OAP as oauth2-proxy
+    participant GitHub
+    participant Svc as Backend service
+
+    User->>NGINX: Visit longhorn.<domain>
+    NGINX->>OAP: Auth subrequest
+    OAP-->>NGINX: 401 (not authenticated)
+    NGINX->>User: Redirect to oauth2.<domain>
+    User->>OAP: /oauth2/start
+    OAP->>GitHub: Redirect to GitHub OAuth
+    GitHub->>OAP: Auth code + user info
+    OAP->>OAP: Check email against allowlist
+    OAP->>User: Set session cookie
+    User->>NGINX: Retry original request (with cookie)
+    NGINX->>OAP: Auth subrequest
+    OAP-->>NGINX: 202 + X-Auth-Request-Email header
+    NGINX->>Svc: Forward request
+    Svc->>User: Response
+```
+
+The nginx ingress uses `auth-url` and `auth-signin` annotations to
+delegate authentication to oauth2-proxy. Only emails in the
+`oauth2_emails` list are permitted — everyone else gets a 403 after
+GitHub login.
+
+:::{important}
+The `auth-url` must use the cluster-internal service address
+(`oauth2-proxy.oauth2-proxy.svc.cluster.local`), not the external domain.
+The external domain resolves via Cloudflare to an IPv6 address that is
+unreachable from inside the cluster, causing intermittent 500 errors.
+:::
+
+## Full cluster auth map
+
+```{mermaid}
+flowchart TB
+    Internet((Internet))
+    LAN((LAN))
+
+    subgraph Cloudflare["Cloudflare Edge"]
+        CFA[Cloudflare Access<br/>email allowlist]
+        CFT[Cloudflare Tunnel]
+    end
+
+    subgraph Cluster["K3s Cluster"]
+        NGINX[ingress-nginx]
+
+        subgraph DexAuth["Dex OIDC (native)"]
+            Monitor[argocd-monitor]
+            Grafana
+            OpenWebUI[Open WebUI]
+        end
+
+        subgraph ProxyAuth["oauth2-proxy (GitHub)"]
+            Longhorn
+            Headlamp
+            Supabase[Supabase Studio]
+        end
+
+        ArgoCD["ArgoCD<br/>(SSL passthrough, LAN only)"]
+        Echo
+
+        OAP[oauth2-proxy pod]
+        DexPod[Dex<br/>inside ArgoCD]
+    end
+
+    GH[GitHub OAuth]
+
+    Internet --> CFA --> CFT --> NGINX
+    LAN --> NGINX
+    LAN --> ArgoCD
+
+    NGINX --> Monitor
+    NGINX --> Grafana
+    NGINX --> OpenWebUI
+    NGINX --> Longhorn
+    NGINX --> Headlamp
+    NGINX --> Supabase
+    NGINX --> Echo
+
+    ArgoCD <-.-> DexPod
+    Monitor <-.-> DexPod
+    Grafana <-.-> DexPod
+    OpenWebUI <-.-> DexPod
+    Longhorn <-.-> OAP
+    Headlamp <-.-> OAP
+    Supabase <-.-> OAP
+
+    DexPod <-.-> GH
+    OAP <-.-> GH
+```
+
+Solid lines show request flow; dashed lines show authentication redirects.
+Almost all services are exposed via the Cloudflare tunnel and pass through
+Cloudflare Access (email allowlist) first. ArgoCD is the exception — it
+uses SSL passthrough and is accessible only from the LAN or via
+port-forward.
+
+## Managing access
+
+The `oauth2_emails` list in `kubernetes-services/values.yaml` is the
+single source of truth for who gets admin access:
+
+```yaml
+oauth2_emails:
+  - alice@example.com
+  - bob@example.com
+```
+
+This list is consumed in four places:
+
+| Template | Effect |
+|----------|--------|
+| `oauth2-proxy.yaml` | Email allowlist — only these addresses can authenticate |
+| `grafana.yaml` | `role_attribute_path` — listed emails get `Admin`, others get `Viewer` |
+| `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — listed emails get admin role |
+| Cloudflare Access (manual) | Access policy should match this list |
+
+:::{note}
+ArgoCD RBAC in `argocd-rbac-cm.yml` maps emails to roles separately.
+Keep it aligned with `oauth2_emails` when adding new administrators.
+:::
+
+## SealedSecrets for authentication
+
+All OAuth client secrets are encrypted as SealedSecrets and committed
+to Git:
+
+| SealedSecret | Location | Contents |
+|-------------|----------|----------|
+| `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 5 Dex client secrets |
+| `grafana-oauth-secret` | `additions/grafana/` | Grafana's Dex client secret |
+| `open-webui-oauth-secret` | `additions/open-webui/` | Open WebUI's Dex client secret |
+| `argocd-monitor-oauth-secret` | `additions/argocd-monitor/` | argocd-monitor's Dex client secret + cookie secret |
+| `oauth2-proxy-credentials` | `additions/oauth2-proxy/` | GitHub OAuth App credentials + cookie secret |
+
+Re-sealing any of these secrets requires restarting the affected pods
+(environment variables from `secretKeyRef` are read at startup, not
+watched).
+
+## Design rationale
+
+**Why two auth paths (Dex + oauth2-proxy)?** Dex provides proper OIDC
+tokens with scopes and claims, enabling fine-grained RBAC (admin vs
+viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI)
+benefit from this. Services without native OIDC (Longhorn, Supabase Studio)
+use oauth2-proxy as a simpler binary allow/deny gate.
+
+**Why not migrate everything to Dex?** Headlamp has a pre-registered Dex
+client for future migration. Longhorn and Supabase Studio have no native
+OIDC support, so oauth2-proxy remains the only option for them.
+
+**Why not a standalone Dex deployment?** Running Dex inside ArgoCD avoids
+deploying another pod and reuses ArgoCD's existing GitHub connector
+configuration. The trade-off is that Dex configuration lives in ArgoCD's
+ConfigMap rather than a standalone Helm chart.
