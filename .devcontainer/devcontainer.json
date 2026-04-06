@@ -17,7 +17,7 @@
 		3000 // grafana
 	],
 	// make sure files are available for mounting
-	"initializeCommand": "touch ${localEnv:HOME}/.ansible_vault_password",
+	"initializeCommand": "touch ${localEnv:HOME}/.ansible_vault_password && mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.config/terminal-config",
 	"features": {
 		// add in eternal history and other bash features
 		"ghcr.io/diamondlightsource/devcontainer-features/bash-config:1.0.3": {}
@@ -29,9 +29,11 @@
 				"python.terminal.activateEnvInCurrentTerminal": false,
 				"python.terminal.activateEnvironment": false,
 				"python.terminal.shellIntegration.enabled": false,
+				"dev.containers.copyGitConfig": true,
 				"remote.autoForwardPorts": false,
 				"remote.restoreForwardedPorts": false,
-				"remote.forwardOnOpen": false
+				"remote.forwardOnOpen": false,
+				"dev.containers.gitCredentialHelperConfigLocation": "none"
 			},
 			"extensions": [
 				"streetsidesoftware.code-spell-checker-cspell-bundled-dictionaries",
@@ -67,6 +69,12 @@
 			"target": "/cache",
 			"type": "volume"
 		},
+		// Persist gh auth across container rebuilds with per-repo scoped PAT
+		{
+			"source": "gh-auth-${localWorkspaceFolderBasename}",
+			"target": "/root/.config/gh",
+			"type": "volume"
+		},
 		// Mount in the .claude folder for claude user config access
 		"source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind"
 	],
@@ -74,6 +82,11 @@
 		"ANSIBLE_VAULT_PASSWORD_FILE": "/etc/ansible/.vault_password.txt",
 		"ZSHRC": "/bash-config/zshrc",
 		"BIN_DIR": "/root/bin",
+		// Disable host SSH agent forwarding to prevent prompt injection from
+		// accessing host SSH keys (e.g. GitHub keys). A container-local agent
+		// is started by postCreateCommand; unlock the ansible key with ssh-add.
+		"SSH_AUTH_SOCK": "",
+		// Put things that allow it in the persistent cache
 		"PRE_COMMIT_HOME": "/cache/pre-commit",
 		"UV_CACHE_DIR": "/cache/uv",
 		"UV_PYTHON_CACHE_DIR": "/cache/uv-python",
@@ -84,7 +97,8 @@
 	// For rootless leave the filesystem owned by root
 	"updateRemoteUserUID": false,
 	// One time global setup commands inside the container
-	"postCreateCommand": "uv venv --clear && uv sync && pre-commit install --install-hooks && bash .devcontainer/postCreateCommand ${devcontainerId} && ansible-playbook pb_all.yml --tags tools",
+	"postCreateCommand": "uv venv --clear && uv sync && pre-commit install --install-hooks && bash .devcontainer/postCreate.sh ${devcontainerId} && ansible-playbook pb_all.yml --tags tools",
+	"postStartCommand": ".devcontainer/postStart.sh",
 	// Mount the parent of the project folder so we can access peer projects
 	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind"
 }
