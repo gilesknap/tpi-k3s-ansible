@@ -8,8 +8,8 @@ see {doc}`/explanations/authentication`.
 This guide walks through configuring both authentication paths used by the
 cluster:
 
-- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
-- **Part B** — oauth2-proxy (Longhorn, Headlamp, Supabase Studio)
+- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor, Headlamp)
+- **Part B** — oauth2-proxy (Longhorn, Supabase Studio — admin-only)
 
 ```{mermaid}
 flowchart LR
@@ -24,9 +24,9 @@ flowchart LR
     DEX --> Grafana
     DEX --> Open-WebUI
     DEX --> argocd-monitor
+    DEX --> Headlamp
 
     OAP --> Longhorn
-    OAP --> Headlamp
     OAP --> Supabase
 ```
 
@@ -111,18 +111,47 @@ kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o 
   kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 ```
 
-### A5: Configure admin emails
+### A5: Configure admin and viewer emails
 
-Edit `kubernetes-services/values.yaml` and set the emails that should
-receive admin privileges across all services:
+Edit `kubernetes-services/values.yaml` and set the email lists:
 
 ```yaml
-oauth2_emails:
+# Full admin access to all services
+admin_emails:
   - alice@example.com
-  - bob@example.com
+
+# Read-only access to Dex-authenticated services
+viewer_emails:
+  - carol@example.com
 ```
 
-### A6: Deploy
+Also add `admin_emails` to `group_vars/all.yml` (required for
+Ansible-rendered ArgoCD RBAC):
+
+```yaml
+admin_emails:
+  - alice@example.com
+```
+
+:::{important}
+`admin_emails` must be kept in sync between `values.yaml` and
+`group_vars/all.yml`. After changing the latter, re-run
+`ansible-playbook pb_all.yml --tags cluster`.
+:::
+
+### A6: Seal Headlamp OIDC secret
+
+Headlamp uses Dex OIDC directly. Create its SealedSecret:
+
+```bash
+./scripts/seal-headlamp-oidc
+```
+
+This creates `kubernetes-services/additions/dashboard/headlamp-oidc-secret.yaml`.
+The client secret must match the `headlamp.clientSecret` value in
+`argocd-dex-secret`.
+
+### A7: Deploy
 
 Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
 restart pods that read secrets from environment variables:
@@ -225,11 +254,16 @@ helm:
 This adds nginx `auth-url` and `auth-signin` annotations that check with
 oauth2-proxy before forwarding each request.
 
-Services protected by oauth2-proxy:
+Services protected by oauth2-proxy (admin-only):
 
 - **Longhorn** — no native auth; OAuth is the only access control
-- **Headlamp** — requires a ServiceAccount token after OAuth login
 - **Supabase Studio** — requires a dashboard password after OAuth login
+
+:::{note}
+Headlamp was previously behind oauth2-proxy but has been migrated to
+native Dex OIDC with a view-only ServiceAccount. All authenticated users
+(admin and viewer) can access the Headlamp dashboard in read-only mode.
+:::
 
 ---
 
@@ -238,7 +272,7 @@ Services protected by oauth2-proxy:
 For services exposed via the Cloudflare tunnel, add a second
 authentication layer using Cloudflare Access at zero cluster overhead.
 Configure an Access Application in the Cloudflare Zero Trust dashboard
-with an email allowlist matching `oauth2_emails`. See
+with an email allowlist matching both `admin_emails` and `viewer_emails`. See
 {doc}`cloudflare-ssh-tunnel` for how Access Applications work.
 
 ## Troubleshooting
@@ -251,8 +285,12 @@ ingress values.
 
 ### 403 after GitHub login
 
-Check the `oauth2_emails` list in `values.yaml`. The authenticated GitHub
-email must be in the list.
+For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
+in `admin_emails` in `values.yaml`. Viewer users cannot access these
+services by design.
+
+For Dex-authenticated services: any GitHub user can log in. A 403 likely
+means the service has additional access restrictions.
 
 ### Cookie domain mismatch
 
