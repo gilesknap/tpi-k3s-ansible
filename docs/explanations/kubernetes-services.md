@@ -99,7 +99,8 @@ a standardised Ingress resource. It supports:
 - `basic_auth: true` — nginx basic-auth via the `admin-auth` secret
 - `oauth2_proxy: true` — protect with oauth2-proxy authentication gateway
 - `ssl_redirect: false` — disable HTTP→HTTPS redirect (default true)
-- `ssl_passthrough: true` — TLS passthrough mode (e.g. for ArgoCD)
+- `ssl_passthrough: true` — TLS passthrough mode (unused since ArgoCD
+  moved to nginx-terminated TLS)
 
 This avoids duplicating ingress boilerplate across services.
 

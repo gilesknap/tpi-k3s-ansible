@@ -56,7 +56,7 @@ Access ArgoCD via port-forward to check that all services are deploying:
 ```bash
 argo.sh
 # Or manually:
-kubectl port-forward svc/argocd-server -n argo-cd 8080:443
+kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
 ```
 
 Login with `admin` and the password you just set. You should see
