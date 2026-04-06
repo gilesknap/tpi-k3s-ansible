@@ -254,7 +254,7 @@ foundation that all other services depend on.
 Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
 emails to `role:admin` or `role:readonly` via `argocd-rbac-cm.yml`.
 
-Access: `argocd.<domain>` (SSL passthrough) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:443`.
+Access: `argocd.<domain>` (via Cloudflare tunnel) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:8080`.
 
 See {doc}`/explanations/authentication` for details on how Dex is shared
 across services.

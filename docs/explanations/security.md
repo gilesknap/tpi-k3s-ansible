@@ -28,7 +28,7 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 
 | Service | Layer 1 (Cloudflare) | Layer 2 (Ingress) | Layer 3 (App RBAC) |
 |---------|---------------------|-------------------|-------------------|
-| ArgoCD | LAN only (SSL passthrough) | Dex (native OIDC) | email → admin / readonly |
+| ArgoCD | Cloudflare Access | Dex (native OIDC) | email → admin / readonly |
 | argocd-monitor | Cloudflare Access | Dex (sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → Admin / Viewer |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
@@ -121,13 +121,11 @@ Services exposed via the Cloudflare tunnel benefit from:
 The Cloudflare tunnel uses an **outbound-only** connection from the `cloudflared` pod.
 No inbound ports need to be opened on your router for public-facing services.
 
-### LAN isolation
+### Cloudflare Access
 
-ArgoCD uses SSL passthrough and is not routed through the Cloudflare
-tunnel — it is accessible only from the LAN or via `kubectl port-forward`.
-All other services are tunnel-exposed with Cloudflare Access email-gate
-protection (except `supabase-api`, which uses a bypass policy for API
-access authenticated by `x-brain-key`).
+All services are routed through the Cloudflare tunnel and protected by a
+Cloudflare Access email-gate policy. The only exception is `supabase-api`,
+which uses a bypass policy (authenticated by `x-brain-key` instead).
 
 ### NetworkPolicies
 

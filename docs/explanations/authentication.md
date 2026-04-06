@@ -46,7 +46,7 @@ receive admin privileges; everyone else gets a read-only or user role.
 
 | Service | Layer 1 (Cloudflare) | Layer 2 (Ingress) | Layer 3 (App RBAC) |
 |---------|---------------------|-------------------|-------------------|
-| ArgoCD | LAN only (SSL passthrough) | Dex (native) | email → `role:admin` / `role:readonly` |
+| ArgoCD | Cloudflare Access | Dex (native) | email → `role:admin` / `role:readonly` |
 | argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
@@ -112,13 +112,10 @@ ArgoCD has first-class Dex integration. The built-in admin account is
 disabled; all users log in via GitHub through Dex.
 
 :::{note}
-ArgoCD is the only service **not** routed through the Cloudflare tunnel.
-It uses SSL passthrough (TLS is terminated inside the ArgoCD pod, not at
-nginx), which is incompatible with the tunnel's L7 HTTP routing. Instead,
-its DNS record is a grey-cloud A record pointing to a private RFC-1918
-address (e.g. `192.168.1.82`). This address resolves publicly but is not
-routable on the internet — only devices on the LAN can reach it. Dex
-(GitHub login) provides the authentication layer.
+ArgoCD runs with `server.insecure: true` so that TLS is terminated at
+nginx rather than inside the pod. This allows it to be routed through the
+Cloudflare tunnel and protected by Cloudflare Access like every other
+service.
 :::
 
 ```{mermaid}
@@ -254,6 +251,7 @@ flowchart TB
         NGINX[ingress-nginx]
 
         subgraph DexAuth["Dex OIDC (native)"]
+            ArgoCD
             Monitor[argocd-monitor]
             Grafana
             OpenWebUI[Open WebUI]
@@ -265,7 +263,6 @@ flowchart TB
             Supabase[Supabase Studio]
         end
 
-        ArgoCD["ArgoCD<br/>(SSL passthrough, LAN only)"]
         Echo
 
         OAP[oauth2-proxy pod]
@@ -276,8 +273,8 @@ flowchart TB
 
     Internet --> CFA --> CFT --> NGINX
     LAN --> NGINX
-    LAN --> ArgoCD
 
+    NGINX --> ArgoCD
     NGINX --> Monitor
     NGINX --> Grafana
     NGINX --> OpenWebUI
@@ -299,10 +296,8 @@ flowchart TB
 ```
 
 Solid lines show request flow; dashed lines show authentication redirects.
-Almost all services are exposed via the Cloudflare tunnel and pass through
-Cloudflare Access (email allowlist) first. ArgoCD is the exception — it
-uses SSL passthrough and is accessible only from the LAN or via
-port-forward.
+All services are exposed via the Cloudflare tunnel and pass through
+Cloudflare Access (email allowlist) before reaching the cluster.
 
 ## Managing access
 
