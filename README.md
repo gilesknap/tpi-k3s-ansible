@@ -39,9 +39,11 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 
 - **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates
   (DNS-01 via Cloudflare)
-- **OAuth2 authentication** — GitHub OAuth gateway (oauth2-proxy) protecting
-  Grafana, Longhorn, Headlamp, and Open WebUI
-- **Cloudflare Tunnel** — optional secure public access via cloudflared
+- **OIDC authentication** — ArgoCD Dex with GitHub connector provides native
+  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Longhorn,
+  Headlamp, and Supabase Studio
+- **Cloudflare Tunnel + Access** — optional secure public access via
+  cloudflared with email-based access control
 
 ### Services
 

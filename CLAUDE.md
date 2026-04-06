@@ -30,10 +30,25 @@
 - **Chrome browser is not incognito** — never navigate to Google services or
   GitHub in browser automation. The browser has active logged-in sessions.
   Use CLI tools (`gh`, `curl`, `kubectl`) instead.
+- **ArgoCD Dex audiences are hardcoded** — `server.additional.audiences` does
+  nothing for Dex. Override the `argo-cd` client in `dex.config` with
+  `trustedPeers` instead. See `additions/argocd/README.md`.
+- **`oidc.config` disables Dex** — having `oidc.config` in argocd-cm causes
+  `IsDexDisabled()=true`. Use `dex.config` only.
+- **Re-sealing secrets requires pod restart** — pod env vars from `secretKeyRef`
+  are read at startup. After `just seal-argocd-dex`, restart affected pods.
 - **No automated tests** — validate by running playbook tags against the cluster.
 - **`gh pr edit` fails on this repo** — classic projects warning causes a
   GraphQL error. Use `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...`
   instead.
+- **Ingress auth-url must be cluster-internal** — the ingress sub-chart's
+  `auth-url` uses the internal service (`oauth2-proxy.oauth2-proxy.svc`).
+  Using the external domain resolves via Cloudflare to IPv6, which is
+  unreachable from the cluster, causing intermittent 500s on all
+  oauth2-protected ingresses.
+- **ws03 workstation taint** — any DaemonSet that needs to schedule on ws03
+  must tolerate `workstation=true:NoSchedule`. The nvidia-device-plugin
+  template includes this; check other DaemonSets if they need ws03.
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
@@ -45,6 +60,15 @@
   `kubectl exec` or the Supabase Storage API.
 - **MinIO persistence key is `persistence.minio`** — not `persistence.storage`
   (which maps to the Supabase Storage component, a different thing).
+- **Dex base URL redirects** — `/api/dex` 301s to `/api/dex/` which returns
+  404. OIDC clients that don't follow redirects (e.g. Open WebUI's authlib)
+  need the full discovery URL: `.well-known/openid-configuration`.
+- **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
+  tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
+  static clients must list both `http://` and `https://` redirect URIs.
+- **Grafana 12.x requires `[users].allow_sign_up`** — the per-provider
+  `allow_sign_up` under `[auth.generic_oauth]` is not sufficient alone.
+  Also set `[auth].disable_signup_form: true` to block manual signup.
 
 ## Key Paths
 

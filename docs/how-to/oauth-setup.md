@@ -1,35 +1,50 @@
 # Set Up OAuth Authentication
 
-This guide walks through securing cluster services with
-[oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) and GitHub
-as the OIDC provider.
+:::{seealso}
+For a high-level overview of how authentication works across all services,
+see {doc}`/explanations/authentication`.
+:::
 
-## Architecture
+This guide walks through configuring both authentication paths used by the
+cluster:
 
+- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
+- **Part B** — oauth2-proxy (Longhorn, Headlamp, Supabase Studio)
+
+```{mermaid}
+flowchart LR
+    GH[GitHub]
+    DEX[Dex inside ArgoCD]
+    OAP[oauth2-proxy]
+
+    GH -->|OAuth App 1| DEX
+    GH -->|OAuth App 2| OAP
+
+    DEX --> ArgoCD
+    DEX --> Grafana
+    DEX --> Open-WebUI
+    DEX --> argocd-monitor
+
+    OAP --> Longhorn
+    OAP --> Headlamp
+    OAP --> Supabase
 ```
-Browser → ingress-nginx → oauth2-proxy (auth check) → backend service
-                ↕
-         GitHub OAuth (OIDC login)
-```
-
-oauth2-proxy acts as an authentication middleware. When a user visits a
-protected service, nginx checks with oauth2-proxy before forwarding the
-request. If the user is not authenticated, they are redirected to GitHub
-to log in.
-
-**Why oauth2-proxy?** Authentik and Keycloak each need ~2 GB of RAM — too
-heavy for a small ARM cluster. oauth2-proxy uses ~128 Mi and integrates
-directly with the existing ingress-nginx annotations.
 
 ## Prerequisites
 
 - A working cluster with ingress-nginx and cert-manager
 - A GitHub account (the OAuth provider)
 - `kubeseal` installed locally (see {doc}`manage-sealed-secrets`)
-- The `oauth2-proxy` namespace must exist (ArgoCD creates it automatically
-  via `CreateNamespace=true`)
 
-## Step 1: Create a GitHub OAuth App
+---
+
+## Part A: Dex OIDC setup
+
+Dex runs inside the ArgoCD server pod and acts as a shared OIDC provider
+for all services that support native OIDC login. It uses a GitHub OAuth App
+as its upstream identity source.
+
+### A1: Create a GitHub OAuth App for Dex
 
 1. Go to [github.com/settings/developers](https://github.com/settings/developers).
 2. Click **New OAuth App**.
@@ -37,21 +52,127 @@ directly with the existing ingress-nginx annotations.
 
 | Field | Value |
 |---|---|
-| Application name | `k3s-cluster` (or any name) |
-| Homepage URL | `https://oauth2.<your-domain>` |
-| Authorization callback URL | `https://oauth2.<your-domain>/oauth2/callback` |
+| Application name | `k3s-dex` (or any name) |
+| Homepage URL | `https://argocd.<your-domain>` |
+| Authorization callback URL | `https://argocd.<your-domain>/api/dex/callback` |
 
 4. Click **Register application**.
 5. Copy the **Client ID**.
 6. Click **Generate a new client secret** and copy it immediately.
 
-## Step 2: Generate a cookie secret
+### A2: Generate Dex client secrets
+
+Each Dex static client needs its own secret. Generate them:
+
+```bash
+# One secret per client
+for client in argo-cd argocd-monitor grafana open-webui headlamp; do
+  echo "$client: $(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+done
+```
+
+:::{note}
+The `argo-cd` client secret has a special requirement — it must equal
+`base64url(SHA256(server.secretkey)[:30 bytes])`. The `just seal-argocd-dex`
+recipe handles this automatically.
+:::
+
+### A3: Create and seal the Dex secret
+
+Use the `just seal-argocd-dex` recipe, which prompts for the GitHub
+credentials and client secrets, then creates the SealedSecret:
+
+```bash
+just seal-argocd-dex
+```
+
+This creates `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`.
+
+### A4: Seal per-service OAuth secrets
+
+Grafana and Open WebUI each need their own SealedSecret containing the
+Dex client secret:
+
+```bash
+# Grafana
+kubectl create secret generic grafana-oauth-secret \
+  --namespace monitoring \
+  --from-literal=CLIENT_SECRET="<grafana-client-secret>" \
+  --dry-run=client -o yaml | \
+kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
+  kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+
+# Open WebUI
+kubectl create secret generic open-webui-oauth-secret \
+  --namespace open-webui \
+  --from-literal=client-secret="<open-webui-client-secret>" \
+  --dry-run=client -o yaml | \
+kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
+  kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+```
+
+### A5: Configure admin emails
+
+Edit `kubernetes-services/values.yaml` and set the emails that should
+receive admin privileges across all services:
+
+```yaml
+oauth2_emails:
+  - alice@example.com
+  - bob@example.com
+```
+
+### A6: Deploy
+
+Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
+restart pods that read secrets from environment variables:
+
+```bash
+kubectl rollout restart deployment/grafana-prometheus -n monitoring
+kubectl rollout restart deployment/open-webui -n open-webui
+```
+
+### Adding a new Dex static client
+
+To add a new service that authenticates via Dex:
+
+1. Add a `staticClients` entry in `additions/argocd/argocd-cm.yml` with
+   the service's redirect URI and a reference to its secret key in
+   `argocd-dex-secret`.
+2. Re-seal `argocd-dex-secret` with the new client secret included.
+3. Configure the service's OIDC settings to point at
+   `https://argocd.<your-domain>/api/dex`.
+4. Commit, push, and restart the ArgoCD server pod.
+
+---
+
+## Part B: oauth2-proxy setup
+
+oauth2-proxy is a lightweight reverse proxy that authenticates users
+directly with GitHub. It protects services that lack native OIDC support.
+
+### B1: Create a GitHub OAuth App for oauth2-proxy
+
+1. Go to [github.com/settings/developers](https://github.com/settings/developers).
+2. Click **New OAuth App**.
+3. Fill in the form:
+
+| Field | Value |
+|---|---|
+| Application name | `k3s-oauth2-proxy` (or any name) |
+| Homepage URL | `https://oauth2.<your-domain>` |
+| Authorization callback URL | `https://oauth2.<your-domain>/oauth2/callback` |
+
+4. Click **Register application**.
+5. Copy the **Client ID** and generate a **Client Secret**.
+
+### B2: Generate a cookie secret
 
 ```bash
 python3 -c 'import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
 ```
 
-## Step 3: Create and seal the credentials
+### B3: Create and seal the credentials
 
 ```bash
 printf 'GitHub Client ID: ' && read -r CLIENT_ID
@@ -70,108 +191,55 @@ kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o 
 unset CLIENT_ID CLIENT_SECRET COOKIE_SECRET
 ```
 
-Commit and push:
+### B4: Add a DNS record
 
-```bash
-git add kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml
-git commit -m "Add oauth2-proxy credentials SealedSecret"
-git push
-```
-
-## Step 4: Add a DNS record
-
-Add a grey-cloud (DNS-only) A record in the Cloudflare dashboard for the
-oauth2-proxy ingress:
+Add a grey-cloud (DNS-only) A record for the oauth2-proxy ingress:
 
 | Type | Name | Content | Proxy status |
 |------|------|---------|-------------|
-| A | `oauth2` | `192.168.1.82` | DNS only |
+| A | `oauth2` | `<worker-node-ip>` | DNS only |
 
-Use one of your worker node IPs. This is the same pattern as other LAN-only
-services (see {doc}`cloudflare-tunnel` Part 3).
+### B5: Enable oauth2-proxy
 
-## Step 5: Deploy oauth2-proxy
-
-oauth2-proxy is deployed as an ArgoCD Application defined in
-`kubernetes-services/templates/oauth2-proxy.yaml`. After pushing the
-SealedSecret, ArgoCD syncs automatically.
-
-Verify the deployment:
-
-```bash
-kubectl rollout status deployment/oauth2-proxy -n oauth2-proxy
-kubectl get ingress -n oauth2-proxy
-```
-
-Visit `https://oauth2.<your-domain>` — you should see a GitHub login page.
-
-## Step 6: Enable the OAuth toggle
-
-Now that oauth2-proxy is running, enable it for all protected services by editing
-`kubernetes-services/values.yaml`:
+In `kubernetes-services/values.yaml`:
 
 ```yaml
 enable_oauth2_proxy: true
 ```
 
-Commit and push:
+Commit and push. ArgoCD adds OAuth annotations to all protected ingresses.
 
-```bash
-git add kubernetes-services/values.yaml
-git commit -m "Enable OAuth2 proxy for cluster services"
-git push
-```
-
-ArgoCD will pick up the change and add OAuth annotations to all protected ingresses.
-
-## Step 7: How OAuth is wired to services
+### How oauth2-proxy is wired to services
 
 Services use the shared ingress template at
 `kubernetes-services/additions/ingress/templates/ingress.yaml`. To protect
-a service with OAuth, set `oauth2_proxy: true` in its ingress values:
+a service, set `oauth2_proxy: true` in its ingress values:
 
 ```yaml
 # In the ArgoCD Application template (e.g. dashboard.yaml)
 helm:
   valuesObject:
-    name: headlamp
-    cluster_domain: example.com
-    service_name: headlamp
-    service_port: 80
-    oauth2_proxy: true  # ← enables OAuth
+    oauth2_proxy: true  # ← enables auth annotations
 ```
 
-This adds nginx auth annotations that redirect unauthenticated requests
-to oauth2-proxy.
+This adds nginx `auth-url` and `auth-signin` annotations that check with
+oauth2-proxy before forwarding each request.
 
-Services currently protected by OAuth:
+Services protected by oauth2-proxy:
 
-- Grafana (`grafana.yaml`) — native login after OAuth gateway
-- Longhorn (`longhorn.yaml`) — no native auth, OAuth is the only layer
-- Headlamp (`dashboard.yaml`) — requires a service account token after OAuth
-- Open WebUI (`open-webui.yaml`) — native login after OAuth gateway
-- ArgoCD (`argo-cd/ingress.yaml`) — uses TLS passthrough with its own login
-  (managed by Ansible, not the shared ingress template)
+- **Longhorn** — no native auth; OAuth is the only access control
+- **Headlamp** — requires a ServiceAccount token after OAuth login
+- **Supabase Studio** — requires a dashboard password after OAuth login
 
-## Step 8: Restrict access (optional)
-
-To restrict access to members of a specific GitHub organisation, add the
-`github-org` flag in `kubernetes-services/templates/oauth2-proxy.yaml`:
-
-```yaml
-extraArgs:
-  github-org: "your-org-name"
-```
-
-To restrict to specific email addresses, replace `email-domain: "*"` with
-a comma-separated list of allowed emails.
+---
 
 ## Integrating with Cloudflare Access
 
-For services exposed via the Cloudflare tunnel (e.g. Open WebUI), you can
-add a second authentication layer using Cloudflare Access at zero cluster
-overhead. See {doc}`cloudflare-ssh-tunnel` for how Access Applications
-work, and apply the same pattern to any tunnelled service.
+For services exposed via the Cloudflare tunnel, add a second
+authentication layer using Cloudflare Access at zero cluster overhead.
+Configure an Access Application in the Cloudflare Zero Trust dashboard
+with an email allowlist matching `oauth2_emails`. See
+{doc}`cloudflare-ssh-tunnel` for how Access Applications work.
 
 ## Troubleshooting
 
@@ -183,13 +251,12 @@ ingress values.
 
 ### 403 after GitHub login
 
-Check the `email-domain` or `github-org` restrictions in the oauth2-proxy
-configuration. Verify that the authenticated email matches the allowed
-list.
+Check the `oauth2_emails` list in `values.yaml`. The authenticated GitHub
+email must be in the list.
 
 ### Cookie domain mismatch
 
-The `cookie-domain` must match your cluster domain (e.g. `.gkcluster.org`).
+The `cookie-domain` must match your cluster domain (e.g. `.<your-domain>`).
 All protected services must be subdomains of this domain.
 
 ### OAuth not enforced (service loads without login)
@@ -200,5 +267,17 @@ Verify the ingress annotations are present:
 kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep auth
 ```
 
-You should see `auth-url` and `auth-signin` annotations pointing to
-`oauth2.<your-domain>`.
+You should see `auth-url` and `auth-signin` annotations.
+
+### Dex login returns 404
+
+Ensure the OIDC discovery URL includes the full path:
+`https://argocd.<your-domain>/api/dex/.well-known/openid-configuration`.
+The base path `/api/dex` redirects to `/api/dex/` which returns 404 —
+some OIDC libraries do not follow this redirect.
+
+### Dex rejects redirect URI
+
+Cloudflare Tunnel services may generate `http://` callback URIs. Add both
+`http://` and `https://` redirect URIs to the Dex static client
+configuration.
