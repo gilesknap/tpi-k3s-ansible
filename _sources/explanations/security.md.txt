@@ -55,6 +55,26 @@ The `admin-auth` Kubernetes secret is created manually during bootstrap (see
 {doc}`/how-to/bootstrap-cluster`). It stores htpasswd credentials used by
 Grafana.
 
+## Devcontainer credential isolation
+
+The devcontainer is hardened to limit the blast radius of AI-assisted
+development (Claude Code) and prompt injection attacks:
+
+- **SSH agent forwarding is disabled** (`SSH_AUTH_SOCK=""`). A container-local
+  agent is started instead; only the ansible key is unlocked manually after
+  container start. Host GitHub SSH keys are never accessible.
+- **Git credential helpers are blanked** on container creation. VS Code's
+  auto-injected OAuth helper is overridden, so remote pushes require an
+  explicit fine-grained PAT via `gh auth login`.
+- **GitHub CLI credentials are per-repo**. A dedicated Docker volume
+  (`gh-auth-<project>`) stores the PAT, scoped to only the repositories needed.
+- **Claude Code is devcontainer-only**. A `UserPromptSubmit` hook blocks
+  execution outside the container.
+- **Network escape vectors require confirmation**. `ssh`, `scp`, `rsync`, and
+  similar commands in Claude Code prompt for human approval.
+
+See {doc}`/how-to/claude-code` for setup instructions.
+
 ## Pod Security Standards
 
 Security contexts are applied at the workload level. See

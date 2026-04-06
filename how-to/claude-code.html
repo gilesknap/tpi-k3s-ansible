@@ -407,21 +407,52 @@
 <h1>Using Claude Code<a class="headerlink" href="#using-claude-code" title="Link to this heading">#</a></h1>
 <p>This project includes <a class="reference external" href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>
 configuration for AI-assisted development with safe autonomy guardrails.</p>
-<section id="configuration">
-<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<section id="devcontainer-only-enforcement">
+<h2>Devcontainer-only enforcement<a class="headerlink" href="#devcontainer-only-enforcement" title="Link to this heading">#</a></h2>
+<p>A <code class="docutils literal notranslate"><span class="pre">UserPromptSubmit</span></code> hook in <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> blocks Claude Code from
+running outside the devcontainer. The hook checks for the <code class="docutils literal notranslate"><span class="pre">$REMOTE_CONTAINERS</span></code>
+environment variable and exits with an error if it is not set. This ensures the
+permission model and credential isolation described below are always active.</p>
+</section>
+<section id="credential-isolation">
+<h2>Credential isolation<a class="headerlink" href="#credential-isolation" title="Link to this heading">#</a></h2>
+<p>The devcontainer applies several layers of protection against prompt injection
+attacks (malicious instructions hidden in GitHub issues, web content, or
+repository files that attempt to misuse Claude’s tool access):</p>
+<p><strong>SSH agent isolation:</strong>
+: <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK=&quot;&quot;</span></code> in <code class="docutils literal notranslate"><span class="pre">remoteEnv</span></code> disables host SSH agent forwarding,
+preventing access to host SSH keys (e.g. GitHub keys with broad repository
+access). A container-local SSH agent is started by <code class="docutils literal notranslate"><span class="pre">postCreateCommand</span></code>.
+After container start, unlock the ansible key with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>/root/.ssh/giles_ansible
+</pre></div>
+</div>
+<p><strong>Git credential helper blanking:</strong>
+: <code class="docutils literal notranslate"><span class="pre">postCreateCommand</span></code> runs <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">config</span> <span class="pre">--global</span> <span class="pre">credential.helper</span> <span class="pre">''</span></code>, which
+overrides any credential helper injected by VS Code’s Dev Containers
+extension. Remote pushes require an explicit fine-grained PAT via
+<code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code> + <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">setup-git</span></code>.</p>
+<p><strong>Scoped GitHub authentication:</strong>
+: GitHub CLI auth is persisted in a per-repo container volume
+(<code class="docutils literal notranslate"><span class="pre">gh-auth-${localWorkspaceFolderBasename}</span></code>). Use a fine-grained PAT scoped
+to only the repositories needed, rather than a broad OAuth token. The volume
+isolation means each project gets its own credential scope.</p>
+</section>
+<section id="permission-tiers">
+<h2>Permission tiers<a class="headerlink" href="#permission-tiers" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> defines three permission tiers:</p>
 <p><strong>Allow</strong> — runs without confirmation:
-: Read-only operations (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">list</span></code>, etc.),
-file editing, <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">run</span></code>, <code class="docutils literal notranslate"><span class="pre">gh</span></code> CLI, <code class="docutils literal notranslate"><span class="pre">ansible-lint</span></code></p>
+: File operations (Read, Edit, Write), bash commands, web search/fetch.</p>
 <p><strong>Prompt</strong> — asks for confirmation each time:
-: Infrastructure mutations (<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code>, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">apply/patch/delete</span></code>,
-<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">push</span> <span class="pre">--force</span></code>, <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">reset</span> <span class="pre">--hard</span></code>)</p>
+: Force push (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">push</span> <span class="pre">--force</span></code>), hard reset (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">reset</span> <span class="pre">--hard</span></code>), and
+network escape vectors (<code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">scp</span></code>, <code class="docutils literal notranslate"><span class="pre">rsync</span></code>, <code class="docutils literal notranslate"><span class="pre">sftp</span></code>, <code class="docutils literal notranslate"><span class="pre">wget</span> <span class="pre">--post*</span></code>,
+<code class="docutils literal notranslate"><span class="pre">telnet</span></code>, <code class="docutils literal notranslate"><span class="pre">mail</span></code>, <code class="docutils literal notranslate"><span class="pre">sendmail</span></code>).</p>
 <p><strong>Deny</strong> — blocked entirely:
 : Nothing is denied by default. Move commands here if you want to hard-block them.</p>
 </section>
-<section id="agents-md">
-<h2>AGENTS.md<a class="headerlink" href="#agents-md" title="Link to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> file at the repo root provides project-specific guidance to AI
+<section id="claude-md">
+<h2>CLAUDE.md<a class="headerlink" href="#claude-md" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> file at the repo root provides project-specific guidance to AI
 agents. It covers:</p>
 <ul class="simple">
 <li><p>GitOps workflow (fix in the repo, not the cluster)</p></li>
@@ -437,8 +468,10 @@ agents. It covers:</p>
 <h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
 <li><p>Open the repo in the devcontainer (tools are installed automatically)</p></li>
+<li><p>Unlock the ansible SSH key: <code class="docutils literal notranslate"><span class="pre">ssh-add</span> <span class="pre">/root/.ssh/giles_ansible</span></code></p></li>
+<li><p>Set up GitHub CLI auth: <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code> (use a fine-grained PAT)</p></li>
 <li><p>Launch Claude Code from the VS Code extension or CLI</p></li>
-<li><p>The agent reads <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> and <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> on startup</p></li>
+<li><p>The agent reads <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> and <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> on startup</p></li>
 <li><p>Safe read-only commands run automatically; infrastructure changes prompt
 for approval</p></li>
 </ol>
@@ -498,8 +531,10 @@ matches any <code class="docutils literal notranslate"><span class="pre">kubectl
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#agents-md">AGENTS.md</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#devcontainer-only-enforcement">Devcontainer-only enforcement</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#credential-isolation">Credential isolation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#permission-tiers">Permission tiers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#claude-md">CLAUDE.md</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#workflow">Workflow</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#customising-permissions">Customising permissions</a></li>
 </ul>

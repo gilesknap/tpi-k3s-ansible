@@ -497,6 +497,26 @@ controller can decrypt them.</p>
 Grafana.</p>
 </section>
 </section>
+<section id="devcontainer-credential-isolation">
+<h2>Devcontainer credential isolation<a class="headerlink" href="#devcontainer-credential-isolation" title="Link to this heading">#</a></h2>
+<p>The devcontainer is hardened to limit the blast radius of AI-assisted
+development (Claude Code) and prompt injection attacks:</p>
+<ul class="simple">
+<li><p><strong>SSH agent forwarding is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK=&quot;&quot;</span></code>). A container-local
+agent is started instead; only the ansible key is unlocked manually after
+container start. Host GitHub SSH keys are never accessible.</p></li>
+<li><p><strong>Git credential helpers are blanked</strong> on container creation. VS Code’s
+auto-injected OAuth helper is overridden, so remote pushes require an
+explicit fine-grained PAT via <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code>.</p></li>
+<li><p><strong>GitHub CLI credentials are per-repo</strong>. A dedicated Docker volume
+(<code class="docutils literal notranslate"><span class="pre">gh-auth-&lt;project&gt;</span></code>) stores the PAT, scoped to only the repositories needed.</p></li>
+<li><p><strong>Claude Code is devcontainer-only</strong>. A <code class="docutils literal notranslate"><span class="pre">UserPromptSubmit</span></code> hook blocks
+execution outside the container.</p></li>
+<li><p><strong>Network escape vectors require confirmation</strong>. <code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">scp</span></code>, <code class="docutils literal notranslate"><span class="pre">rsync</span></code>, and
+similar commands in Claude Code prompt for human approval.</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Using Claude Code</span></a> for setup instructions.</p>
+</section>
 <section id="pod-security-standards">
 <h2>Pod Security Standards<a class="headerlink" href="#pod-security-standards" title="Link to this heading">#</a></h2>
 <p>Security contexts are applied at the workload level. See
@@ -626,6 +646,7 @@ the rationale and guidance on implementing them if needed.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#admin-password">Admin password</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#devcontainer-credential-isolation">Devcontainer credential isolation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pod-security-standards">Pod Security Standards</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#container-image-pinning">Container image pinning</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#network-security">Network security</a><ul class="nav section-nav flex-column">
