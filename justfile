@@ -64,6 +64,39 @@ ssh-agent:
     echo "Run this in your shell to use the agent:"
     echo "  export SSH_AUTH_SOCK=$sock"
 
+# Seal ArgoCD Dex secrets (GitHub OAuth + argocd-monitor client)
+seal-argocd-dex:
+    #!/bin/bash
+    set -euo pipefail
+    read -p  "GitHub OAuth Client ID: " client_id < /dev/tty
+    read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo
+    # Generate secrets for Dex static clients
+    # argo-cd client secret is derived from ArgoCD's server.secretkey (SHA256, truncated 30 bytes, base64url)
+    argocd_client_secret=$(kubectl get secret argocd-secret -n argo-cd -o jsonpath='{.data.server\.secretkey}' | base64 -d | python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()[:30]).rstrip(b'=').decode())")
+    monitor_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    cookie_secret=$(python3 -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())")
+    # Dex secret (argo-cd namespace) — GitHub OAuth + static client secrets
+    kubectl create secret generic argocd-dex-secret \
+      --namespace argo-cd \
+      --from-literal=dex.github.clientID="$client_id" \
+      --from-literal=dex.github.clientSecret="$client_secret" \
+      --from-literal=argo-cd.clientSecret="$argocd_client_secret" \
+      --from-literal=argocd-monitor.clientSecret="$monitor_secret" \
+      --dry-run=client -o yaml | \
+      yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
+      kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml \
+      > kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+    echo "Sealed: kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
+    # argocd-monitor oauth2-proxy secret (argocd-monitor namespace)
+    kubectl create secret generic argocd-monitor-oauth \
+      --namespace argocd-monitor \
+      --from-literal=client-secret="$monitor_secret" \
+      --from-literal=cookie-secret="$cookie_secret" \
+      --dry-run=client -o yaml | \
+      kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml \
+      > kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
+    echo "Sealed: kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml"
+
 # Authenticate gh CLI with a GitHub PAT (token not stored in shell history)
 gh-auth:
     #!/bin/bash
@@ -100,4 +133,4 @@ setup:
 
 # Start Claude Code in sandbox mode (uses container-local SSH agent only)
 claude:
-    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions
+    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome

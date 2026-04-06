@@ -22,6 +22,9 @@
 - **Control plane (node01) is tainted `NoSchedule`** — DaemonSets without a
   matching toleration won't schedule there, so it can safely be skipped when
   running `--tags servers` for node-level drivers (e.g. DRA plugins).
+- **Chrome browser is not incognito** — never navigate to Google services or
+  GitHub in browser automation. The browser has active logged-in sessions.
+  Use CLI tools (`gh`, `curl`, `kubectl`) instead.
 - **No automated tests** — validate by running playbook tags against the cluster.
 - **`gh pr edit` fails on this repo** — classic projects warning causes a
   GraphQL error. Use `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...`
