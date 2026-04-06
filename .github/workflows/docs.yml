@@ -1,4 +1,4 @@
-name: Docs
+name: Docs & Lint
 
 on:
   push:
@@ -6,7 +6,22 @@ on:
   pull_request:
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Ansible lint
+        run: just lint
+
+  docs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,8 +32,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      - name: Install just
+        uses: extractions/setup-just@v2
+
       - name: Build docs
-        run: uv run --locked sphinx-build --fresh-env --show-traceback --fail-on-warning --keep-going docs build/html
+        run: just docs
 
       - name: Publish Docs to gh-pages
         if: github.ref == 'refs/heads/main'

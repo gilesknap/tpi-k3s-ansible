@@ -73,6 +73,16 @@
 - **Grafana 12.x requires `[users].allow_sign_up`** — the per-provider
   `allow_sign_up` under `[auth.generic_oauth]` is not sufficient alone.
   Also set `[auth].disable_signup_form: true` to block manual signup.
+- **`admin_emails` is duplicated** — must be kept in sync between
+  `kubernetes-services/values.yaml` (Helm) and `group_vars/all.yml`
+  (Ansible). After changing the Ansible copy, re-run `--tags cluster`.
+- **Headlamp OIDC doesn't work** — native Dex OIDC was attempted and
+  reverted (PR #238). TLS verification and redirect issues. Keep Headlamp
+  on oauth2-proxy with token login — 3 auth layers is sufficient.
+- **Headlamp Helm `config.oidc.externalSecret` key names** — if OIDC is
+  ever revisited, the chart uses `envFrom: secretRef` and references
+  `$(OIDC_CLIENT_ID)` etc. Secret keys must be uppercase `OIDC_*`, not
+  the camelCase keys the chart generates internally.
 
 ## Key Paths
 
