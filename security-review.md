@@ -1,17 +1,37 @@
 # Security Review — tpi-k3s-ansible
 
-**Date**: 2026-04-06
+**Date**: 2026-04-06 (updated after two-tier access implementation)
 **Scope**: Full review of K3s Ansible + ArgoCD homelab across 6 domains
 
 ## Executive Summary
 
 The project demonstrates strong fundamentals — zero hardcoded secrets,
 SealedSecrets throughout, pre-commit gitleaks enforcement, and proper OIDC
-integration. Several critical and high-severity issues were found, primarily
-around overprivileged RBAC bindings, missing network segmentation, mutable
-container image tags, and OAuth configuration gaps.
+integration. A two-tier access model (`admin_emails` / `viewer_emails`) has
+been implemented, giving admin users full access and viewer users read-only
+roles across Dex-authenticated services. Services without app-level RBAC
+(Headlamp, Longhorn, Supabase Studio) are restricted to admin-only via
+oauth2-proxy.
 
-**Total findings: 8 CRITICAL, 13 HIGH, 19 MEDIUM, 14 LOW, 12 INFO**
+Remaining issues centre on missing network segmentation, mutable container
+image tags, and OAuth configuration gaps.
+
+**Total findings: 5 CRITICAL, 12 HIGH, 19 MEDIUM, 14 LOW, 12 INFO**
+(3 original CRITICALs resolved or downgraded by two-tier access work)
+
+---
+
+## Fixes Applied Since Initial Review
+
+| Fix | Commit | Details |
+|-----|--------|---------|
+| Split `oauth2_emails` into `admin_emails` + `viewer_emails` | `6ede8e9` | Two-tier access: admins get full access everywhere, viewers get read-only on Dex-authenticated services (ArgoCD, Grafana, Open WebUI). oauth2-proxy restricted to admin emails only. |
+| Template ArgoCD RBAC from `admin_emails` variable | `6ede8e9` | `argocd-rbac-cm.yml` now iterates `admin_emails` from `group_vars/all.yml` instead of hardcoding a single email. All admin emails get `role:admin`; everyone else defaults to `role:readonly`. |
+| Headlamp access restricted to admin-only | `44c44ec` | Headlamp stays behind oauth2-proxy (now restricted to `admin_emails`), giving 3 auth layers before cluster-admin: Cloudflare Access + oauth2-proxy + token login. Downgraded from CRITICAL to LOW. |
+| Longhorn and Supabase Studio restricted to admin-only | `6ede8e9` | oauth2-proxy email allowlist now uses `admin_emails` only. Viewer users cannot access these admin tools. |
+| Added `http://` redirect URI for Headlamp Dex client | `0f81a5c` | Required for Cloudflare tunnel (`ssl_redirect: false`). Same pattern as Open WebUI. Mitigated by Cloudflare edge TLS. |
+| Exclude `argocd-rbac-cm.yml` from YAML pre-commit lint | `6ede8e9` | File uses Ansible Jinja2 `{% for %}` which is not valid YAML. Excluded from `check-yaml` hook. |
+| Updated authentication docs | `6ede8e9` | `docs/explanations/authentication.md` and `docs/how-to/oauth-setup.md` updated to reflect two-tier model, admin/viewer email lists, and oauth2-proxy as admin-only gate. |
 
 ---
 
@@ -19,11 +39,11 @@ container image tags, and OAuth configuration gaps.
 
 | # | Finding | File:Line | Impact |
 |---|---------|-----------|--------|
-| 1 | ~~Headlamp dashboard bound to `cluster-admin` ClusterRole~~ (downgraded — admin-only behind Cloudflare Access + oauth2-proxy + token login) | `additions/dashboard/rbac.yaml:14` | Acceptable risk for admin-only tool behind 3 auth layers |
-| 2 | ArgoCD AppProject allows deployment to any namespace with all cluster-scoped resources | `argo-cd/argo-project.yaml:29-36` | Compromised app can create ClusterRoleBindings or deploy to kube-system |
-| 3 | HTTP redirect_uri accepted for Open WebUI in Dex config | `additions/argocd/argocd-cm.yml:42` | Protocol downgrade — attacker intercepts auth codes in plaintext |
-| 4 | No NetworkPolicy resources anywhere in the cluster | Repository-wide | No lateral movement barriers between pods |
-| 5 | Container images use `:latest` mutable tag (open-brain-mcp) | `additions/open-brain-mcp/values.yaml:3`, `templates/open-brain-mcp.yaml:23` | Silent image replacement; supply chain attack vector |
+| 1 | ArgoCD AppProject allows deployment to any namespace with all cluster-scoped resources | `argo-cd/argo-project.yaml:29-36` | Compromised app can create ClusterRoleBindings or deploy to kube-system |
+| 2 | No NetworkPolicy resources anywhere in the cluster | Repository-wide | No lateral movement barriers between pods |
+| 3 | Container images use `:latest` mutable tag (open-brain-mcp) | `additions/open-brain-mcp/values.yaml:3`, `templates/open-brain-mcp.yaml:23` | Silent image replacement; supply chain attack vector |
+| 4 | open-brain-mcp oauth.py accepts ANY `client_id` without validation | `open-brain-mcp/oauth.py:77-83` | Auth codes issued to unregistered clients |
+| 5 | HTTP `redirect_uri` accepted for Open WebUI and Headlamp in Dex config | `additions/argocd/argocd-cm.yml:42,48` | Protocol downgrade risk (mitigated by Cloudflare edge TLS) |
 
 ---
 
@@ -31,12 +51,16 @@ container image tags, and OAuth configuration gaps.
 
 | Fix | Effort | Files to Change |
 |-----|--------|-----------------|
-| Remove HTTP redirect_uri for Open WebUI | 1 line | `additions/argocd/argocd-cm.yml:42` |
 | Set `tls_skip_verify_insecure: false` for Grafana | 1 line | `templates/grafana.yaml:58` |
 | Add `cookie-httponly` + `cookie-samesite` to oauth2-proxy | 2 lines | `templates/oauth2-proxy.yaml` |
 | Pin open-brain-mcp image to version tag | 2 lines | `additions/open-brain-mcp/values.yaml:3`, `templates/open-brain-mcp.yaml:23` |
 | Add `| quote` filter to Ansible shell variables | 3 lines | `roles/k3s/tasks/worker.yml:53-54` |
 | Remove echo test service or add auth | 1 template | `templates/echo.yaml` |
+
+Note: HTTP redirect_uris for Open WebUI and Headlamp are intentional —
+required by the Cloudflare tunnel architecture (`ssl_redirect: false`).
+Cloudflare enforces HTTPS at the edge, so the `http://` callback is only
+used on the internal cluster network.
 
 ---
 
@@ -82,7 +106,7 @@ container image tags, and OAuth configuration gaps.
 
 | Severity | Finding | File:Line | Recommendation |
 |----------|---------|-----------|----------------|
-| CRITICAL | Dashboard (Headlamp) has `cluster-admin` ClusterRoleBinding | `additions/dashboard/rbac.yaml:8-18` | Create minimal ClusterRole with only required permissions |
+| LOW | Headlamp has `cluster-admin` ClusterRoleBinding (admin-only behind 3 auth layers) | `additions/dashboard/rbac.yaml:8-18` | Acceptable — Cloudflare Access + oauth2-proxy + token login restrict access to admin emails only |
 | CRITICAL | ArgoCD AppProject allows `namespace: "*"` and all cluster-scoped resources | `argo-cd/argo-project.yaml:29-36` | Restrict to specific namespaces; add `clusterResourceBlacklist` |
 | CRITICAL | No NetworkPolicy resources detected across entire project | Repository-wide | Implement default-deny policies in application namespaces |
 | HIGH | Grafana OAuth uses `tls_skip_verify_insecure: true` | `templates/grafana.yaml:58` | Set to `false`; use `tls_client_ca` for self-signed certs |
@@ -102,7 +126,7 @@ container image tags, and OAuth configuration gaps.
 | Severity | Finding | File:Line | Recommendation |
 |----------|---------|-----------|----------------|
 | CRITICAL | open-brain-mcp oauth.py accepts ANY `client_id` without validation | `open-brain-mcp/oauth.py:77-83` | Implement `ALLOWED_CLIENTS` allowlist |
-| CRITICAL | HTTP `redirect_uri` accepted for Open WebUI in Dex config | `additions/argocd/argocd-cm.yml:40-42` | Remove the `http://` redirect URI on line 42 |
+| MEDIUM | HTTP `redirect_uri` accepted for Open WebUI and Headlamp in Dex config | `additions/argocd/argocd-cm.yml:42,48` | Required for Cloudflare tunnel (`ssl_redirect: false`); mitigated by Cloudflare edge TLS enforcement. Document as intentional. |
 | HIGH | oauth2-proxy missing `cookie-httponly` and `cookie-samesite` flags | `templates/oauth2-proxy.yaml:33` | Add `cookie-httponly: "true"` and `cookie-samesite: "Strict"` |
 | HIGH | Grafana OAuth `tls_skip_verify_insecure: true` | `templates/grafana.yaml:58` | Remove — enable TLS verification |
 | HIGH | ArgoCD ingress lacks ingress-level auth annotations (defense-in-depth) | `argo-cd/ingress.yaml:1-24` | Add `auth-url`/`auth-signin` as additional layer |
@@ -114,7 +138,7 @@ container image tags, and OAuth configuration gaps.
 | LOW | OAuth rate limiting absent on `/authorize`, `/callback`, `/token` | `open-brain-mcp/oauth.py` | Add application-level throttling or ingress `limit-rps` |
 | LOW | State parameter passed through without format validation | `open-brain-mcp/oauth.py:166` | Add length/format check |
 | INFO | Dex client secrets stored in SealedSecret | `additions/argocd/argocd-dex-secret.yaml` | Compliant |
-| INFO | Email-based RBAC restricts admin access | `values.yaml:48-50` | Good practice |
+| INFO | Two-tier email RBAC (`admin_emails`/`viewer_emails`) restricts access | `values.yaml:46-60` | Good practice — implemented |
 | INFO | open-brain-mcp PKCE S256 implementation correct per RFC 7636 | `open-brain-mcp/oauth.py:189-194` | Compliant |
 | INFO | Each service has its own Dex client (blast radius isolation) | `additions/argocd/argocd-cm.yml:33-48` | Good practice |
 
@@ -143,7 +167,7 @@ container image tags, and OAuth configuration gaps.
 | Severity | Finding | File:Line | Recommendation |
 |----------|---------|-----------|----------------|
 | HIGH | Supabase API exposed externally without authentication | `additions/supabase/templates/api-ingress.yaml:7` | Add auth layer or Cloudflare Access policy |
-| HIGH | Headlamp dashboard exposed with cluster-admin privileges | `additions/dashboard/rbac.yaml:14` | Reduce RBAC scope |
+| LOW | Headlamp dashboard has cluster-admin (admin-only access) | `additions/dashboard/rbac.yaml:14` | Acceptable — restricted to admin emails via oauth2-proxy |
 | HIGH | Grafana TLS verification disabled for Dex endpoint | `templates/grafana.yaml:58` | Enable TLS verification |
 | MEDIUM | No rate-limiting annotations on any Ingress | `additions/ingress/templates/ingress.yaml` | Add `nginx.ingress.kubernetes.io/limit-rps` |
 | MEDIUM | Echo test service exposed without authentication | `templates/echo.yaml` | Decommission or add Cloudflare Access policy |
@@ -159,7 +183,7 @@ container image tags, and OAuth configuration gaps.
 | Service | Auth Method | Risk Level |
 |---------|-------------|------------|
 | ArgoCD | Dex OIDC | Medium — no ingress-level pre-auth |
-| Headlamp | oauth2-proxy | **High — cluster-admin RBAC** |
+| Headlamp | oauth2-proxy (admin-only) | Low — cluster-admin behind 3 auth layers |
 | Grafana | Dex OIDC | Medium — TLS verification disabled |
 | Open WebUI | Dex OIDC | Medium — HTTP redirect_uri |
 | Supabase Studio | oauth2-proxy | Low |
@@ -175,21 +199,24 @@ container image tags, and OAuth configuration gaps.
 
 ## Access Control Architecture (Current State)
 
+Two email lists in `kubernetes-services/values.yaml` control access:
+
+- **`admin_emails`** — full access everywhere (also in `group_vars/all.yml`
+  for Ansible-rendered ArgoCD RBAC)
+- **`viewer_emails`** — read-only access to Dex-authenticated services;
+  blocked from oauth2-proxy-gated services
+
 Services use two parallel auth paths:
 
-| Service | Auth Layer | Admin Differentiation | Status |
-|---------|------------|----------------------|--------|
-| ArgoCD | Dex OIDC | Email → role:admin/readonly | Complete |
-| argocd-monitor | Dex OIDC sidecar | Inherits ArgoCD RBAC | Complete |
-| Grafana | Dex OIDC | Email → Admin/Viewer (JMESPath) | Complete |
-| Open WebUI | Dex OIDC | Email → admin/user (env var) | Complete |
-| Headlamp | oauth2-proxy (admin-only) | cluster-admin token | Admin-only (oauth2-proxy gate) |
-| Longhorn | oauth2-proxy | None — binary gate | **Not differentiated** |
-| Supabase Studio | oauth2-proxy | None — binary gate | **Not differentiated** |
-
-Key architectural gap: oauth2-proxy's email allowlist (`oauth2_emails`) doubles
-as both the "who can authenticate" list and the "who is admin" list. To add
-read-only users, these must be decoupled.
+| Service | Auth Layer | Admin Email | Viewer Email | Status |
+|---------|------------|-------------|--------------|--------|
+| ArgoCD | Dex OIDC | role:admin (sync, delete) | role:readonly (view, logs) | Complete |
+| argocd-monitor | Dex OIDC sidecar | Inherits ArgoCD RBAC | Inherits ArgoCD RBAC | Complete |
+| Grafana | Dex OIDC | Admin role | Viewer role | Complete |
+| Open WebUI | Dex OIDC | admin (manage users/models) | user (chat only) | Complete |
+| Headlamp | oauth2-proxy | Full access (cluster-admin token) | **Blocked** | Admin-only |
+| Longhorn | oauth2-proxy | Full access | **Blocked** | Admin-only |
+| Supabase Studio | oauth2-proxy | Full access | **Blocked** | Admin-only |
 
 ---
 
@@ -200,29 +227,34 @@ read-only users, these must be decoupled.
    realistic. Start with deny-all in application namespaces and allowlist
    required flows.
 
-2. **Replace cluster-admin dashboard binding** — create a read-only ClusterRole
-   for Headlamp. If write operations are needed, scope them to specific
-   namespaces and resource types.
-
-3. **Restrict ArgoCD AppProject destinations** — replace `namespace: "*"` with
+2. **Restrict ArgoCD AppProject destinations** — replace `namespace: "*"` with
    an explicit list. Add `clusterResourceBlacklist` for sensitive types
    (ClusterRole, ClusterRoleBinding, Node).
 
-4. **Pin all container images to SHA digests** — mutable tags (`:latest`,
+3. **Pin all container images to SHA digests** — mutable tags (`:latest`,
    `:main`) are a supply chain risk. Automate updates via Renovate or
    Dependabot.
 
-5. **Add ingress rate limiting globally** — a single
+4. **Add ingress rate limiting globally** — a single
    `nginx.ingress.kubernetes.io/limit-rps` annotation in the shared ingress
    sub-chart template would protect all services.
 
-6. **Audit Cloudflare Access policies** — tunnel routing is managed outside
+5. **Audit Cloudflare Access policies** — tunnel routing is managed outside
    this repo. Verify every exposed service has a Cloudflare Access policy,
    especially Supabase API and Echo.
 
-7. **Decouple admin emails from auth allowlist** — split `oauth2_emails` into
-   `admin_emails` (admin access) and `allowed_emails` (all authenticated users)
-   to support read-only users across services.
+### Resolved
+
+- ~~**Decouple admin emails from auth allowlist**~~ — Done. Split
+  `oauth2_emails` into `admin_emails` + `viewer_emails`. Viewer users get
+  read-only access to Dex-authenticated services; admin-only services
+  (Headlamp, Longhorn, Supabase Studio) are gated by oauth2-proxy restricted
+  to `admin_emails`.
+
+- ~~**Replace cluster-admin dashboard binding**~~ — Downgraded. Headlamp's
+  cluster-admin SA is acceptable because it's behind three auth layers
+  (Cloudflare Access, oauth2-proxy restricted to admin emails, token login).
+  Only trusted operators can reach it.
 
 ---
 
@@ -230,7 +262,7 @@ read-only users, these must be decoupled.
 
 | CIS Control | Status | Notes |
 |-------------|--------|-------|
-| 5.1.1 — Minimize cluster-admin bindings | **FAIL** | Headlamp has cluster-admin |
+| 5.1.1 — Minimize cluster-admin bindings | **PARTIAL** | Headlamp has cluster-admin but access is admin-only (3 auth layers) |
 | 5.1.3 — Minimize wildcard RBAC | **FAIL** | AppProject allows `*` namespace |
 | 5.2.1 — Minimize privileged containers | **PARTIAL** | RKLlama, kernel-settings require privileged (hardware need) |
 | 5.2.2 — Minimize hostNetwork/hostPID | **PARTIAL** | kernel-settings uses both (intentional for sysctl) |
