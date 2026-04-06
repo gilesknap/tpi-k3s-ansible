@@ -9,7 +9,7 @@ This guide walks through configuring both authentication paths used by the
 cluster:
 
 - **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
-- **Part B** — oauth2-proxy (Longhorn, Headlamp, Supabase Studio)
+- **Part B** — oauth2-proxy (Headlamp, Longhorn, Supabase Studio — admin-only)
 
 ```{mermaid}
 flowchart LR
@@ -25,8 +25,8 @@ flowchart LR
     DEX --> Open-WebUI
     DEX --> argocd-monitor
 
-    OAP --> Longhorn
     OAP --> Headlamp
+    OAP --> Longhorn
     OAP --> Supabase
 ```
 
@@ -111,16 +111,33 @@ kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o 
   kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 ```
 
-### A5: Configure admin emails
+### A5: Configure admin and viewer emails
 
-Edit `kubernetes-services/values.yaml` and set the emails that should
-receive admin privileges across all services:
+Edit `kubernetes-services/values.yaml` and set the email lists:
 
 ```yaml
-oauth2_emails:
+# Full admin access to all services
+admin_emails:
   - alice@example.com
-  - bob@example.com
+
+# Read-only access to Dex-authenticated services
+viewer_emails:
+  - carol@example.com
 ```
+
+Also add `admin_emails` to `group_vars/all.yml` (required for
+Ansible-rendered ArgoCD RBAC):
+
+```yaml
+admin_emails:
+  - alice@example.com
+```
+
+:::{important}
+`admin_emails` must be kept in sync between `values.yaml` and
+`group_vars/all.yml`. After changing the latter, re-run
+`ansible-playbook pb_all.yml --tags cluster`.
+:::
 
 ### A6: Deploy
 
@@ -225,10 +242,10 @@ helm:
 This adds nginx `auth-url` and `auth-signin` annotations that check with
 oauth2-proxy before forwarding each request.
 
-Services protected by oauth2-proxy:
+Services protected by oauth2-proxy (admin-only):
 
-- **Longhorn** — no native auth; OAuth is the only access control
 - **Headlamp** — requires a ServiceAccount token after OAuth login
+- **Longhorn** — no native auth; OAuth is the only access control
 - **Supabase Studio** — requires a dashboard password after OAuth login
 
 ---
@@ -238,7 +255,7 @@ Services protected by oauth2-proxy:
 For services exposed via the Cloudflare tunnel, add a second
 authentication layer using Cloudflare Access at zero cluster overhead.
 Configure an Access Application in the Cloudflare Zero Trust dashboard
-with an email allowlist matching `oauth2_emails`. See
+with an email allowlist matching both `admin_emails` and `viewer_emails`. See
 {doc}`cloudflare-ssh-tunnel` for how Access Applications work.
 
 ## Troubleshooting
@@ -251,8 +268,12 @@ ingress values.
 
 ### 403 after GitHub login
 
-Check the `oauth2_emails` list in `values.yaml`. The authenticated GitHub
-email must be in the list.
+For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
+in `admin_emails` in `values.yaml`. Viewer users cannot access these
+services by design.
+
+For Dex-authenticated services: any GitHub user can log in. A 403 likely
+means the service has additional access restrictions.
 
 ### Cookie domain mismatch
 

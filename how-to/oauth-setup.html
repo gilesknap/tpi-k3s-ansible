@@ -849,7 +849,7 @@ see <a class="reference internal" href="../explanations/authentication.html"><sp
 cluster:</p>
 <ul class="simple">
 <li><p><strong>Part A</strong> — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)</p></li>
-<li><p><strong>Part B</strong> — oauth2-proxy (Longhorn, Headlamp, Supabase Studio)</p></li>
+<li><p><strong>Part B</strong> — oauth2-proxy (Headlamp, Longhorn, Supabase Studio — admin-only)</p></li>
 </ul>
 <pre  class="mermaid">
         flowchart LR
@@ -865,8 +865,8 @@ cluster:</p>
     DEX --&gt; Open-WebUI
     DEX --&gt; argocd-monitor
 
-    OAP --&gt; Longhorn
     OAP --&gt; Headlamp
+    OAP --&gt; Longhorn
     OAP --&gt; Supabase
     </pre><section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
@@ -961,14 +961,29 @@ kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-
 </pre></div>
 </div>
 </section>
-<section id="a5-configure-admin-emails">
-<h3>A5: Configure admin emails<a class="headerlink" href="#a5-configure-admin-emails" title="Link to this heading">#</a></h3>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and set the emails that should
-receive admin privileges across all services:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">oauth2_emails</span><span class="p">:</span>
+<section id="a5-configure-admin-and-viewer-emails">
+<h3>A5: Configure admin and viewer emails<a class="headerlink" href="#a5-configure-admin-and-viewer-emails" title="Link to this heading">#</a></h3>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and set the email lists:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full admin access to all services</span>
+<span class="nt">admin_emails</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alice@example.com</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bob@example.com</span>
+
+<span class="c1"># Read-only access to Dex-authenticated services</span>
+<span class="nt">viewer_emails</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">carol@example.com</span>
 </pre></div>
+</div>
+<p>Also add <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> to <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (required for
+Ansible-rendered ArgoCD RBAC):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">admin_emails</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alice@example.com</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> must be kept in sync between <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. After changing the latter, re-run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>.</p>
 </div>
 </section>
 <section id="a6-deploy">
@@ -1097,10 +1112,10 @@ a service, set <code class="docutils literal notranslate"><span class="pre">oaut
 </div>
 <p>This adds nginx <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations that check with
 oauth2-proxy before forwarding each request.</p>
-<p>Services protected by oauth2-proxy:</p>
+<p>Services protected by oauth2-proxy (admin-only):</p>
 <ul class="simple">
-<li><p><strong>Longhorn</strong> — no native auth; OAuth is the only access control</p></li>
 <li><p><strong>Headlamp</strong> — requires a ServiceAccount token after OAuth login</p></li>
+<li><p><strong>Longhorn</strong> — no native auth; OAuth is the only access control</p></li>
 <li><p><strong>Supabase Studio</strong> — requires a dashboard password after OAuth login</p></li>
 </ul>
 </section>
@@ -1111,7 +1126,7 @@ oauth2-proxy before forwarding each request.</p>
 <p>For services exposed via the Cloudflare tunnel, add a second
 authentication layer using Cloudflare Access at zero cluster overhead.
 Configure an Access Application in the Cloudflare Zero Trust dashboard
-with an email allowlist matching <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code>. See
+with an email allowlist matching both <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> and <code class="docutils literal notranslate"><span class="pre">viewer_emails</span></code>. See
 <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> for how Access Applications work.</p>
 </section>
 <section id="troubleshooting">
@@ -1124,8 +1139,11 @@ ingress values.</p>
 </section>
 <section id="after-github-login">
 <h3>403 after GitHub login<a class="headerlink" href="#after-github-login" title="Link to this heading">#</a></h3>
-<p>Check the <code class="docutils literal notranslate"><span class="pre">oauth2_emails</span></code> list in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. The authenticated GitHub
-email must be in the list.</p>
+<p>For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
+in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. Viewer users cannot access these
+services by design.</p>
+<p>For Dex-authenticated services: any GitHub user can log in. A 403 likely
+means the service has additional access restrictions.</p>
 </section>
 <section id="cookie-domain-mismatch">
 <h3>Cookie domain mismatch<a class="headerlink" href="#cookie-domain-mismatch" title="Link to this heading">#</a></h3>
@@ -1209,7 +1227,7 @@ configuration.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a2-generate-dex-client-secrets">A2: Generate Dex client secrets</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a3-create-and-seal-the-dex-secret">A3: Create and seal the Dex secret</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a4-seal-per-service-oauth-secrets">A4: Seal per-service OAuth secrets</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a5-configure-admin-emails">A5: Configure admin emails</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a5-configure-admin-and-viewer-emails">A5: Configure admin and viewer emails</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a6-deploy">A6: Deploy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-a-new-dex-static-client">Adding a new Dex static client</a></li>
 </ul>
