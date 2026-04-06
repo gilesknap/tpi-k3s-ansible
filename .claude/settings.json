@@ -8,9 +8,23 @@
       "WebSearch",
       "WebFetch(*)"
     ],
-    "prompt": [
+    "deny": [
       "Bash(git push --force *)",
-      "Bash(git reset --hard*)"
+      "Bash(git reset --hard*)",
+      "Bash(mail *)",
+      "Bash(sendmail *)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -z \"$REMOTE_CONTAINERS\" ]; then echo 'BLOCKED: This project requires the devcontainer. Please reopen in the devcontainer before using Claude Code.'; exit 2; fi; if [ \"$SSH_AUTH_SOCK\" != \"/tmp/ssh-agent.sock\" &&  -n \"$SSH_AUTH_SOCK\" ]; then echo 'BLOCKED: SSH_AUTH_SOCK is set — agent forwarding must be disabled in the devcontainer.'; exit 2; fi"
+          }
+        ]
+      }
     ]
   }
 }
