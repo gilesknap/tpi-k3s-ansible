@@ -52,6 +52,19 @@
 - **ws03 workstation taint** — any DaemonSet that needs to schedule on ws03
   must tolerate `workstation=true:NoSchedule`. The nvidia-device-plugin
   template includes this; check other DaemonSets if they need ws03.
+  Longhorn's `longhornManager`/`longhornDriver` tolerations and
+  `defaultSettings.taintToleration` are set in `templates/longhorn.yaml`
+  so CSI plugin + engine-image also run on ws03.
+- **Decommission before ArgoCD** — when tearing down the cluster, delete
+  all ArgoCD Applications (orphan cascade) *before* scaling down workloads.
+  Otherwise ArgoCD reconciliation re-creates pods faster than you can
+  remove them. After controller uninstall, strip finalizers from Longhorn
+  CRD resources (volumes, engines, etc.) since the controller is gone.
+- **Prometheus operator admission secret** — kube-prometheus-stack's
+  webhook TLS secret (`grafana-prometheus-kube-pr-admission`) is not
+  auto-created on ArgoCD-managed installs (Helm hook job is pruned).
+  Create it manually with a self-signed cert (keys: `cert`, `key`, `ca`
+  mounted at `/cert`).
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
@@ -86,6 +99,7 @@
 ## Key Paths
 
 - Playbook: `pb_all.yml` (not `site.yml`)
+- Decommission playbook: `pb_decommission.yml`
 - All Ansible vars: `group_vars/all.yml`
 - All Helm/ArgoCD values: `kubernetes-services/values.yaml`
 - ArgoCD app templates: `kubernetes-services/templates/`
