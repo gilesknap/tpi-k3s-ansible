@@ -15,6 +15,10 @@
 
 ## Foot-Guns
 
+- **Ansible `k8s` module merges annotations** — it never removes annotations
+  that were previously set on an Ingress. If you remove annotations from a
+  template (e.g. `ssl-passthrough`), you must `kubectl delete` the old
+  Ingress first, then re-run the playbook to recreate it cleanly.
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
 - **Branch switching** — only edit `group_vars/all.yml` `repo_branch`, then
