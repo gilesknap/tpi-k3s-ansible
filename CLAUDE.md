@@ -3,8 +3,13 @@
 ## Hard Rules
 
 - **Never commit/push** without asking.
-- **Never `kubectl apply/patch/edit`** — ArgoCD self-heals. Read-only kubectl is fine.
-  Exception: `kubeseal` (reads cluster key; output is committed to repo).
+- **Never mutate the live cluster** — no `kubectl apply/patch/edit/delete`
+  on ArgoCD-managed resources. All fixes go through the CD pipeline: change the
+  repo, push, let ArgoCD sync. Read-only kubectl (`get`, `describe`, `logs`,
+  `exec`, `port-forward`) is fine.
+  Exceptions: `kubeseal` (reads cluster key; output is committed to repo);
+  `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
+  `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch).
 - **Never commit to `main`** — work in branches, squash-merge when verified.
 - **Use `uv run`** for git commits (pre-commit hooks need the uv venv).
 

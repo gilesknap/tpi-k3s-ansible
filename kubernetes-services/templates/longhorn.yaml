@@ -5,6 +5,10 @@ metadata:
   namespace: argo-cd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+    # Longhorn chart has pre-delete hooks; ArgoCD's app controller adds these
+    # finalizers automatically. Declaring them here keeps the parent app in sync.
+    - pre-delete-finalizer.argocd.argoproj.io
+    - pre-delete-finalizer.argocd.argoproj.io/cleanup
 spec:
   destination:
     server: https://kubernetes.default.svc
