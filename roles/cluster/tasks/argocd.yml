@@ -50,6 +50,7 @@
     state: present
     definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
   when: dex_secret_file.stat.exists
+  ignore_errors: true  # noqa ignore-errors — SealedSecret CRD may not exist on initial bootstrap
 
 - name: Rollout restart ArgoCD if config changed # noqa no-handler
   ansible.builtin.command: >

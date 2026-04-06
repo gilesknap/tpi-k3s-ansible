@@ -2,7 +2,6 @@
 
 ## Hard Rules
 
-- **Never commit/push** without asking.
 - **Never mutate the live cluster** — no `kubectl apply/patch/edit/delete`
   on ArgoCD-managed resources. All fixes go through the CD pipeline: change the
   repo, push, let ArgoCD sync. Read-only kubectl (`get`, `describe`, `logs`,
