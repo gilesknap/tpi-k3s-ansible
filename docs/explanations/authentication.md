@@ -52,7 +52,7 @@ Dex OIDC but receive only read-only access.
 | argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
-| Headlamp | Cloudflare Access | Dex (native OIDC) | View-only (ServiceAccount) |
+| Headlamp | Cloudflare Access | oauth2-proxy | Token auth (cluster-admin SA, admin-only) |
 | Longhorn | Cloudflare Access | oauth2-proxy | None (full access after auth) |
 | Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test service) |
@@ -190,18 +190,7 @@ The discovery URL must be the full path including
 follow the 301 redirect from `/api/dex` to `/api/dex/`.
 :::
 
-### Headlamp — OIDC with view-only ServiceAccount
-
-Headlamp uses Dex OIDC for authentication (any GitHub user can log in),
-but all users share a single Kubernetes ServiceAccount with the built-in
-`view` ClusterRole. This gives every authenticated user a read-only
-dashboard — they can inspect workloads, pods, and logs, but cannot modify
-resources. Admins who need write access use `kubectl` directly.
-
-The OIDC client secret is stored in the `headlamp-oidc` SealedSecret in
-the `headlamp` namespace (created by `scripts/seal-headlamp-oidc`).
-
-### oauth2-proxy services — Longhorn, Supabase Studio
+### oauth2-proxy services — Headlamp, Longhorn, Supabase Studio
 
 Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
@@ -264,10 +253,10 @@ flowchart TB
             Monitor[argocd-monitor]
             Grafana
             OpenWebUI[Open WebUI]
-            Headlamp
         end
 
         subgraph ProxyAuth["oauth2-proxy (admin only)"]
+            Headlamp
             Longhorn
             Supabase[Supabase Studio]
         end
@@ -296,7 +285,7 @@ flowchart TB
     Monitor <-.-> DexPod
     Grafana <-.-> DexPod
     OpenWebUI <-.-> DexPod
-    Headlamp <-.-> DexPod
+    Headlamp <-.-> OAP
     Longhorn <-.-> OAP
     Supabase <-.-> OAP
 
@@ -354,7 +343,6 @@ to Git:
 | `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 5 Dex client secrets |
 | `grafana-oauth-secret` | `additions/grafana/` | Grafana's Dex client secret |
 | `open-webui-oauth-secret` | `additions/open-webui/` | Open WebUI's Dex client secret |
-| `headlamp-oidc` | `additions/dashboard/` | Headlamp's Dex client secret (created by `scripts/seal-headlamp-oidc`) |
 | `argocd-monitor-oauth-secret` | `additions/argocd-monitor/` | argocd-monitor's Dex client secret + cookie secret |
 | `oauth2-proxy-credentials` | `additions/oauth2-proxy/` | GitHub OAuth App credentials + cookie secret |
 
@@ -366,10 +354,10 @@ watched).
 
 **Why two auth paths (Dex + oauth2-proxy)?** Dex provides proper OIDC
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
-viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI,
-Headlamp) use Dex for authentication, which allows both admin and viewer
-users to log in with differentiated roles. Services without native OIDC
-(Longhorn, Supabase Studio) use oauth2-proxy as a binary admin-only gate.
+viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use Dex
+for authentication, which allows both admin and viewer users to log in
+with differentiated roles. Services without native OIDC (Headlamp,
+Longhorn, Supabase Studio) use oauth2-proxy as a binary admin-only gate.
 
 **Why is oauth2-proxy admin-only?** oauth2-proxy has no concept of roles —
 it either allows or denies an email. Since Longhorn and Supabase Studio

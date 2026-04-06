@@ -25,16 +25,6 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
-          config:
-            oidc:
-              secret:
-                create: false
-              externalSecret:
-                enabled: true
-                name: headlamp-oidc
-              usePKCE: true
-            extraArgs:
-              - "-oidc-skip-tls-verify"
           clusterRoleBinding:
             create: false  # managed by additions/dashboard/rbac.yaml
 
@@ -51,7 +41,7 @@ spec:
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: headlamp
           service_port: 80
-          oauth2_proxy: false
+          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
   syncPolicy:
     automated:

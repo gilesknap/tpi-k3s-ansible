@@ -8,8 +8,8 @@ see {doc}`/explanations/authentication`.
 This guide walks through configuring both authentication paths used by the
 cluster:
 
-- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor, Headlamp)
-- **Part B** — oauth2-proxy (Longhorn, Supabase Studio — admin-only)
+- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
+- **Part B** — oauth2-proxy (Headlamp, Longhorn, Supabase Studio — admin-only)
 
 ```{mermaid}
 flowchart LR
@@ -24,8 +24,8 @@ flowchart LR
     DEX --> Grafana
     DEX --> Open-WebUI
     DEX --> argocd-monitor
-    DEX --> Headlamp
 
+    OAP --> Headlamp
     OAP --> Longhorn
     OAP --> Supabase
 ```
@@ -139,19 +139,7 @@ admin_emails:
 `ansible-playbook pb_all.yml --tags cluster`.
 :::
 
-### A6: Seal Headlamp OIDC secret
-
-Headlamp uses Dex OIDC directly. Create its SealedSecret:
-
-```bash
-./scripts/seal-headlamp-oidc
-```
-
-This creates `kubernetes-services/additions/dashboard/headlamp-oidc-secret.yaml`.
-The client secret must match the `headlamp.clientSecret` value in
-`argocd-dex-secret`.
-
-### A7: Deploy
+### A6: Deploy
 
 Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
 restart pods that read secrets from environment variables:
@@ -256,14 +244,9 @@ oauth2-proxy before forwarding each request.
 
 Services protected by oauth2-proxy (admin-only):
 
+- **Headlamp** — requires a ServiceAccount token after OAuth login
 - **Longhorn** — no native auth; OAuth is the only access control
 - **Supabase Studio** — requires a dashboard password after OAuth login
-
-:::{note}
-Headlamp was previously behind oauth2-proxy but has been migrated to
-native Dex OIDC with a view-only ServiceAccount. All authenticated users
-(admin and viewer) can access the Headlamp dashboard in read-only mode.
-:::
 
 ---
 

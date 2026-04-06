@@ -19,7 +19,7 @@ container image tags, and OAuth configuration gaps.
 
 | # | Finding | File:Line | Impact |
 |---|---------|-----------|--------|
-| 1 | Headlamp dashboard bound to `cluster-admin` ClusterRole | `additions/dashboard/rbac.yaml:14` | Full cluster compromise if dashboard is breached |
+| 1 | ~~Headlamp dashboard bound to `cluster-admin` ClusterRole~~ (downgraded — admin-only behind Cloudflare Access + oauth2-proxy + token login) | `additions/dashboard/rbac.yaml:14` | Acceptable risk for admin-only tool behind 3 auth layers |
 | 2 | ArgoCD AppProject allows deployment to any namespace with all cluster-scoped resources | `argo-cd/argo-project.yaml:29-36` | Compromised app can create ClusterRoleBindings or deploy to kube-system |
 | 3 | HTTP redirect_uri accepted for Open WebUI in Dex config | `additions/argocd/argocd-cm.yml:42` | Protocol downgrade — attacker intercepts auth codes in plaintext |
 | 4 | No NetworkPolicy resources anywhere in the cluster | Repository-wide | No lateral movement barriers between pods |
@@ -183,7 +183,7 @@ Services use two parallel auth paths:
 | argocd-monitor | Dex OIDC sidecar | Inherits ArgoCD RBAC | Complete |
 | Grafana | Dex OIDC | Email → Admin/Viewer (JMESPath) | Complete |
 | Open WebUI | Dex OIDC | Email → admin/user (env var) | Complete |
-| Headlamp | oauth2-proxy | None — single cluster-admin token | **Not differentiated** |
+| Headlamp | oauth2-proxy (admin-only) | cluster-admin token | Admin-only (oauth2-proxy gate) |
 | Longhorn | oauth2-proxy | None — binary gate | **Not differentiated** |
 | Supabase Studio | oauth2-proxy | None — binary gate | **Not differentiated** |
 
