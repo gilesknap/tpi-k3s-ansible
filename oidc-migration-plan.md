@@ -56,35 +56,23 @@ Services staying on oauth2-proxy: **Longhorn**, **Supabase Studio**
 
 ## Phase 2: Deploy argocd-monitor
 
-**Goal**: Deploy argocd-ioc-monitor as an ArgoCD Application, using ArgoCD's Dex auth flow for API access.
+**Goal**: Deploy argocd-monitor as an ArgoCD Application with Dex auth. The upstream argocd-monitor repo already has full Dex support in its Helm charts — this phase only needs to configure and deploy it.
 
-### 2a. Modify argocd-ioc-monitor app (in its own repo)
-- **nginx.conf.template**: Point upstream at ArgoCD's internal service URL (`https://argocd-server.argo-cd.svc.cluster.local`). Keep existing `/auth/` and `/login` proxy locations — these now proxy Dex's OIDC flow.
-- **AuthGate**: Add a `VITE_AUTH_MODE=proxy` build flag. When set, skip the token-paste dialog and let the Dex OIDC redirect handle auth naturally. The app's existing cookie-based auth (`argocd.token`) will work with Dex-issued tokens.
-- **Dockerfile/entrypoint**: Add `ARGOCD_TOKEN` to envsubst list (for optional service account fallback), but primary auth is Dex OIDC.
-
-### 2b. Create ArgoCD Application template
+### 2a. Create ArgoCD Application template
 - `kubernetes-services/templates/argocd-monitor.yaml`
-- Multi-source pattern: additions sub-chart + ingress sub-chart
+- Multi-source pattern: Helm chart from argocd-monitor repo + ingress sub-chart
 - **No oauth2_proxy** on ingress — ArgoCD's Dex handles auth
 - Namespace: `argocd-monitor`
+- Helm values to configure:
+  - `argocd.baseUrl`: internal ArgoCD service URL (`https://argocd-server.argo-cd.svc.cluster.local`)
+  - Dex auth settings (callback URLs, cookie domain, etc.)
 
-### 2c. Create additions sub-chart
-- `kubernetes-services/additions/argocd-monitor/Chart.yaml`
-- `kubernetes-services/additions/argocd-monitor/values.yaml`
-- `kubernetes-services/additions/argocd-monitor/templates/deployment.yaml`
-- `kubernetes-services/additions/argocd-monitor/templates/service.yaml`
-- Container env: `ARGOCD_URL=https://argocd-server.argo-cd.svc.cluster.local`
-- Container image: `ghcr.io/epics-containers/argocd-monitor` (or user's fork)
-
-### 2d. Add chart repo to ArgoCD project (if using external chart)
-- Update `argo-cd/argo-project.yaml` sourceRepos if deploying from OCI chart
-- Not needed if deploying from git additions path
+### 2b. Add chart repo to ArgoCD project
+- Update `argo-cd/argo-project.yaml` sourceRepos to allow the argocd-monitor Helm chart source
 
 ### Files to create/modify:
 - `kubernetes-services/templates/argocd-monitor.yaml` (new)
-- `kubernetes-services/additions/argocd-monitor/` (new sub-chart)
-- Changes in argocd-ioc-monitor repo (separate from tpi-k3s-ansible)
+- `argo-cd/argo-project.yaml` (if sourceRepos update needed)
 
 ---
 

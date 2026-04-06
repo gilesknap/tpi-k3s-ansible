@@ -3,10 +3,13 @@
 - name: Install the helm chart for ArgoCD
   kubernetes.core.helm:
     chart_ref: oci://ghcr.io/argoproj/argo-helm/argo-cd
-    chart_version: 7.8.3
+    chart_version: 9.4.17
     release_name: argocd
     namespace: argo-cd
     create_namespace: true
+    values:
+      global:
+        domain: argocd.{{ cluster_domain }}
 
 - name: Patch the ArgoCD ConfigMap
   kubernetes.core.k8s:
@@ -15,10 +18,46 @@
     namespace: argo-cd
   register: argocd_cm
 
-- name: Rollout restart if configmap changed # noqa no-handler
+- name: Remove oidc.config from argocd-cm (incompatible with Dex)
+  kubernetes.core.k8s_json_patch:
+    kind: ConfigMap
+    name: argocd-cm
+    namespace: argo-cd
+    patch:
+      - op: remove
+        path: /data/oidc.config
+  register: remove_oidc
+  failed_when: false
+  changed_when: remove_oidc.result is defined
+
+- name: Apply ArgoCD RBAC ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'kubernetes-services/additions/argocd/argocd-rbac-cm.yml') }}"
+    namespace: argo-cd
+  register: argocd_rbac_cm
+
+- name: Check for ArgoCD Dex sealed secret file
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
+  register: dex_secret_file
+
+- name: Apply ArgoCD Dex sealed secret
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
+  when: dex_secret_file.stat.exists
+
+- name: Rollout restart ArgoCD if config changed # noqa no-handler
   ansible.builtin.command: >
     kubectl rollout restart -n argo-cd statefulset argocd-application-controller
-  when: argocd_cm.changed
+  when: argocd_cm.changed or argocd_rbac_cm.changed or (remove_oidc.changed | default(false))
+  changed_when: true
+
+- name: Rollout restart Dex server if config changed # noqa no-handler
+  ansible.builtin.command: >
+    kubectl rollout restart -n argo-cd deployment argocd-dex-server
+  when: argocd_cm.changed or (remove_oidc.changed | default(false))
   changed_when: true
 
 - name: Add an ArgoCD Project for the cluster
@@ -36,19 +75,3 @@
     state: present
     definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
     namespace: argo-cd
-# How to access
-
-# 1. kubectl port-forward service/argocd-server -n argo-cd 8080:443
-#     and then open the browser on http://localhost:8080 and accept the certificate
-# 2. enable ingress in the values file `server.ingress.enabled` and either
-#       - Add the annotation for ssl passthrough: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-1-ssl-passthrough
-#       - Set the `configs.params."server.insecure"` in the values file and terminate
-# SSL at your ingress: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-2-multiple-ingress-objects-and-hosts
-
-# After reaching the UI the first time you can login with username: admin and the random
-# password generated during the installation. You can find the password by running:
-
-# kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-
-# (You should delete the initial secret afterwards as suggested by the Getting Started
-# Guide: https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli)

@@ -6,18 +6,30 @@ metadata:
     app.kubernetes.io/name: argocd-cm
     app.kubernetes.io/part-of: argocd
 data:
-  # oauth2-proxy provides authentication in front of ArgoCD via the ingress.
-  # ArgoCD can also use OIDC natively for its own login page (optional).
-  # Uncomment and configure the oidc.config below to enable direct OIDC login.
-  # oidc.config: |
-  #   name: GitHub
-  #   issuer: https://token.actions.githubusercontent.com
-  #   clientID: $oidc.github.clientID
-  #   clientSecret: $oidc.github.clientSecret
-  #   requestedScopes:
-  #     - openid
-  #     - email
-  #     - profile
+  url: https://argocd.{{ cluster_domain }}
+  admin.enabled: "false"
+  dex.config: |
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: $argocd-dex-secret:dex.github.clientID
+          clientSecret: $argocd-dex-secret:dex.github.clientSecret
+          loadAllGroups: true
+    staticClients:
+      - id: argo-cd
+        name: Argo CD
+        redirectURIs:
+          - https://argocd.{{ cluster_domain }}/auth/callback
+        secret: $argocd-dex-secret:argo-cd.clientSecret
+        trustedPeers:
+          - argocd-monitor
+      - id: argocd-monitor
+        name: ArgoCD Monitor
+        redirectURIs:
+          - https://argocd-monitor.{{ cluster_domain }}/oauth2/callback
+        secret: $argocd-dex-secret:argocd-monitor.clientSecret
 
   resource.customizations: |
     monitoring.coreos.com/Prometheus:
