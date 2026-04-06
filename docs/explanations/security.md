@@ -22,17 +22,23 @@ This page describes the security measures in place across the cluster.
 
 ### Service authentication
 
-| Service | Auth method | Notes |
-|---------|------------|-------|
-| ArgoCD | Username/password | bcrypt hash in `argocd-secret` |
-| Grafana | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Longhorn | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Headlamp | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Open WebUI | OAuth (GitHub) | via oauth2-proxy + nginx ingress |
-| Echo | None (intentional) | Public test service |
-| RKLlama | None (intentional) | Internal LLM API (fronted by Open WebUI) |
+Authentication uses a three-layer model: Cloudflare Access (edge gate),
+Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
+{doc}`authentication` for the full architecture with diagrams.
 
-See {doc}`/how-to/oauth-setup` for how to configure OAuth.
+| Service | Layer 1 (Cloudflare) | Layer 2 (Ingress) | Layer 3 (App RBAC) |
+|---------|---------------------|-------------------|-------------------|
+| ArgoCD | LAN only (SSL passthrough) | Dex (native OIDC) | email → admin / readonly |
+| argocd-monitor | Cloudflare Access | Dex (sidecar) | Inherits ArgoCD RBAC |
+| Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → Admin / Viewer |
+| Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
+| Headlamp | Cloudflare Access | oauth2-proxy | Token auth |
+| Longhorn | Cloudflare Access | oauth2-proxy | None |
+| Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
+| Echo | Cloudflare Access | None | None (public test) |
+| RKLlama | — | None | Internal API (fronted by Open WebUI) |
+
+See {doc}`/how-to/oauth-setup` for setup instructions.
 
 ## Secrets management
 
@@ -47,13 +53,18 @@ Current SealedSecrets:
 
 - `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` — Cloudflare tunnel token
 - `kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml` — DNS API token
-- `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — OAuth client credentials
+- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — GitHub connector + all 5 Dex client secrets
+- `kubernetes-services/additions/grafana/grafana-oauth-secret.yaml` — Grafana's Dex client secret
+- `kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml` — Open WebUI's Dex client secret
+- `kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml` — argocd-monitor Dex client + cookie secret
+- `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — GitHub OAuth App credentials + cookie secret
 
-### Admin password
+### Admin access
 
-The `admin-auth` Kubernetes secret is created manually during bootstrap (see
-{doc}`/how-to/bootstrap-cluster`). It stores htpasswd credentials used by
-Grafana.
+Admin email addresses are configured in `oauth2_emails` in
+`kubernetes-services/values.yaml`. This single list drives admin role
+assignment across Grafana, Open WebUI, and the oauth2-proxy email
+allowlist. See {doc}`authentication` for details.
 
 ## Devcontainer credential isolation
 
@@ -112,9 +123,11 @@ No inbound ports need to be opened on your router for public-facing services.
 
 ### LAN isolation
 
-LAN-only services (ArgoCD, Grafana, Longhorn, Headlamp) use grey-cloud DNS records
-pointing to private RFC-1918 IP addresses. They are unreachable from outside the
-local network.
+ArgoCD uses SSL passthrough and is not routed through the Cloudflare
+tunnel — it is accessible only from the LAN or via `kubectl port-forward`.
+All other services are tunnel-exposed with Cloudflare Access email-gate
+protection (except `supabase-api`, which uses a bypass policy for API
+access authenticated by `x-brain-key`).
 
 ### NetworkPolicies
 
@@ -132,8 +145,7 @@ All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
 
 ## Recommendations
 
-1. **Enable OAuth** — replace basic-auth with GitHub OAuth via oauth2-proxy.
-2. **Rotate SealedSecrets periodically** — re-seal with fresh values.
+1. **Rotate SealedSecrets periodically** — re-seal with fresh values.
 3. **Back up the sealed-secrets key** — without it, a cluster rebuild requires re-creating all secrets.
 4. **Keep nodes updated** — `unattended-upgrades` handles security patches automatically.
 5. **Monitor for alerts** — Prometheus Alertmanager captures security-relevant events.

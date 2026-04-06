@@ -20,6 +20,7 @@ explanations/ansible-roles
 :maxdepth: 1
 
 explanations/networking
+explanations/authentication
 explanations/network-policies
 explanations/security
 explanations/security-hardening

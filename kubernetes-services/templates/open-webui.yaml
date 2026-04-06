@@ -48,10 +48,37 @@ spec:
           websocket:
             enabled: false
 
+          extraEnvVars:
+            - name: ENABLE_OAUTH_SIGNUP
+              value: "true"
+            - name: OAUTH_PROVIDER_NAME
+              value: "GitHub"
+            - name: OPENID_PROVIDER_URL
+              value: "https://argocd.{{ .Values.cluster_domain }}/api/dex/.well-known/openid-configuration"
+            - name: OAUTH_CLIENT_ID
+              value: "open-webui"
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-oauth-secret
+                  key: client-secret
+            - name: OAUTH_SCOPES
+              value: "openid profile email"
+            - name: OAUTH_ADMIN_EMAIL
+              value: "{{ join "," .Values.oauth2_emails }}"
+            - name: DEFAULT_USER_ROLE
+              value: "user"
+            - name: ENABLE_LOGIN_FORM
+              value: "false"
+
           persistence:
             enabled: true
             storageClass: longhorn
             size: 5Gi
+
+    - path: ./kubernetes-services/additions/open-webui
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
@@ -62,7 +89,7 @@ spec:
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: open-webui
           service_port: 80
-          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
   syncPolicy:
     automated:

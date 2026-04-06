@@ -41,3 +41,56 @@ and deploy the sealed secret:
 ```bash
 ansible-playbook pb_all.yml --tags cluster
 ```
+
+## Dex cross-client auth for argocd-monitor
+
+argocd-monitor authenticates users via an oauth2-proxy sidecar that talks to
+ArgoCD's built-in Dex server. It uses Dex cross-client auth to get tokens with
+the `argo-cd` audience so ArgoCD's API accepts them.
+
+### How it works
+
+ArgoCD auto-generates Dex static clients (`argo-cd`, `argo-cd-cli`,
+`argo-cd-pkce`) at the start of the client list. Custom clients from
+`dex.config` in `argocd-cm` are appended **after** them. When duplicate client
+IDs exist, the **last entry wins**.
+
+We override the `argo-cd` client in `dex.config` to add
+`trustedPeers: [argocd-monitor]`. The `argocd-monitor` oauth2-proxy requests
+scope `audience:server:client_id:argo-cd`, so the Dex token has the `argo-cd`
+audience that ArgoCD accepts.
+
+### Why not `server.additional.audiences`?
+
+ArgoCD with Dex **hardcodes** allowed audiences to `argo-cd` and `argo-cd-cli`
+in `OAuth2AllowedAudiences()`. The `server.additional.audiences` key in
+`argocd-cmd-params-cm` is only used with external OIDC providers (not Dex).
+Setting `allowedAudiences` in `oidc.config` is also not viable because having
+`oidc.config` present causes `IsDexDisabled()` to return true.
+
+### Client secret derivation
+
+The `argo-cd` client secret is derived from ArgoCD's `server.secretkey`:
+
+```
+SHA256(server.secretkey string)[:30 bytes] → base64url (no padding)
+```
+
+The `just seal-argocd-dex` recipe computes this automatically.
+
+## Dex as shared OIDC provider
+
+Dex also serves as the OIDC provider for other cluster services, removing
+the need for separate GitHub OAuth Apps or oauth2-proxy on those services.
+
+| Static Client | Service | Auth Method |
+|---------------|---------|-------------|
+| `argo-cd` | ArgoCD | Built-in Dex integration |
+| `argocd-monitor` | argocd-monitor | oauth2-proxy sidecar |
+| `grafana` | Grafana | `auth.generic_oauth` in `grafana.ini` |
+| `open-webui` | Open WebUI | `OPENID_PROVIDER_URL` env var |
+| `headlamp` | Headlamp | Pre-registered, not yet active (needs K3s API server OIDC) |
+
+Each service has its own SealedSecret containing the client secret.
+The Dex secret (`argocd-dex-secret`) holds all client secrets referenced
+by `$argocd-dex-secret:<key>` in `argocd-cm`.

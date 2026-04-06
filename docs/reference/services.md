@@ -9,19 +9,19 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | cert-manager | `jetstack/cert-manager` | v1.19.4 | `cert-manager` | — | — | TLS certificate management |
 | cloudflared | Plain manifests | 2026.2.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
-| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 82.4.1 | `monitoring` | `grafana.<domain>` | OAuth | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.40.0 | `headlamp` | `headlamp.<domain>` | OAuth | Kubernetes dashboard |
+| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 82.4.1 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
+| Headlamp | `headlamp/headlamp` | 0.40.0 | `headlamp` | `headlamp.<domain>` | oauth2-proxy | Kubernetes dashboard |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 7.12.10 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth authentication proxy |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 7.12.10 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Headlamp, Supabase |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.18.2 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| Open WebUI | `open-webui/open-webui` | 12.5.0 | `open-webui` | `open-webui.<domain>` | OAuth | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| Open WebUI | `open-webui/open-webui` | 12.5.0 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
 | Open Brain MCP | Helm chart (local) | — | `open-brain-mcp` | `brain.<domain>` | OAuth 2.1 (GitHub) | Standalone MCP server for AI memory |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.3 | `kube-system` | — | — | Encrypted secrets in Git |
-| Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | OAuth (Studio), x-brain-key (API) | Self-hosted backend-as-a-service platform |
+| Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | oauth2-proxy (Studio) + dashboard password, x-brain-key (API) | Self-hosted backend-as-a-service platform |
 
 ## Service details
 
@@ -58,7 +58,8 @@ Image pinned to `0.9.2`.
 ### Grafana + Prometheus (kube-prometheus-stack)
 
 Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
-Alertmanager for alerts. Protected by OAuth via oauth2-proxy. Longhorn persistent
+Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
+emails in `oauth2_emails` get Admin role, others get Viewer. Longhorn persistent
 volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
 100m/256Mi request, 500m/512Mi limit.
 
@@ -66,7 +67,8 @@ Uses `ServerSideApply=true` sync option due to large CRDs.
 
 ### Headlamp
 
-Modern Kubernetes dashboard. Protected by OAuth via oauth2-proxy. Uses a
+Modern Kubernetes dashboard. Protected by oauth2-proxy (a Dex client is
+pre-registered for future native OIDC migration). Uses a
 ServiceAccount with `cluster-admin` binding and a long-lived token Secret.
 Resource limits: 50m/128Mi request, 200m/256Mi limit.
 
@@ -98,8 +100,9 @@ oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.
 ### oauth2-proxy
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Integrated with nginx ingress annotations. Resource limits: 10m/64Mi
-request, 100m/128Mi limit.
+for login. Protects services without native OIDC support: Longhorn, Headlamp,
+and Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+10m/64Mi request, 100m/128Mi limit.
 
 **Additional manifests:** `additions/oauth2-proxy/`
 - `oauth2-proxy-secret.yaml` — SealedSecret for GitHub OAuth credentials
@@ -180,8 +183,9 @@ default and survives k3s-agent restarts.
 
 ### Open WebUI
 
-ChatGPT-style web interface for interacting with LLMs. Protected by OAuth via
-oauth2-proxy. Connects to both:
+ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
+(OIDC) with GitHub — emails in `oauth2_emails` get admin role, others get
+user role. Password login is disabled. Connects to both:
 
 - **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
 - **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
@@ -195,7 +199,7 @@ Either backend is optional. The service works with just RKLLama (RK1 cluster),
 just llama.cpp (NVIDIA GPU node), or both simultaneously.
 :::
 
-The first user to register becomes the admin. RK1 models appear after being pulled
+RK1 models appear after being pulled
 via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as soon
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see {doc}`/how-to/llamacpp-models`).
@@ -247,4 +251,10 @@ ArgoCD is not in the `kubernetes-services/templates/` directory — it is instal
 directly by the Ansible `cluster` role using the OCI Helm chart (v7.8.3). It is the
 foundation that all other services depend on.
 
+Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
+emails to `role:admin` or `role:readonly` via `argocd-rbac-cm.yml`.
+
 Access: `argocd.<domain>` (SSL passthrough) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:443`.
+
+See {doc}`/explanations/authentication` for details on how Dex is shared
+across services.

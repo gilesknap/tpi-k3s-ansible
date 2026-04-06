@@ -64,6 +64,11 @@ ssh-agent:
     echo "Run this in your shell to use the agent:"
     echo "  export SSH_AUTH_SOCK=$sock"
 
+# Show Supabase Studio dashboard credentials
+supabase-creds:
+    @echo "User: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.username}' | base64 -d)"
+    @echo "Pass: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.dashboard-password}' | base64 -d)"
+
 # Seal ArgoCD Dex secrets (GitHub OAuth + argocd-monitor client)
 seal-argocd-dex:
     #!/bin/bash

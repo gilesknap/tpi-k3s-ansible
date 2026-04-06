@@ -30,6 +30,34 @@ spec:
               existingSecret: admin-auth
               userKey: user
               passwordKey: password
+            envFromSecrets:
+              - name: grafana-oauth-secret
+                optional: false
+            grafana.ini:
+              server:
+                root_url: https://grafana.{{ .Values.cluster_domain }}
+              users:
+                allow_sign_up: true
+              auth:
+                disable_signup_form: true
+                disable_login_form: true
+              auth.generic_oauth:
+                enabled: true
+                name: GitHub (via Dex)
+                client_id: grafana
+                client_secret: $__env{CLIENT_SECRET}
+                auth_url: https://argocd.{{ .Values.cluster_domain }}/api/dex/auth
+                token_url: https://argocd.{{ .Values.cluster_domain }}/api/dex/token
+                api_url: https://argocd.{{ .Values.cluster_domain }}/api/dex/userinfo
+                scopes: openid profile email
+                allow_sign_up: true
+                email_attribute_path: email
+                login_attribute_path: email
+                name_attribute_path: name
+                use_pkce: true
+                tls_skip_verify_insecure: true
+                role_attribute_path: "({{- range $i, $e := .Values.oauth2_emails }}{{- if $i }} || {{ end }}email == '{{ $e }}'{{- end }}) && 'Admin' || 'Viewer'"
+                role_attribute_strict: true
             persistence:
               enabled: true
               type: sts
@@ -92,6 +120,10 @@ spec:
                 value: "true"
                 effect: NoSchedule
 
+    - path: ./kubernetes-services/additions/grafana
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -101,7 +133,7 @@ spec:
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: grafana-prometheus
           service_port: 80
-          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
   ignoreDifferences:
   - group: apps
