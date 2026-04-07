@@ -142,7 +142,8 @@ argocd-sync:
 set-admin-password:
     #!/bin/bash
     set -euo pipefail
-    printf "Enter admin password: " && read -s PASSWORD < /dev/tty && echo
+    PASSWORD="${ADMIN_PASSWORD:-}"
+    if [ -z "$PASSWORD" ]; then printf "Enter admin password: " && read -s PASSWORD < /dev/tty && echo; fi
     HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
     for ns in longhorn monitoring headlamp; do
         kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
@@ -195,8 +196,10 @@ seal-argocd-dex:
     #!/bin/bash
     set -euo pipefail
     SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
-    read -p  "GitHub OAuth Client ID: " client_id < /dev/tty
-    read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo
+    client_id="${GITHUB_CLIENT_ID:-}"
+    client_secret="${GITHUB_CLIENT_SECRET:-}"
+    if [ -z "$client_id" ]; then read -p "GitHub OAuth Client ID: " client_id < /dev/tty; fi
+    if [ -z "$client_secret" ]; then read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo; fi
     # argo-cd client secret: SHA256(server.secretkey as base64 string) → base64url[:40]
     argocd_client_secret=$(kubectl get secret argocd-secret -n argo-cd \
         -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
