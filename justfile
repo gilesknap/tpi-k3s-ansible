@@ -142,7 +142,8 @@ argocd-sync:
 set-admin-password:
     #!/bin/bash
     set -euo pipefail
-    printf "Enter admin password: " && read -s PASSWORD < /dev/tty && echo
+    PASSWORD="${ADMIN_PASSWORD:-}"
+    if [ -z "$PASSWORD" ]; then printf "Enter admin password: " && read -s PASSWORD < /dev/tty && echo; fi
     HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
     for ns in longhorn monitoring headlamp; do
         kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
@@ -170,6 +171,15 @@ supabase-creds:
 headlamp-token:
     @kubectl create token headlamp-admin -n headlamp --duration=2400h
 
+# secret extraction ############################################################
+
+# Extract all plaintext secrets from the running cluster before teardown.
+# Writes extracted-secrets.json and sealed-secrets-keys.yaml to OUTPUT_DIR
+# (default /tmp/cluster-secrets). Used before rebuild so secrets can be
+# re-sealed with the new cluster's sealed-secrets keys.
+extract-secrets output_dir="/tmp/cluster-secrets":
+    scripts/extract-secrets {{ output_dir }}
+
 # sealed secrets ###############################################################
 
 # Seal an arbitrary secret. Usage: just seal <name> <namespace> key1=val1 key2=val2 ...
@@ -185,6 +195,106 @@ seal name namespace *args:
         $literals --dry-run=client -o yaml | \
         kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml
 
+# Seal all non-Dex secrets from an extracted-secrets JSON file.
+# Usage: just seal-from-json /tmp/cluster-secrets/extracted-secrets.json
+# Skips secrets handled by seal-argocd-dex. Uses the correct key names
+# and output paths for each secret.
+seal-from-json json_file:
+    #!/bin/bash
+    set -euo pipefail
+    SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+    BASE="kubernetes-services/additions"
+    JSON="{{ json_file }}"
+    if [ ! -f "$JSON" ]; then
+        echo "ERROR: JSON file not found: $JSON" >&2
+        exit 1
+    fi
+    # Helper: extract a key value from the JSON for a given secret name and namespace
+    get_key() {
+        local name="$1" ns="$2" key="$3"
+        val=$(jq -r --arg name "$name" --arg ns "$ns" --arg key "$key" \
+            '.[] | select(.name == $name and .namespace == $ns) | .data[$key] // empty' "$JSON")
+        if [ -z "$val" ]; then
+            echo "ERROR: missing key '$key' in secret '$name' (namespace '$ns')" >&2
+            exit 1
+        fi
+        echo "$val"
+    }
+    # Helper: check a secret exists in the JSON
+    has_secret() {
+        local name="$1" ns="$2"
+        jq -e --arg name "$name" --arg ns "$ns" \
+            '.[] | select(.name == $name and .namespace == $ns)' "$JSON" > /dev/null 2>&1
+    }
+    # 1. cloudflare-api-token (cert-manager)
+    echo "Sealing: cloudflare-api-token..."
+    kubectl create secret generic cloudflare-api-token --namespace=cert-manager \
+        --from-literal=api-token="$(get_key cloudflare-api-token cert-manager api-token)" \
+        --dry-run=client -o yaml | $SEAL \
+        > "$BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
+    echo "  -> $BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
+    # 2. cloudflared-credentials (cloudflared)
+    echo "Sealing: cloudflared-credentials..."
+    kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
+        --from-literal=TUNNEL_TOKEN="$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN)" \
+        --dry-run=client -o yaml | $SEAL \
+        > "$BASE/cloudflared/tunnel-secret.yaml"
+    echo "  -> $BASE/cloudflared/tunnel-secret.yaml"
+    # 3. oauth2-proxy-credentials (oauth2-proxy)
+    echo "Sealing: oauth2-proxy-credentials..."
+    kubectl create secret generic oauth2-proxy-credentials --namespace=oauth2-proxy \
+        --from-literal=client-secret="$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)" \
+        --from-literal=cookie-secret="$(get_key oauth2-proxy-credentials oauth2-proxy cookie-secret)" \
+        --from-literal=client-id="$(get_key oauth2-proxy-credentials oauth2-proxy client-id)" \
+        --dry-run=client -o yaml | $SEAL \
+        > "$BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
+    echo "  -> $BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
+    # 4. open-brain-mcp-secret (open-brain-mcp)
+    echo "Sealing: open-brain-mcp-secret..."
+    kubectl create secret generic open-brain-mcp-secret --namespace=open-brain-mcp \
+        --from-literal=DATABASE_URL="$(get_key open-brain-mcp-secret open-brain-mcp DATABASE_URL)" \
+        --from-literal=MCP_JWT_SECRET="$(get_key open-brain-mcp-secret open-brain-mcp MCP_JWT_SECRET)" \
+        --from-literal=GITHUB_CLIENT_ID="$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_ID)" \
+        --from-literal=GITHUB_CLIENT_SECRET="$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)" \
+        --from-literal=SUPABASE_SERVICE_KEY="$(get_key open-brain-mcp-secret open-brain-mcp SUPABASE_SERVICE_KEY)" \
+        --dry-run=client -o yaml | $SEAL \
+        > "$BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
+    echo "  -> $BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
+    # 5. supabase-credentials (supabase) — all keys from extracted JSON
+    echo "Sealing: supabase-credentials..."
+    literals=""
+    while IFS= read -r key; do
+        val=$(jq -r --arg name "supabase-credentials" --arg ns "supabase" --arg key "$key" \
+            '.[] | select(.name == $name and .namespace == $ns) | .data[$key]' "$JSON")
+        literals="$literals --from-literal=$key=$val"
+    done < <(jq -r '.[] | select(.name == "supabase-credentials" and .namespace == "supabase") | .data | keys[]' "$JSON")
+    if [ -z "$literals" ]; then
+        echo "ERROR: supabase-credentials not found in JSON" >&2
+        exit 1
+    fi
+    kubectl create secret generic supabase-credentials --namespace=supabase \
+        $literals --dry-run=client -o yaml | $SEAL \
+        > "$BASE/supabase/templates/supabase-secret.yaml"
+    echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
+    # 6. supabase-mcp-env (supabase) — MCP_ACCESS_KEY
+    # The extracted JSON may have this as mcp-access-key or MCP_ACCESS_KEY;
+    # try the extracted secret's key and seal as MCP_ACCESS_KEY.
+    echo "Sealing: supabase-mcp-env..."
+    if has_secret supabase-mcp-env supabase; then
+        # supabase-mcp-env exists as its own secret
+        mcp_key=$(jq -r '.[] | select(.name == "supabase-mcp-env" and .namespace == "supabase") | .data | to_entries[0].value' "$JSON")
+    else
+        echo "ERROR: supabase-mcp-env not found in JSON" >&2
+        exit 1
+    fi
+    kubectl create secret generic supabase-mcp-env --namespace=supabase \
+        --from-literal=MCP_ACCESS_KEY="$mcp_key" \
+        --dry-run=client -o yaml | $SEAL \
+        > "$BASE/supabase/templates/mcp-env-secret.yaml"
+    echo "  -> $BASE/supabase/templates/mcp-env-secret.yaml"
+    echo ""
+    echo "All non-Dex secrets sealed. Run 'just seal-argocd-dex' separately for Dex/OAuth secrets."
+
 # Seal all Dex-related secrets: argocd-dex-secret (all static client
 # secrets), argocd-monitor oauth2-proxy, grafana-oauth, open-webui-oauth.
 # Prompts for GitHub OAuth credentials. The argo-cd client secret is
@@ -195,8 +305,10 @@ seal-argocd-dex:
     #!/bin/bash
     set -euo pipefail
     SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
-    read -p  "GitHub OAuth Client ID: " client_id < /dev/tty
-    read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo
+    client_id="${GITHUB_CLIENT_ID:-}"
+    client_secret="${GITHUB_CLIENT_SECRET:-}"
+    if [ -z "$client_id" ]; then read -p "GitHub OAuth Client ID: " client_id < /dev/tty; fi
+    if [ -z "$client_secret" ]; then read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo; fi
     # argo-cd client secret: SHA256(server.secretkey as base64 string) → base64url[:40]
     argocd_client_secret=$(kubectl get secret argocd-secret -n argo-cd \
         -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
@@ -243,6 +355,42 @@ seal-argocd-dex:
       --dry-run=client -o yaml | $SEAL \
       > kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
     echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
+
+# GPU operations ###############################################################
+
+# Reinstall NVIDIA container toolkit on GPU nodes and restart the
+# nvidia-device-plugin pods. Run after k3s reinstall to restore the
+# containerd runtime config that GPU pods need.
+gpu-setup:
+    #!/bin/bash
+    set -euo pipefail
+    # Find GPU nodes from inventory (nvidia_gpu_node: true)
+    gpu_nodes=$(ansible-inventory --list 2>/dev/null | \
+        python3 -c "
+            import sys, json
+            inv = json.load(sys.stdin)
+            hosts = inv.get('_meta', {}).get('hostvars', {})
+            gpu = [h for h, v in hosts.items() if v.get('nvidia_gpu_node', False)]
+            print(','.join(gpu))
+        "
+    if [ -z "$gpu_nodes" ]; then
+        echo "No GPU nodes found (nvidia_gpu_node: true) in inventory"
+        exit 0
+    fi
+    echo "GPU nodes: $gpu_nodes"
+    echo "=== Running --tags servers on GPU nodes ==="
+    SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-/tmp/ssh-agent.sock}" \
+        ansible-playbook pb_all.yml --tags servers --limit "$gpu_nodes"
+    echo ""
+    echo "=== Waiting for k3s-agent to restart ==="
+    sleep 10
+    echo ""
+    echo "=== Deleting nvidia-device-plugin pods for fresh rollout ==="
+    kubectl delete pod -n nvidia-device-plugin \
+        -l app.kubernetes.io/name=nvidia-device-plugin \
+        --ignore-not-found
+    echo ""
+    echo "GPU setup complete. The DaemonSet will create fresh pods with NVIDIA runtime."
 
 # ArgoCD operations ############################################################
 
