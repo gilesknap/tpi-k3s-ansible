@@ -148,10 +148,10 @@ After all iterations complete (or all remaining items are blocked):
 | 4 | `set-admin-password` is interactive | done 2026-04-07 | #256 | accept env var |
 | 5 | Manual `just seal` for each remaining secret | done 2026-04-07 | #258 | batch seal recipe or ansible task |
 | 6 | Prometheus admission secret manual creation | done 2026-04-07 | #257 | ansible post-task |
-| 7 | GPU node separate playbook run + pod deletion | todo | -- | playbook ordering or role |
-| 8 | Branch management (edit/revert repo_branch) | todo | -- | `--extra-vars` |
-| 9 | Two playbook runs (initial + post-seal) | todo | #247+#245 | single run after 1+2 fixed |
-| 11 | Secret extraction script generated each time | todo | -- | committed script |
+| 7 | GPU node separate playbook run + pod deletion | done 2026-04-07 | #260 | just gpu-setup recipe |
+| 8 | Branch management (edit/revert repo_branch) | done 2026-04-07 | #261 | `--extra-vars` |
+| 9 | Two playbook runs (initial + post-seal) | wontfix | -- | inherent ordering: seal after controller exists |
+| 11 | Secret extraction script generated each time | done 2026-04-07 | #262 | committed script |
 
 ## Priority Order
 
