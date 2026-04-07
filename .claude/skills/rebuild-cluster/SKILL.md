@@ -314,6 +314,12 @@ kubectl rollout restart deployment cert-manager -n cert-manager
   pods to force reschedule after engine-image shows `deployed`.
 - **Prometheus operator CrashLoop** — run `just create-prometheus-admission-secret`
   then delete the stuck pod.
+- **ArgoCD Monitor OAuth login loop** — if argocd-monitor loops back to
+  Dex after "Grant Access", check the oauth2-proxy sidecar logs for
+  "cookie signature not valid". The shared oauth2-proxy sets
+  `cookie-domain=.gkcluster.org` so its `_oauth2_proxy` cookie reaches
+  all subdomains. The sidecar must use `--cookie-name=_oauth2_proxy_monitor`
+  to avoid the clash (already set in the template).
 
 ## Phase 6: Verify via curl
 

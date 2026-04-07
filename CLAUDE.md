@@ -74,6 +74,11 @@
   from provider" on login. The `just seal-argocd-dex` recipe generates
   secrets for all clients (grafana, open-webui, headlamp,
   argocd-monitor) and also seals the matching service-side secrets.
+- **Sidecar oauth2-proxy cookie clash** — the shared oauth2-proxy sets
+  `cookie-domain=.gkcluster.org`, so its `_oauth2_proxy` cookie reaches all
+  subdomains. Any service with its own oauth2-proxy sidecar (e.g.
+  argocd-monitor) must use `--cookie-name=<unique>` to avoid validating
+  the shared proxy's cookie with its own secret (→ infinite login loop).
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
