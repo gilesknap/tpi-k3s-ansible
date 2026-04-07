@@ -135,25 +135,21 @@ kubectl get apps -n argo-cd  # 18 apps syncing
 
 ### 4a. Set admin password
 
-Use the password extracted in Phase 1c:
-
 ```bash
+export ADMIN_PASSWORD="<value from extracted-secrets.json>"
 just set-admin-password
 ```
 
 ### 4b. Re-seal all secrets
 
-**ArgoCD Dex secret** — script the `seal-argocd-dex` recipe
-non-interactively. Read the GitHub OAuth Client ID and Secret from
-`extracted-secrets.json` (keys: `dex.github.clientID`,
-`dex.github.clientSecret` in `argo-cd/argocd-dex-secret`).
+**ArgoCD Dex secret** — set env vars from `extracted-secrets.json`
+and run the recipe:
 
-The recipe generates new random secrets for all Dex static clients
-and seals **five** files:
-- `argocd-dex-secret.yaml` (8 keys — GitHub OAuth + all static client secrets)
-- `argocd-monitor-oauth-secret.yaml`
-- `grafana-oauth-secret.yaml`
-- `open-webui-oauth-secret.yaml`
+```bash
+export GITHUB_CLIENT_ID=<dex.github.clientID from argo-cd/argocd-dex-secret>
+export GITHUB_CLIENT_SECRET=<dex.github.clientSecret from argo-cd/argocd-dex-secret>
+just seal-argocd-dex
+```
 
 **CRITICAL**: the `argocd-dex-secret` must contain keys for **every**
 Dex static client defined in `dex.config` (`grafana.clientSecret`,
@@ -161,10 +157,6 @@ Dex static client defined in `dex.config` (`grafana.clientSecret`,
 `argocd-monitor.clientSecret`). If any are missing, Dex's
 `$argocd-dex-secret:key` resolution silently returns empty and the
 service gets "Failed to get token from provider" on login.
-
-The matching service-side secrets (`grafana-oauth-secret`,
-`open-webui-oauth-secret`) must contain the **same** generated value
-so the service and Dex agree on the client secret.
 
 **Open Brain MCP secret** — do NOT use `./scripts/seal-mcp-secret`
 (it fetches Supabase credentials from the cluster, which doesn't exist
