@@ -65,28 +65,6 @@
     namespace: argo-cd
   register: argocd_rbac_cm
 
-- name: Check for ArgoCD Dex sealed secret file
-  ansible.builtin.stat:
-    path: "{{ playbook_dir }}/kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
-  register: dex_secret_file
-
-- name: Apply ArgoCD Dex sealed secret
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
-  when: dex_secret_file.stat.exists
-  ignore_errors: true  # noqa ignore-errors — SealedSecret CRD may not exist on initial bootstrap
-
-# ArgoCD requires this label for $secret:key resolution in dex.config.
-# SealedSecrets may not propagate it, so ensure it after the secret exists.
-- name: Label argocd-dex-secret for ArgoCD secret resolution
-  ansible.builtin.command:
-    cmd: >-
-      kubectl label secret argocd-dex-secret -n argo-cd
-      app.kubernetes.io/part-of=argocd --overwrite
-  changed_when: true
-  failed_when: false
-
 - name: Rollout restart ArgoCD if config changed # noqa no-handler
   ansible.builtin.command: >
     kubectl rollout restart -n argo-cd statefulset argocd-application-controller
@@ -114,3 +92,39 @@
     state: present
     definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
     namespace: argo-cd
+
+# Wait for sealed-secrets controller before applying SealedSecret resources.
+# The root Application (above) triggers ArgoCD to sync the sealed-secrets
+# child app, which installs the CRD and controller. Without this wait,
+# SealedSecret resources fail because the CRD does not exist yet. (#247)
+- name: Wait for sealed-secrets controller to be ready
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: sealed-secrets
+    namespace: kube-system
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+
+- name: Check for ArgoCD Dex sealed secret file
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
+  register: dex_secret_file
+
+- name: Apply ArgoCD Dex sealed secret
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
+  when: dex_secret_file.stat.exists
+
+# ArgoCD requires this label for $secret:key resolution in dex.config.
+# SealedSecrets may not propagate it, so ensure it after the secret exists.
+- name: Label argocd-dex-secret for ArgoCD secret resolution
+  ansible.builtin.command:
+    cmd: >-
+      kubectl label secret argocd-dex-secret -n argo-cd
+      app.kubernetes.io/part-of=argocd --overwrite
+  changed_when: true
+  failed_when: false
