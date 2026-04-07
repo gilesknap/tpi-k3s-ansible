@@ -186,7 +186,7 @@ directly with GitHub. It protects services that lack native OIDC support.
 ### B2: Generate a cookie secret
 
 ```bash
-python3 -c 'import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
+python3 -c 'import os,base64; print(base64.b64encode(os.urandom(32)).decode())'
 ```
 
 ### B3: Create and seal the credentials
