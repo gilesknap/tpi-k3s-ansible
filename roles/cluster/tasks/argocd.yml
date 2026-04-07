@@ -14,6 +14,31 @@
         params:
           server.insecure: "true"
 
+- name: Read ArgoCD server.secretkey for Dex client secret computation
+  ansible.builtin.shell:
+    cmd: kubectl get secret argocd-secret -n argo-cd -o 'jsonpath={.data.server\.secretkey}'
+    executable: /bin/bash
+  register: _server_secretkey_b64
+  changed_when: false
+
+# ArgoCD auto-generates a Dex `argo-cd` static client with a secret derived
+# from server.secretkey: SHA256(base64_string) → base64url[:40].
+# Our dex.config re-declares this client (to add trustedPeers), so the secret
+# must match exactly or OAuth callbacks fail with "invalid_client".
+- name: Compute Dex argo-cd client secret
+  ansible.builtin.command:
+    cmd: >-
+      python3 -c "import hashlib,base64,sys;
+      k=base64.b64decode(sys.argv[1]).decode();
+      print(base64.urlsafe_b64encode(hashlib.sha256(k.encode()).digest()).decode()[:40])"
+      "{{ _server_secretkey_b64.stdout }}"
+  register: _dex_secret_cmd
+  changed_when: false
+
+- name: Set Dex client secret fact
+  ansible.builtin.set_fact:
+    _argocd_dex_client_secret: "{{ _dex_secret_cmd.stdout }}"
+
 - name: Patch the ArgoCD ConfigMap
   kubernetes.core.k8s:
     state: present
@@ -51,6 +76,16 @@
     definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
   when: dex_secret_file.stat.exists
   ignore_errors: true  # noqa ignore-errors — SealedSecret CRD may not exist on initial bootstrap
+
+# ArgoCD requires this label for $secret:key resolution in dex.config.
+# SealedSecrets may not propagate it, so ensure it after the secret exists.
+- name: Label argocd-dex-secret for ArgoCD secret resolution
+  ansible.builtin.command:
+    cmd: >-
+      kubectl label secret argocd-dex-secret -n argo-cd
+      app.kubernetes.io/part-of=argocd --overwrite
+  changed_when: true
+  failed_when: false
 
 - name: Rollout restart ArgoCD if config changed # noqa no-handler
   ansible.builtin.command: >
