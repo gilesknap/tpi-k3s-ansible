@@ -210,26 +210,18 @@ the new sealed secrets yet. Run `just argocd-sync` again.
 just restart-dex
 ```
 
-### 4f. Run `--tags servers` on GPU nodes
+### 4f. GPU node setup
 
-If the cluster has GPU nodes (e.g. ws03), the NVIDIA container toolkit
-containerd config needs to be reapplied after k3s reinstall:
-
-```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags servers --limit ws03
-```
-
-The playbook restarts k3s-agent, but the nvidia-device-plugin pod
-created by ArgoCD's initial sync will already be CrashLooping (it
-started before the NVIDIA runtime was configured). After the playbook
-completes, delete the stuck pod so the DaemonSet creates a fresh one:
+Restore NVIDIA container runtime config and restart GPU pods:
 
 ```bash
-kubectl delete pod -n nvidia-device-plugin -l app.kubernetes.io/name=nvidia-device-plugin
+just gpu-setup
 ```
 
-Wait for the new pod to become Ready — this also unblocks `llamacpp`
-which is Pending until GPU resources are advertised.
+This auto-detects GPU nodes from inventory (`nvidia_gpu_node: true`),
+runs `--tags servers` on them, then deletes the CrashLooping
+nvidia-device-plugin pods so the DaemonSet creates fresh ones with
+the NVIDIA runtime available. Also unblocks `llamacpp`.
 
 ## Phase 5: Verify cluster health
 
