@@ -81,6 +81,9 @@
   subdomains. Any service with its own oauth2-proxy sidecar (e.g.
   argocd-monitor) must use `--cookie-name=<unique>` to avoid validating
   the shared proxy's cookie with its own secret (→ infinite login loop).
+- **oauth2-proxy cookie_secret size** — must be exactly 16, 24, or 32 bytes
+  for AES cipher. Using `base64.b64encode(token_bytes(32))` produces 44
+  chars → crash. Use `secrets.token_urlsafe(32)[:32]` instead.
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
