@@ -120,10 +120,9 @@ ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
 SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags k3s,cluster
 ```
 
-The `--tags cluster` step will log an error on the Dex SealedSecret
-apply (sealed-secrets CRD doesn't exist yet on a fresh cluster). This
-is handled by `ignore_errors: true` and the secret is applied later by
-ArgoCD once sealed-secrets syncs. See issue #247 for a proper fix.
+The `--tags cluster` step automatically waits for the sealed-secrets
+controller to be ready before applying the Dex SealedSecret (up to
+300s). No manual wait is needed.
 
 ### Verify rebuild
 
@@ -134,15 +133,7 @@ kubectl get apps -n argo-cd  # 18 apps syncing
 
 ## Phase 4: Bootstrap
 
-### 4a. Wait for sealed-secrets
-
-```bash
-kubectl wait --for=condition=ready pod \
-  -l app.kubernetes.io/name=sealed-secrets \
-  -n kube-system --timeout=300s
-```
-
-### 4b. Set admin password
+### 4a. Set admin password
 
 Use the password extracted in Phase 1c:
 
@@ -150,7 +141,7 @@ Use the password extracted in Phase 1c:
 just set-admin-password
 ```
 
-### 4c. Re-seal all secrets
+### 4b. Re-seal all secrets
 
 **ArgoCD Dex secret** — script the `seal-argocd-dex` recipe
 non-interactively. Read the GitHub OAuth Client ID and Secret from
@@ -210,13 +201,13 @@ names when sealing (not the names from the extracted JSON):
 **File naming**: must be `*-secret.yaml` (singular) to match the
 `.gitleaks.toml` allowlist.
 
-### 4d. Switch ArgoCD to the rebuild branch
+### 4c. Switch ArgoCD to the rebuild branch
 
 Edit `group_vars/all.yml`: set `repo_branch` to the rebuild branch name.
 **Do not commit this change** — it is only needed temporarily so ArgoCD
 syncs the re-sealed secrets from the branch. It is reverted in Phase 8a.
 
-### 4e. Commit, push, and apply
+### 4d. Commit, push, and apply
 
 ```bash
 uv run git add kubernetes-services/additions/
@@ -231,7 +222,7 @@ The `--tags cluster` run will:
 - Label the `argocd-dex-secret` for `$secret:key` resolution
 - Update the root Application to track the rebuild branch
 
-### 4f. Force sync and verify secrets
+### 4e. Force sync and verify secrets
 
 ```bash
 just argocd-sync
@@ -245,13 +236,13 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4g. Restart Dex
+### 4f. Restart Dex
 
 ```bash
 just restart-dex
 ```
 
-### 4h. Run `--tags servers` on GPU nodes
+### 4g. Run `--tags servers` on GPU nodes
 
 If the cluster has GPU nodes (e.g. ws03), the NVIDIA container toolkit
 containerd config needs to be reapplied after k3s reinstall:
@@ -272,7 +263,7 @@ kubectl delete pod -n nvidia-device-plugin -l app.kubernetes.io/name=nvidia-devi
 Wait for the new pod to become Ready — this also unblocks `llamacpp`
 which is Pending until GPU resources are advertised.
 
-### 4i. Create Prometheus admission webhook secret
+### 4h. Create Prometheus admission webhook secret
 
 The kube-prometheus-stack webhook TLS secret is not auto-created on
 ArgoCD-managed installs (Helm hook job is pruned). Create it manually:
@@ -293,7 +284,7 @@ after creating the secret to trigger a restart.
 Run `just status` repeatedly (with 60-second waits) until **all** of
 these pass. Do not proceed until every app is Healthy:
 - [ ] All nodes Ready
-- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4h)
+- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4g)
 - [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
 
 If any SealedSecrets show `False` with "no key could decrypt":
