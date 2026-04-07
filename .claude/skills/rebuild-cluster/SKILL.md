@@ -169,8 +169,7 @@ The `--extra-vars` flag overrides `repo_branch` at runtime without
 editing `group_vars/all.yml`, so there is nothing to revert afterwards.
 
 The `--tags cluster` run will:
-- Compute the correct Dex client secret from `server.secretkey`
-- Patch the ArgoCD ConfigMap with the resolved secret
+- Install/upgrade ArgoCD via Helm with all config (dex.config, RBAC, resource customizations) in a single step
 - Label the `argocd-dex-secret` for `$secret:key` resolution
 - Update the root Application to track the rebuild branch
 
