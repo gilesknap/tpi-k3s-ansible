@@ -144,8 +144,8 @@ After all iterations complete (or all remaining items are blocked):
 |---|------------|--------|-------|--------|
 | 1 | Sealed-secrets CRD not ready on first run (`ignore_errors`) | done 2026-04-07 | #247 | ansible role wait loop |
 | 2 | Dex ConfigMap patch separate from Helm install | todo | #245 | move into Helm values |
-| 3 | `seal-argocd-dex` is interactive (prompts for GitHub creds) | todo | -- | accept env vars |
-| 4 | `set-admin-password` is interactive | todo | -- | accept env var |
+| 3 | `seal-argocd-dex` is interactive (prompts for GitHub creds) | done 2026-04-07 | #256 | accept env vars |
+| 4 | `set-admin-password` is interactive | done 2026-04-07 | #256 | accept env var |
 | 5 | Manual `just seal` for each remaining secret | todo | -- | batch seal recipe or ansible task |
 | 6 | Prometheus admission secret manual creation | todo | -- | ansible post-task |
 | 7 | GPU node separate playbook run + pod deletion | todo | -- | playbook ordering or role |
