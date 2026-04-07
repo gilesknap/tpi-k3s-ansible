@@ -1,0 +1,371 @@
+# Decommission playbook — tears down the K3s cluster while preserving NFS data.
+# Data on Longhorn PVCs is lost; NFS-backed models and backups survive.
+#
+# Usage:
+#   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml
+#
+# The playbook is idempotent — safe to re-run if interrupted.
+#
+# Key insight: ArgoCD reconciliation must be stopped BEFORE scaling down
+# workloads, otherwise ArgoCD re-creates them faster than we can remove them.
+# After controller uninstall, CRD resources retain finalizers that never
+# resolve — the playbook strips them to unblock namespace deletion.
+
+# ---------------------------------------------------------------------------
+# Play 1: Stop ArgoCD reconciliation (orphan cascade)
+# ---------------------------------------------------------------------------
+- name: Stop ArgoCD reconciliation
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Delete all ArgoCD applications (orphan cascade)
+      ansible.builtin.command:
+        cmd: >-
+          kubectl delete applications.argoproj.io --all
+          -n argo-cd --cascade=orphan --timeout=60s
+      changed_when: true
+      failed_when: false
+
+    - name: Verify no ArgoCD applications remain
+      ansible.builtin.command:
+        cmd: kubectl get applications.argoproj.io -n argo-cd --no-headers
+      register: apps_check
+      until: apps_check.stdout == ""
+      retries: 6
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    # Orphan cascade can leave apps with ArgoCD finalizers that block deletion
+    - name: Strip finalizers from any remaining ArgoCD applications
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl get applications.argoproj.io -n argo-cd -o name 2>/dev/null |
+          xargs -r -n1 -I{} kubectl patch {} -n argo-cd --type=merge
+          -p '{"metadata":{"finalizers":null}}'
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Strip finalizers from ArgoCD AppProjects
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl get appprojects.argoproj.io -n argo-cd -o name 2>/dev/null |
+          xargs -r -n1 -I{} kubectl patch {} -n argo-cd --type=merge
+          -p '{"metadata":{"finalizers":null}}'
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+# ---------------------------------------------------------------------------
+# Play 2: Graceful Longhorn teardown
+# ---------------------------------------------------------------------------
+- name: Gracefully tear down Longhorn volumes
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Scale down monitoring workloads
+      kubernetes.core.k8s:
+        api_version: apps/v1
+        kind: "{{ item.kind }}"
+        name: "{{ item.name }}"
+        namespace: monitoring
+        state: present
+        resource_definition:
+          spec:
+            replicas: 0
+      loop:
+        - { kind: Deployment, name: grafana-prometheus-kube-pr-operator }
+        - { kind: StatefulSet, name: alertmanager-grafana-prometheus-kube-pr-alertmanager }
+        - { kind: StatefulSet, name: grafana-prometheus }
+        - { kind: StatefulSet, name: prometheus-grafana-prometheus-kube-pr-prometheus }
+      ignore_errors: true  # noqa ignore-errors
+
+    - name: Scale down open-webui
+      kubernetes.core.k8s:
+        api_version: apps/v1
+        kind: StatefulSet
+        name: open-webui
+        namespace: open-webui
+        state: present
+        resource_definition:
+          spec:
+            replicas: 0
+      ignore_errors: true  # noqa ignore-errors
+
+    - name: Scale down supabase workloads
+      kubernetes.core.k8s:
+        api_version: apps/v1
+        kind: "{{ item.kind }}"
+        name: "{{ item.name }}"
+        namespace: supabase
+        state: present
+        resource_definition:
+          spec:
+            replicas: 0
+      loop:
+        - { kind: Deployment, name: supabase-supabase-auth }
+        - { kind: Deployment, name: supabase-supabase-functions }
+        - { kind: Deployment, name: supabase-supabase-kong }
+        - { kind: Deployment, name: supabase-supabase-meta }
+        - { kind: Deployment, name: supabase-supabase-minio }
+        - { kind: Deployment, name: supabase-supabase-realtime }
+        - { kind: Deployment, name: supabase-supabase-rest }
+        - { kind: Deployment, name: supabase-supabase-storage }
+        - { kind: Deployment, name: supabase-supabase-studio }
+        - { kind: StatefulSet, name: supabase-supabase-db }
+      ignore_errors: true  # noqa ignore-errors
+
+    - name: Wait for pods to terminate
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Delete Longhorn PVCs
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: "{{ item.name }}"
+        namespace: "{{ item.ns }}"
+        state: absent
+      loop:
+        - { ns: monitoring, name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0 }
+        - { ns: monitoring, name: storage-grafana-prometheus-0 }
+        - { ns: open-webui, name: open-webui }
+        - { ns: supabase, name: supabase-db }
+        - { ns: supabase, name: supabase-deno }
+        - { ns: supabase, name: supabase-functions }
+        - { ns: supabase, name: supabase-minio }
+        - { ns: supabase, name: supabase-snippets }
+        - { ns: supabase, name: supabase-storage }
+      ignore_errors: true  # noqa ignore-errors
+
+    - name: Wait for Longhorn volumes to detach
+      ansible.builtin.command:
+        cmd: kubectl get volumes.longhorn.io -A --no-headers
+      register: lh_volumes
+      until: lh_volumes.stdout == ""
+      retries: 18
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    # After controller uninstall, Longhorn finalizers never resolve.
+    # Strip them so volumes and attachments can be garbage-collected.
+    - name: Strip finalizers from Longhorn volume attachments
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl get volumeattachments.longhorn.io -A -o json 2>/dev/null |
+          python3 -c "import sys,json,subprocess;
+          [subprocess.run(['kubectl','patch','volumeattachment.longhorn.io/'+i['metadata']['name'],
+          '-n',i['metadata']['namespace'],'--type=merge',
+          '-p','{\"metadata\":{\"finalizers\":null}}'],capture_output=True)
+          for i in json.load(sys.stdin).get('items',[]) if i['metadata'].get('finalizers')]"
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Strip finalizers from Longhorn volumes
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl get volumes.longhorn.io -A -o json 2>/dev/null |
+          python3 -c "import sys,json,subprocess;
+          [subprocess.run(['kubectl','patch','volume.longhorn.io/'+i['metadata']['name'],
+          '-n',i['metadata']['namespace'],'--type=merge',
+          '-p','{\"metadata\":{\"finalizers\":null}}'],capture_output=True)
+          for i in json.load(sys.stdin).get('items',[]) if i['metadata'].get('finalizers')]"
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Uninstall longhorn Helm release
+      ansible.builtin.command:
+        cmd: helm uninstall longhorn -n longhorn
+      changed_when: true
+      failed_when: false
+
+    - name: Wait for longhorn namespace resources to drain
+      ansible.builtin.pause:
+        seconds: 30
+
+    # Strip finalizers from all remaining Longhorn CRD instances so CRD
+    # deletion does not block indefinitely.
+    - name: Strip finalizers from all Longhorn CRD resources
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          for crd in $(kubectl get crd 2>/dev/null | grep longhorn | awk '{print $1}'); do
+            kubectl get "$crd" -A -o json 2>/dev/null |
+            python3 -c "import sys,json,subprocess;
+            [subprocess.run(['kubectl','patch',
+            sys.argv[1]+'/'+i['metadata']['name'],
+            '-n',i['metadata'].get('namespace','default'),
+            '--type=merge','-p','{\"metadata\":{\"finalizers\":null}}'],
+            capture_output=True)
+            for i in json.load(sys.stdin).get('items',[])
+            if i['metadata'].get('finalizers')]" "$crd";
+          done
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Remove lingering Longhorn CRDs
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl get crd 2>/dev/null | grep longhorn | awk '{print $1}' |
+          xargs -r -n1 kubectl delete crd --timeout=15s
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Force-delete remaining longhorn namespace resources
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          kubectl delete all --all -n longhorn --force --grace-period=0 2>/dev/null;
+          kubectl delete jobs --all -n longhorn --force --grace-period=0 2>/dev/null;
+          true
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Delete longhorn namespace
+      ansible.builtin.command:
+        cmd: kubectl delete namespace longhorn --timeout=60s
+      changed_when: true
+      failed_when: false
+
+    - name: Wait for longhorn namespace to terminate
+      ansible.builtin.command:
+        cmd: kubectl get namespace longhorn
+      register: lh_ns
+      until: lh_ns.rc != 0
+      retries: 18
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+# ---------------------------------------------------------------------------
+# Play 3: Remove ArgoCD and remaining namespaces
+# ---------------------------------------------------------------------------
+- name: Remove ArgoCD and cluster services
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Uninstall ArgoCD Helm release
+      ansible.builtin.command:
+        cmd: helm uninstall argocd -n argo-cd
+      changed_when: true
+      failed_when: false
+
+    - name: Strip finalizers from remaining argo-cd resources
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          for kind in appprojects.argoproj.io applicationsets.argoproj.io; do
+            kubectl get "$kind" -n argo-cd -o name 2>/dev/null |
+            xargs -r -n1 -I{} kubectl patch {} -n argo-cd --type=merge
+            -p '{"metadata":{"finalizers":null}}';
+          done
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Delete argo-cd namespace
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: argo-cd
+        state: absent
+      ignore_errors: true  # noqa ignore-errors
+
+    - name: Wait for argo-cd namespace to terminate
+      ansible.builtin.command:
+        cmd: kubectl get namespace argo-cd
+      register: argocd_ns
+      until: argocd_ns.rc != 0
+      retries: 18
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: Clean up remaining app namespaces
+      ansible.builtin.command:
+        cmd: "kubectl delete namespace {{ item }} --timeout=60s"
+      loop:
+        - argo-rollouts
+        - argocd-monitor
+        - cert-manager
+        - cloudflared
+        - echo
+        - headlamp
+        - ingress-nginx
+        - longhorn
+        - monitoring
+        - oauth2-proxy
+        - open-brain-mcp
+        - open-webui
+        - supabase
+      changed_when: true
+      failed_when: false
+
+    - name: Wait for namespaces to terminate
+      ansible.builtin.pause:
+        seconds: 30
+
+# ---------------------------------------------------------------------------
+# Play 4: Uninstall k3s — workers first, then control plane
+# ---------------------------------------------------------------------------
+- name: Uninstall k3s from worker nodes
+  hosts: all_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  order: reverse_sorted
+  tasks:
+    - name: Run k3s-agent-uninstall.sh
+      ansible.builtin.command:
+        cmd: /usr/local/bin/k3s-agent-uninstall.sh
+        removes: /usr/local/bin/k3s-agent-uninstall.sh
+      when: inventory_hostname != groups['turingpi_nodes'][0]
+
+    - name: Run k3s-uninstall.sh on control plane
+      ansible.builtin.command:
+        cmd: /usr/local/bin/k3s-uninstall.sh
+        removes: /usr/local/bin/k3s-uninstall.sh
+      when: inventory_hostname == groups['turingpi_nodes'][0]
+
+# ---------------------------------------------------------------------------
+# Play 5: Node cleanup
+# ---------------------------------------------------------------------------
+- name: Clean up node state
+  hosts: all_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Disconnect orphaned iSCSI sessions
+      ansible.builtin.command:
+        cmd: iscsiadm -m session --logout
+      changed_when: true
+      failed_when: false
+
+    - name: Remove /var/lib/longhorn
+      ansible.builtin.file:
+        path: /var/lib/longhorn
+        state: absent
+
+    - name: Remove /var/lib/rancher
+      ansible.builtin.file:
+        path: /var/lib/rancher
+        state: absent
+
+    - name: Remove leftover device-mapper devices
+      ansible.builtin.shell:
+        cmd: set -o pipefail && dmsetup ls --target=verity 2>/dev/null | awk '{print $1}' | xargs -r -n1 dmsetup remove
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
