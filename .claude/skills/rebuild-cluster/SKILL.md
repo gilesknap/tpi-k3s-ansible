@@ -43,25 +43,31 @@ git checkout <base-branch> && git pull
 git checkout -b rebuild-$(date +%Y%m%d)
 ```
 
-### 1b. Extract secrets
+### 1b. Collect external credentials
 
-Extract all plaintext secret values from the running cluster before
-teardown. After rebuild, sealed-secrets generates new encryption keys
-so existing SealedSecret YAML files become useless.
+The following credentials cannot be generated and must be provided as
+environment variables. Read them from the running cluster before teardown:
 
 ```bash
-just extract-secrets
+# Dex GitHub OAuth app
+export GITHUB_CLIENT_ID=$(kubectl get secret argocd-dex-secret -n argo-cd -o jsonpath='{.data.dex\.github\.clientID}' | base64 -d)
+export GITHUB_CLIENT_SECRET=$(kubectl get secret argocd-dex-secret -n argo-cd -o jsonpath='{.data.dex\.github\.clientSecret}' | base64 -d)
+
+# Cloudflare tokens
+export CLOUDFLARE_API_TOKEN=$(kubectl get secret cloudflare-api-token -n cert-manager -o jsonpath='{.data.api-token}' | base64 -d)
+export CLOUDFLARE_TUNNEL_TOKEN=$(kubectl get secret cloudflared-credentials -n cloudflared -o jsonpath='{.data.TUNNEL_TOKEN}' | base64 -d)
+
+# oauth2-proxy GitHub OAuth app
+export OAUTH2_PROXY_CLIENT_ID=$(kubectl get secret oauth2-proxy-credentials -n oauth2-proxy -o jsonpath='{.data.client-id}' | base64 -d)
+export OAUTH2_PROXY_CLIENT_SECRET=$(kubectl get secret oauth2-proxy-credentials -n oauth2-proxy -o jsonpath='{.data.client-secret}' | base64 -d)
+
+# open-brain-mcp GitHub OAuth app
+export OPEN_BRAIN_GITHUB_CLIENT_ID=$(kubectl get secret open-brain-mcp-secret -n open-brain-mcp -o jsonpath='{.data.GITHUB_CLIENT_ID}' | base64 -d)
+export OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(kubectl get secret open-brain-mcp-secret -n open-brain-mcp -o jsonpath='{.data.GITHUB_CLIENT_SECRET}' | base64 -d)
 ```
 
-This extracts all required secrets to `/tmp/cluster-secrets/extracted-secrets.json`
-and backs up sealed-secrets encryption keys to `sealed-secrets-keys.yaml`.
-
-**Never commit `/tmp/cluster-secrets/` to git.**
-
-### 1c. Check the admin-auth password
-
-Read the `password` key from any `admin-auth` secret — you will need it
-in Phase 5. Store it in a variable for later use.
+Keep these env vars set for Phase 3. Everything else (admin passwords,
+cookie secrets, Supabase JWTs, Dex client secrets) is generated fresh.
 
 ## Phase 2: Decommission
 
@@ -98,15 +104,31 @@ ssh ansible@<worker-node> "which k3s"  # should return nothing
 ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
 ```
 
-## Phase 3: Rebuild
+## Phase 3: Rebuild (single playbook run)
+
+With `GENERATE_SECRETS=true` and the external credential env vars from
+Phase 1b, a single playbook run handles everything: K3s install, ArgoCD
+setup, secret generation, sealing, git commit/push, and admin password.
 
 ```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags k3s,cluster
+GENERATE_SECRETS=true \
+SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
+ansible-playbook pb_all.yml --tags k3s,cluster \
+  --extra-vars repo_branch=<branch-name>
 ```
 
-The `--tags cluster` step automatically waits for the sealed-secrets
-controller to be ready before applying the Dex SealedSecret (up to
-300s). No manual wait is needed.
+The playbook automatically:
+1. Installs K3s on all nodes
+2. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
+3. Waits for the sealed-secrets controller (up to 300s)
+4. Generates all secrets fresh (random tokens, Supabase JWTs, etc.)
+5. Seals them with `kubeseal` using the new cluster's keys
+6. Sets the admin password (generated or from `ADMIN_PASSWORD` env var)
+7. Commits and pushes the sealed secret files
+8. Applies the ArgoCD Dex sealed secret and labels it
+
+The admin password is printed in the output and saved to
+`/tmp/cluster-secrets/admin-password.txt`.
 
 ### Verify rebuild
 
@@ -115,65 +137,9 @@ kubectl get nodes  # 6 nodes Ready
 kubectl get apps -n argo-cd  # 18 apps syncing
 ```
 
-## Phase 4: Bootstrap
+## Phase 4: Post-rebuild
 
-### 4a. Set admin password
-
-```bash
-export ADMIN_PASSWORD="<value from extracted-secrets.json>"
-just set-admin-password
-```
-
-### 4b. Re-seal all secrets
-
-**ArgoCD Dex secret** — set env vars from `extracted-secrets.json`
-and run the recipe:
-
-```bash
-export GITHUB_CLIENT_ID=<dex.github.clientID from argo-cd/argocd-dex-secret>
-export GITHUB_CLIENT_SECRET=<dex.github.clientSecret from argo-cd/argocd-dex-secret>
-just seal-argocd-dex
-```
-
-**CRITICAL**: the `argocd-dex-secret` must contain keys for **every**
-Dex static client defined in `dex.config` (`grafana.clientSecret`,
-`open-webui.clientSecret`, `headlamp.clientSecret`,
-`argocd-monitor.clientSecret`). If any are missing, Dex's
-`$argocd-dex-secret:key` resolution silently returns empty and the
-service gets "Failed to get token from provider" on login.
-
-**All other secrets** — seal everything else in one command:
-
-```bash
-just seal-from-json /tmp/cluster-secrets/extracted-secrets.json
-```
-
-This handles cloudflare-api-token, cloudflared-credentials,
-oauth2-proxy-credentials, open-brain-mcp-secret, supabase-credentials,
-and supabase-mcp-env with the correct key names and output paths.
-
-**Note**: do NOT use `./scripts/seal-mcp-secret` for open-brain-mcp —
-it fetches Supabase credentials from the cluster, which doesn't exist
-yet on a fresh rebuild. `seal-from-json` uses the extracted JSON instead.
-
-### 4c. Commit, push, and apply
-
-```bash
-uv run git add kubernetes-services/additions/
-uv run git commit -m "Re-seal all secrets for rebuilt cluster"
-git push origin <branch-name>
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster --extra-vars repo_branch=<branch-name>
-```
-
-The `--extra-vars` flag overrides `repo_branch` at runtime without
-editing `group_vars/all.yml`, so there is nothing to revert afterwards.
-
-The `--tags cluster` run will:
-- Install/upgrade ArgoCD via Helm with all config (dex.config, RBAC, resource customizations) in a single step
-- Label the `argocd-dex-secret` for `$secret:key` resolution
-- Update the root Application to track the rebuild branch
-
-### 4d. Force sync and verify secrets
+### 4a. Force sync and verify secrets
 
 ```bash
 just argocd-sync
@@ -187,13 +153,13 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4e. Restart Dex
+### 4b. Restart Dex
 
 ```bash
 just restart-dex
 ```
 
-### 4f. GPU node setup
+### 4c. GPU node setup
 
 Restore NVIDIA container runtime config and restart GPU pods:
 
@@ -215,7 +181,7 @@ the NVIDIA runtime available. Also unblocks `llamacpp`.
 Run `just status` repeatedly (with 60-second waits) until **all** of
 these pass. Do not proceed until every app is Healthy:
 - [ ] All nodes Ready
-- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4f)
+- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4c)
 - [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
 
 If any SealedSecrets show `False` with "no key could decrypt":
@@ -230,7 +196,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
 
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
-- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4h)
+- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4c)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash

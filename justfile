@@ -356,6 +356,34 @@ seal-argocd-dex:
       > kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
     echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
 
+# Generate all secrets fresh and seal them in one step. Used during rebuild
+# to eliminate the extract→decommission→seal→second-run cycle. External
+# credentials must be set as env vars (see scripts/generate-secrets --help).
+# After sealing, also sets the admin password and restarts Dex.
+generate-and-seal-all output_dir="/tmp/cluster-secrets":
+    #!/bin/bash
+    set -euo pipefail
+    echo "=== Generating fresh secrets ==="
+    scripts/generate-secrets {{ output_dir }}
+    JSON="{{ output_dir }}/generated-secrets.json"
+    echo ""
+    echo "=== Sealing all non-Dex secrets ==="
+    just seal-from-json "$JSON"
+    echo ""
+    echo "=== Sealing Dex/OAuth secrets ==="
+    # seal-argocd-dex reads GITHUB_CLIENT_ID/SECRET from env (already set)
+    just seal-argocd-dex
+    echo ""
+    echo "=== Setting admin password ==="
+    ADMIN_PASSWORD=$(cat "{{ output_dir }}/admin-password.txt")
+    export ADMIN_PASSWORD
+    just set-admin-password
+    echo ""
+    echo "=== All secrets generated, sealed, and admin password set ==="
+    echo "Admin password: $ADMIN_PASSWORD"
+    echo ""
+    echo "Next: commit the sealed secret files and push."
+
 # GPU operations ###############################################################
 
 # Reinstall NVIDIA container toolkit on GPU nodes and restart the
@@ -366,13 +394,7 @@ gpu-setup:
     set -euo pipefail
     # Find GPU nodes from inventory (nvidia_gpu_node: true)
     gpu_nodes=$(ansible-inventory --list 2>/dev/null | \
-        python3 -c "
-import sys, json
-inv = json.load(sys.stdin)
-hosts = inv.get('_meta', {}).get('hostvars', {})
-gpu = [h for h, v in hosts.items() if v.get('nvidia_gpu_node', False)]
-print(','.join(gpu))
-")
+        python3 -c "import sys,json; inv=json.load(sys.stdin); hosts=inv.get('_meta',{}).get('hostvars',{}); print(','.join(h for h,v in hosts.items() if v.get('nvidia_gpu_node',False)))")
     if [ -z "$gpu_nodes" ]; then
         echo "No GPU nodes found (nvidia_gpu_node: true) in inventory"
         exit 0

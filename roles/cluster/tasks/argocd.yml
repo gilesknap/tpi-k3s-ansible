@@ -183,6 +183,47 @@
       status: "True"
     wait_timeout: 300
 
+# When GENERATE_SECRETS=true, generate fresh secrets, seal them, commit, and
+# push — all in one playbook run. This eliminates the manual extract→seal→
+# second-run cycle during cluster rebuild. External credentials must be
+# provided as env vars (GITHUB_CLIENT_ID, CLOUDFLARE_API_TOKEN, etc.).
+- name: Generate and seal all secrets for rebuild
+  ansible.builtin.shell:
+    cmd: just generate-and-seal-all
+    chdir: "{{ playbook_dir }}"
+    executable: /bin/bash
+  environment:
+    GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_ID') }}"
+    GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_SECRET') }}"
+    CLOUDFLARE_API_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_API_TOKEN') }}"
+    CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TUNNEL_TOKEN') }}"
+    OAUTH2_PROXY_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_ID') }}"
+    OAUTH2_PROXY_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_SECRET') }}"
+    OPEN_BRAIN_GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OPEN_BRAIN_GITHUB_CLIENT_ID') }}"
+    OPEN_BRAIN_GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OPEN_BRAIN_GITHUB_CLIENT_SECRET') }}"
+    ADMIN_PASSWORD: "{{ lookup('ansible.builtin.env', 'ADMIN_PASSWORD', default='') }}"
+    SMTP_USERNAME: "{{ lookup('ansible.builtin.env', 'SMTP_USERNAME', default='') }}"
+    SMTP_PASSWORD: "{{ lookup('ansible.builtin.env', 'SMTP_PASSWORD', default='') }}"
+    OPENAI_API_KEY: "{{ lookup('ansible.builtin.env', 'OPENAI_API_KEY', default='') }}"
+  when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+  changed_when: true
+
+- name: Commit and push sealed secrets for rebuild
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      cd "{{ playbook_dir }}"
+      git add kubernetes-services/additions/
+      if git diff --cached --quiet; then
+        echo "No changes to commit"
+      else
+        uv run git commit -m "Re-seal all secrets for rebuilt cluster"
+        git push
+      fi
+    executable: /bin/bash
+  when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+  changed_when: true
+
 - name: Check for ArgoCD Dex sealed secret file
   ansible.builtin.stat:
     path: "{{ playbook_dir }}/kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
