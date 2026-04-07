@@ -1,14 +1,14 @@
 ---
 name: improve-rebuild-cluster
-description: Iteratively run rebuild-cluster, fix what breaks, push complexity into automation, shrink the skill and docs. One improvement per invocation.
+description: Iteratively simplify the rebuild-cluster skill — automate manual steps, shrink the skill, ship each fix as a PR into a working branch.
 user-invocable: true
 ---
 
 # Improve Rebuild Cluster
 
 Iteratively simplify the `rebuild-cluster` skill by automating manual
-steps. Each invocation fixes one thing, verifies it with a full rebuild,
-and ships the improvement.
+steps. Runs autonomously through the entire convergence checklist,
+shipping each fix as a separate PR into a working branch.
 
 ## North Star
 
@@ -23,86 +23,103 @@ the rebuild skill gets shorter each iteration.
 - Reference GitHub issues when fixes address them
 - Use `uv run` for commits, `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"` for ansible
 - Read CLAUDE.md before starting -- it has hard rules and foot-guns
+- **Work autonomously** -- iterate through all checklist items without
+  pausing for user input. Only stop if blocked or if a fix would be
+  destructive to the live cluster.
 
-## Phase 1: Assess
+## Branch Strategy
 
-This skill runs from a clean context. Gather all state first.
+All improvements land on a single **working branch** (`improve-rebuild-skill`)
+that collects every fix. Each fix gets its own feature branch and PR
+targeting the working branch (not `main`).
 
-**Launch up to 3 Explore agents in parallel:**
-- Agent 1: Read CLAUDE.md + MEMORY.md + this skill's convergence checklist
-- Agent 2: Read the rebuild-cluster skill, count manual intervention points and lines
-- Agent 3: Check `gh issue list --state open` for issues that eliminate manual steps
+```
+main
+ └── improve-rebuild-skill          ← working branch (PRs merge here)
+      ├── improve-rebuild-<fix-1>   ← feature branch → PR into working
+      ├── improve-rebuild-<fix-2>
+      └── ...
+```
 
-Then synthesize findings:
-1. Check which checklist items are `done` vs `todo`
-2. Pick the highest-impact `todo` item: blocks other fixes > most frequent > has clear GitHub issue
-3. Present the pick and approach to the user before proceeding
+At the end the user reviews all closed PRs and merges
+`improve-rebuild-skill` → `main` in one go.
 
-## Phase 2: Branch and Fix
+### Setup (first invocation only)
 
 ```bash
-git checkout main && git pull && git checkout -b improve-rebuild-<description>
+git checkout main && git pull
+git checkout -b improve-rebuild-skill
+git push -u origin improve-rebuild-skill
+```
+
+If `improve-rebuild-skill` already exists, check it out and pull.
+Retarget any existing PRs that point at `main` to `improve-rebuild-skill`.
+
+## Iteration Loop
+
+Repeat for each `todo` item in the convergence checklist, in priority
+order. Each iteration follows steps 1–6 below, then loops back to
+step 1 for the next item.
+
+### Step 1: Assess
+
+Read the convergence checklist. Pick the next `todo` item by priority.
+Use Explore agents if you need to research the target area.
+
+### Step 2: Branch and Fix
+
+```bash
+git checkout improve-rebuild-skill && git pull
+git checkout -b improve-rebuild-<description>
 ```
 
 Implement the fix in the appropriate layer:
-- **Ansible role** -- ordering/wait/automation (e.g. #247 sealed-secrets wait)
-- **Helm values** -- config consolidation (e.g. #245 dex.config into Helm)
+- **Ansible role** -- ordering/wait/automation
+- **Helm values** -- config consolidation
 - **Justfile recipe** -- make interactive recipes accept env vars/args
-- **Script** -- new automation (e.g. batch secret sealing)
+- **Script** -- new automation
 
-Use Explore agents to research the target area while planning the fix.
-For independent changes in different files, use parallel general-purpose
-agents in worktrees.
+### Step 3: Verify the Fix
 
-## Phase 3: Verify the Fix
-
-Run the relevant portion of the rebuild to confirm the fix works:
+Run the relevant portion against the live cluster:
 - Ansible: `SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags <tag>`
 - Just recipes: run the recipe and check output
 
-**Inner loop** -- iterate until it passes. Do not move on until verified
-against the live cluster.
+**Inner loop** -- iterate until it passes.
 
-## Phase 4: Shrink the Skill
+### Step 4: Shrink the Skill
 
 1. Edit `.claude/skills/rebuild-cluster/SKILL.md` -- remove or simplify
    the steps that the fix automated away
 2. If the fix also simplifies a how-to doc, simplify that too
 3. The skill should get measurably shorter (fewer lines, fewer manual steps)
 
-## Phase 5: Full Validation
-
-Run `/rebuild-cluster` end-to-end to verify the improvement works in
-the full rebuild context. **This phase is mandatory.**
-
-- Fix breaks related to the change: go back to Phase 2
-- Note unrelated breaks for the next iteration (add to checklist)
-- If rebuild passes: proceed to Phase 6
-
-Delegate Phase 7 browser verification to a subagent (it generates
-huge context from screenshots). Use background agents for health
-monitoring during post-rebuild steps.
-
-## Phase 6: Ship
+### Step 5: Ship
 
 1. `uv run git commit` -- reference GitHub issue if applicable
 2. Update the convergence checklist below (mark item `done`, add date)
-3. Push and create PR
-4. Run `/memo` to capture what changed
-5. Report to user:
-   - What was automated
-   - How much shorter the rebuild skill got (line count before/after)
-   - What the next highest-priority item is
+3. Push and create PR **targeting `improve-rebuild-skill`**
+4. Merge the PR immediately (`gh pr merge --squash`)
+5. Note: line count before/after for the final report
+
+### Step 6: Loop or Finish
+
+- More `todo` items remain → go to Step 1
+- All items `done` → proceed to Wrap-up
+- Blocked on an item → skip it, note why, continue to next
+
+## Wrap-up
+
+After all iterations complete:
+
+1. Run `/memo` to capture what changed
+2. Report to user:
+   - Summary table of all PRs shipped
+   - Total skill line count change (start → end)
+   - Any items skipped and why
    - Any new manual steps discovered
-
-## Phase 7: Next Iteration
-
-Check the convergence checklist:
-- Remaining `todo` items: suggest running `/improve-rebuild-cluster` again
-- All `done`: report completion
-- New items discovered: add to checklist and note them
-
-Each invocation handles one improvement. Run again for the next one.
+3. The user reviews closed PRs, then merges
+   `improve-rebuild-skill` → `main`
 
 ## Convergence Checklist
 
