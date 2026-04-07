@@ -158,40 +158,19 @@ Dex static client defined in `dex.config` (`grafana.clientSecret`,
 `$argocd-dex-secret:key` resolution silently returns empty and the
 service gets "Failed to get token from provider" on login.
 
-**Open Brain MCP secret** — do NOT use `./scripts/seal-mcp-secret`
-(it fetches Supabase credentials from the cluster, which doesn't exist
-yet on a fresh rebuild). Instead use `just seal` with all 5 keys from
-the extracted JSON.
+**All other secrets** — seal everything else in one command:
 
-**All other secrets** — use `just seal` for each, redirecting output to
-the correct file path. Check existing paths with:
 ```bash
-git ls-files -- '**/*secret*.yaml' | grep additions
+just seal-from-json /tmp/cluster-secrets/extracted-secrets.json
 ```
 
-For each remaining secret in the extracted JSON, run:
-```bash
-just seal <name> <namespace> key1=val1 key2=val2 ... \
-  > kubernetes-services/additions/<service>/<name>-secret.yaml
-```
+This handles cloudflare-api-token, cloudflared-credentials,
+oauth2-proxy-credentials, open-brain-mcp-secret, supabase-credentials,
+and supabase-mcp-env with the correct key names and output paths.
 
-**Key name reference** — the key names in the live secrets may differ
-from the key names expected by the deployments. Always use these key
-names when sealing (not the names from the extracted JSON):
-
-| Secret | Seal with key name(s) |
-|--------|----------------------|
-| `cloudflare-api-token` | `api-token` |
-| `cloudflared-credentials` | `TUNNEL_TOKEN` |
-| `grafana-oauth-secret` | `CLIENT_SECRET` (uppercase — loaded via `envFromSecrets`) |
-| `oauth2-proxy-credentials` | `client-secret`, `cookie-secret`, `client-id` |
-| `open-webui-oauth-secret` | `client-secret` |
-| `open-brain-mcp-secret` | `DATABASE_URL`, `MCP_JWT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SUPABASE_SERVICE_KEY` |
-| `supabase-credentials` | (15 keys — use all keys from extracted JSON as-is) |
-| `supabase-mcp-env` | `MCP_ACCESS_KEY` (not `SUPABASE_ACCESS_TOKEN`) |
-
-**File naming**: must be `*-secret.yaml` (singular) to match the
-`.gitleaks.toml` allowlist.
+**Note**: do NOT use `./scripts/seal-mcp-secret` for open-brain-mcp —
+it fetches Supabase credentials from the cluster, which doesn't exist
+yet on a fresh rebuild. `seal-from-json` uses the extracted JSON instead.
 
 ### 4c. Switch ArgoCD to the rebuild branch
 
