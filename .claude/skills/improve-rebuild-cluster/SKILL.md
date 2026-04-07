@@ -57,60 +57,77 @@ Retarget any existing PRs that point at `main` to `improve-rebuild-skill`.
 
 ## Iteration Loop
 
-Repeat for each `todo` item in the convergence checklist, in priority
-order. Each iteration follows steps 1–6 below, then loops back to
-step 1 for the next item.
+The **orchestrator** (this skill's top-level context) picks the next
+item from the checklist and delegates each fix to a **subagent**. This
+keeps the main context small — each subagent starts fresh, does the
+work, and returns a summary.
 
-### Step 1: Assess
+### Orchestrator loop
 
-Read the convergence checklist. Pick the next `todo` item by priority.
-Use Explore agents if you need to research the target area.
+For each `todo` item in priority order:
 
-### Step 2: Branch and Fix
+1. Read the convergence checklist to pick the next item
+2. Record the current rebuild-skill line count (`wc -l`)
+3. Launch a **general-purpose Agent** (not Explore) with `mode: "auto"`
+   and a prompt containing:
+   - Which checklist item to fix (number, description, target)
+   - The branch strategy: branch from `improve-rebuild-skill`, PR back
+   - The rules from this skill (uv run, SSH_AUTH_SOCK, CLAUDE.md, etc.)
+   - Instructions to: implement fix → verify on cluster → shrink
+     rebuild skill → commit → push → create PR targeting
+     `improve-rebuild-skill` → merge the PR (`gh pr merge --squash`)
+   - Instruction to return: what changed, PR number, new line count,
+     any blockers or new issues discovered
+4. When the subagent returns:
+   - Pull the working branch to get the merged changes
+   - Update the convergence checklist (mark `done` + date)
+   - Commit the checklist update directly to `improve-rebuild-skill`
+   - If blocked: note the reason and continue to next item
+5. Repeat for the next `todo` item
 
-```bash
-git checkout improve-rebuild-skill && git pull
-git checkout -b improve-rebuild-<description>
+### Subagent prompt template
+
 ```
+You are improving the rebuild-cluster skill in /workspaces/tpi-k3s-ansible.
 
-Implement the fix in the appropriate layer:
-- **Ansible role** -- ordering/wait/automation
-- **Helm values** -- config consolidation
-- **Justfile recipe** -- make interactive recipes accept env vars/args
-- **Script** -- new automation
+## Task
+Fix checklist item #{N}: {description}
+Target: {target}
+{GitHub issue reference if any}
 
-### Step 3: Verify the Fix
+## Branch strategy
+1. git checkout improve-rebuild-skill && git pull
+2. git checkout -b improve-rebuild-{short-name}
+3. Do the work (see below)
+4. uv run git commit (reference issue if applicable)
+5. git push -u origin improve-rebuild-{short-name}
+6. Create PR targeting improve-rebuild-skill (not main)
+   Use: gh pr create --base improve-rebuild-skill --title "..." --body "..."
+   IMPORTANT: gh pr edit fails on this repo (classic projects bug).
+   Use gh api for edits: gh api repos/gilesknap/tpi-k3s-ansible/pulls/N -X PATCH -f ...
+7. Merge: gh pr merge --squash
+8. Return: what changed, PR URL, rebuild skill line count (wc -l),
+   any blockers or new issues discovered
 
-Run the relevant portion against the live cluster:
-- Ansible: `SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags <tag>`
-- Just recipes: run the recipe and check output
+## Rules
+- Read CLAUDE.md before starting — hard rules and foot-guns
+- Use uv run for all git commits (pre-commit hooks need uv venv)
+- Use SSH_AUTH_SOCK="/tmp/ssh-agent.sock" for all ansible commands
+- Never mutate ArgoCD-managed resources directly
+- Fixes go into automation (ansible/helm/just), not docs
+- The rebuild skill must get shorter or simpler, never longer
+- After implementing the fix, verify it against the live cluster
+- Then edit .claude/skills/rebuild-cluster/SKILL.md to remove/simplify
+  the manual steps that the fix automated away
 
-**Inner loop** -- iterate until it passes.
-
-### Step 4: Shrink the Skill
-
-1. Edit `.claude/skills/rebuild-cluster/SKILL.md` -- remove or simplify
-   the steps that the fix automated away
-2. If the fix also simplifies a how-to doc, simplify that too
-3. The skill should get measurably shorter (fewer lines, fewer manual steps)
-
-### Step 5: Ship
-
-1. `uv run git commit` -- reference GitHub issue if applicable
-2. Update the convergence checklist below (mark item `done`, add date)
-3. Push and create PR **targeting `improve-rebuild-skill`**
-4. Merge the PR immediately (`gh pr merge --squash`)
-5. Note: line count before/after for the final report
-
-### Step 6: Loop or Finish
-
-- More `todo` items remain → go to Step 1
-- All items `done` → proceed to Wrap-up
-- Blocked on an item → skip it, note why, continue to next
+## What to fix
+{Specific guidance for this checklist item — research the target area,
+describe what needs to change and where}
+```
 
 ## Wrap-up
 
-After all iterations complete:
+After all iterations complete (or all remaining items are blocked):
 
 1. Run `/memo` to capture what changed
 2. Report to user:
