@@ -143,7 +143,7 @@ After all iterations complete (or all remaining items are blocked):
 | # | Manual Step | Status | Issue | Target |
 |---|------------|--------|-------|--------|
 | 1 | Sealed-secrets CRD not ready on first run (`ignore_errors`) | done 2026-04-07 | #247 | ansible role wait loop |
-| 2 | Dex ConfigMap patch separate from Helm install | todo | #245 | move into Helm values; see plan `dex-config-helm-values.md` |
+| 2 | Dex ConfigMap patch separate from Helm install | done 2026-04-07 | #245, PR #265 | move into Helm values |
 | 3 | `seal-argocd-dex` is interactive (prompts for GitHub creds) | done 2026-04-07 | #256 | accept env vars |
 | 4 | `set-admin-password` is interactive | done 2026-04-07 | #256 | accept env var |
 | 5 | Manual `just seal` for each remaining secret | done 2026-04-07 | #258 | batch seal recipe or ansible task |
