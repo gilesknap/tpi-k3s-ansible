@@ -152,23 +152,33 @@ just set-admin-password
 
 ### 4c. Re-seal all secrets
 
-Use the `just` recipes and `just seal` to re-seal secrets — this tests
-the recipes themselves as part of the rebuild.
+**ArgoCD Dex secret** — script the `seal-argocd-dex` recipe
+non-interactively. Read the GitHub OAuth Client ID and Secret from
+`extracted-secrets.json` (keys: `dex.github.clientID`,
+`dex.github.clientSecret` in `argo-cd/argocd-dex-secret`).
 
-**ArgoCD Dex secret** — use the interactive recipe with values from the
-extracted secrets:
-```bash
-just seal-argocd-dex
-# Enter the GitHub OAuth Client ID and Secret from extracted-secrets.json
-# (keys: dex.github.clientID, dex.github.clientSecret in argo-cd/argocd-dex-secret)
-```
+The recipe generates new random secrets for all Dex static clients
+and seals **five** files:
+- `argocd-dex-secret.yaml` (8 keys — GitHub OAuth + all static client secrets)
+- `argocd-monitor-oauth-secret.yaml`
+- `grafana-oauth-secret.yaml`
+- `open-webui-oauth-secret.yaml`
 
-**Open Brain MCP secret** — use the dedicated script with values from
-the extracted secrets:
-```bash
-./scripts/seal-mcp-secret
-# Enter values from extracted-secrets.json (open-brain-mcp/open-brain-mcp-secret)
-```
+**CRITICAL**: the `argocd-dex-secret` must contain keys for **every**
+Dex static client defined in `dex.config` (`grafana.clientSecret`,
+`open-webui.clientSecret`, `headlamp.clientSecret`,
+`argocd-monitor.clientSecret`). If any are missing, Dex's
+`$argocd-dex-secret:key` resolution silently returns empty and the
+service gets "Failed to get token from provider" on login.
+
+The matching service-side secrets (`grafana-oauth-secret`,
+`open-webui-oauth-secret`) must contain the **same** generated value
+so the service and Dex agree on the client secret.
+
+**Open Brain MCP secret** — do NOT use `./scripts/seal-mcp-secret`
+(it fetches Supabase credentials from the cluster, which doesn't exist
+yet on a fresh rebuild). Instead use `just seal` with all 5 keys from
+the extracted JSON.
 
 **All other secrets** — use `just seal` for each, redirecting output to
 the correct file path. Check existing paths with:
@@ -181,6 +191,21 @@ For each remaining secret in the extracted JSON, run:
 just seal <name> <namespace> key1=val1 key2=val2 ... \
   > kubernetes-services/additions/<service>/<name>-secret.yaml
 ```
+
+**Key name reference** — the key names in the live secrets may differ
+from the key names expected by the deployments. Always use these key
+names when sealing (not the names from the extracted JSON):
+
+| Secret | Seal with key name(s) |
+|--------|----------------------|
+| `cloudflare-api-token` | `api-token` |
+| `cloudflared-credentials` | `TUNNEL_TOKEN` |
+| `grafana-oauth-secret` | `CLIENT_SECRET` (uppercase — loaded via `envFromSecrets`) |
+| `oauth2-proxy-credentials` | `client-secret`, `cookie-secret`, `client-id` |
+| `open-webui-oauth-secret` | `client-secret` |
+| `open-brain-mcp-secret` | `DATABASE_URL`, `MCP_JWT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SUPABASE_SERVICE_KEY` |
+| `supabase-credentials` | (15 keys — use all keys from extracted JSON as-is) |
+| `supabase-mcp-env` | `MCP_ACCESS_KEY` (not `SUPABASE_ACCESS_TOKEN`) |
 
 **File naming**: must be `*-secret.yaml` (singular) to match the
 `.gitleaks.toml` allowlist.
@@ -235,102 +260,199 @@ containerd config needs to be reapplied after k3s reinstall:
 SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags servers --limit ws03
 ```
 
-## Phase 5: Verify via kubectl
+### 4i. Create Prometheus admission webhook secret
 
-Run `just status` and check:
+The kube-prometheus-stack webhook TLS secret is not auto-created on
+ArgoCD-managed installs (Helm hook job is pruned). Create it manually:
+
+```bash
+just create-prometheus-admission-secret
+```
+
+If the prometheus-operator pod is stuck in ContainerCreating, delete it
+after creating the secret to trigger a restart.
+
+## Phase 5: Verify cluster health
+
+**Do not proceed to browser testing until all checks below pass.**
+
+### 5a. ArgoCD apps
+
+Run `just status` repeatedly (with 60-second waits) until:
 - [ ] All nodes Ready
 - [ ] All 18 ArgoCD apps Synced/Healthy
-- [ ] No failing pods (nvidia-device-plugin CrashLoop on non-GPU nodes is OK temporarily)
-- [ ] All certificates issued (`kubectl get certificates -A`)
-- [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
+- [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
 
-### Common issues
+If any SealedSecrets show `False` with "no key could decrypt":
+1. ArgoCD may have synced old sealed secrets from the wrong branch.
+   Check `kubectl get app all-cluster-services -n argo-cd -o jsonpath='{.spec.source.targetRevision}'`.
+   It must be the rebuild branch, NOT main.
+2. Delete the failing SealedSecret and run `just argocd-sync`.
+3. If the ArgoCD dex sealed secret is missing keys, re-run
+   `ansible-playbook pb_all.yml --tags cluster` (with `repo_branch`
+   temporarily set to the rebuild branch in `group_vars/all.yml`).
+
+**IMPORTANT**: after any `--tags cluster` run, immediately revert
+`group_vars/all.yml` back to `repo_branch: main` so it is not
+accidentally committed. The branch override is only needed at runtime.
+
+### 5b. Certificates and infrastructure
+
+- [ ] All certificates issued (`kubectl get certificates -A` — all True)
+- [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
+- [ ] No failing pods (nvidia-device-plugin CrashLoop on non-GPU nodes is OK temporarily)
+
+If certificates are pending, restart cert-manager and wait 2 minutes:
+```bash
+kubectl rollout restart deployment cert-manager -n cert-manager
+```
+
+### 5c. Common issues
 
 - **Monitoring pods stuck on ws03** — Longhorn CSI/engine-image may need
   time to deploy on ws03 after the toleration takes effect. Delete stuck
   pods to force reschedule after engine-image shows `deployed`.
-- **Prometheus operator CrashLoop** — missing `grafana-prometheus-kube-pr-admission`
-  secret. Create manually with a self-signed cert (keys: `cert`, `key`, `ca`).
+- **Prometheus operator CrashLoop** — run `just create-prometheus-admission-secret`
+  then delete the stuck pod.
+- **ArgoCD Monitor OAuth login loop** — if argocd-monitor loops back to
+  Dex after "Grant Access", check the oauth2-proxy sidecar logs for
+  "cookie signature not valid". The shared oauth2-proxy sets
+  `cookie-domain=.gkcluster.org` so its `_oauth2_proxy` cookie reaches
+  all subdomains. The sidecar must use `--cookie-name=_oauth2_proxy_monitor`
+  to avoid the clash (already set in the template).
 
 ## Phase 6: Verify via curl
 
-Test all service URLs return HTTP 200:
+Read `cluster_domain` from `group_vars/all.yml`. Test all service URLs:
 
 ```bash
-for url in https://echo.gkcluster.org https://grafana.gkcluster.org \
-           https://headlamp.gkcluster.org https://open-webui.gkcluster.org \
-           https://longhorn.gkcluster.org https://argocd-monitor.gkcluster.org \
-           https://supabase.gkcluster.org; do
+for url in https://echo.<domain> https://grafana.<domain> \
+           https://headlamp.<domain> https://open-webui.<domain> \
+           https://longhorn.<domain> https://argocd-monitor.<domain> \
+           https://supabase.<domain> https://argocd.<domain>; do
   status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$url")
   echo "$url -> HTTP $status"
 done
 ```
 
-Replace `gkcluster.org` with the actual `cluster_domain` from `group_vars/all.yml`.
+Expected results:
+- `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
+- `grafana`: HTTP 302 (redirects to OAuth login)
+- `longhorn`, `headlamp`, `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
+
+All services must respond (no timeouts or 5xx errors).
 
 ## Phase 7: Verify via browser
 
-Test that OAuth login works end-to-end in Chrome.
+Test OAuth login works end-to-end in Chrome for every service. The
+browser has active GitHub sessions — the OAuth flow should auto-approve
+after the first Dex "Grant Access" click.
+
+Read `cluster_domain` from `group_vars/all.yml` and use it throughout.
 
 ### 7a. Clear stale session cookies
 
-The browser has cookies from the old cluster that won't be valid.
-Clear cookies for `*.gkcluster.org` while keeping GitHub OAuth cookies
-(on `github.com`) intact so the OAuth flow auto-approves.
+For each domain below, navigate to it then run JavaScript to expire
+all non-HttpOnly cookies:
 
-1. Open a new tab and navigate to `https://echo.gkcluster.org`
-2. Run JavaScript to clear cookies for the current domain:
-   ```javascript
-   document.cookie.split(';').forEach(c => {
-     const name = c.split('=')[0].trim();
-     document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-     document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.gkcluster.org';
-   });
-   'cookies cleared'
-   ```
-3. Repeat for each service domain that needs OAuth testing:
-   - `argocd.gkcluster.org`
-   - `grafana.gkcluster.org`
-   - `open-webui.gkcluster.org`
-   - `argocd-monitor.gkcluster.org`
+```javascript
+document.cookie.split(';').forEach(c => {
+  const name = c.split('=')[0].trim();
+  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.<cluster_domain>';
+});
+```
 
-Note: HttpOnly cookies (set by oauth2-proxy, ArgoCD) cannot be cleared
-via JavaScript. If OAuth login still uses stale sessions, inform the
-user and ask them to manually clear cookies for `*.gkcluster.org` in
-Chrome settings (Settings → Privacy → Clear browsing data → Cookies).
+Domains: `echo`, `argocd`, `grafana`, `open-webui`, `argocd-monitor`,
+`longhorn`, `headlamp`, `supabase`.
 
-### 7b. Test OAuth login flow
+### 7b. Service login matrix
 
-Navigate to each service and verify the page loads after OAuth:
+Each service has a different auth mechanism. Follow the matching
+procedure for each:
 
-| URL | Expected |
-|-----|----------|
-| `https://argocd.gkcluster.org` | ArgoCD applications dashboard |
-| `https://grafana.gkcluster.org` | Grafana home (logged in via Dex) |
-| `https://open-webui.gkcluster.org` | Open WebUI chat interface |
-| `https://argocd-monitor.gkcluster.org` | ArgoCD monitor page |
+#### Services with native Dex OAuth (click login button → Dex → GitHub)
 
-For each URL:
-1. Navigate to the URL
-2. The service should redirect to Dex → GitHub OAuth
-3. GitHub auto-approves (cookies preserved) → redirect back
-4. Verify the page content loads correctly
-5. Take a screenshot or capture the page title as evidence
+| Service | Login action | Logged-in indicator |
+|---------|-------------|---------------------|
+| Grafana | Click "Sign in with GitHub (via Dex)" | Page title contains "Home" or "Grafana" (not "login") |
+| Open WebUI | Click the OAuth/SSO login button | Page title contains "Open WebUI" with a chat interface |
+| ArgoCD Monitor | Auto-redirects through sidecar oauth2-proxy → Dex | HTML contains "argocd-monitor" or application health data |
 
-### 7c. Final state
+#### Services behind cluster oauth2-proxy (auto-redirect → GitHub)
 
-Navigate to `https://argocd.gkcluster.org/applications` so the user
+| Service | Logged-in indicator |
+|---------|---------------------|
+| Longhorn | Page title contains "Longhorn" |
+| Headlamp | Page title contains "Headlamp" |
+| Supabase | Page title contains "Supabase" |
+
+#### Services with no OAuth gate
+
+| Service | Expected |
+|---------|----------|
+| ArgoCD | Loads the login/applications page directly (admin disabled; Dex SSO only) |
+| Echo | Returns raw echo response (no auth) |
+
+### 7c. OAuth flow procedure
+
+For each service in section 7b, use a single browser tab:
+
+1. Navigate to `https://<service>.<cluster_domain>`
+2. Wait up to 10 seconds for redirects to settle
+3. Check the current URL and page content:
+   - **If on a Dex "Grant Access" page** → click the "Grant Access"
+     submit button, then wait 5 seconds for redirect
+   - **If on a GitHub authorize page** → wait 5 seconds (GitHub
+     auto-approves via existing cookies and redirects back)
+   - **If on the service login page** → click the OAuth/sign-in button,
+     then repeat from step 2
+   - **If on the service's authenticated page** → take a screenshot,
+     record success
+4. If the page shows an error (e.g. "Login failed", "Failed to get
+   token from provider"), record the error — do NOT retry in a loop.
+   Collect all failures and report them at the end.
+
+### 7d. Verification checklist
+
+After testing all services, report a table:
+
+```
+| Service        | Status | Evidence                    |
+|----------------|--------|-----------------------------|
+| ArgoCD         | PASS   | Applications dashboard      |
+| Grafana        | PASS   | Home page loaded            |
+| Open WebUI     | PASS   | Chat interface              |
+| ArgoCD Monitor | PASS   | Monitor page                |
+| Longhorn       | PASS   | Dashboard loaded            |
+| Headlamp       | PASS   | Cluster view                |
+| Supabase       | PASS   | Studio dashboard            |
+| Echo           | PASS   | Echo response               |
+```
+
+Any FAIL entries must include the error message. If OAuth failures
+are found, check:
+1. Does `argocd-dex-secret` contain the key for that service's
+   Dex static client? (`kubectl get secret argocd-dex-secret -n argo-cd -o jsonpath='{.data}'`)
+2. Does the service-side secret match? (e.g. `grafana-oauth-secret`
+   `CLIENT_SECRET` must equal `argocd-dex-secret` `grafana.clientSecret`)
+3. Has Dex been restarted since the secrets were updated?
+
+### 7e. Final state
+
+Navigate to `https://argocd.<cluster_domain>/applications` so the user
 sees the ArgoCD applications dashboard when testing is complete.
 
 ## Phase 8: Prepare for merge
 
-### 8a. Restore main tracking
+### 8a. Do NOT restore main tracking yet
 
-Edit `group_vars/all.yml`: set `repo_branch` back to `main`.
+**CRITICAL**: Do not switch `repo_branch` back to `main` before the PR
+is merged. ArgoCD on `main` would sync the **old** sealed secrets,
+which the new sealed-secrets controller cannot decrypt — causing all
+apps with secrets to go Degraded.
 
-```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
-```
+Leave ArgoCD tracking the rebuild branch until after merge.
 
 ### 8b. Commit and push
 
@@ -357,7 +479,12 @@ rm -rf /tmp/cluster-secrets/
 
 Tell the user:
 - The cluster is rebuilt and all services are verified
-- ArgoCD is tracking `main` (will sync after PR merge)
+- ArgoCD is tracking the **rebuild branch** (not main)
 - The PR is ready for review
+- After merging the PR, run these commands to switch ArgoCD back to main:
+  ```
+  # In group_vars/all.yml, verify repo_branch is set to "main"
+  SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
+  ```
 - `/tmp/cluster-secrets/` has been deleted
 - Any issues discovered and how they were fixed

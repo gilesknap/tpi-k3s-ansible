@@ -30,9 +30,11 @@
 - **Control plane (node01) is tainted `NoSchedule`** — DaemonSets without a
   matching toleration won't schedule there, so it can safely be skipped when
   running `--tags servers` for node-level drivers (e.g. DRA plugins).
-- **Chrome browser is not incognito** — never navigate to Google services or
-  GitHub in browser automation. The browser has active logged-in sessions.
-  Use CLI tools (`gh`, `curl`, `kubectl`) instead.
+- **Chrome browser is not incognito** — never navigate to Google services
+  in browser automation. For GitHub: do not use Chrome to modify any
+  GitHub resources (repos, issues, PRs, settings). OAuth "Grant Access"
+  / "Authorize" clicks are OK — they only redirect back to the cluster.
+  For all other GitHub work, use CLI tools (`gh`, `curl`) instead.
 - **ArgoCD Dex audiences are hardcoded** — `server.additional.audiences` does
   nothing for Dex. Override the `argo-cd` client in `dex.config` with
   `trustedPeers` instead. See `additions/argocd/README.md`.
@@ -67,8 +69,18 @@
 - **Prometheus operator admission secret** — kube-prometheus-stack's
   webhook TLS secret (`grafana-prometheus-kube-pr-admission`) is not
   auto-created on ArgoCD-managed installs (Helm hook job is pruned).
-  Create it manually with a self-signed cert (keys: `cert`, `key`, `ca`
-  mounted at `/cert`).
+  Run `just create-prometheus-admission-secret` to create it.
+- **Dex static client secrets must all be in argocd-dex-secret** —
+  `dex.config` uses `$argocd-dex-secret:key` for each static client.
+  Missing keys silently resolve to empty, causing "Failed to get token
+  from provider" on login. The `just seal-argocd-dex` recipe generates
+  secrets for all clients (grafana, open-webui, headlamp,
+  argocd-monitor) and also seals the matching service-side secrets.
+- **Sidecar oauth2-proxy cookie clash** — the shared oauth2-proxy sets
+  `cookie-domain=.gkcluster.org`, so its `_oauth2_proxy` cookie reaches all
+  subdomains. Any service with its own oauth2-proxy sidecar (e.g.
+  argocd-monitor) must use `--cookie-name=<unique>` to avoid validating
+  the shared proxy's cookie with its own secret (→ infinite login loop).
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
