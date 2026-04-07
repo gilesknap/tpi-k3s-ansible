@@ -185,12 +185,16 @@ seal name namespace *args:
         $literals --dry-run=client -o yaml | \
         kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml
 
-# Seal ArgoCD Dex secrets (GitHub OAuth + argocd-monitor oauth2-proxy).
+# Seal all Dex-related secrets: argocd-dex-secret (all static client
+# secrets), argocd-monitor oauth2-proxy, grafana-oauth, open-webui-oauth.
 # Prompts for GitHub OAuth credentials. The argo-cd client secret is
 # auto-derived from server.secretkey so it matches ArgoCD's internal value.
+# All Dex static client secrets (grafana, open-webui, headlamp, argocd-monitor)
+# are generated and stored in argocd-dex-secret so $secret:key resolution works.
 seal-argocd-dex:
     #!/bin/bash
     set -euo pipefail
+    SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
     read -p  "GitHub OAuth Client ID: " client_id < /dev/tty
     read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo
     # argo-cd client secret: SHA256(server.secretkey as base64 string) → base64url[:40]
@@ -199,7 +203,10 @@ seal-argocd-dex:
         python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()).decode()[:40])")
     monitor_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     cookie_secret=$(python3 -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())")
-    # Dex secret (argo-cd namespace) — GitHub OAuth + static client secrets
+    grafana_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    openwebui_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    headlamp_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    # Dex secret (argo-cd namespace) — GitHub OAuth + ALL static client secrets
     kubectl create secret generic argocd-dex-secret \
       --namespace argo-cd \
       --from-literal=dex.github.clientID="$client_id" \
@@ -207,20 +214,35 @@ seal-argocd-dex:
       --from-literal=argo-cd.clientSecret="$argocd_client_secret" \
       --from-literal=argocd.clientSecret="$argocd_client_secret" \
       --from-literal=argocd-monitor.clientSecret="$monitor_secret" \
+      --from-literal=grafana.clientSecret="$grafana_secret" \
+      --from-literal=open-webui.clientSecret="$openwebui_secret" \
+      --from-literal=headlamp.clientSecret="$headlamp_secret" \
       --dry-run=client -o yaml | \
       yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
-      kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml \
-      > kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+      $SEAL > kubernetes-services/additions/argocd/argocd-dex-secret.yaml
     echo "Sealed: kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
-    # argocd-monitor oauth2-proxy secret (argocd-monitor namespace)
+    # argocd-monitor oauth2-proxy secret
     kubectl create secret generic argocd-monitor-oauth \
       --namespace argocd-monitor \
       --from-literal=client-secret="$monitor_secret" \
       --from-literal=cookie-secret="$cookie_secret" \
-      --dry-run=client -o yaml | \
-      kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml \
+      --dry-run=client -o yaml | $SEAL \
       > kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
     echo "Sealed: kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml"
+    # Grafana OAuth secret — key must be CLIENT_SECRET (loaded via envFromSecrets)
+    kubectl create secret generic grafana-oauth-secret \
+      --namespace monitoring \
+      --from-literal=CLIENT_SECRET="$grafana_secret" \
+      --dry-run=client -o yaml | $SEAL \
+      > kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+    echo "Sealed: kubernetes-services/additions/grafana/grafana-oauth-secret.yaml"
+    # Open WebUI OAuth secret — key must be client-secret (loaded via secretKeyRef)
+    kubectl create secret generic open-webui-oauth-secret \
+      --namespace open-webui \
+      --from-literal=client-secret="$openwebui_secret" \
+      --dry-run=client -o yaml | $SEAL \
+      > kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+    echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
 
 # ArgoCD operations ############################################################
 

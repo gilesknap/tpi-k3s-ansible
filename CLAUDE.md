@@ -68,6 +68,12 @@
   webhook TLS secret (`grafana-prometheus-kube-pr-admission`) is not
   auto-created on ArgoCD-managed installs (Helm hook job is pruned).
   Run `just create-prometheus-admission-secret` to create it.
+- **Dex static client secrets must all be in argocd-dex-secret** —
+  `dex.config` uses `$argocd-dex-secret:key` for each static client.
+  Missing keys silently resolve to empty, causing "Failed to get token
+  from provider" on login. The `just seal-argocd-dex` recipe generates
+  secrets for all clients (grafana, open-webui, headlamp,
+  argocd-monitor) and also seals the matching service-side secrets.
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
