@@ -171,6 +171,15 @@ supabase-creds:
 headlamp-token:
     @kubectl create token headlamp-admin -n headlamp --duration=2400h
 
+# secret extraction ############################################################
+
+# Extract all plaintext secrets from the running cluster before teardown.
+# Writes extracted-secrets.json and sealed-secrets-keys.yaml to OUTPUT_DIR
+# (default /tmp/cluster-secrets). Used before rebuild so secrets can be
+# re-sealed with the new cluster's sealed-secrets keys.
+extract-secrets output_dir="/tmp/cluster-secrets":
+    scripts/extract-secrets {{ output_dir }}
+
 # sealed secrets ###############################################################
 
 # Seal an arbitrary secret. Usage: just seal <name> <namespace> key1=val1 key2=val2 ...
