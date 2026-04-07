@@ -30,9 +30,11 @@
 - **Control plane (node01) is tainted `NoSchedule`** — DaemonSets without a
   matching toleration won't schedule there, so it can safely be skipped when
   running `--tags servers` for node-level drivers (e.g. DRA plugins).
-- **Chrome browser is not incognito** — never navigate to Google services or
-  GitHub in browser automation. The browser has active logged-in sessions.
-  Use CLI tools (`gh`, `curl`, `kubectl`) instead.
+- **Chrome browser is not incognito** — never navigate to Google services
+  in browser automation. For GitHub: do not use Chrome to modify any
+  GitHub resources (repos, issues, PRs, settings). OAuth "Grant Access"
+  / "Authorize" clicks are OK — they only redirect back to the cluster.
+  For all other GitHub work, use CLI tools (`gh`, `curl`) instead.
 - **ArgoCD Dex audiences are hardcoded** — `server.additional.audiences` does
   nothing for Dex. Override the `argo-cd` client in `dex.config` with
   `trustedPeers` instead. See `additions/argocd/README.md`.
