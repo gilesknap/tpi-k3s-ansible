@@ -347,6 +347,42 @@ seal-argocd-dex:
       > kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
     echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
 
+# GPU operations ###############################################################
+
+# Reinstall NVIDIA container toolkit on GPU nodes and restart the
+# nvidia-device-plugin pods. Run after k3s reinstall to restore the
+# containerd runtime config that GPU pods need.
+gpu-setup:
+    #!/bin/bash
+    set -euo pipefail
+    # Find GPU nodes from inventory (nvidia_gpu_node: true)
+    gpu_nodes=$(ansible-inventory --list 2>/dev/null | \
+        python3 -c "
+import sys, json
+inv = json.load(sys.stdin)
+hosts = inv.get('_meta', {}).get('hostvars', {})
+gpu = [h for h, v in hosts.items() if v.get('nvidia_gpu_node', False)]
+print(','.join(gpu))
+")
+    if [ -z "$gpu_nodes" ]; then
+        echo "No GPU nodes found (nvidia_gpu_node: true) in inventory"
+        exit 0
+    fi
+    echo "GPU nodes: $gpu_nodes"
+    echo "=== Running --tags servers on GPU nodes ==="
+    SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-/tmp/ssh-agent.sock}" \
+        ansible-playbook pb_all.yml --tags servers --limit "$gpu_nodes"
+    echo ""
+    echo "=== Waiting for k3s-agent to restart ==="
+    sleep 10
+    echo ""
+    echo "=== Deleting nvidia-device-plugin pods for fresh rollout ==="
+    kubectl delete pod -n nvidia-device-plugin \
+        -l app.kubernetes.io/name=nvidia-device-plugin \
+        --ignore-not-found
+    echo ""
+    echo "GPU setup complete. The DaemonSet will create fresh pods with NVIDIA runtime."
+
 # ArgoCD operations ############################################################
 
 # Restart Dex and ArgoCD server. Use after changing dex.config, re-sealing
