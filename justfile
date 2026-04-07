@@ -367,12 +367,12 @@ gpu-setup:
     # Find GPU nodes from inventory (nvidia_gpu_node: true)
     gpu_nodes=$(ansible-inventory --list 2>/dev/null | \
         python3 -c "
-import sys, json
-inv = json.load(sys.stdin)
-hosts = inv.get('_meta', {}).get('hostvars', {})
-gpu = [h for h, v in hosts.items() if v.get('nvidia_gpu_node', False)]
-print(','.join(gpu))
-")
+            import sys, json
+            inv = json.load(sys.stdin)
+            hosts = inv.get('_meta', {}).get('hostvars', {})
+            gpu = [h for h, v in hosts.items() if v.get('nvidia_gpu_node', False)]
+            print(','.join(gpu))
+        "
     if [ -z "$gpu_nodes" ]; then
         echo "No GPU nodes found (nvidia_gpu_node: true) in inventory"
         exit 0
