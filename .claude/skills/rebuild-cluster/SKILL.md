@@ -46,31 +46,12 @@ Extract all plaintext secret values from the running cluster before
 teardown. After rebuild, sealed-secrets generates new encryption keys
 so existing SealedSecret YAML files become useless.
 
-Extract these secrets and save to `/tmp/cluster-secrets/extracted-secrets.json`:
-
-| Namespace | Secret | Purpose |
-|-----------|--------|---------|
-| argo-cd | argocd-dex-secret | GitHub OAuth, Dex client secrets |
-| argocd-monitor | argocd-monitor-oauth | oauth2-proxy credentials |
-| cert-manager | cloudflare-api-token | DNS-01 challenge |
-| cloudflared | cloudflared-credentials | Tunnel token |
-| monitoring | grafana-oauth-secret | Grafana OAuth |
-| oauth2-proxy | oauth2-proxy-credentials | Shared proxy credentials |
-| open-brain-mcp | open-brain-mcp-secret | Supabase + GitHub OAuth |
-| open-webui | open-webui-oauth-secret | Open WebUI OAuth |
-| supabase | supabase-credentials | All Supabase secrets (15 keys) |
-| supabase | supabase-mcp-env | MCP access key |
-| longhorn | admin-auth | Basic-auth password |
-| monitoring | admin-auth | Basic-auth password |
-| headlamp | admin-auth | Basic-auth password |
-| argo-cd | argocd-secret | Admin password + server.secretkey |
-
-Write a Python script that uses `kubectl get secret` and base64 decodes
-all values into a JSON array. Also backup sealed-secrets encryption keys:
 ```bash
-kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
-  > /tmp/cluster-secrets/sealed-secrets-keys.yaml
+just extract-secrets
 ```
+
+This extracts all required secrets to `/tmp/cluster-secrets/extracted-secrets.json`
+and backs up sealed-secrets encryption keys to `sealed-secrets-keys.yaml`.
 
 **Never commit `/tmp/cluster-secrets/` to git.**
 
