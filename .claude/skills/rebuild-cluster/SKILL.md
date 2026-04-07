@@ -35,8 +35,11 @@ NFS-backed data (LLM models, Supabase DB backups) is preserved.
 
 ### 1a. Branch setup
 
+If the user specifies a base branch (e.g. "rebuild from improve-rebuild-skill"),
+use that instead of `main`:
+
 ```bash
-git checkout main && git pull
+git checkout <base-branch> && git pull
 git checkout -b rebuild-$(date +%Y%m%d)
 ```
 
