@@ -172,20 +172,17 @@ and supabase-mcp-env with the correct key names and output paths.
 it fetches Supabase credentials from the cluster, which doesn't exist
 yet on a fresh rebuild. `seal-from-json` uses the extracted JSON instead.
 
-### 4c. Switch ArgoCD to the rebuild branch
-
-Edit `group_vars/all.yml`: set `repo_branch` to the rebuild branch name.
-**Do not commit this change** — it is only needed temporarily so ArgoCD
-syncs the re-sealed secrets from the branch. It is reverted in Phase 8a.
-
-### 4d. Commit, push, and apply
+### 4c. Commit, push, and apply
 
 ```bash
 uv run git add kubernetes-services/additions/
 uv run git commit -m "Re-seal all secrets for rebuilt cluster"
 git push origin <branch-name>
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
+SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster --extra-vars repo_branch=<branch-name>
 ```
+
+The `--extra-vars` flag overrides `repo_branch` at runtime without
+editing `group_vars/all.yml`, so there is nothing to revert afterwards.
 
 The `--tags cluster` run will:
 - Compute the correct Dex client secret from `server.secretkey`
@@ -193,7 +190,7 @@ The `--tags cluster` run will:
 - Label the `argocd-dex-secret` for `$secret:key` resolution
 - Update the root Application to track the rebuild branch
 
-### 4e. Force sync and verify secrets
+### 4d. Force sync and verify secrets
 
 ```bash
 just argocd-sync
@@ -207,13 +204,13 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4f. Restart Dex
+### 4e. Restart Dex
 
 ```bash
 just restart-dex
 ```
 
-### 4g. Run `--tags servers` on GPU nodes
+### 4f. Run `--tags servers` on GPU nodes
 
 If the cluster has GPU nodes (e.g. ws03), the NVIDIA container toolkit
 containerd config needs to be reapplied after k3s reinstall:
@@ -252,12 +249,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
    It must be the rebuild branch, NOT main.
 2. Delete the failing SealedSecret and run `just argocd-sync`.
 3. If the ArgoCD dex sealed secret is missing keys, re-run
-   `ansible-playbook pb_all.yml --tags cluster` (with `repo_branch`
-   temporarily set to the rebuild branch in `group_vars/all.yml`).
-
-**IMPORTANT**: after any `--tags cluster` run, immediately revert
-`group_vars/all.yml` back to `repo_branch: main` so it is not
-accidentally committed. The branch override is only needed at runtime.
+   `ansible-playbook pb_all.yml --tags cluster --extra-vars repo_branch=<branch-name>`.
 
 ### 5b. Certificates and infrastructure
 
@@ -457,10 +449,11 @@ sees the ArgoCD applications dashboard when testing is complete.
 
 ### 8a. Do NOT restore main tracking yet
 
-**CRITICAL**: Do not switch `repo_branch` back to `main` before the PR
-is merged. ArgoCD on `main` would sync the **old** sealed secrets,
-which the new sealed-secrets controller cannot decrypt — causing all
-apps with secrets to go Degraded.
+**CRITICAL**: Do not run `--tags cluster` without `--extra-vars
+repo_branch=<branch-name>` before the PR is merged. Pointing ArgoCD
+back to `main` would sync the **old** sealed secrets, which the new
+sealed-secrets controller cannot decrypt — causing all apps with
+secrets to go Degraded.
 
 Leave ArgoCD tracking the rebuild branch until after merge.
 
@@ -491,10 +484,10 @@ Tell the user:
 - The cluster is rebuilt and all services are verified
 - ArgoCD is tracking the **rebuild branch** (not main)
 - The PR is ready for review
-- After merging the PR, run these commands to switch ArgoCD back to main:
+- After merging the PR, run this command to switch ArgoCD back to main:
   ```
-  # In group_vars/all.yml, verify repo_branch is set to "main"
   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
   ```
+  (No `--extra-vars` needed — `group_vars/all.yml` already has `repo_branch: main`.)
 - `/tmp/cluster-secrets/` has been deleted
 - Any issues discovered and how they were fixed
