@@ -260,6 +260,18 @@ containerd config needs to be reapplied after k3s reinstall:
 SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags servers --limit ws03
 ```
 
+The playbook restarts k3s-agent, but the nvidia-device-plugin pod
+created by ArgoCD's initial sync will already be CrashLooping (it
+started before the NVIDIA runtime was configured). After the playbook
+completes, delete the stuck pod so the DaemonSet creates a fresh one:
+
+```bash
+kubectl delete pod -n nvidia-device-plugin -l app.kubernetes.io/name=nvidia-device-plugin
+```
+
+Wait for the new pod to become Ready — this also unblocks `llamacpp`
+which is Pending until GPU resources are advertised.
+
 ### 4i. Create Prometheus admission webhook secret
 
 The kube-prometheus-stack webhook TLS secret is not auto-created on
@@ -278,9 +290,10 @@ after creating the secret to trigger a restart.
 
 ### 5a. ArgoCD apps
 
-Run `just status` repeatedly (with 60-second waits) until:
+Run `just status` repeatedly (with 60-second waits) until **all** of
+these pass. Do not proceed until every app is Healthy:
 - [ ] All nodes Ready
-- [ ] All 18 ArgoCD apps Synced/Healthy
+- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4h)
 - [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
 
 If any SealedSecrets show `False` with "no key could decrypt":
@@ -300,7 +313,7 @@ accidentally committed. The branch override is only needed at runtime.
 
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
-- [ ] No failing pods (nvidia-device-plugin CrashLoop on non-GPU nodes is OK temporarily)
+- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4h)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
@@ -343,6 +356,20 @@ Expected results:
 All services must respond (no timeouts or 5xx errors).
 
 ## Phase 7: Verify via browser
+
+**Delegate this entire phase to a subagent** using the Agent tool.
+Browser verification generates large context (screenshots, long
+Cloudflare redirect URLs, navigation retries) that bloats the main
+conversation. Launch a single agent with `subagent_type: "general-purpose"`
+and pass it:
+- The cluster domain (from `group_vars/all.yml`)
+- The full instructions below (7a–7f)
+- The instruction to report back a summary table of PASS/FAIL per service
+
+The subagent should not return until all services pass or failures
+are clearly diagnosed.
+
+---
 
 Test OAuth login works end-to-end in Chrome for every service. The
 browser has active GitHub sessions. Clicking "Grant Access" on Dex
@@ -445,7 +472,7 @@ Use a single browser tab for all tests. For each service:
   run creates an ArgoCD session, so it usually loads the applications
   dashboard directly without needing OAuth.
 
-### 7d. Verification checklist
+### 7e. Verification checklist
 
 After testing all services, report a table:
 
@@ -470,7 +497,7 @@ are found, check:
    `CLIENT_SECRET` must equal `argocd-dex-secret` `grafana.clientSecret`)
 3. Has Dex been restarted since the secrets were updated?
 
-### 7e. Final state
+### 7f. Final state
 
 Navigate to `https://argocd.<cluster_domain>/applications` so the user
 sees the ArgoCD applications dashboard when testing is complete.
