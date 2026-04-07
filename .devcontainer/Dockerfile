@@ -7,6 +7,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apache2-utils \
     dnsutils \
     gh \
+    jq \
     just \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$(dpkg --print-architecture) \
