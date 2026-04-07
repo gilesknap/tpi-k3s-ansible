@@ -314,7 +314,7 @@ seal-argocd-dex:
         -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
         python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()).decode()[:40])")
     monitor_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-    cookie_secret=$(python3 -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())")
+    cookie_secret=$(python3 -c "import secrets; print(secrets.token_urlsafe(32)[:32])")
     grafana_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     openwebui_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
     headlamp_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
