@@ -40,6 +40,10 @@
   `IsDexDisabled()=true`. Use `dex.config` only.
 - **Re-sealing secrets requires pod restart** — pod env vars from `secretKeyRef`
   are read at startup. After `just seal-argocd-dex`, restart affected pods.
+- **Dex secret needs ArgoCD label** — the `argocd-dex-secret` SealedSecret
+  template must include `app.kubernetes.io/part-of: argocd` label. Without
+  it, ArgoCD's `$secret:key` resolution in `dex.config` silently fails,
+  passing literal key names as OAuth client IDs (→ GitHub 404).
 - **No automated tests** — validate by running playbook tags against the cluster.
 - **`gh pr edit` fails on this repo** — classic projects warning causes a
   GraphQL error. Use `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...`
