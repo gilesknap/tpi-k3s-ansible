@@ -108,7 +108,7 @@ Each invocation handles one improvement. Run again for the next one.
 
 | # | Manual Step | Status | Issue | Target |
 |---|------------|--------|-------|--------|
-| 1 | Sealed-secrets CRD not ready on first run (`ignore_errors`) | todo | #247 | ansible role wait loop |
+| 1 | Sealed-secrets CRD not ready on first run (`ignore_errors`) | done 2026-04-07 | #247 | ansible role wait loop |
 | 2 | Dex ConfigMap patch separate from Helm install | todo | #245 | move into Helm values |
 | 3 | `seal-argocd-dex` is interactive (prompts for GitHub creds) | todo | -- | accept env vars |
 | 4 | `set-admin-password` is interactive | todo | -- | accept env var |
