@@ -345,15 +345,17 @@ All services must respond (no timeouts or 5xx errors).
 ## Phase 7: Verify via browser
 
 Test OAuth login works end-to-end in Chrome for every service. The
-browser has active GitHub sessions — the OAuth flow should auto-approve
-after the first Dex "Grant Access" click.
+browser has active GitHub sessions. Clicking "Grant Access" on Dex
+and "Authorize" on GitHub is permitted — these only redirect back to
+the cluster and do not modify any GitHub resources.
 
 Read `cluster_domain` from `group_vars/all.yml` and use it throughout.
 
 ### 7a. Clear stale session cookies
 
-For each domain below, navigate to it then run JavaScript to expire
-all non-HttpOnly cookies:
+After a rebuild, old cookies from the previous cluster will cause
+issues. Clear them **immediately after navigating** to each service
+domain — run this JavaScript on the page before interacting:
 
 ```javascript
 document.cookie.split(';').forEach(c => {
@@ -363,23 +365,40 @@ document.cookie.split(';').forEach(c => {
 });
 ```
 
-Domains: `echo`, `argocd`, `grafana`, `open-webui`, `argocd-monitor`,
-`longhorn`, `headlamp`, `supabase`.
+Run this on each domain before testing login: `echo`, `argocd`,
+`grafana`, `open-webui`, `argocd-monitor`, `longhorn`, `headlamp`,
+`supabase`.
 
-### 7b. Service login matrix
+### 7b. Test order and login matrix
 
-Each service has a different auth mechanism. Follow the matching
-procedure for each:
+Test services in this order — the first Dex service establishes the
+GitHub OAuth session, which subsequent services reuse:
 
-#### Services with native Dex OAuth (click login button → Dex → GitHub)
+**1. No-auth services (test first as a smoke test):**
+
+| Service | Expected |
+|---------|----------|
+| Echo | Raw echo response (JSON with request headers) |
+| ArgoCD | Applications dashboard (auto-logged-in from `--tags cluster` session) |
+
+**2. First Dex OAuth service (establishes GitHub session):**
 
 | Service | Login action | Logged-in indicator |
 |---------|-------------|---------------------|
-| Grafana | Click "Sign in with GitHub (via Dex)" | Page title contains "Home" or "Grafana" (not "login") |
-| Open WebUI | Click the OAuth/SSO login button | Page title contains "Open WebUI" with a chat interface |
-| ArgoCD Monitor | Auto-redirects through sidecar oauth2-proxy → Dex | HTML contains "argocd-monitor" or application health data |
+| Grafana | Click "Sign in with GitHub (via Dex)" | Page title contains "Home" or "Grafana" |
 
-#### Services behind cluster oauth2-proxy (auto-redirect → GitHub)
+This will be the slowest flow — it goes through Dex → GitHub
+authorize → Dex Grant Access → redirect back. Subsequent Dex
+services reuse the GitHub session and auto-approve.
+
+**3. Remaining native Dex OAuth services:**
+
+| Service | Login action | Logged-in indicator |
+|---------|-------------|---------------------|
+| Open WebUI | See note below about scroll-jacking | Page title "Open WebUI" with chat interface |
+| ArgoCD Monitor | Auto-redirects through sidecar oauth2-proxy → Dex | HTML contains "argocd-monitor" or health data |
+
+**4. Services behind cluster oauth2-proxy (auto-redirect → GitHub):**
 
 | Service | Logged-in indicator |
 |---------|---------------------|
@@ -387,31 +406,44 @@ procedure for each:
 | Headlamp | Page title contains "Headlamp" |
 | Supabase | Page title contains "Supabase" |
 
-#### Services with no OAuth gate
-
-| Service | Expected |
-|---------|----------|
-| ArgoCD | Loads the login/applications page directly (admin disabled; Dex SSO only) |
-| Echo | Returns raw echo response (no auth) |
-
 ### 7c. OAuth flow procedure
 
-For each service in section 7b, use a single browser tab:
+Use a single browser tab for all tests. For each service:
 
 1. Navigate to `https://<service>.<cluster_domain>`
-2. Wait up to 10 seconds for redirects to settle
-3. Check the current URL and page content:
+2. Run the cookie-clearing JavaScript from 7a
+3. Reload the page and wait up to 10 seconds for redirects to settle
+4. Check the current URL and page content:
    - **If on a Dex "Grant Access" page** → click the "Grant Access"
      submit button, then wait 5 seconds for redirect
-   - **If on a GitHub authorize page** → wait 5 seconds (GitHub
-     auto-approves via existing cookies and redirects back)
+   - **If on a GitHub authorize page** → click "Authorize" if a button
+     is visible, otherwise wait 5 seconds (GitHub may auto-approve
+     via existing cookies and redirect back automatically)
    - **If on the service login page** → click the OAuth/sign-in button,
-     then repeat from step 2
+     then repeat from step 4
    - **If on the service's authenticated page** → take a screenshot,
      record success
-4. If the page shows an error (e.g. "Login failed", "Failed to get
+5. If the page shows an error (e.g. "Login failed", "Failed to get
    token from provider"), record the error — do NOT retry in a loop.
    Collect all failures and report them at the end.
+
+### 7d. Known browser automation gotchas
+
+- **Open WebUI scroll-jacking** — the login page has a parallax
+  animation that hides the "Continue with GitHub" button off-screen.
+  Normal scrolling won't reach it. Use JavaScript to click it:
+  ```javascript
+  document.querySelectorAll('button').forEach(b => {
+    if (b.textContent.includes('GitHub')) b.click();
+  });
+  ```
+- **Cloudflare Access redirect** — services behind Cloudflare Access
+  (`headlamp`, `supabase`, `argocd-monitor`) redirect through
+  `gilesk.cloudflareaccess.com` first. The browser's existing
+  Cloudflare session typically auto-approves this.
+- **ArgoCD is already logged in** — the `--tags cluster` playbook
+  run creates an ArgoCD session, so it usually loads the applications
+  dashboard directly without needing OAuth.
 
 ### 7d. Verification checklist
 
