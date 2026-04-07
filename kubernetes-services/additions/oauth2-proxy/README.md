@@ -10,7 +10,7 @@ This directory should contain a SealedSecret with your OAuth provider credential
 
 2. Generate a cookie secret:
    ```bash
-   python3 -c 'import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
+   python3 -c 'import os,base64; print(base64.b64encode(os.urandom(32)).decode())'
    ```
 
 3. Create and seal the secret:
