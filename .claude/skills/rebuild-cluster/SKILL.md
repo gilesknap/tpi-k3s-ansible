@@ -255,18 +255,6 @@ kubectl delete pod -n nvidia-device-plugin -l app.kubernetes.io/name=nvidia-devi
 Wait for the new pod to become Ready — this also unblocks `llamacpp`
 which is Pending until GPU resources are advertised.
 
-### 4h. Create Prometheus admission webhook secret
-
-The kube-prometheus-stack webhook TLS secret is not auto-created on
-ArgoCD-managed installs (Helm hook job is pruned). Create it manually:
-
-```bash
-just create-prometheus-admission-secret
-```
-
-If the prometheus-operator pod is stuck in ContainerCreating, delete it
-after creating the secret to trigger a restart.
-
 ## Phase 5: Verify cluster health
 
 **Do not proceed to browser testing until all checks below pass.**
@@ -308,8 +296,9 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 - **Monitoring pods stuck on ws03** — Longhorn CSI/engine-image may need
   time to deploy on ws03 after the toleration takes effect. Delete stuck
   pods to force reschedule after engine-image shows `deployed`.
-- **Prometheus operator CrashLoop** — run `just create-prometheus-admission-secret`
-  then delete the stuck pod.
+- **Prometheus operator CrashLoop** — the admission webhook secret is
+  created automatically by `--tags cluster`. If it is still missing,
+  run `just create-prometheus-admission-secret` then delete the stuck pod.
 - **ArgoCD Monitor OAuth login loop** — if argocd-monitor loops back to
   Dex after "Grant Access", check the oauth2-proxy sidecar logs for
   "cookie signature not valid". The shared oauth2-proxy sets
