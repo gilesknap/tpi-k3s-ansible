@@ -152,23 +152,17 @@ just set-admin-password
 
 ### 4c. Re-seal all secrets
 
-Use the `just` recipes and `just seal` to re-seal secrets — this tests
-the recipes themselves as part of the rebuild.
+**ArgoCD Dex secret** — script the `seal-argocd-dex` recipe
+non-interactively, reading the GitHub OAuth Client ID and Secret from
+`extracted-secrets.json` (keys: `dex.github.clientID`,
+`dex.github.clientSecret` in `argo-cd/argocd-dex-secret`). The recipe
+also generates the argocd-monitor oauth2-proxy secret — both files are
+created automatically.
 
-**ArgoCD Dex secret** — use the interactive recipe with values from the
-extracted secrets:
-```bash
-just seal-argocd-dex
-# Enter the GitHub OAuth Client ID and Secret from extracted-secrets.json
-# (keys: dex.github.clientID, dex.github.clientSecret in argo-cd/argocd-dex-secret)
-```
-
-**Open Brain MCP secret** — use the dedicated script with values from
-the extracted secrets:
-```bash
-./scripts/seal-mcp-secret
-# Enter values from extracted-secrets.json (open-brain-mcp/open-brain-mcp-secret)
-```
+**Open Brain MCP secret** — do NOT use `./scripts/seal-mcp-secret`
+(it fetches Supabase credentials from the cluster, which doesn't exist
+yet on a fresh rebuild). Instead use `just seal` with all 5 keys from
+the extracted JSON.
 
 **All other secrets** — use `just seal` for each, redirecting output to
 the correct file path. Check existing paths with:
@@ -181,6 +175,21 @@ For each remaining secret in the extracted JSON, run:
 just seal <name> <namespace> key1=val1 key2=val2 ... \
   > kubernetes-services/additions/<service>/<name>-secret.yaml
 ```
+
+**Key name reference** — the key names in the live secrets may differ
+from the key names expected by the deployments. Always use these key
+names when sealing (not the names from the extracted JSON):
+
+| Secret | Seal with key name(s) |
+|--------|----------------------|
+| `cloudflare-api-token` | `api-token` |
+| `cloudflared-credentials` | `TUNNEL_TOKEN` |
+| `grafana-oauth-secret` | `CLIENT_SECRET` (uppercase — loaded via `envFromSecrets`) |
+| `oauth2-proxy-credentials` | `client-secret`, `cookie-secret`, `client-id` |
+| `open-webui-oauth-secret` | `client-secret` |
+| `open-brain-mcp-secret` | `DATABASE_URL`, `MCP_JWT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SUPABASE_SERVICE_KEY` |
+| `supabase-credentials` | (15 keys — use all keys from extracted JSON as-is) |
+| `supabase-mcp-env` | `MCP_ACCESS_KEY` (not `SUPABASE_ACCESS_TOKEN`) |
 
 **File naming**: must be `*-secret.yaml` (singular) to match the
 `.gitleaks.toml` allowlist.
@@ -234,6 +243,18 @@ containerd config needs to be reapplied after k3s reinstall:
 ```bash
 SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags servers --limit ws03
 ```
+
+### 4i. Create Prometheus admission webhook secret
+
+The kube-prometheus-stack webhook TLS secret is not auto-created on
+ArgoCD-managed installs (Helm hook job is pruned). Create it manually:
+
+```bash
+just create-prometheus-admission-secret
+```
+
+If the prometheus-operator pod is stuck in ContainerCreating, delete it
+after creating the secret to trigger a restart.
 
 ## Phase 5: Verify via kubectl
 
@@ -324,13 +345,14 @@ sees the ArgoCD applications dashboard when testing is complete.
 
 ## Phase 8: Prepare for merge
 
-### 8a. Restore main tracking
+### 8a. Do NOT restore main tracking yet
 
-Edit `group_vars/all.yml`: set `repo_branch` back to `main`.
+**CRITICAL**: Do not switch `repo_branch` back to `main` before the PR
+is merged. ArgoCD on `main` would sync the **old** sealed secrets,
+which the new sealed-secrets controller cannot decrypt — causing all
+apps with secrets to go Degraded.
 
-```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
-```
+Leave ArgoCD tracking the rebuild branch until after merge.
 
 ### 8b. Commit and push
 
@@ -357,7 +379,12 @@ rm -rf /tmp/cluster-secrets/
 
 Tell the user:
 - The cluster is rebuilt and all services are verified
-- ArgoCD is tracking `main` (will sync after PR merge)
+- ArgoCD is tracking the **rebuild branch** (not main)
 - The PR is ready for review
+- After merging the PR, run these commands to switch ArgoCD back to main:
+  ```
+  # In group_vars/all.yml, verify repo_branch is set to "main"
+  SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
+  ```
 - `/tmp/cluster-secrets/` has been deleted
 - Any issues discovered and how they were fixed

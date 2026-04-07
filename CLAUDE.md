@@ -67,8 +67,7 @@
 - **Prometheus operator admission secret** — kube-prometheus-stack's
   webhook TLS secret (`grafana-prometheus-kube-pr-admission`) is not
   auto-created on ArgoCD-managed installs (Helm hook job is pruned).
-  Create it manually with a self-signed cert (keys: `cert`, `key`, `ca`
-  mounted at `/cert`).
+  Run `just create-prometheus-admission-secret` to create it.
 - **MCP SDK host validation** — `FastMCP` rejects requests where the `Host`
   header is not in `allowed_hosts` (421 Misdirected Request). When deploying
   behind a reverse proxy, add the external hostname via `transport_security`.
