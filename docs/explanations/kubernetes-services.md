@@ -9,7 +9,7 @@ within it becomes an independent ArgoCD Application.
 ```
 kubernetes-services/
 ├── Chart.yaml              # Minimal Helm chart metadata
-├── values.yaml             # Shared values (repo_branch, oauth2_emails, etc.)
+├── values.yaml             # Shared values (repo_branch, admin_emails, viewer_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
