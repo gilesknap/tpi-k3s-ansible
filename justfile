@@ -90,10 +90,6 @@ extract-secrets output_dir="/tmp/cluster-secrets":
 
 # sealed secrets ---------------------------------------------------------------
 
-# Seal an arbitrary secret. Usage: just seal <name> <namespace> key1=val1 ...
-seal name namespace *args:
-    scripts/seal {{ name }} {{ namespace }} {{ args }}
-
 # Seal all non-Dex secrets from an extracted-secrets JSON file
 seal-from-json json_file:
     scripts/seal-from-json {{ json_file }}
