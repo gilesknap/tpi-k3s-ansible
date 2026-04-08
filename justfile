@@ -1,4 +1,29 @@
-# development tasks ############################################################
+################################################################################
+# Operations / Development
+#
+# Day-to-day tasks: devcontainer setup, linting, docs, cluster diagnostics,
+# credential lookup, and ArgoCD management.
+################################################################################
+
+# devcontainer setup -----------------------------------------------------------
+
+# First-time devcontainer setup: copy SSH keys, authenticate gh, start agent
+setup:
+    scripts/setup
+
+# Start ssh-agent and add all private keys from ~/.ssh (prompts for passphrases)
+ssh-agent:
+    scripts/ssh-agent
+
+# Authenticate gh CLI with a GitHub PAT (token not stored in shell history)
+gh-auth:
+    scripts/gh-auth
+
+# Start Claude Code in sandbox mode (uses container-local SSH agent only)
+claude:
+    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome
+
+# linting & docs ---------------------------------------------------------------
 
 # Run all checks before committing (lint + docs in parallel)
 check:
@@ -20,25 +45,7 @@ docs-watch:
 pre-commit:
     uv run pre-commit run --all-files --show-diff-on-failure
 
-# devcontainer setup ###########################################################
-
-# First-time devcontainer setup: copy SSH keys, authenticate gh, start agent
-setup:
-    scripts/setup
-
-# Start ssh-agent and add all private keys from ~/.ssh (prompts for passphrases)
-ssh-agent:
-    scripts/ssh-agent
-
-# Authenticate gh CLI with a GitHub PAT (token not stored in shell history)
-gh-auth:
-    scripts/gh-auth
-
-# Start Claude Code in sandbox mode (uses container-local SSH agent only)
-claude:
-    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome
-
-# cluster status & diagnostics #################################################
+# cluster diagnostics ----------------------------------------------------------
 
 # Quick cluster health check: nodes, ArgoCD apps, failing pods, certificates
 status:
@@ -48,12 +55,12 @@ status:
 argocd-sync:
     scripts/argocd-sync
 
-# cluster credentials & tokens ################################################
+# Restart Dex and ArgoCD server (use after changing dex.config or secrets)
+restart-dex:
+    kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd
+    @echo "Restarted argocd-dex-server, argocd-server, argocd-repo-server"
 
-# Set the shared admin password (basic-auth ingresses + ArgoCD admin).
-# Reads ADMIN_PASSWORD env var or prompts interactively.
-set-admin-password:
-    scripts/set-admin-password
+# credentials & tokens ---------------------------------------------------------
 
 # Show Supabase Studio dashboard credentials
 supabase-creds:
@@ -64,7 +71,14 @@ supabase-creds:
 headlamp-token:
     @kubectl create token headlamp-admin -n headlamp --duration=2400h
 
-# secret extraction ############################################################
+################################################################################
+# Commissioning
+#
+# Cluster build, rebuild, and secret management. Used during initial bootstrap,
+# teardown/rebuild cycles, and secret rotation.
+################################################################################
+
+# secret extraction ------------------------------------------------------------
 
 # Export 8 external credentials to .env at repo root (gitignored)
 export-external-creds:
@@ -74,7 +88,7 @@ export-external-creds:
 extract-secrets output_dir="/tmp/cluster-secrets":
     scripts/extract-secrets {{ output_dir }}
 
-# sealed secrets ###############################################################
+# sealed secrets ---------------------------------------------------------------
 
 # Seal an arbitrary secret. Usage: just seal <name> <namespace> key1=val1 ...
 seal name namespace *args:
@@ -92,20 +106,16 @@ seal-argocd-dex:
 generate-and-seal-all output_dir="/tmp/cluster-secrets":
     scripts/generate-and-seal-all {{ output_dir }}
 
-# GPU operations ###############################################################
+# cluster bootstrap ------------------------------------------------------------
+
+# Set the shared admin password (basic-auth ingresses + ArgoCD admin).
+# Reads ADMIN_PASSWORD env var or prompts interactively.
+set-admin-password:
+    scripts/set-admin-password
 
 # Reinstall NVIDIA toolkit on GPU nodes and restart device-plugin pods
 gpu-setup:
     scripts/gpu-setup
-
-# ArgoCD operations ############################################################
-
-# Restart Dex and ArgoCD server (use after changing dex.config or secrets)
-restart-dex:
-    kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd
-    @echo "Restarted argocd-dex-server, argocd-server, argocd-repo-server"
-
-# Monitoring operations ########################################################
 
 # Create the Prometheus admission webhook TLS secret (required on fresh installs)
 create-prometheus-admission-secret:
