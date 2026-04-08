@@ -24,6 +24,11 @@
   that were previously set on an Ingress. If you remove annotations from a
   template (e.g. `ssl-passthrough`), you must `kubectl delete` the old
   Ingress first, then re-run the playbook to recreate it cleanly.
+- **oauth2-proxy `email_domains` must be `[]`** — the Helm chart defaults
+  to `email_domains = ["*"]`, which allows any GitHub user through and
+  silently overrides `authenticatedEmailsFile`. The fix is
+  `config.configFile` with `email_domains = []`. This bug was found and
+  fixed in PR #279 — do not remove the `configFile` override.
 - **oauth2-proxy cookie-secret must be exactly 16, 24, or 32 bytes** —
   `base64.b64encode(token_bytes(32))` produces 44 chars and crashes
   oauth2-proxy. Use `secrets.token_hex(16)` (32 hex chars = 32 bytes).
