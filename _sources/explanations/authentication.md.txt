@@ -77,7 +77,6 @@ flowchart LR
         CON --> C2[argocd-monitor]
         CON --> C3[grafana]
         CON --> C4[open-webui]
-        CON --> C5[headlamp]
     end
 
     GH --> CON
@@ -86,10 +85,9 @@ flowchart LR
     C2 --> argocd-monitor
     C3 --> Grafana
     C4 --> Open-WebUI
-    C5 --> Headlamp
 ```
 
-All five clients authenticate through a single GitHub OAuth App whose
+All four clients authenticate through a single GitHub OAuth App whose
 callback URL points to `https://argocd.<your-domain>/api/dex/callback`.
 Each client has its own `client_secret` stored in the `argocd-dex-secret`
 SealedSecret.
@@ -320,8 +318,8 @@ viewer_emails:
 | Cloudflare Access (manual) | Access policy should include both lists |
 
 **Viewer emails** authenticate via Dex OIDC and receive read-only roles:
-ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`, Headlamp
-view-only dashboard. They cannot access oauth2-proxy-gated services.
+ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`. They cannot
+access oauth2-proxy-gated services (Headlamp, Longhorn, Supabase Studio).
 
 :::{important}
 `admin_emails` must be kept in sync in two places:
