@@ -10,9 +10,13 @@ data:
       listen 8080;
       root /usr/share/nginx/html;
       index index.html;
-      sub_filter '<!--email-->' $http_x_auth_request_email;
-      sub_filter_once on;
-      sub_filter_types text/html;
+
+      location = /userinfo {
+        proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/userinfo;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+      }
     }
 ---
 apiVersion: v1
@@ -138,8 +142,8 @@ data:
     </head>
     <body>
       <div class="user-bar">
-        <span id="user-email"><!--email--></span>
-        <a href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out">Sign out</a>
+        <span id="user-email"></span>
+        <a id="logout-link" href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out" style="display:none">Sign out</a>
       </div>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:2rem">
         <img src="logo.svg" alt="logo" width="48" height="48">
@@ -196,6 +200,17 @@ data:
         <a href="https://gilesknap.github.io/tpi-k3s-ansible/">Docs</a>
         <a href="{{ .Values.repo_remote | trimSuffix ".git" }}">GitHub</a>
       </div>
+      <script>
+        fetch("/userinfo", {credentials: "include"})
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(d) {
+            if (d && d.email) {
+              document.getElementById("user-email").textContent = d.email;
+              document.getElementById("logout-link").style.display = "";
+            }
+          })
+          .catch(function() {});
+      </script>
     </body>
     </html>
   logo.svg: |
