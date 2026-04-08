@@ -10,6 +10,10 @@
   `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
   `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch).
 - **Never commit to `main`** — work in branches, squash-merge when verified.
+- **Rebase over `main` before new work** — if a branch has had PRs
+  squash-merged to `main`, rebase it onto `origin/main` before making
+  further changes. Squash-merged commits have different SHAs from the
+  originals, so skipping this causes unnecessary conflicts.
 - **Use `uv run`** for git commits (pre-commit hooks need the uv venv).
 
 ## Foot-Guns
