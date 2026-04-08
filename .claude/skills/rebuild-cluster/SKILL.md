@@ -104,13 +104,14 @@ setup, secret generation, sealing, git commit/push, and admin password.
 ```bash
 GENERATE_SECRETS=true \
 SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
-ansible-playbook pb_all.yml --tags k3s,cluster \
+ansible-playbook pb_all.yml --tags k3s,servers,cluster \
   --extra-vars repo_branch=<branch-name>
 ```
 
 The playbook automatically:
-1. Installs K3s on all nodes
-2. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
+1. Installs K3s on all nodes (labels GPU nodes with `nvidia.com/gpu.present`)
+2. Configures NVIDIA container runtime on GPU nodes (`--tags servers`)
+3. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
 3. Waits for the sealed-secrets controller (up to 300s)
 4. Generates all secrets fresh (random tokens, Supabase JWTs, etc.)
 5. Seals them with `kubeseal` using the new cluster's keys
@@ -152,16 +153,15 @@ just restart-dex
 
 ### 4c. GPU node setup
 
-Restore NVIDIA container runtime config and restart GPU pods:
+No manual step needed. The `--tags servers` in Phase 3 installs the
+NVIDIA container runtime before ArgoCD deploys the device-plugin
+DaemonSet, and the DaemonSet's `nodeSelector` (`nvidia.com/gpu.present`)
+ensures it only schedules on labelled GPU nodes. No CrashLoop cycle.
 
+If GPU pods are still stuck (e.g. after a partial rebuild), run:
 ```bash
 just gpu-setup
 ```
-
-This auto-detects GPU nodes from inventory (`nvidia_gpu_node: true`),
-runs `--tags servers` on them, then deletes the CrashLooping
-nvidia-device-plugin pods so the DaemonSet creates fresh ones with
-the NVIDIA runtime available. Also unblocks `llamacpp`.
 
 ## Phase 5: Verify cluster health
 
