@@ -12,40 +12,23 @@ Several services share a common admin password via a Kubernetes secret called
 |---------|-------------------------|
 | ArgoCD | Admin password via `argocd-secret` patch |
 | Grafana | `admin.existingSecret` references `admin-auth` |
-| Longhorn | nginx basic-auth on ingress |
+
+The quickest way to set the password is with the Justfile target:
 
 ```bash
-# Prompt for password (not echoed to terminal)
-printf "Enter admin password: " && read -s PASSWORD && echo
-
-# Generate htpasswd entry (user: admin)
-HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
-
-# Create admin-auth secret in each namespace that needs it
-for ns in longhorn monitoring; do
-  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
-  kubectl create secret generic admin-auth -n "$ns" \
-    --from-literal=auth="$HTPASSWD" \
-    --from-literal=user=admin \
-    --from-literal=password="$PASSWORD" \
-    --dry-run=client -o yaml | kubectl apply -f -
-done
-
-# Set ArgoCD admin password (bcrypt hash in argocd-secret)
-HASH=$(htpasswd -nbBC 10 "" "$PASSWORD" | tr -d ':\n' | sed 's/$2y/$2a/')
-kubectl -n argo-cd patch secret argocd-secret \
-  -p "{\"stringData\": {\"admin.password\": \"$HASH\", \"admin.passwordMtime\": \"$(date +%FT%T%Z)\"}}"
-
-# Restart ArgoCD to pick up the new password
-kubectl -n argo-cd rollout restart deployment argocd-server
-
-echo "Admin password set for all services."
+just set-admin-password
 ```
 
-To update the password later, re-run the script above and restart cached services:
+This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
+creates the ``admin-auth`` secret in the ``longhorn``, ``monitoring``, and
+``headlamp`` namespaces, patches the ArgoCD admin password, and restarts the
+ArgoCD server.
+
+To update the password later, re-run the same command and restart cached
+services:
 
 ```bash
-kubectl -n argo-cd rollout restart deployment argocd-server
+just set-admin-password
 kubectl -n monitoring rollout restart statefulset grafana-prometheus
 ```
 
@@ -54,8 +37,6 @@ kubectl -n monitoring rollout restart statefulset grafana-prometheus
 Access ArgoCD via port-forward to check that all services are deploying:
 
 ```bash
-argo.sh
-# Or manually:
 kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
 ```
 
@@ -77,11 +58,17 @@ password. Generate a token for the pre-configured ``headlamp-admin`` service
 account:
 
 ```bash
-kubectl create token headlamp-admin -n headlamp --duration=24h
+just headlamp-token
+```
+
+Or manually:
+
+```bash
+kubectl create token headlamp-admin -n headlamp --duration=2400h
 ```
 
 Paste the token into the Headlamp login screen. Tokens expire after the
-specified duration — re-run the command to generate a new one.
+specified duration (~100 days) — re-run the command to generate a new one.
 
 ## Clean Up the Initial Admin Secret
 
