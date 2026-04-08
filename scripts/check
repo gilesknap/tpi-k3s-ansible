@@ -1,0 +1,9 @@
+#!/bin/bash
+# Run lint and docs checks in parallel, fail if either fails.
+set -euo pipefail
+just lint & pid_lint=$!
+just docs & pid_docs=$!
+fail=0
+wait $pid_lint  || fail=1
+wait $pid_docs  || fail=1
+exit $fail

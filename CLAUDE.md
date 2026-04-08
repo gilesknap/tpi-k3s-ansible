@@ -10,6 +10,10 @@
   `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
   `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch).
 - **Never commit to `main`** — work in branches, squash-merge when verified.
+- **Rebase over `main` before new work** — if a branch has had PRs
+  squash-merged to `main`, rebase it onto `origin/main` before making
+  further changes. Squash-merged commits have different SHAs from the
+  originals, so skipping this causes unnecessary conflicts.
 - **Use `uv run`** for git commits (pre-commit hooks need the uv venv).
 
 ## Foot-Guns
@@ -58,9 +62,8 @@
 - **ws03 workstation taint** — any DaemonSet that needs to schedule on ws03
   must tolerate `workstation=true:NoSchedule`. The nvidia-device-plugin
   template includes this; check other DaemonSets if they need ws03.
-  Longhorn's `longhornManager`/`longhornDriver` tolerations and
-  `defaultSettings.taintToleration` are set in `templates/longhorn.yaml`
-  so CSI plugin + engine-image also run on ws03.
+  Longhorn does **not** tolerate this taint — ws03 is treated as
+  unreliable (may reboot), so no Longhorn storage runs there.
 - **Decommission before ArgoCD** — when tearing down the cluster, delete
   all ArgoCD Applications (orphan cascade) *before* scaling down workloads.
   Otherwise ArgoCD reconciliation re-creates pods faster than you can

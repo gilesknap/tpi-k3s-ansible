@@ -1,6 +1,6 @@
 # Setup ArgoCD to deploy the services defined in /kubernetes-services
 
-- name: Install the helm chart for ArgoCD
+- name: Install the helm chart for ArgoCD (minimal, creates argocd-secret)
   kubernetes.core.helm:
     chart_ref: oci://ghcr.io/argoproj/argo-helm/argo-cd
     chart_version: 9.4.17
@@ -39,42 +39,117 @@
   ansible.builtin.set_fact:
     _argocd_dex_client_secret: "{{ _dex_secret_cmd.stdout }}"
 
-- name: Patch the ArgoCD ConfigMap
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'kubernetes-services/additions/argocd/argocd-cm.yml') }}"
+- name: Upgrade ArgoCD Helm release with full configuration
+  kubernetes.core.helm:
+    chart_ref: oci://ghcr.io/argoproj/argo-helm/argo-cd
+    chart_version: 9.4.17
+    release_name: argocd
     namespace: argo-cd
-  register: argocd_cm
+    values:
+      global:
+        domain: argocd.{{ cluster_domain }}
+      configs:
+        params:
+          server.insecure: "true"
+        cm:
+          url: "https://argocd.{{ cluster_domain }}"
+          admin.enabled: "false"
+          dex.config: |
+            connectors:
+              - type: github
+                id: github
+                name: GitHub
+                config:
+                  clientID: $argocd-dex-secret:dex.github.clientID
+                  clientSecret: $argocd-dex-secret:dex.github.clientSecret
+                  loadAllGroups: true
+            staticClients:
+              - id: argo-cd
+                name: Argo CD
+                redirectURIs:
+                  - https://argocd.{{ cluster_domain }}/auth/callback
+                secret: {{ _argocd_dex_client_secret }}
+                trustedPeers:
+                  - argocd-monitor
+              - id: argocd-monitor
+                name: ArgoCD Monitor
+                redirectURIs:
+                  - https://argocd-monitor.{{ cluster_domain }}/oauth2/callback
+                secret: $argocd-dex-secret:argocd-monitor.clientSecret
+              - id: grafana
+                name: Grafana
+                redirectURIs:
+                  - https://grafana.{{ cluster_domain }}/login/generic_oauth
+                secret: $argocd-dex-secret:grafana.clientSecret
+              - id: open-webui
+                name: Open WebUI
+                redirectURIs:
+                  - https://open-webui.{{ cluster_domain }}/oauth/oidc/callback
+                  - http://open-webui.{{ cluster_domain }}/oauth/oidc/callback
+                secret: $argocd-dex-secret:open-webui.clientSecret
+              - id: headlamp
+                name: Headlamp
+                redirectURIs:
+                  - https://headlamp.{{ cluster_domain }}/oidc-callback
+                  - http://headlamp.{{ cluster_domain }}/oidc-callback
+                secret: $argocd-dex-secret:headlamp.clientSecret
+          resource.customizations: |
+            monitoring.coreos.com/Prometheus:
+              health.lua: |
+                if obj.metadata.annotations ~= nil and obj.metadata.annotations["argocd.argoproj.io/skip-health-check"] ~= nil then
+                  hs = {}
+                  hs.status = "Healthy"
+                  hs.message = "Ignoring Prometheus Health Check"
+                  return hs
+                end
 
-- name: Remove oidc.config from argocd-cm (incompatible with Dex)
-  kubernetes.core.k8s_json_patch:
-    kind: ConfigMap
-    name: argocd-cm
-    namespace: argo-cd
-    patch:
-      - op: remove
-        path: /data/oidc.config
-  register: remove_oidc
-  failed_when: false
-  changed_when: remove_oidc.result is defined
+                hs={ status = "Progressing", message = "Waiting for initialization" }
+                if obj.status ~= nil then
+                  if obj.status.conditions ~= nil then
+                    for i, condition in ipairs(obj.status.conditions) do
 
-- name: Apply ArgoCD RBAC ConfigMap
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'kubernetes-services/additions/argocd/argocd-rbac-cm.yml') }}"
-    namespace: argo-cd
-  register: argocd_rbac_cm
+                      if condition.type == "Available" and condition.status ~= "True" then
+                        if condition.reason == "SomePodsNotReady" then
+                          hs.status = "Progressing"
+                        else
+                          hs.status = "Degraded"
+                        end
+                        hs.message = condition.message or condition.reason
+                      end
+                      if condition.type == "Available" and condition.status == "True" then
+                        hs.status = "Healthy"
+                        hs.message = "All instances are available"
+                      end
+                    end
+                  end
+                end
+                return hs
+          resource.customizations.useOpenLibs.monitoring.coreos.com_Prometheus: "true"
+        rbac:
+          policy.default: role:readonly
+          scopes: '[email]'
+          policy.csv: |
+            p, role:admin, applications, *, */*, allow
+            p, role:admin, applications, update/*, */*, allow
+            p, role:admin, applications, delete/*, */*, allow
+            p, role:admin, logs, get, */*, allow
+            p, role:admin, exec, create, */*, allow
+            p, role:readonly, logs, get, */*, allow
+            {% for email in admin_emails %}
+            g, {{ email }}, role:admin
+            {% endfor %}
+  register: argocd_helm_upgrade
 
 - name: Rollout restart ArgoCD if config changed # noqa no-handler
   ansible.builtin.command: >
     kubectl rollout restart -n argo-cd statefulset argocd-application-controller
-  when: argocd_cm.changed or argocd_rbac_cm.changed or (remove_oidc.changed | default(false))
+  when: argocd_helm_upgrade.changed
   changed_when: true
 
 - name: Rollout restart Dex server if config changed # noqa no-handler
   ansible.builtin.command: >
     kubectl rollout restart -n argo-cd deployment argocd-dex-server
-  when: argocd_cm.changed or (remove_oidc.changed | default(false))
+  when: argocd_helm_upgrade.changed
   changed_when: true
 
 - name: Add an ArgoCD Project for the cluster
@@ -107,6 +182,47 @@
       type: Available
       status: "True"
     wait_timeout: 300
+
+# When GENERATE_SECRETS=true, generate fresh secrets, seal them, commit, and
+# push — all in one playbook run. This eliminates the manual extract→seal→
+# second-run cycle during cluster rebuild. External credentials must be
+# provided as env vars (GITHUB_CLIENT_ID, CLOUDFLARE_API_TOKEN, etc.).
+- name: Generate and seal all secrets for rebuild
+  ansible.builtin.shell:
+    cmd: just generate-and-seal-all
+    chdir: "{{ playbook_dir }}"
+    executable: /bin/bash
+  environment:
+    GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_ID') }}"
+    GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_SECRET') }}"
+    CLOUDFLARE_API_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_API_TOKEN') }}"
+    CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TUNNEL_TOKEN') }}"
+    OAUTH2_PROXY_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_ID') }}"
+    OAUTH2_PROXY_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_SECRET') }}"
+    OPEN_BRAIN_GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OPEN_BRAIN_GITHUB_CLIENT_ID') }}"
+    OPEN_BRAIN_GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OPEN_BRAIN_GITHUB_CLIENT_SECRET') }}"
+    ADMIN_PASSWORD: "{{ lookup('ansible.builtin.env', 'ADMIN_PASSWORD', default='') }}"
+    SMTP_USERNAME: "{{ lookup('ansible.builtin.env', 'SMTP_USERNAME', default='') }}"
+    SMTP_PASSWORD: "{{ lookup('ansible.builtin.env', 'SMTP_PASSWORD', default='') }}"
+    OPENAI_API_KEY: "{{ lookup('ansible.builtin.env', 'OPENAI_API_KEY', default='') }}"
+  when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+  changed_when: true
+
+- name: Commit and push sealed secrets for rebuild
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      cd "{{ playbook_dir }}"
+      git add kubernetes-services/additions/
+      if git diff --cached --quiet; then
+        echo "No changes to commit"
+      else
+        uv run git commit -m "Re-seal all secrets for rebuilt cluster"
+        git push
+      fi
+    executable: /bin/bash
+  when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+  changed_when: true
 
 - name: Check for ArgoCD Dex sealed secret file
   ansible.builtin.stat:

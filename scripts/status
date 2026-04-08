@@ -1,0 +1,19 @@
+#!/bin/bash
+# Quick cluster health check: nodes, ArgoCD apps, failing pods, certificates.
+echo "=== Nodes ==="
+kubectl get nodes 2>&1
+echo ""
+echo "=== ArgoCD Apps ==="
+kubectl get apps -n argo-cd --no-headers 2>&1
+echo ""
+failing=$(kubectl get pods -A --no-headers 2>&1 | grep -v Running | grep -v Completed || true)
+if [ -n "$failing" ]; then
+    echo "=== Failing Pods ==="
+    echo "$failing"
+    echo ""
+fi
+not_ready=$(kubectl get certificates -A --no-headers 2>&1 | grep -v True || true)
+if [ -n "$not_ready" ]; then
+    echo "=== Pending Certificates ==="
+    echo "$not_ready"
+fi

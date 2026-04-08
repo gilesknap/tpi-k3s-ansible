@@ -1,0 +1,22 @@
+#!/bin/bash
+# First-time devcontainer setup: check SSH keys, authenticate gh, start agent.
+set -euo pipefail
+# Check for private keys in ~/.ssh
+keys=$(find ~/.ssh -maxdepth 1 -type f -exec head -1 {} \; 2>/dev/null | grep -c "PRIVATE KEY" || true)
+if [ "$keys" -eq 0 ]; then
+    echo "No SSH private keys found in ~/.ssh"
+    echo "Copy your ansible keypair into the container, e.g.:"
+    echo "  podman cp ~/.ssh/my_ansible_key <container>:/root/.ssh/"
+    echo "  podman cp ~/.ssh/my_ansible_key.pub <container>:/root/.ssh/"
+    echo ""
+    echo "The ~/.ssh volume persists across container rebuilds."
+    echo "Re-run 'just setup' after copying keys."
+    exit 1
+fi
+echo "=== GitHub CLI authentication ==="
+just gh-auth
+echo ""
+echo "=== SSH agent ==="
+just ssh-agent
+echo ""
+echo "Setup complete. Run 'just claude' to start Claude Code."

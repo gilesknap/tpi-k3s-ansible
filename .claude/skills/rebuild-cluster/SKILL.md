@@ -43,25 +43,22 @@ git checkout <base-branch> && git pull
 git checkout -b rebuild-$(date +%Y%m%d)
 ```
 
-### 1b. Extract secrets
+### 1b. Collect external credentials
 
-Extract all plaintext secret values from the running cluster before
-teardown. After rebuild, sealed-secrets generates new encryption keys
-so existing SealedSecret YAML files become useless.
+Export the 8 external credentials that cannot be generated. Run this
+while the cluster is still up:
 
 ```bash
-just extract-secrets
+just export-external-creds
 ```
 
-This extracts all required secrets to `/tmp/cluster-secrets/extracted-secrets.json`
-and backs up sealed-secrets encryption keys to `sealed-secrets-keys.yaml`.
+This writes `.env` at the repo root (gitignored). Source it before
+Phase 3:
 
-**Never commit `/tmp/cluster-secrets/` to git.**
-
-### 1c. Check the admin-auth password
-
-Read the `password` key from any `admin-auth` secret — you will need it
-in Phase 5. Store it in a variable for later use.
+```bash
+set -a && source .env && set +a
+``` Everything else (admin passwords,
+cookie secrets, Supabase JWTs, Dex client secrets) is generated fresh.
 
 ## Phase 2: Decommission
 
@@ -98,15 +95,32 @@ ssh ansible@<worker-node> "which k3s"  # should return nothing
 ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
 ```
 
-## Phase 3: Rebuild
+## Phase 3: Rebuild (single playbook run)
+
+With `GENERATE_SECRETS=true` and the external credential env vars from
+Phase 1b, a single playbook run handles everything: K3s install, ArgoCD
+setup, secret generation, sealing, git commit/push, and admin password.
 
 ```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags k3s,cluster
+GENERATE_SECRETS=true \
+SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
+ansible-playbook pb_all.yml --tags k3s,servers,cluster \
+  --extra-vars repo_branch=<branch-name>
 ```
 
-The `--tags cluster` step automatically waits for the sealed-secrets
-controller to be ready before applying the Dex SealedSecret (up to
-300s). No manual wait is needed.
+The playbook automatically:
+1. Installs K3s on all nodes (labels GPU nodes with `nvidia.com/gpu.present`)
+2. Configures NVIDIA container runtime on GPU nodes (`--tags servers`)
+3. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
+3. Waits for the sealed-secrets controller (up to 300s)
+4. Generates all secrets fresh (random tokens, Supabase JWTs, etc.)
+5. Seals them with `kubeseal` using the new cluster's keys
+6. Sets the admin password (generated or from `ADMIN_PASSWORD` env var)
+7. Commits and pushes the sealed secret files
+8. Applies the ArgoCD Dex sealed secret and labels it
+
+The admin password is printed in the output and saved to
+`/tmp/cluster-secrets/admin-password.txt`.
 
 ### Verify rebuild
 
@@ -115,66 +129,9 @@ kubectl get nodes  # 6 nodes Ready
 kubectl get apps -n argo-cd  # 18 apps syncing
 ```
 
-## Phase 4: Bootstrap
+## Phase 4: Post-rebuild
 
-### 4a. Set admin password
-
-```bash
-export ADMIN_PASSWORD="<value from extracted-secrets.json>"
-just set-admin-password
-```
-
-### 4b. Re-seal all secrets
-
-**ArgoCD Dex secret** — set env vars from `extracted-secrets.json`
-and run the recipe:
-
-```bash
-export GITHUB_CLIENT_ID=<dex.github.clientID from argo-cd/argocd-dex-secret>
-export GITHUB_CLIENT_SECRET=<dex.github.clientSecret from argo-cd/argocd-dex-secret>
-just seal-argocd-dex
-```
-
-**CRITICAL**: the `argocd-dex-secret` must contain keys for **every**
-Dex static client defined in `dex.config` (`grafana.clientSecret`,
-`open-webui.clientSecret`, `headlamp.clientSecret`,
-`argocd-monitor.clientSecret`). If any are missing, Dex's
-`$argocd-dex-secret:key` resolution silently returns empty and the
-service gets "Failed to get token from provider" on login.
-
-**All other secrets** — seal everything else in one command:
-
-```bash
-just seal-from-json /tmp/cluster-secrets/extracted-secrets.json
-```
-
-This handles cloudflare-api-token, cloudflared-credentials,
-oauth2-proxy-credentials, open-brain-mcp-secret, supabase-credentials,
-and supabase-mcp-env with the correct key names and output paths.
-
-**Note**: do NOT use `./scripts/seal-mcp-secret` for open-brain-mcp —
-it fetches Supabase credentials from the cluster, which doesn't exist
-yet on a fresh rebuild. `seal-from-json` uses the extracted JSON instead.
-
-### 4c. Commit, push, and apply
-
-```bash
-uv run git add kubernetes-services/additions/
-uv run git commit -m "Re-seal all secrets for rebuilt cluster"
-git push origin <branch-name>
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster --extra-vars repo_branch=<branch-name>
-```
-
-The `--extra-vars` flag overrides `repo_branch` at runtime without
-editing `group_vars/all.yml`, so there is nothing to revert afterwards.
-
-The `--tags cluster` run will:
-- Compute the correct Dex client secret from `server.secretkey`
-- Patch the ArgoCD ConfigMap with the resolved secret
-- Label the `argocd-dex-secret` for `$secret:key` resolution
-- Update the root Application to track the rebuild branch
-
-### 4d. Force sync and verify secrets
+### 4a. Force sync and verify secrets
 
 ```bash
 just argocd-sync
@@ -188,24 +145,23 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4e. Restart Dex
+### 4b. Restart Dex
 
 ```bash
 just restart-dex
 ```
 
-### 4f. GPU node setup
+### 4c. GPU node setup
 
-Restore NVIDIA container runtime config and restart GPU pods:
+No manual step needed. The `--tags servers` in Phase 3 installs the
+NVIDIA container runtime before ArgoCD deploys the device-plugin
+DaemonSet, and the DaemonSet's `nodeSelector` (`nvidia.com/gpu.present`)
+ensures it only schedules on labelled GPU nodes. No CrashLoop cycle.
 
+If GPU pods are still stuck (e.g. after a partial rebuild), run:
 ```bash
 just gpu-setup
 ```
-
-This auto-detects GPU nodes from inventory (`nvidia_gpu_node: true`),
-runs `--tags servers` on them, then deletes the CrashLooping
-nvidia-device-plugin pods so the DaemonSet creates fresh ones with
-the NVIDIA runtime available. Also unblocks `llamacpp`.
 
 ## Phase 5: Verify cluster health
 
@@ -216,7 +172,7 @@ the NVIDIA runtime available. Also unblocks `llamacpp`.
 Run `just status` repeatedly (with 60-second waits) until **all** of
 these pass. Do not proceed until every app is Healthy:
 - [ ] All nodes Ready
-- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4f)
+- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4c)
 - [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
 
 If any SealedSecrets show `False` with "no key could decrypt":
@@ -231,7 +187,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
 
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
-- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4h)
+- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4c)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
@@ -240,9 +196,10 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 
 ### 5c. Common issues
 
-- **Monitoring pods stuck on ws03** — Longhorn CSI/engine-image may need
-  time to deploy on ws03 after the toleration takes effect. Delete stuck
-  pods to force reschedule after engine-image shows `deployed`.
+- **Monitoring pods stuck on ws03** — ws03 is tainted `workstation=true:NoSchedule`.
+  Longhorn does NOT tolerate this taint, so no Longhorn storage is available on ws03.
+  Pods needing PVCs should not schedule there. Monitoring components (Prometheus,
+  Grafana, etc.) tolerate the taint but use Longhorn PVCs from other nodes.
 - **Prometheus operator CrashLoop** — the admission webhook secret is
   created automatically by `--tags cluster`. If it is still missing,
   run `just create-prometheus-admission-secret` then delete the stuck pod.
@@ -274,6 +231,17 @@ Expected results:
 
 All services must respond (no timeouts or 5xx errors).
 
+### 6b. Generate Headlamp login token
+
+Headlamp requires a Kubernetes service account token after passing
+through OAuth. Generate one before browser testing:
+
+```bash
+just headlamp-token
+```
+
+Save the output — pass it to the browser verification subagent.
+
 ## Phase 7: Verify via browser
 
 **Delegate this entire phase to a subagent** using the Agent tool.
@@ -282,6 +250,7 @@ Cloudflare redirect URLs, navigation retries) that bloats the main
 conversation. Launch a single agent with `subagent_type: "general-purpose"`
 and pass it:
 - The cluster domain (from `group_vars/all.yml`)
+- The Headlamp token generated in Phase 6b
 - The full instructions below (7a–7f)
 - The instruction to report back a summary table of PASS/FAIL per service
 
@@ -349,8 +318,25 @@ services reuse the GitHub session and auto-approve.
 | Service | Logged-in indicator |
 |---------|---------------------|
 | Longhorn | Page title contains "Longhorn" |
-| Headlamp | Page title contains "Headlamp" |
+| Headlamp | Token login required after OAuth — see below |
 | Supabase | Page title contains "Supabase" |
+
+**Headlamp token login** — after oauth2-proxy redirects complete,
+Headlamp shows a token input screen. Paste the token from Phase 6b:
+
+```javascript
+const input = document.querySelector('input[type="password"]');
+if (input) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, 'value').set;
+  nativeSetter.call(input, '<HEADLAMP_TOKEN>');
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+```
+
+Then click the "Authenticate" button. **Logged-in indicator**: page
+shows a cluster view with namespaces or workloads. If the token is
+rejected, verify: `kubectl get sa headlamp-admin -n headlamp`
 
 ### 7c. OAuth flow procedure
 

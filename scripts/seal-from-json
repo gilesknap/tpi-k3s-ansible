@@ -1,0 +1,95 @@
+#!/bin/bash
+# Seal all non-Dex secrets from an extracted-secrets JSON file.
+# Usage: scripts/seal-from-json <json-file>
+# Skips secrets handled by seal-argocd-dex. Uses the correct key names
+# and output paths for each secret.
+set -euo pipefail
+SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+BASE="kubernetes-services/additions"
+JSON="$1"
+if [ ! -f "$JSON" ]; then
+    echo "ERROR: JSON file not found: $JSON" >&2
+    exit 1
+fi
+# Helper: extract a key value from the JSON for a given secret name and namespace
+get_key() {
+    local name="$1" ns="$2" key="$3"
+    val=$(jq -r --arg name "$name" --arg ns "$ns" --arg key "$key" \
+        '.[] | select(.name == $name and .namespace == $ns) | .data[$key] // empty' "$JSON")
+    if [ -z "$val" ]; then
+        echo "ERROR: missing key '$key' in secret '$name' (namespace '$ns')" >&2
+        exit 1
+    fi
+    echo "$val"
+}
+# Helper: check a secret exists in the JSON
+has_secret() {
+    local name="$1" ns="$2"
+    jq -e --arg name "$name" --arg ns "$ns" \
+        '.[] | select(.name == $name and .namespace == $ns)' "$JSON" > /dev/null 2>&1
+}
+# 1. cloudflare-api-token (cert-manager)
+echo "Sealing: cloudflare-api-token..."
+kubectl create secret generic cloudflare-api-token --namespace=cert-manager \
+    --from-literal=api-token="$(get_key cloudflare-api-token cert-manager api-token)" \
+    --dry-run=client -o yaml | $SEAL \
+    > "$BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
+echo "  -> $BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
+# 2. cloudflared-credentials (cloudflared)
+echo "Sealing: cloudflared-credentials..."
+kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
+    --from-literal=TUNNEL_TOKEN="$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN)" \
+    --dry-run=client -o yaml | $SEAL \
+    > "$BASE/cloudflared/tunnel-secret.yaml"
+echo "  -> $BASE/cloudflared/tunnel-secret.yaml"
+# 3. oauth2-proxy-credentials (oauth2-proxy)
+echo "Sealing: oauth2-proxy-credentials..."
+kubectl create secret generic oauth2-proxy-credentials --namespace=oauth2-proxy \
+    --from-literal=client-secret="$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)" \
+    --from-literal=cookie-secret="$(get_key oauth2-proxy-credentials oauth2-proxy cookie-secret)" \
+    --from-literal=client-id="$(get_key oauth2-proxy-credentials oauth2-proxy client-id)" \
+    --dry-run=client -o yaml | $SEAL \
+    > "$BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
+echo "  -> $BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
+# 4. open-brain-mcp-secret (open-brain-mcp)
+echo "Sealing: open-brain-mcp-secret..."
+kubectl create secret generic open-brain-mcp-secret --namespace=open-brain-mcp \
+    --from-literal=DATABASE_URL="$(get_key open-brain-mcp-secret open-brain-mcp DATABASE_URL)" \
+    --from-literal=MCP_JWT_SECRET="$(get_key open-brain-mcp-secret open-brain-mcp MCP_JWT_SECRET)" \
+    --from-literal=GITHUB_CLIENT_ID="$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_ID)" \
+    --from-literal=GITHUB_CLIENT_SECRET="$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)" \
+    --from-literal=SUPABASE_SERVICE_KEY="$(get_key open-brain-mcp-secret open-brain-mcp SUPABASE_SERVICE_KEY)" \
+    --dry-run=client -o yaml | $SEAL \
+    > "$BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
+echo "  -> $BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
+# 5. supabase-credentials (supabase) — all keys from extracted JSON
+echo "Sealing: supabase-credentials..."
+literals=""
+while IFS= read -r key; do
+    val=$(jq -r --arg name "supabase-credentials" --arg ns "supabase" --arg key "$key" \
+        '.[] | select(.name == $name and .namespace == $ns) | .data[$key]' "$JSON")
+    literals="$literals --from-literal=$key=$val"
+done < <(jq -r '.[] | select(.name == "supabase-credentials" and .namespace == "supabase") | .data | keys[]' "$JSON")
+if [ -z "$literals" ]; then
+    echo "ERROR: supabase-credentials not found in JSON" >&2
+    exit 1
+fi
+kubectl create secret generic supabase-credentials --namespace=supabase \
+    $literals --dry-run=client -o yaml | $SEAL \
+    > "$BASE/supabase/templates/supabase-secret.yaml"
+echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
+# 6. supabase-mcp-env (supabase) — MCP_ACCESS_KEY
+echo "Sealing: supabase-mcp-env..."
+if has_secret supabase-mcp-env supabase; then
+    mcp_key=$(jq -r '.[] | select(.name == "supabase-mcp-env" and .namespace == "supabase") | .data | to_entries[0].value' "$JSON")
+else
+    echo "ERROR: supabase-mcp-env not found in JSON" >&2
+    exit 1
+fi
+kubectl create secret generic supabase-mcp-env --namespace=supabase \
+    --from-literal=MCP_ACCESS_KEY="$mcp_key" \
+    --dry-run=client -o yaml | $SEAL \
+    > "$BASE/supabase/templates/mcp-env-secret.yaml"
+echo "  -> $BASE/supabase/templates/mcp-env-secret.yaml"
+echo ""
+echo "All non-Dex secrets sealed. Run 'just seal-argocd-dex' separately for Dex/OAuth secrets."
