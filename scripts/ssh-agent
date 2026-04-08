@@ -1,0 +1,33 @@
+#!/bin/bash
+# Start ssh-agent and add all private keys from ~/.ssh (prompts for passphrases).
+set -euo pipefail
+sock="/tmp/ssh-agent.sock"
+# Kill any stale agent on this socket
+if [ -S "$sock" ]; then
+    SSH_AUTH_SOCK="$sock" ssh-add -l &>/dev/null || rm -f "$sock"
+fi
+# Start agent if not already running
+if [ ! -S "$sock" ]; then
+    eval $(command ssh-agent -a "$sock") > /dev/null
+    echo "Started ssh-agent (pid $SSH_AGENT_PID)"
+else
+    export SSH_AUTH_SOCK="$sock"
+    echo "Using existing ssh-agent on $sock"
+fi
+# Add all private keys found in ~/.ssh
+for key in ~/.ssh/*; do
+    # Skip non-files, public keys, known_hosts, config, and authorized_keys
+    [ -f "$key" ] || continue
+    case "$key" in
+        *.pub|*known_hosts*|*config*|*authorized_keys*) continue ;;
+    esac
+    # Check it looks like a private key
+    head -1 "$key" 2>/dev/null | grep -q "PRIVATE KEY" || continue
+    SSH_AUTH_SOCK="$sock" ssh-add "$key"
+done
+echo ""
+echo "Keys loaded:"
+SSH_AUTH_SOCK="$sock" ssh-add -l
+echo ""
+echo "Run this in your shell to use the agent:"
+echo "  export SSH_AUTH_SOCK=$sock"
