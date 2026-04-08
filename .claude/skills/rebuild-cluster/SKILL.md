@@ -45,28 +45,19 @@ git checkout -b rebuild-$(date +%Y%m%d)
 
 ### 1b. Collect external credentials
 
-The following credentials cannot be generated and must be provided as
-environment variables. Read them from the running cluster before teardown:
+Export the 8 external credentials that cannot be generated. Run this
+while the cluster is still up:
 
 ```bash
-# Dex GitHub OAuth app
-export GITHUB_CLIENT_ID=$(kubectl get secret argocd-dex-secret -n argo-cd -o jsonpath='{.data.dex\.github\.clientID}' | base64 -d)
-export GITHUB_CLIENT_SECRET=$(kubectl get secret argocd-dex-secret -n argo-cd -o jsonpath='{.data.dex\.github\.clientSecret}' | base64 -d)
-
-# Cloudflare tokens
-export CLOUDFLARE_API_TOKEN=$(kubectl get secret cloudflare-api-token -n cert-manager -o jsonpath='{.data.api-token}' | base64 -d)
-export CLOUDFLARE_TUNNEL_TOKEN=$(kubectl get secret cloudflared-credentials -n cloudflared -o jsonpath='{.data.TUNNEL_TOKEN}' | base64 -d)
-
-# oauth2-proxy GitHub OAuth app
-export OAUTH2_PROXY_CLIENT_ID=$(kubectl get secret oauth2-proxy-credentials -n oauth2-proxy -o jsonpath='{.data.client-id}' | base64 -d)
-export OAUTH2_PROXY_CLIENT_SECRET=$(kubectl get secret oauth2-proxy-credentials -n oauth2-proxy -o jsonpath='{.data.client-secret}' | base64 -d)
-
-# open-brain-mcp GitHub OAuth app
-export OPEN_BRAIN_GITHUB_CLIENT_ID=$(kubectl get secret open-brain-mcp-secret -n open-brain-mcp -o jsonpath='{.data.GITHUB_CLIENT_ID}' | base64 -d)
-export OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(kubectl get secret open-brain-mcp-secret -n open-brain-mcp -o jsonpath='{.data.GITHUB_CLIENT_SECRET}' | base64 -d)
+just export-external-creds
 ```
 
-Keep these env vars set for Phase 3. Everything else (admin passwords,
+This writes `/tmp/cluster-secrets/external-creds.env`. Source it before
+Phase 3:
+
+```bash
+set -a && source /tmp/cluster-secrets/external-creds.env && set +a
+``` Everything else (admin passwords,
 cookie secrets, Supabase JWTs, Dex client secrets) is generated fresh.
 
 ## Phase 2: Decommission

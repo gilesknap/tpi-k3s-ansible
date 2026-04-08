@@ -173,6 +173,29 @@ headlamp-token:
 
 # secret extraction ############################################################
 
+# Export the 8 external credentials (GitHub OAuth, Cloudflare) from the
+# running cluster into a .env file. Source this before teardown so the
+# values survive into the rebuild. Default output: /tmp/cluster-secrets/external-creds.env
+export-external-creds output="/tmp/cluster-secrets/external-creds.env":
+    #!/bin/bash
+    set -euo pipefail
+    mkdir -p "$(dirname "{{ output }}")"
+    get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
+    cat > "{{ output }}" <<EOF
+    GITHUB_CLIENT_ID=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientID')
+    GITHUB_CLIENT_SECRET=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientSecret')
+    CLOUDFLARE_API_TOKEN=$(get_key cloudflare-api-token cert-manager api-token)
+    CLOUDFLARE_TUNNEL_TOKEN=$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN)
+    OAUTH2_PROXY_CLIENT_ID=$(get_key oauth2-proxy-credentials oauth2-proxy client-id)
+    OAUTH2_PROXY_CLIENT_SECRET=$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)
+    OPEN_BRAIN_GITHUB_CLIENT_ID=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_ID)
+    OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)
+    EOF
+    # Strip leading whitespace from heredoc
+    sed -i 's/^[[:space:]]*//' "{{ output }}"
+    echo "Wrote {{ output }} (8 credentials)"
+    echo "Source with: set -a && source {{ output }} && set +a"
+
 # Extract all plaintext secrets from the running cluster before teardown.
 # Writes extracted-secrets.json and sealed-secrets-keys.yaml to OUTPUT_DIR
 # (default /tmp/cluster-secrets). Used before rebuild so secrets can be
