@@ -13,8 +13,8 @@ credentials summary file.
 ## Important rules
 
 - **Never commit or push** without asking the user first.
-- **Never `kubectl apply/patch/edit`** except for `kubeseal` and the specific
-  `admin-auth` / `argocd-secret` bootstrap commands listed below.
+- **Never `kubectl apply/patch/edit`** except for `kubeseal` (used internally
+  by `GENERATE_SECRETS=true`).
 - Use `uv run` for any git commits (pre-commit hooks need the uv venv).
 - Run `ansible-playbook` commands from within the devcontainer.
 
@@ -136,18 +136,38 @@ For generic servers, remind them to run `ansible-playbook pb_add_nodes.yml`.
 
 ## Phase 4: Run the playbook
 
-Confirm with the user before running. The command depends on hardware type:
+Confirm with the user before running. `GENERATE_SECRETS=true` handles all
+secret generation, sealing, admin password, and git commit/push automatically.
+
+If the user wants a specific admin password, set `ADMIN_PASSWORD` in the
+environment. Otherwise one is generated randomly.
 
 **Turing Pi (first time):**
 ```bash
+GENERATE_SECRETS=true \
+SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
 ansible-playbook pb_all.yml -e do_flash=true
 ```
 
 **Generic servers:**
 ```bash
 ansible-playbook pb_all.yml --tags tools
+
+GENERATE_SECRETS=true \
+SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
 ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
 ```
+
+The playbook automatically:
+1. Installs K3s on all nodes
+2. Deploys ArgoCD with full config
+3. Waits for the sealed-secrets controller
+4. Generates all secrets fresh (admin password, Supabase JWTs, Dex
+   client secrets, cookie secrets, etc.)
+5. Seals them with `kubeseal` and commits/pushes the sealed files
+6. Sets the admin password and prints it to the output
+
+The admin password is saved to `/tmp/cluster-secrets/admin-password.txt`.
 
 Wait for completion and verify:
 ```bash
@@ -155,75 +175,33 @@ kubectl get nodes
 kubectl get applications -n argo-cd
 ```
 
-## Phase 5: Admin password and secrets
+## Phase 5: Post-deploy setup
 
-### Shared admin password
+### Generate Headlamp login token
 
-Ask the user to choose an admin password, then run:
-
-```bash
-printf "Enter admin password: " && read -s PASSWORD && echo
-
-HTPASSWD=$(htpasswd -nb admin "$PASSWORD")
-
-for ns in longhorn monitoring; do
-  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
-  kubectl create secret generic admin-auth -n "$ns" \
-    --from-literal=auth="$HTPASSWD" \
-    --from-literal=user=admin \
-    --from-literal=password="$PASSWORD" \
-    --dry-run=client -o yaml | kubectl apply -f -
-done
-
-HASH=$(htpasswd -nbBC 10 "" "$PASSWORD" | tr -d ':\n' | sed 's/$2y/$2a/')
-kubectl -n argo-cd patch secret argocd-secret \
-  -p "{\"stringData\": {\"admin.password\": \"$HASH\", \"admin.passwordMtime\": \"$(date +%FT%T%Z)\"}}"
-kubectl -n argo-cd rollout restart deployment argocd-server
-kubectl -n argo-cd delete secret argocd-initial-admin-secret 2>/dev/null || true
-```
-
-### Open Brain secrets (if enabled)
-
-If the user chose Open Brain, generate and seal all Supabase credentials:
-
-1. Generate raw secrets with `openssl rand`
-2. Generate Supabase JWTs with PyJWT (`uv pip install PyJWT` if needed)
-3. Create namespace and seal with `kubeseal`:
+Headlamp requires a Kubernetes service account token after passing
+through OAuth (or basic-auth). Generate one:
 
 ```bash
-kubectl create namespace supabase
-kubectl create secret generic supabase-credentials \
-  --namespace=supabase \
-  --from-literal=secret="$JWT_SECRET" \
-  --from-literal=anonKey="$ANON_KEY" \
-  --from-literal=serviceKey="$SERVICE_KEY" \
-  --from-literal=password="$DB_PASSWORD" \
-  --from-literal=database=postgres \
-  --from-literal=username=admin \
-  --from-literal=dashboard-password="$DASHBOARD_PASSWORD" \
-  --from-literal=smtp-username=noreply@example.com \
-  --from-literal=smtp-password=dummy-not-configured \
-  --from-literal=secretKeyBase="$REALTIME_SECRET" \
-  --from-literal=cryptoKey="$META_CRYPTO_KEY" \
-  --from-literal=mcp-access-key="$MCP_ACCESS_KEY" \
-  --from-literal=publicAccessToken="$ANALYTICS_KEY" \
-  --from-literal=privateAccessToken="$ANALYTICS_KEY" \
-  --from-literal=openAiApiKey=not-configured \
-  --dry-run=client -o yaml | \
-  kubeseal --format yaml \
-    --controller-name sealed-secrets \
-    --controller-namespace kube-system \
-  > kubernetes-services/additions/supabase/templates/supabase-secret.yaml
+just headlamp-token
 ```
+
+### Verify cluster health
+
+```bash
+just status
+```
+
+Run repeatedly until all nodes are Ready and all ArgoCD apps are
+Synced/Healthy.
 
 ## Phase 6: Write credentials file
 
 Write all generated credentials to `/tmp/cluster-credentials.txt` with clear
 labels. Include:
 
-- Admin password (for ArgoCD, Grafana, Longhorn)
-- Headlamp token command: `kubectl create token headlamp-admin -n headlamp --duration=24h`
-- If Open Brain: JWT secret, anon key, service key, MCP access key, dashboard password
+- Admin password (from `/tmp/cluster-secrets/admin-password.txt`)
+- Headlamp token (from `just headlamp-token` output)
 
 Warn the user to save this file somewhere secure and that `/tmp` is ephemeral.
 
