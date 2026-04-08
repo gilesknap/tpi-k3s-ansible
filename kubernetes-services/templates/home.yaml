@@ -32,6 +32,10 @@ spec:
           service_port: 80
           oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          extra_annotations:
+            nginx.ingress.kubernetes.io/configuration-snippet: |
+              auth_request_set $auth_email $upstream_http_x_auth_request_email;
+              add_header X-Auth-Email $auth_email always;
   syncPolicy:
     automated:
       prune: true
