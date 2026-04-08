@@ -41,7 +41,12 @@ use that instead of `main`:
 ```bash
 git checkout <base-branch> && git pull
 git checkout -b rebuild-$(date +%Y%m%d)
+git push -u origin rebuild-$(date +%Y%m%d)
 ```
+
+**Push the branch immediately** — ArgoCD's root app is configured with
+`repo_branch` during Phase 3 and will fail to sync if the branch does
+not exist on the remote (`unable to resolve '<branch>' to a commit SHA`).
 
 ### 1b. Collect external credentials
 
