@@ -11,9 +11,12 @@ data:
       root /usr/share/nginx/html;
       index index.html;
       sub_filter '<!--email-->' $http_x_auth_request_email;
-      sub_filter_once on;
+      sub_filter '<!--debug-headers-->' $http_x_auth_request_user;
+      sub_filter_once off;
       sub_filter_types text/html;
       add_header Cache-Control "no-store" always;
+      add_header X-Debug-Email $http_x_auth_request_email always;
+      add_header X-Debug-User $http_x_auth_request_user always;
     }
 ---
 apiVersion: v1
