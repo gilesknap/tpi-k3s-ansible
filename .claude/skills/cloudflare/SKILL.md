@@ -23,6 +23,9 @@ Services exposed via tunnel: grafana, headlamp, open-webui, oauth2-proxy, argocd
   - ws03 had `systemd-resolved` overridden to `1.1.1.1` which broke `node01.lan` resolution
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`
 - Adding new services requires both: ingress in repo + tunnel hostname in Cloudflare dashboard
+- **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
+  tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
+  static clients must list both `http://` and `https://` redirect URIs.
 
 ## Key Files
 - `kubernetes-services/values.yaml` — cloudflared toggle and config
