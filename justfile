@@ -174,14 +174,13 @@ headlamp-token:
 # secret extraction ############################################################
 
 # Export the 8 external credentials (GitHub OAuth, Cloudflare) from the
-# running cluster into a .env file. Source this before teardown so the
-# values survive into the rebuild. Default output: /tmp/cluster-secrets/external-creds.env
-export-external-creds output="/tmp/cluster-secrets/external-creds.env":
+# running cluster into a .env file at the repo root (gitignored).
+# Source this before rebuild so the values survive teardown.
+export-external-creds:
     #!/bin/bash
     set -euo pipefail
-    mkdir -p "$(dirname "{{ output }}")"
     get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
-    cat > "{{ output }}" <<EOF
+    cat > .env <<EOF
     GITHUB_CLIENT_ID=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientID')
     GITHUB_CLIENT_SECRET=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientSecret')
     CLOUDFLARE_API_TOKEN=$(get_key cloudflare-api-token cert-manager api-token)
@@ -192,9 +191,9 @@ export-external-creds output="/tmp/cluster-secrets/external-creds.env":
     OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)
     EOF
     # Strip leading whitespace from heredoc
-    sed -i 's/^[[:space:]]*//' "{{ output }}"
-    echo "Wrote {{ output }} (8 credentials)"
-    echo "Source with: set -a && source {{ output }} && set +a"
+    sed -i 's/^[[:space:]]*//' .env
+    echo "Wrote .env (8 credentials, gitignored)"
+    echo "Source with: set -a && source .env && set +a"
 
 # Extract all plaintext secrets from the running cluster before teardown.
 # Writes extracted-secrets.json and sealed-secrets-keys.yaml to OUTPUT_DIR

@@ -52,11 +52,11 @@ while the cluster is still up:
 just export-external-creds
 ```
 
-This writes `/tmp/cluster-secrets/external-creds.env`. Source it before
+This writes `.env` at the repo root (gitignored). Source it before
 Phase 3:
 
 ```bash
-set -a && source /tmp/cluster-secrets/external-creds.env && set +a
+set -a && source .env && set +a
 ``` Everything else (admin passwords,
 cookie secrets, Supabase JWTs, Dex client secrets) is generated fresh.
 
