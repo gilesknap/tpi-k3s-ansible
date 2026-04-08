@@ -36,8 +36,11 @@
   cookie-secret generation in `scripts/seal-argocd-dex`.
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
-- **Branch switching** — only edit `group_vars/all.yml` `repo_branch`, then
-  run `--tags cluster`. The root app passes it down to all child apps.
+- **Branch switching** — use `just switch-branch <branch>` to point the
+  cluster at a different branch. This passes `-e repo_branch=<branch>` as
+  an override without editing `group_vars/all.yml`. Never change
+  `repo_branch` in `all.yml` — it must always be `main`. To revert,
+  run `just switch-branch main`.
 - **`known_hosts` task must be `serial: 1`** — parallel writes race.
 - **Traefik is disabled** — project uses `--disable=traefik` with NGINX Ingress.
 - **Multi-homed nodes** — K3s and flannel auto-detect the IP from the default
