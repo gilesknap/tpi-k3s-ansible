@@ -209,7 +209,7 @@ Bootstraps ArgoCD and the entire service stack:
 
 1. **Taint the control plane** (multi-node only) — applies `NoSchedule` taint so
    workloads only run on worker nodes. Skipped for single-node clusters.
-2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (v7.8.3).
+2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (v9.4.17).
 3. **Patch ConfigMap** — adds a custom Lua health check for `monitoring.coreos.com/Prometheus`
    (respects a `skip-health-check` annotation).
 4. **Create AppProject** — creates the `kubernetes` ArgoCD project allowing access to

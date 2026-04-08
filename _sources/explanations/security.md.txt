@@ -61,10 +61,11 @@ Current SealedSecrets:
 
 ### Admin access
 
-Admin email addresses are configured in `oauth2_emails` in
-`kubernetes-services/values.yaml`. This single list drives admin role
-assignment across Grafana, Open WebUI, and the oauth2-proxy email
-allowlist. See {doc}`authentication` for details.
+Admin email addresses are configured in `admin_emails` in
+`kubernetes-services/values.yaml`. Viewer access is controlled by
+`viewer_emails`. These lists drive role assignment across Grafana,
+Open WebUI, and the oauth2-proxy email allowlist. See
+{doc}`authentication` for details.
 
 ## Devcontainer credential isolation
 

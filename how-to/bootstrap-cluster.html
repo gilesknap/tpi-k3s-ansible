@@ -424,41 +424,20 @@ all services. Follow these steps to finish the setup.</p>
 <tr class="row-odd"><td><p>Grafana</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">admin.existingSecret</span></code> references <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Longhorn</p></td>
-<td><p>nginx basic-auth on ingress</p></td>
-</tr>
 </tbody>
 </table>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Prompt for password (not echoed to terminal)</span>
-<span class="nb">printf</span><span class="w"> </span><span class="s2">&quot;Enter admin password: &quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>-s<span class="w"> </span>PASSWORD<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span>
-
-<span class="c1"># Generate htpasswd entry (user: admin)</span>
-<span class="nv">HTPASSWD</span><span class="o">=</span><span class="k">$(</span>htpasswd<span class="w"> </span>-nb<span class="w"> </span>admin<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PASSWORD</span><span class="s2">&quot;</span><span class="k">)</span>
-
-<span class="c1"># Create admin-auth secret in each namespace that needs it</span>
-<span class="k">for</span><span class="w"> </span>ns<span class="w"> </span><span class="k">in</span><span class="w"> </span>longhorn<span class="w"> </span>monitoring<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ns</span><span class="s2">&quot;</span><span class="w"> </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-
-<span class="w">  </span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>admin-auth<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ns</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--from-literal<span class="o">=</span><span class="nv">auth</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HTPASSWD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--from-literal<span class="o">=</span><span class="nv">user</span><span class="o">=</span>admin<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--from-literal<span class="o">=</span><span class="nv">password</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-
-<span class="k">done</span>
-
-<span class="c1"># Set ArgoCD admin password (bcrypt hash in argocd-secret)</span>
-<span class="nv">HASH</span><span class="o">=</span><span class="k">$(</span>htpasswd<span class="w"> </span>-nbBC<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;:\n&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span><span class="s1">&#39;s/$2y/$2a/&#39;</span><span class="k">)</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>patch<span class="w"> </span>secret<span class="w"> </span>argocd-secret<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-p<span class="w"> </span><span class="s2">&quot;{\&quot;stringData\&quot;: {\&quot;admin.password\&quot;: \&quot;</span><span class="nv">$HASH</span><span class="s2">\&quot;, \&quot;admin.passwordMtime\&quot;: \&quot;</span><span class="k">$(</span>date<span class="w"> </span>+%FT%T%Z<span class="k">)</span><span class="s2">\&quot;}}&quot;</span>
-
-<span class="c1"># Restart ArgoCD to pick up the new password</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment<span class="w"> </span>argocd-server
-
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Admin password set for all services.&quot;</span>
+<p>The quickest way to set the password is with the Justfile target:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>set-admin-password
 </pre></div>
 </div>
-<p>To update the password later, re-run the script above and restart cached services:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment<span class="w"> </span>argocd-server
+<p>This prompts for a password (or reads <code class="docutils literal notranslate"><span class="pre">ADMIN_PASSWORD</span></code> from the environment),
+creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret in the <code class="docutils literal notranslate"><span class="pre">longhorn</span></code>, <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">headlamp</span></code> namespaces, patches the ArgoCD admin password, and restarts the
+ArgoCD server.</p>
+<p>To update the password later, re-run the same command and restart cached
+services:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>set-admin-password
 kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>statefulset<span class="w"> </span>grafana-prometheus
 </pre></div>
 </div>
@@ -466,9 +445,7 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="
 <section id="verify-argocd-sync">
 <h2>Verify ArgoCD Sync<a class="headerlink" href="#verify-argocd-sync" title="Link to this heading">#</a></h2>
 <p>Access ArgoCD via port-forward to check that all services are deploying:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argo.sh
-<span class="c1"># Or manually:</span>
-kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/argocd-server<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="m">8080</span>:8080
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/argocd-server<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="m">8080</span>:8080
 </pre></div>
 </div>
 <p>Login with <code class="docutils literal notranslate"><span class="pre">admin</span></code> and the password you just set. You should see
@@ -485,11 +462,15 @@ services to reach <code class="docutils literal notranslate"><span class="pre">S
 <p>Headlamp uses Kubernetes token authentication rather than the shared admin
 password. Generate a token for the pre-configured <code class="docutils literal notranslate"><span class="pre">headlamp-admin</span></code> service
 account:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>token<span class="w"> </span>headlamp-admin<span class="w"> </span>-n<span class="w"> </span>headlamp<span class="w"> </span>--duration<span class="o">=</span>24h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>headlamp-token
+</pre></div>
+</div>
+<p>Or manually:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>token<span class="w"> </span>headlamp-admin<span class="w"> </span>-n<span class="w"> </span>headlamp<span class="w"> </span>--duration<span class="o">=</span>2400h
 </pre></div>
 </div>
 <p>Paste the token into the Headlamp login screen. Tokens expire after the
-specified duration — re-run the command to generate a new one.</p>
+specified duration (~100 days) — re-run the command to generate a new one.</p>
 </section>
 <section id="clean-up-the-initial-admin-secret">
 <h2>Clean Up the Initial Admin Secret<a class="headerlink" href="#clean-up-the-initial-admin-secret" title="Link to this heading">#</a></h2>

@@ -999,13 +999,15 @@ kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class
 <h3>Adding a new Dex static client<a class="headerlink" href="#adding-a-new-dex-static-client" title="Link to this heading">#</a></h3>
 <p>To add a new service that authenticates via Dex:</p>
 <ol class="arabic simple">
-<li><p>Add a <code class="docutils literal notranslate"><span class="pre">staticClients</span></code> entry in <code class="docutils literal notranslate"><span class="pre">additions/argocd/argocd-cm.yml</span></code> with
-the service’s redirect URI and a reference to its secret key in
-<code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>.</p></li>
-<li><p>Re-seal <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> with the new client secret included.</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">staticClients</span></code> entry in the <code class="docutils literal notranslate"><span class="pre">dex.config</span></code> section of
+<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>, with the service’s redirect URI and
+a reference to its secret key in <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>.</p></li>
+<li><p>Re-seal <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> with the new client secret included
+(<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-argocd-dex</span></code>).</p></li>
 <li><p>Configure the service’s OIDC settings to point at
 <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;/api/dex</span></code>.</p></li>
-<li><p>Commit, push, and restart the ArgoCD server pod.</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> to apply the updated
+Dex config, then commit and push the sealed secret.</p></li>
 </ol>
 </section>
 </section>

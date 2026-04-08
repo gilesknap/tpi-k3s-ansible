@@ -153,13 +153,15 @@ kubectl rollout restart deployment/open-webui -n open-webui
 
 To add a new service that authenticates via Dex:
 
-1. Add a `staticClients` entry in `additions/argocd/argocd-cm.yml` with
-   the service's redirect URI and a reference to its secret key in
-   `argocd-dex-secret`.
-2. Re-seal `argocd-dex-secret` with the new client secret included.
+1. Add a `staticClients` entry in the `dex.config` section of
+   `roles/cluster/tasks/argocd.yml`, with the service's redirect URI and
+   a reference to its secret key in `argocd-dex-secret`.
+2. Re-seal `argocd-dex-secret` with the new client secret included
+   (`just seal-argocd-dex`).
 3. Configure the service's OIDC settings to point at
    `https://argocd.<your-domain>/api/dex`.
-4. Commit, push, and restart the ArgoCD server pod.
+4. Run `ansible-playbook pb_all.yml --tags cluster` to apply the updated
+   Dex config, then commit and push the sealed secret.
 
 ---
 

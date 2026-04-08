@@ -189,7 +189,7 @@ create separate applications for each subdomain. The SSH application from
 |---|---|
 | Policy name | `Allowed Users` |
 | Action | `Allow` |
-| Include rule | Emails — add the same addresses as your `oauth2_emails` list |
+| Include rule | Emails — add the same addresses as your `admin_emails` and `viewer_emails` lists |
 
 4. Click **Save application**.
 
@@ -337,7 +337,7 @@ Check that the ArgoCD tunnel hostname uses **HTTPS** origin (not HTTP) with
 ### 403 Forbidden after authenticating
 
 Check the oauth2-proxy email allowlist in `kubernetes-services/values.yaml` under
-`oauth2_emails`. The email on your GitHub account must match an entry in this list.
+`admin_emails`. The email on your GitHub account must match an entry in this list.
 
 ### LAN access stops working
 
