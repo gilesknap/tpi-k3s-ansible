@@ -2,6 +2,22 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: home-nginx-conf
+  namespace: home
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      root /usr/share/nginx/html;
+      index index.html;
+      sub_filter '<!--email-->' $http_x_auth_request_email;
+      sub_filter_once on;
+      sub_filter_types text/html;
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: home-html
   namespace: home
 data:
@@ -122,8 +138,8 @@ data:
     </head>
     <body>
       <div class="user-bar">
-        <span id="user-email"></span>
-        <a id="logout-link" href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out" style="display:none">Sign out</a>
+        <span id="user-email"><!--email--></span>
+        <a href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out">Sign out</a>
       </div>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:2rem">
         <img src="logo.svg" alt="logo" width="48" height="48">
@@ -180,17 +196,6 @@ data:
         <a href="https://gilesknap.github.io/tpi-k3s-ansible/">Docs</a>
         <a href="{{ .Values.repo_remote | trimSuffix ".git" }}">GitHub</a>
       </div>
-      <script>
-        fetch("https://oauth2.{{ .Values.cluster_domain }}/oauth2/userinfo", {credentials: "include"})
-          .then(function(r) { return r.ok ? r.json() : null; })
-          .then(function(d) {
-            if (d && d.email) {
-              document.getElementById("user-email").textContent = d.email;
-              document.getElementById("logout-link").style.display = "";
-            }
-          })
-          .catch(function() {});
-      </script>
     </body>
     </html>
   logo.svg: |
@@ -255,6 +260,9 @@ spec:
               drop:
                 - ALL
           volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
             - name: html
               mountPath: /usr/share/nginx/html
               readOnly: true
@@ -272,6 +280,9 @@ spec:
               cpu: 50m
               memory: 32Mi
       volumes:
+        - name: nginx-conf
+          configMap:
+            name: home-nginx-conf
         - name: html
           configMap:
             name: home-html
