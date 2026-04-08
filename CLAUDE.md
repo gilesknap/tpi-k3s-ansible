@@ -58,9 +58,8 @@
 - **ws03 workstation taint** — any DaemonSet that needs to schedule on ws03
   must tolerate `workstation=true:NoSchedule`. The nvidia-device-plugin
   template includes this; check other DaemonSets if they need ws03.
-  Longhorn's `longhornManager`/`longhornDriver` tolerations and
-  `defaultSettings.taintToleration` are set in `templates/longhorn.yaml`
-  so CSI plugin + engine-image also run on ws03.
+  Longhorn does **not** tolerate this taint — ws03 is treated as
+  unreliable (may reboot), so no Longhorn storage runs there.
 - **Decommission before ArgoCD** — when tearing down the cluster, delete
   all ArgoCD Applications (orphan cascade) *before* scaling down workloads.
   Otherwise ArgoCD reconciliation re-creates pods faster than you can

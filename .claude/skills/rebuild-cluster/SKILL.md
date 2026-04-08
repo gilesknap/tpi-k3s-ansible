@@ -196,9 +196,10 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 
 ### 5c. Common issues
 
-- **Monitoring pods stuck on ws03** — Longhorn CSI/engine-image may need
-  time to deploy on ws03 after the toleration takes effect. Delete stuck
-  pods to force reschedule after engine-image shows `deployed`.
+- **Monitoring pods stuck on ws03** — ws03 is tainted `workstation=true:NoSchedule`.
+  Longhorn does NOT tolerate this taint, so no Longhorn storage is available on ws03.
+  Pods needing PVCs should not schedule there. Monitoring components (Prometheus,
+  Grafana, etc.) tolerate the taint but use Longhorn PVCs from other nodes.
 - **Prometheus operator CrashLoop** — the admission webhook secret is
   created automatically by `--tags cluster`. If it is still missing,
   run `just create-prometheus-admission-secret` then delete the stuck pod.
