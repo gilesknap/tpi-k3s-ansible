@@ -41,7 +41,12 @@ use that instead of `main`:
 ```bash
 git checkout <base-branch> && git pull
 git checkout -b rebuild-$(date +%Y%m%d)
+git push -u origin rebuild-$(date +%Y%m%d)
 ```
+
+**Push the branch immediately** — ArgoCD's root app is configured with
+`repo_branch` during Phase 3 and will fail to sync if the branch does
+not exist on the remote (`unable to resolve '<branch>' to a commit SHA`).
 
 ### 1b. Collect external credentials
 
@@ -145,10 +150,16 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4b. Restart Dex
+### 4b. Restart Dex and secret-dependent pods
+
+Dex and any pods that load secrets via `env.valueFrom.secretKeyRef` need
+a restart to pick up the newly sealed secrets. Pods started before the
+secrets were re-sealed will have stale values and OAuth will fail with
+"invalid client credentials".
 
 ```bash
 just restart-dex
+kubectl rollout restart statefulset open-webui -n open-webui
 ```
 
 ### 4c. GPU node setup
