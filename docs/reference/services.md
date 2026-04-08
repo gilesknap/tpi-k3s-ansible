@@ -6,21 +6,21 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 
 | Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
 |---------|---------------|---------|-----------|-------------|------|---------|
-| cert-manager | `jetstack/cert-manager` | v1.19.4 | `cert-manager` | — | — | TLS certificate management |
-| cloudflared | Plain manifests | 2026.2.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
+| cert-manager | `jetstack/cert-manager` | v1.20.1 | `cert-manager` | — | — | TLS certificate management |
+| cloudflared | Plain manifests | 2026.3.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
-| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 82.4.1 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.40.0 | `headlamp` | `headlamp.<domain>` | oauth2-proxy | Kubernetes dashboard |
-| ingress-nginx | `ingress-nginx/ingress-nginx` | 4.14.3 | `ingress-nginx` | — | — | Ingress controller |
+| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
+| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | oauth2-proxy | Kubernetes dashboard |
+| ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| Longhorn | `longhorn/longhorn` | 1.11.0 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 7.12.10 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Headlamp, Supabase |
+| Longhorn | `longhorn/longhorn` | 1.11.1 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Headlamp, Supabase |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
-| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.18.2 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| Open WebUI | `open-webui/open-webui` | 12.5.0 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
+| Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
 | Open Brain MCP | Helm chart (local) | — | `open-brain-mcp` | `brain.<domain>` | OAuth 2.1 (GitHub) | Standalone MCP server for AI memory |
-| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.3 | `kube-system` | — | — | Encrypted secrets in Git |
+| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
 | Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | oauth2-proxy (Studio) + dashboard password, x-brain-key (API) | Self-hosted backend-as-a-service platform |
 
 ## Service details
@@ -39,7 +39,7 @@ for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi lim
 
 Outbound Cloudflare tunnel connector. Runs 2 replicas for availability. Reads the
 tunnel token from a SealedSecret. Non-root, read-only rootfs. Image pinned to
-`2026.2.0`.
+`2026.3.0`.
 
 **Additional manifests:** `additions/cloudflared/`
 - `deployment.yaml` — 2-replica Deployment with hardened security context
@@ -59,7 +59,7 @@ Image pinned to `0.9.2`.
 
 Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
 Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
-emails in `oauth2_emails` get Admin role, others get Viewer. Longhorn persistent
+emails in `admin_emails` get Admin role, those in `viewer_emails` get Viewer. Longhorn persistent
 volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
 100m/256Mi request, 500m/512Mi limit.
 
@@ -184,7 +184,7 @@ default and survives k3s-agent restarts.
 ### Open WebUI
 
 ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
-(OIDC) with GitHub — emails in `oauth2_emails` get admin role, others get
+(OIDC) with GitHub — emails in `admin_emails` get admin role, those in `viewer_emails` get
 user role. Password login is disabled. Connects to both:
 
 - **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
@@ -248,7 +248,7 @@ See {doc}`/how-to/open-brain` for deployment.
 ## ArgoCD itself
 
 ArgoCD is not in the `kubernetes-services/templates/` directory — it is installed
-directly by the Ansible `cluster` role using the OCI Helm chart (v7.8.3). It is the
+directly by the Ansible `cluster` role using the OCI Helm chart (v9.4.17). It is the
 foundation that all other services depend on.
 
 Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps

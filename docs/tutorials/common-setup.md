@@ -105,7 +105,7 @@ enable_oauth2_proxy: false
 
 # OAuth2 email allowlist — GitHub-linked emails allowed to access
 # protected services. Remove the defaults and add your own:
-oauth2_emails:
+admin_emails:
   - you@example.com
 
 # NFS configuration (optional — only needed for LLM features)
