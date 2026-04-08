@@ -7,6 +7,19 @@
 # generated and stored in argocd-dex-secret so $secret:key resolution works.
 set -euo pipefail
 SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+# Atomic seal: write to temp file, move on success. Prevents truncating
+# existing sealed secrets when kubeseal fails (e.g. controller not ready).
+seal_to() {
+    local dest="$1"
+    local tmp="${dest}.tmp"
+    if $SEAL > "$tmp"; then
+        mv "$tmp" "$dest"
+    else
+        rm -f "$tmp"
+        echo "ERROR: kubeseal failed for $dest" >&2
+        exit 1
+    fi
+}
 client_id="${GITHUB_CLIENT_ID:-}"
 client_secret="${GITHUB_CLIENT_SECRET:-}"
 if [ -z "$client_id" ]; then read -p "GitHub OAuth Client ID: " client_id < /dev/tty; fi
@@ -33,27 +46,24 @@ kubectl create secret generic argocd-dex-secret \
   --from-literal=headlamp.clientSecret="$headlamp_secret" \
   --dry-run=client -o yaml | \
   yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
-  $SEAL > kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+  seal_to kubernetes-services/additions/argocd/argocd-dex-secret.yaml
 echo "Sealed: kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
 # argocd-monitor oauth2-proxy secret
 kubectl create secret generic argocd-monitor-oauth \
   --namespace argocd-monitor \
   --from-literal=client-secret="$monitor_secret" \
   --from-literal=cookie-secret="$cookie_secret" \
-  --dry-run=client -o yaml | $SEAL \
-  > kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
+  --dry-run=client -o yaml | seal_to kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
 echo "Sealed: kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml"
 # Grafana OAuth secret — key must be CLIENT_SECRET (loaded via envFromSecrets)
 kubectl create secret generic grafana-oauth-secret \
   --namespace monitoring \
   --from-literal=CLIENT_SECRET="$grafana_secret" \
-  --dry-run=client -o yaml | $SEAL \
-  > kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+  --dry-run=client -o yaml | seal_to kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
 echo "Sealed: kubernetes-services/additions/grafana/grafana-oauth-secret.yaml"
 # Open WebUI OAuth secret — key must be client-secret (loaded via secretKeyRef)
 kubectl create secret generic open-webui-oauth-secret \
   --namespace open-webui \
   --from-literal=client-secret="$openwebui_secret" \
-  --dry-run=client -o yaml | $SEAL \
-  > kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+  --dry-run=client -o yaml | seal_to kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
