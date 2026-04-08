@@ -20,6 +20,9 @@ spec:
           # Credentials are loaded from a SealedSecret — do NOT put them here.
           config:
             existingSecret: oauth2-proxy-credentials
+            configFile: |-
+              email_domains = []
+              upstreams = ["file:///dev/null"]
           authenticatedEmailsFile:
             enabled: true
             restricted_access: |-
@@ -34,6 +37,15 @@ spec:
             upstream: "static://202"
             set-xauthrequest: "true"
             pass-access-token: "true"
+            custom-templates-dir: "/etc/oauth2-proxy/templates"
+          extraVolumes:
+            - name: error-templates
+              configMap:
+                name: oauth2-proxy-error-templates
+          extraVolumeMounts:
+            - name: error-templates
+              mountPath: /etc/oauth2-proxy/templates
+              readOnly: true
           ingress:
             enabled: true
             className: nginx

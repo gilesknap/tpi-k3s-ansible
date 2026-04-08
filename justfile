@@ -51,6 +51,10 @@ pre-commit:
 status:
     scripts/status
 
+# Switch the cluster to track a different git branch
+switch-branch branch:
+    ansible-playbook pb_all.yml --tags cluster -e repo_branch={{ branch }}
+
 # Force ArgoCD to re-fetch from git and re-sync all applications
 argocd-sync:
     scripts/argocd-sync
