@@ -2,6 +2,24 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: home-nginx-conf
+  namespace: home
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location = /api/userinfo {
+        default_type application/json;
+        return 200 '{"email":"$http_x_auth_request_email"}';
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: home-html
   namespace: home
 data:
@@ -102,9 +120,29 @@ data:
           text-decoration: none;
         }
         .footer a:hover { text-decoration: underline; }
+        .user-bar {
+          position: absolute;
+          top: 1rem;
+          right: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-size: 0.85rem;
+          color: #a0a0b8;
+        }
+        .user-bar a {
+          color: #818cf8;
+          text-decoration: none;
+          font-size: 0.8rem;
+        }
+        .user-bar a:hover { text-decoration: underline; }
       </style>
     </head>
     <body>
+      <div class="user-bar">
+        <span id="user-email"></span>
+        <a id="logout-link" href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out" style="display:none">Sign out</a>
+      </div>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:2rem">
         <img src="logo.svg" alt="logo" width="48" height="48">
         <h1 style="margin:0">{{ .Values.cluster_domain }}</h1>
@@ -160,6 +198,17 @@ data:
         <a href="https://gilesknap.github.io/tpi-k3s-ansible/">Docs</a>
         <a href="{{ .Values.repo_remote | trimSuffix ".git" }}">GitHub</a>
       </div>
+      <script>
+        fetch("/api/userinfo")
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(d) {
+            if (d && d.email) {
+              document.getElementById("user-email").textContent = d.email;
+              document.getElementById("logout-link").style.display = "";
+            }
+          })
+          .catch(function() {});
+      </script>
     </body>
     </html>
   logo.svg: |
@@ -224,6 +273,9 @@ spec:
               drop:
                 - ALL
           volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
             - name: html
               mountPath: /usr/share/nginx/html
               readOnly: true
@@ -241,6 +293,9 @@ spec:
               cpu: 50m
               memory: 32Mi
       volumes:
+        - name: nginx-conf
+          configMap:
+            name: home-nginx-conf
         - name: html
           configMap:
             name: home-html
