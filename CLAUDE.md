@@ -24,6 +24,11 @@
   that were previously set on an Ingress. If you remove annotations from a
   template (e.g. `ssl-passthrough`), you must `kubectl delete` the old
   Ingress first, then re-run the playbook to recreate it cleanly.
+- **oauth2-proxy cookie-secret must be exactly 16, 24, or 32 bytes** —
+  `base64.b64encode(token_bytes(32))` produces 44 chars and crashes
+  oauth2-proxy. Use `secrets.token_hex(16)` (32 hex chars = 32 bytes).
+  This bug has been fixed and regressed before — do not change the
+  cookie-secret generation in `scripts/seal-argocd-dex`.
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
 - **Branch switching** — only edit `group_vars/all.yml` `repo_branch`, then
@@ -50,6 +55,9 @@
   template includes this; check other DaemonSets if they need ws03.
   Longhorn does **not** tolerate this taint — ws03 is treated as
   unreliable (may reboot), so no Longhorn storage runs there.
+  Monitoring statefulsets (Grafana, Prometheus) tolerate the taint for
+  metrics collection but must have `nodeAffinity` excluding ws03, or
+  their Longhorn PVCs will be provisioned there and fail to attach.
 - **Decommission before ArgoCD** — when tearing down the cluster, delete
   all ArgoCD Applications (orphan cascade) *before* scaling down workloads.
   Otherwise ArgoCD reconciliation re-creates pods faster than you can
