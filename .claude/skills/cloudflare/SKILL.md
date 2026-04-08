@@ -26,6 +26,16 @@ Services exposed via tunnel: grafana, headlamp, open-webui, oauth2-proxy, argocd
 - **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
   tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
   static clients must list both `http://` and `https://` redirect URIs.
+- **Tunnel routes must go through the ingress** — route all tunnel hostnames
+  to `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`.
+  Direct-to-service routes (e.g. `http://home.home.svc.cluster.local`) bypass
+  the ingress controller and oauth2-proxy entirely, so auth headers like
+  `X-Auth-Request-Email` will be empty. Cloudflare Access still authenticates
+  (using Google identity), but oauth2-proxy features (email headers, sign-out)
+  won't work.
+- **Cloudflare Access uses Google identity** — not GitHub. If you see a
+  Google OTP prompt, that's Cloudflare Access. The GitHub auth prompt comes
+  from oauth2-proxy (after traffic reaches the ingress).
 
 ## Key Files
 - `kubernetes-services/values.yaml` — cloudflared toggle and config
