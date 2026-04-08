@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: home
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: home
+  project: kubernetes
+  sources:
+    # Cluster landing page — nginx serving a static HTML page from a ConfigMap.
+    # Provides one-click access to all web frontends at home.<cluster_domain>.
+    - path: ./kubernetes-services/additions/home
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          cluster_domain: {{ .Values.cluster_domain }}
+
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: home
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: home
+          service_port: 80
+          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

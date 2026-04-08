@@ -1,0 +1,170 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: home-html
+  namespace: home
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>{{ .Values.cluster_domain }} — Services</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #1a1a2e;
+          color: #e0e0e0;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 2rem 1rem;
+        }
+        h1 {
+          font-size: 1.8rem;
+          font-weight: 300;
+          margin-bottom: 2rem;
+          color: #ffffff;
+          letter-spacing: 0.05em;
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 1rem;
+          max-width: 900px;
+          width: 100%;
+        }
+        .card {
+          display: block;
+          background: #16213e;
+          border: 1px solid #0f3460;
+          border-radius: 8px;
+          padding: 1.25rem;
+          text-decoration: none;
+          color: #e0e0e0;
+          transition: background 0.2s, border-color 0.2s;
+        }
+        .card:hover {
+          background: #1a2a50;
+          border-color: #533483;
+        }
+        .card h2 {
+          font-size: 1.1rem;
+          font-weight: 600;
+          margin-bottom: 0.4rem;
+          color: #ffffff;
+        }
+        .card p {
+          font-size: 0.85rem;
+          color: #a0a0b8;
+          line-height: 1.4;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>{{ .Values.cluster_domain }}</h1>
+      <div class="grid">
+        <a class="card" href="https://argocd.{{ .Values.cluster_domain }}">
+          <h2>ArgoCD</h2>
+          <p>GitOps continuous delivery dashboard</p>
+        </a>
+        <a class="card" href="https://headlamp.{{ .Values.cluster_domain }}">
+          <h2>Headlamp</h2>
+          <p>Kubernetes cluster dashboard</p>
+        </a>
+        <a class="card" href="https://grafana.{{ .Values.cluster_domain }}">
+          <h2>Grafana</h2>
+          <p>Monitoring and metrics visualization</p>
+        </a>
+        <a class="card" href="https://open-webui.{{ .Values.cluster_domain }}">
+          <h2>Open WebUI</h2>
+          <p>LLM chat interface</p>
+        </a>
+        <a class="card" href="https://longhorn.{{ .Values.cluster_domain }}">
+          <h2>Longhorn</h2>
+          <p>Distributed block storage management</p>
+        </a>
+        <a class="card" href="https://supabase.{{ .Values.cluster_domain }}">
+          <h2>Supabase Studio</h2>
+          <p>Database and backend management</p>
+        </a>
+        <a class="card" href="https://argocd-monitor.{{ .Values.cluster_domain }}">
+          <h2>ArgoCD Monitor</h2>
+          <p>Application health monitoring</p>
+        </a>
+      </div>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home
+  namespace: home
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: home
+  template:
+    metadata:
+      labels:
+        app: home
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: html
+          configMap:
+            name: home-html
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: home
+  namespace: home
+spec:
+  selector:
+    app: home
+  ports:
+    - port: 80
+      targetPort: 8080
