@@ -42,7 +42,7 @@ github_user = "gilesknap"
 github_repo = "tpi-k3s-ansible"
 
 html_theme_options = {
-    "logo": {"text": project},
+    "logo": {"image_light": "_static/logo.svg", "image_dark": "_static/logo.svg", "text": project},
     "use_edit_page_button": True,
     "github_url": f"https://github.com/{github_user}/{github_repo}",
     "navigation_with_keys": False,
@@ -55,6 +55,7 @@ html_context = {
     "doc_path": "docs",
 }
 
+html_favicon = "_static/logo.svg"
 html_show_sphinx = False
 html_show_copyright = False
 html_static_path = ["_static"]
