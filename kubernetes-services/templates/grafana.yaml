@@ -72,6 +72,17 @@ spec:
                 operator: Equal
                 value: "true"
                 effect: NoSchedule
+            # Avoid ws03: tolerates the taint (for metrics collection) but
+            # Longhorn doesn't run there, so PVC-backed pods would hang.
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: NotIn
+                          values:
+                            - ws03
 
           prometheus:
             annotations:
@@ -91,6 +102,16 @@ spec:
                   operator: Equal
                   value: "true"
                   effect: NoSchedule
+              # Avoid ws03: same reason as grafana above.
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: kubernetes.io/hostname
+                            operator: NotIn
+                            values:
+                              - ws03
 
           alertmanager:
             alertmanagerSpec:
