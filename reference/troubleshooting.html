@@ -535,6 +535,33 @@ are accepted. See <code class="docutils literal notranslate"><span class="pre">k
 </pre></div>
 </div>
 </section>
+<section id="oauth2-proxy-returns-403-csrf-cookie-not-found">
+<h3>oauth2-proxy returns 403 — CSRF cookie not found<a class="headerlink" href="#oauth2-proxy-returns-403-csrf-cookie-not-found" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> After GitHub authorisation, the oauth2-proxy callback returns
+403 with “CSRF cookie not found” in the pod logs.</p>
+<p><strong>Cause:</strong> The tunnel route was changed (e.g. from direct-to-service to
+through-ingress) while stale oauth2-proxy cookies remained in the browser.
+The CSRF cookie set during <code class="docutils literal notranslate"><span class="pre">/oauth2/start</span></code> doesn’t match the callback
+context.</p>
+<p><strong>Fix:</strong> Clear all cookies for <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> (or use incognito) and
+re-authenticate. If the problem persists, restart the oauth2-proxy pod:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
+</pre></div>
+</div>
+</section>
+<section id="oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list">
+<h3>oauth2-proxy returns 403 — unauthorized (email not in allow list)<a class="headerlink" href="#oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> oauth2-proxy logs show <code class="docutils literal notranslate"><span class="pre">AuthFailure:</span> <span class="pre">unauthorized</span></code> with an
+email address.</p>
+<p><strong>Cause:</strong> The email is not in <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code>. This can happen
+after editing <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> without
+restarting the oauth2-proxy pod (ArgoCD updates the config but doesn’t
+always trigger a pod restart).</p>
+<p><strong>Fix:</strong> Restart the oauth2-proxy pod after changing the email list:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
+</pre></div>
+</div>
+</section>
 </section>
 <section id="browser">
 <h2>Browser<a class="headerlink" href="#browser" title="Link to this heading">#</a></h2>
@@ -934,6 +961,8 @@ tpi<span class="w"> </span>info
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-authentication">OAuth / Authentication</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#viewer-emails-can-access-oauth2-proxy-gated-services">Viewer emails can access oauth2-proxy-gated services</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-returns-403-csrf-cookie-not-found">oauth2-proxy returns 403 — CSRF cookie not found</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list">oauth2-proxy returns 403 — unauthorized (email not in allow list)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser">Browser</a><ul class="nav section-nav flex-column">

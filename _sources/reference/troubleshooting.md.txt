@@ -160,6 +160,39 @@ kubectl logs -n oauth2-proxy deploy/oauth2-proxy -f
 # 202 = allowed, 401 = no session, 403 = denied
 ```
 
+### oauth2-proxy returns 403 — CSRF cookie not found
+
+**Symptom:** After GitHub authorisation, the oauth2-proxy callback returns
+403 with "CSRF cookie not found" in the pod logs.
+
+**Cause:** The tunnel route was changed (e.g. from direct-to-service to
+through-ingress) while stale oauth2-proxy cookies remained in the browser.
+The CSRF cookie set during `/oauth2/start` doesn't match the callback
+context.
+
+**Fix:** Clear all cookies for `*.gkcluster.org` (or use incognito) and
+re-authenticate. If the problem persists, restart the oauth2-proxy pod:
+
+```bash
+kubectl rollout restart deployment/oauth2-proxy -n oauth2-proxy
+```
+
+### oauth2-proxy returns 403 — unauthorized (email not in allow list)
+
+**Symptom:** oauth2-proxy logs show `AuthFailure: unauthorized` with an
+email address.
+
+**Cause:** The email is not in `authenticatedEmailsFile`. This can happen
+after editing `admin_emails` in `kubernetes-services/values.yaml` without
+restarting the oauth2-proxy pod (ArgoCD updates the config but doesn't
+always trigger a pod restart).
+
+**Fix:** Restart the oauth2-proxy pod after changing the email list:
+
+```bash
+kubectl rollout restart deployment/oauth2-proxy -n oauth2-proxy
+```
+
 ## Browser
 
 ### Service shows blank page or stale UI after config change
