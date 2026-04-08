@@ -510,6 +510,32 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 </div>
 </section>
 </section>
+<section id="oauth-authentication">
+<h2>OAuth / Authentication<a class="headerlink" href="#oauth-authentication" title="Link to this heading">#</a></h2>
+<section id="viewer-emails-can-access-oauth2-proxy-gated-services">
+<h3>Viewer emails can access oauth2-proxy-gated services<a class="headerlink" href="#viewer-emails-can-access-oauth2-proxy-gated-services" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Users with viewer emails can access admin-only services
+(Longhorn, Supabase Studio, Headlamp) — oauth2-proxy returns 202 instead
+of 403.</p>
+<p><strong>Cause:</strong> The oauth2-proxy Helm chart generates <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[&quot;*&quot;]</span></code> in
+its default ConfigMap. This acts as an OR with <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> —
+any email from any domain passes the domain check, so the restrictive email
+file is silently ignored.</p>
+<p><strong>Fix:</strong> Set <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[]</span></code> explicitly via <code class="docutils literal notranslate"><span class="pre">config.configFile</span></code> in the
+Helm values so that only emails in the <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> (admin list)
+are accepted. See <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>.</p>
+<p><strong>Diagnosis:</strong> Check the live ConfigMap:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>configmap<span class="w"> </span>oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy<span class="w"> </span>-o<span class="w"> </span>yaml
+<span class="c1"># Look for: email_domains = [&quot;*&quot;]  ← this is the bug</span>
+</pre></div>
+</div>
+<p>Watch auth decisions in real time:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy<span class="w"> </span>deploy/oauth2-proxy<span class="w"> </span>-f
+<span class="c1"># 202 = allowed, 401 = no session, 403 = denied</span>
+</pre></div>
+</div>
+</section>
+</section>
 <section id="browser">
 <h2>Browser<a class="headerlink" href="#browser" title="Link to this heading">#</a></h2>
 <section id="service-shows-blank-page-or-stale-ui-after-config-change">
@@ -904,6 +930,10 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">ArgoCD</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-syncing">Application stuck in “Syncing”</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-running-operation-admission-webhooks">Application stuck in “Running” operation (admission webhooks)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-authentication">OAuth / Authentication</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#viewer-emails-can-access-oauth2-proxy-gated-services">Viewer emails can access oauth2-proxy-gated services</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser">Browser</a><ul class="nav section-nav flex-column">

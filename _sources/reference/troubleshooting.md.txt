@@ -129,6 +129,37 @@ kubectl patch app <app-name> -n argo-cd --type json \
   -p '[{"op": "remove", "path": "/operation"}]'
 ```
 
+## OAuth / Authentication
+
+### Viewer emails can access oauth2-proxy-gated services
+
+**Symptom:** Users with viewer emails can access admin-only services
+(Longhorn, Supabase Studio, Headlamp) — oauth2-proxy returns 202 instead
+of 403.
+
+**Cause:** The oauth2-proxy Helm chart generates `email_domains = ["*"]` in
+its default ConfigMap. This acts as an OR with `authenticatedEmailsFile` —
+any email from any domain passes the domain check, so the restrictive email
+file is silently ignored.
+
+**Fix:** Set `email_domains = []` explicitly via `config.configFile` in the
+Helm values so that only emails in the `authenticatedEmailsFile` (admin list)
+are accepted. See `kubernetes-services/templates/oauth2-proxy.yaml`.
+
+**Diagnosis:** Check the live ConfigMap:
+
+```bash
+kubectl get configmap oauth2-proxy -n oauth2-proxy -o yaml
+# Look for: email_domains = ["*"]  ← this is the bug
+```
+
+Watch auth decisions in real time:
+
+```bash
+kubectl logs -n oauth2-proxy deploy/oauth2-proxy -f
+# 202 = allowed, 401 = no session, 403 = denied
+```
+
 ## Browser
 
 ### Service shows blank page or stale UI after config change
