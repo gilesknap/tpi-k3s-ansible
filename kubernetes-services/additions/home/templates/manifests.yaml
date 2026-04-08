@@ -13,7 +13,7 @@ data:
 
       location = /api/userinfo {
         default_type application/json;
-        return 200 '{"email":"$http_cf_access_authenticated_user_email"}';
+        return 200 '{"email":"$http_x_auth_request_email"}';
       }
     }
 ---
@@ -141,6 +141,7 @@ data:
     <body>
       <div class="user-bar">
         <span id="user-email"></span>
+        <a id="logout-link" href="https://oauth2.{{ .Values.cluster_domain }}/oauth2/sign_out" style="display:none">Sign out</a>
       </div>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:2rem">
         <img src="logo.svg" alt="logo" width="48" height="48">
@@ -203,6 +204,7 @@ data:
           .then(function(d) {
             if (d && d.email) {
               document.getElementById("user-email").textContent = d.email;
+              document.getElementById("logout-link").style.display = "";
             }
           })
           .catch(function() {});
