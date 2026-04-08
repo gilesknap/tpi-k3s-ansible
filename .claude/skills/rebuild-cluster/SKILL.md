@@ -231,6 +231,17 @@ Expected results:
 
 All services must respond (no timeouts or 5xx errors).
 
+### 6b. Generate Headlamp login token
+
+Headlamp requires a Kubernetes service account token after passing
+through OAuth. Generate one before browser testing:
+
+```bash
+just headlamp-token
+```
+
+Save the output — pass it to the browser verification subagent.
+
 ## Phase 7: Verify via browser
 
 **Delegate this entire phase to a subagent** using the Agent tool.
@@ -239,6 +250,7 @@ Cloudflare redirect URLs, navigation retries) that bloats the main
 conversation. Launch a single agent with `subagent_type: "general-purpose"`
 and pass it:
 - The cluster domain (from `group_vars/all.yml`)
+- The Headlamp token generated in Phase 6b
 - The full instructions below (7a–7f)
 - The instruction to report back a summary table of PASS/FAIL per service
 
@@ -306,8 +318,25 @@ services reuse the GitHub session and auto-approve.
 | Service | Logged-in indicator |
 |---------|---------------------|
 | Longhorn | Page title contains "Longhorn" |
-| Headlamp | Page title contains "Headlamp" |
+| Headlamp | Token login required after OAuth — see below |
 | Supabase | Page title contains "Supabase" |
+
+**Headlamp token login** — after oauth2-proxy redirects complete,
+Headlamp shows a token input screen. Paste the token from Phase 6b:
+
+```javascript
+const input = document.querySelector('input[type="password"]');
+if (input) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, 'value').set;
+  nativeSetter.call(input, '<HEADLAMP_TOKEN>');
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+```
+
+Then click the "Authenticate" button. **Logged-in indicator**: page
+shows a cluster view with namespaces or workloads. If the token is
+rejected, verify: `kubectl get sa headlamp-admin -n headlamp`
 
 ### 7c. OAuth flow procedure
 
