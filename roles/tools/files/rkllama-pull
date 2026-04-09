@@ -57,17 +57,11 @@ def _resolve_pod() -> str:
     return pod
 
 
-def _kubectl_exec(
-    pod: str, *cmd: str, capture: bool = False, stdin: bytes | None = None
-):
-    args = ["kubectl", "exec", "-n", "rkllama"]
-    args += ["-i", pod] if stdin is not None else [pod]
-    args += ["-c", "rkllama", "--"] + list(cmd)
+def _kubectl_exec(pod: str, *cmd: str, capture: bool = False):
+    args = ["kubectl", "exec", "-n", "rkllama", pod, "-c", "rkllama", "--"] + list(cmd)
     if capture:
-        return subprocess.check_output(
-            args, text=True, input=stdin.decode() if stdin else None
-        )
-    return subprocess.run(args, input=stdin)
+        return subprocess.check_output(args, text=True)
+    return subprocess.run(args)
 
 
 def do_delete() -> None:
@@ -149,16 +143,51 @@ def do_pull() -> None:
     print(f"\nResolving rkllama pod ...")
     pod = _resolve_pod()
 
-    print(f"\nPulling: {model_path}")
+    # The rkllama server's /pull API has a bug that breaks when the repo name
+    # contains the filename (its replace() strips all occurrences). Download
+    # directly from HuggingFace into the pod's models directory instead.
+    model_name = selected_file.replace(".rkllm", "")
+    model_dir = f"/root/RKLLAMA/models/{model_name}"
+    dest = f"{model_dir}/{selected_file}"
+    url = f"https://huggingface.co/{repo_id}/resolve/main/{selected_file}"
+
+    # Create model directory
+    _kubectl_exec(pod, "mkdir", "-p", model_dir)
+
+    # Check if already present
+    check = subprocess.run(
+        ["kubectl", "exec", "-n", "rkllama", pod, "-c", "rkllama", "--", "test", "-f", dest]
+    )
+    if check.returncode == 0:
+        overwrite = input(f"\n'{selected_file}' already exists. Re-download? [y/N]: ").strip().lower()
+        if overwrite != "y":
+            print("Skipped.")
+            return
+
+    print(f"\nDownloading: {selected_file}")
+    print(f"From: {url}")
     print("(Large models may take several minutes)\n")
 
-    # rkllama pull always reads Repo ID and filename interactively from stdin,
-    # even when arguments are passed. Feed them via stdin.
-    stdin_input = f"{repo_id}\n{selected_file}\n".encode()
-    result = _kubectl_exec(pod, "rkllama", "pull", stdin=stdin_input)
+    # Download — remove partial file first (HuggingFace XET doesn't support range requests)
+    _kubectl_exec(pod, "rm", "-f", dest)
+    result = _kubectl_exec(pod, "wget", "-O", dest, url)
     if result.returncode != 0:
-        print(f"\nERROR: rkllama pull exited with code {result.returncode}")
+        print(f"\nERROR: Download failed (exit {result.returncode})")
         sys.exit(result.returncode)
+
+    # Write Modelfile so rkllama discovers the model
+    modelfile_content = (
+        f'FROM="{selected_file}"\n'
+        f'\n'
+        f'HUGGINGFACE_PATH="{repo_id}"\n'
+        f'\n'
+        f'SYSTEM=""\n'
+        f'\n'
+        f'TEMPERATURE=1.0\n'
+    )
+    _kubectl_exec(pod, "sh", "-c", f"cat > {model_dir}/Modelfile << 'MEOF'\n{modelfile_content}MEOF")
+
+    print(f"\nDownloaded to {dest}")
 
     print("\n--- Installed models ---")
     _kubectl_exec(pod, "rkllama", "list")
