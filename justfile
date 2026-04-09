@@ -77,7 +77,9 @@ supabase-creds:
     @echo "User: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.username}' | base64 -d)"
     @echo "Pass: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.dashboard-password}' | base64 -d)"
 
-# Headlamp uses ServiceAccount token auth. Get a token with: kubectl create token headlamp -n headlamp --duration=24h
+# Generate a 100 day Headlamp ServiceAccount token (paste into the login page after OAuth)
+headlamp-token:
+    @kubectl create token headlamp -n headlamp --duration=2400h
 
 ################################################################################
 # Commissioning
