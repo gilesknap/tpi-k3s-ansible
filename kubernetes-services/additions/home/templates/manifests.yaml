@@ -193,16 +193,18 @@ data:
       </div>
       <script>
         (function() {
-          // Probe the router to detect LAN access. On failure, grey out LAN-only cards.
-          var img = new Image();
-          var timer = setTimeout(function() {
+          function disableLan() {
             document.querySelectorAll('.card-lan').forEach(function(el) {
               el.classList.add('disabled');
             });
-          }, 2000);
-          img.onload = function() { clearTimeout(timer); };
-          img.onerror = function() { clearTimeout(timer); };
-          img.src = 'https://longhorn.{{ .Values.cluster_domain }}/favicon.ico?_=' + Date.now();
+          }
+          // Probe Longhorn (LAN-only) to detect network. Fetch in no-cors
+          // mode: resolves if TCP connects (on LAN), rejects otherwise.
+          var ctrl = new AbortController();
+          var timer = setTimeout(function() { ctrl.abort(); disableLan(); }, 3000);
+          fetch('https://longhorn.{{ .Values.cluster_domain }}/', {mode:'no-cors', signal:ctrl.signal})
+            .then(function() { clearTimeout(timer); })
+            .catch(function() { clearTimeout(timer); disableLan(); });
         })();
       </script>
     </body>
