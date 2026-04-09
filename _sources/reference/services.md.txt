@@ -10,11 +10,11 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | cloudflared | Plain manifests | 2026.3.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
 | Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | oauth2-proxy | Kubernetes dashboard |
+| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | Dex (OIDC) | Kubernetes dashboard |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.1 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Headlamp, Supabase |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Supabase |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
@@ -67,13 +67,15 @@ Uses `ServerSideApply=true` sync option due to large CRDs.
 
 ### Headlamp
 
-Modern Kubernetes dashboard. Protected by oauth2-proxy (a Dex client is
-pre-registered for future native OIDC migration). Uses a
-ServiceAccount with `cluster-admin` binding and a long-lived token Secret.
-Resource limits: 50m/128Mi request, 200m/256Mi limit.
+Modern Kubernetes dashboard. Authenticates via Dex (native OIDC) with
+GitHub. Admin emails receive `cluster-admin` ClusterRoleBindings; viewer
+emails receive `view` ClusterRoleBindings. The K3s API server is
+configured with OIDC flags so Dex-issued tokens are accepted for
+Kubernetes API calls. Resource limits: 50m/128Mi request, 200m/256Mi limit.
 
-**Additional manifests:** `additions/dashboard/`
-- `rbac.yaml` — ServiceAccount, ClusterRoleBinding, long-lived token Secret
+**Additional manifests:** `additions/dashboard/` (Helm sub-chart)
+- `templates/rbac.yaml` — per-user ClusterRoleBindings (admin and viewer)
+- `templates/headlamp-oidc-secret.yaml` — SealedSecret for Dex OIDC credentials
 
 ### ingress-nginx
 
@@ -100,8 +102,8 @@ oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.
 ### oauth2-proxy
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Longhorn, Headlamp,
-and Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+for login. Protects services without native OIDC support: Longhorn and
+Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.
 
 **Additional manifests:** `additions/oauth2-proxy/`

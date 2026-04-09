@@ -447,7 +447,7 @@
 <td><p>0.41.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
-<td><p>oauth2-proxy</p></td>
+<td><p>Dex (OIDC)</p></td>
 <td><p>Kubernetes dashboard</p></td>
 </tr>
 <tr class="row-odd"><td><p>ingress-nginx</p></td>
@@ -480,7 +480,7 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
 <td><p>GitHub</p></td>
-<td><p>OAuth proxy for Longhorn, Headlamp, Supabase</p></td>
+<td><p>OAuth proxy for Longhorn, Supabase</p></td>
 </tr>
 <tr class="row-odd"><td><p>RKLlama</p></td>
 <td><p>Helm chart (local)</p></td>
@@ -588,13 +588,15 @@ volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
 </section>
 <section id="headlamp">
 <h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
-<p>Modern Kubernetes dashboard. Protected by oauth2-proxy (a Dex client is
-pre-registered for future native OIDC migration). Uses a
-ServiceAccount with <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> binding and a long-lived token Secret.
-Resource limits: 50m/128Mi request, 200m/256Mi limit.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/dashboard/</span></code></p>
+<p>Modern Kubernetes dashboard. Authenticates via Dex (native OIDC) with
+GitHub. Admin emails receive <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBindings; viewer
+emails receive <code class="docutils literal notranslate"><span class="pre">view</span></code> ClusterRoleBindings. The K3s API server is
+configured with OIDC flags so Dex-issued tokens are accepted for
+Kubernetes API calls. Resource limits: 50m/128Mi request, 200m/256Mi limit.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/dashboard/</span></code> (Helm sub-chart)</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">rbac.yaml</span></code> — ServiceAccount, ClusterRoleBinding, long-lived token Secret</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/rbac.yaml</span></code> — per-user ClusterRoleBindings (admin and viewer)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/headlamp-oidc-secret.yaml</span></code> — SealedSecret for Dex OIDC credentials</p></li>
 </ul>
 </section>
 <section id="ingress-nginx">
@@ -624,8 +626,8 @@ oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.</p>
 <section id="oauth2-proxy">
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Longhorn, Headlamp,
-and Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+for login. Protects services without native OIDC support: Longhorn and
+Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
 <ul class="simple">

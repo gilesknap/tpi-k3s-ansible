@@ -15,8 +15,9 @@ This page describes the security measures in place across the cluster.
 ### Kubernetes RBAC
 
 - The control plane uses the default K3s RBAC configuration.
-- Headlamp has a dedicated `headlamp-admin` ServiceAccount bound to `cluster-admin`
-  with a long-lived token Secret for dashboard access.
+- Headlamp uses Dex OIDC with per-user Kubernetes RBAC: admin emails receive
+  `cluster-admin` ClusterRoleBindings, viewer emails receive `view`
+  ClusterRoleBindings.
 - ArgoCD has the `kubernetes` AppProject with `sourceRepos` restricted to the
   project's GitHub repo and trusted Helm chart registries.
 
@@ -32,7 +33,7 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 | argocd-monitor | Cloudflare Access | Dex (sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → Admin / Viewer |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
-| Headlamp | Cloudflare Access | oauth2-proxy | Token auth |
+| Headlamp | Cloudflare Access | Dex (native OIDC) | email → admin / view |
 | Longhorn | Cloudflare Access | oauth2-proxy | None |
 | Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test) |
@@ -53,10 +54,11 @@ Current SealedSecrets:
 
 - `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` — Cloudflare tunnel token
 - `kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml` — DNS API token
-- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — GitHub connector + all 5 Dex client secrets
+- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — GitHub connector + all 6 Dex client secrets
 - `kubernetes-services/additions/grafana/grafana-oauth-secret.yaml` — Grafana's Dex client secret
 - `kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml` — Open WebUI's Dex client secret
 - `kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml` — argocd-monitor Dex client + cookie secret
+- `kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml` — Headlamp's Dex OIDC client credentials
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — GitHub OAuth App credentials + cookie secret
 
 ### Admin access

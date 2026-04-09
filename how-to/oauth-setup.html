@@ -857,8 +857,8 @@ see <a class="reference internal" href="../explanations/authentication.html"><sp
 <p>This guide walks through configuring both authentication paths used by the
 cluster:</p>
 <ul class="simple">
-<li><p><strong>Part A</strong> — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)</p></li>
-<li><p><strong>Part B</strong> — oauth2-proxy (Headlamp, Longhorn, Supabase Studio — admin-only)</p></li>
+<li><p><strong>Part A</strong> — Dex OIDC (ArgoCD, Grafana, Open WebUI, Headlamp, argocd-monitor)</p></li>
+<li><p><strong>Part B</strong> — oauth2-proxy (Longhorn, Supabase Studio — admin-only)</p></li>
 </ul>
 <pre  class="mermaid">
         flowchart LR
@@ -872,9 +872,9 @@ cluster:</p>
     DEX --&gt; ArgoCD
     DEX --&gt; Grafana
     DEX --&gt; Open-WebUI
+    DEX --&gt; Headlamp
     DEX --&gt; argocd-monitor
 
-    OAP --&gt; Headlamp
     OAP --&gt; Longhorn
     OAP --&gt; Supabase
     </pre><section id="prerequisites">
@@ -950,8 +950,8 @@ credentials and client secrets, then creates the SealedSecret:</p>
 </section>
 <section id="a4-seal-per-service-oauth-secrets">
 <h3>A4: Seal per-service OAuth secrets<a class="headerlink" href="#a4-seal-per-service-oauth-secrets" title="Link to this heading">#</a></h3>
-<p>Grafana and Open WebUI each need their own SealedSecret containing the
-Dex client secret:</p>
+<p>Grafana, Open WebUI, and Headlamp each need their own SealedSecret
+containing the Dex client secret:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Grafana</span>
 kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>grafana-oauth-secret<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--namespace<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
@@ -967,6 +967,17 @@ kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="
 <span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
 kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+
+<span class="c1"># Headlamp (keys must be uppercase OIDC_*)</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>headlamp-oidc-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>headlamp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">OIDC_CLIENT_ID</span><span class="o">=</span><span class="s2">&quot;headlamp&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">OIDC_CLIENT_SECRET</span><span class="o">=</span><span class="s2">&quot;&lt;headlamp-client-secret&gt;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">OIDC_ISSUER_URL</span><span class="o">=</span><span class="s2">&quot;https://argocd.&lt;your-domain&gt;/api/dex&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">OIDC_SCOPES</span><span class="o">=</span><span class="s2">&quot;openid profile email&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml
 </pre></div>
 </div>
 </section>
@@ -1001,6 +1012,7 @@ Ansible-rendered ArgoCD RBAC):</p>
 restart pods that read secrets from environment variables:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/grafana-prometheus<span class="w"> </span>-n<span class="w"> </span>monitoring
 kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/open-webui<span class="w"> </span>-n<span class="w"> </span>open-webui
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/headlamp<span class="w"> </span>-n<span class="w"> </span>headlamp
 </pre></div>
 </div>
 </section>
@@ -1125,7 +1137,6 @@ a service, set <code class="docutils literal notranslate"><span class="pre">oaut
 oauth2-proxy before forwarding each request.</p>
 <p>Services protected by oauth2-proxy (admin-only):</p>
 <ul class="simple">
-<li><p><strong>Headlamp</strong> — requires a ServiceAccount token after OAuth login</p></li>
 <li><p><strong>Longhorn</strong> — no native auth; OAuth is the only access control</p></li>
 <li><p><strong>Supabase Studio</strong> — requires a dashboard password after OAuth login</p></li>
 </ul>
@@ -1151,8 +1162,8 @@ ingress values.</p>
 <section id="after-github-login">
 <h3>403 after GitHub login<a class="headerlink" href="#after-github-login" title="Link to this heading">#</a></h3>
 <p>For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
-in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. Viewer users cannot access these
-services by design.</p>
+in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. Viewer users cannot access these services
+by design.</p>
 <p>For Dex-authenticated services: any GitHub user can log in. A 403 likely
 means the service has additional access restrictions.</p>
 </section>

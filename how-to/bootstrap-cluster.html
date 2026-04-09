@@ -441,9 +441,8 @@ all services. Follow these steps to finish the setup.</p>
 </pre></div>
 </div>
 <p>This prompts for a password (or reads <code class="docutils literal notranslate"><span class="pre">ADMIN_PASSWORD</span></code> from the environment),
-creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret in the <code class="docutils literal notranslate"><span class="pre">longhorn</span></code>, <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">headlamp</span></code> namespaces, patches the ArgoCD admin password, and restarts the
-ArgoCD server.</p>
+creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret in the <code class="docutils literal notranslate"><span class="pre">longhorn</span></code> and <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>
+namespaces, patches the ArgoCD admin password, and restarts the ArgoCD server.</p>
 <p>To update the password later, re-run the same command and restart cached
 services:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>set-admin-password
@@ -466,20 +465,19 @@ services to reach <code class="docutils literal notranslate"><span class="pre">S
 </pre></div>
 </div>
 </section>
-<section id="generate-a-headlamp-login-token">
-<h2>Generate a Headlamp Login Token<a class="headerlink" href="#generate-a-headlamp-login-token" title="Link to this heading">#</a></h2>
-<p>Headlamp uses Kubernetes token authentication rather than the shared admin
-password. Generate a token for the pre-configured <code class="docutils literal notranslate"><span class="pre">headlamp-admin</span></code> service
-account:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>headlamp-token
-</pre></div>
+<section id="verify-headlamp-oidc-login">
+<h2>Verify Headlamp OIDC Login<a class="headerlink" href="#verify-headlamp-oidc-login" title="Link to this heading">#</a></h2>
+<p>Headlamp authenticates via Dex (GitHub SSO). After ArgoCD syncs, visit
+<code class="docutils literal notranslate"><span class="pre">https://headlamp.&lt;your-domain&gt;</span></code> and click <strong>Sign in</strong>. You will be
+redirected to GitHub via Dex. Admin emails get <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> access;
+viewer emails get read-only <code class="docutils literal notranslate"><span class="pre">view</span></code> access.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Headlamp OIDC requires the K3s API server to be configured with OIDC
+flags. The Ansible <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role deploys these automatically via
+<code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code>. If you see token validation errors,
+verify the config is deployed and k3s has been restarted.</p>
 </div>
-<p>Or manually:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>token<span class="w"> </span>headlamp-admin<span class="w"> </span>-n<span class="w"> </span>headlamp<span class="w"> </span>--duration<span class="o">=</span>2400h
-</pre></div>
-</div>
-<p>Paste the token into the Headlamp login screen. Tokens expire after the
-specified duration (~100 days) — re-run the command to generate a new one.</p>
 </section>
 <section id="clean-up-the-initial-admin-secret">
 <h2>Clean Up the Initial Admin Secret<a class="headerlink" href="#clean-up-the-initial-admin-secret" title="Link to this heading">#</a></h2>
@@ -553,7 +551,7 @@ certificates, and optionally exposes services to the internet.</p>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-the-shared-admin-password">Set Up the Shared Admin Password</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-argocd-sync">Verify ArgoCD Sync</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generate-a-headlamp-login-token">Generate a Headlamp Login Token</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-headlamp-oidc-login">Verify Headlamp OIDC Login</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clean-up-the-initial-admin-secret">Clean Up the Initial Admin Secret</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
 </ul>
