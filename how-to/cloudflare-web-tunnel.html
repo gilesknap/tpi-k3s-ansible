@@ -853,6 +853,18 @@ ArgoCD has synced the latest values.</p>
 browser must be able to reach <code class="docutils literal notranslate"><span class="pre">oauth2.example.com</span></code> to complete the GitHub OAuth
 flow.</p>
 </section>
+<section id="oidc-discovery-fails-invalid-json-html-response">
+<h3>OIDC discovery fails (invalid JSON / HTML response)<a class="headerlink" href="#oidc-discovery-fails-invalid-json-html-response" title="Link to this heading">#</a></h3>
+<p>Services that use Dex for OIDC (Headlamp, Grafana, Open WebUI) fetch the
+discovery document from <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;domain&gt;/api/dex/.well-known/openid-configuration</span></code>.
+When Cloudflare manages DNS, pods resolve this to Cloudflare IPs and the request
+hairpins through the tunnel, often returning a Cloudflare Access HTML page instead
+of JSON.</p>
+<p>The fix is split-horizon DNS: the <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">cluster</span></code> playbook creates a
+<code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that makes <code class="docutils literal notranslate"><span class="pre">argocd.&lt;domain&gt;</span></code> resolve to the NGINX
+ingress ClusterIP from inside the cluster. If you see this error after a fresh
+cluster build, run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>.</p>
+</section>
 <section id="bad-gateway-on-argocd">
 <h3>502 Bad Gateway on ArgoCD<a class="headerlink" href="#bad-gateway-on-argocd" title="Link to this heading">#</a></h3>
 <p>Check that the ArgoCD tunnel hostname uses <strong>HTTPS</strong> origin (not HTTP) with
@@ -955,6 +967,7 @@ DNS resolver to return private IPs for the service hostnames.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-err-too-many-redirects">Redirect loop (ERR_TOO_MANY_REDIRECTS)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-login-fails-from-outside-lan">OAuth login fails from outside LAN</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oidc-discovery-fails-invalid-json-html-response">OIDC discovery fails (invalid JSON / HTML response)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bad-gateway-on-argocd">502 Bad Gateway on ArgoCD</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forbidden-after-authenticating">403 Forbidden after authenticating</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lan-access-stops-working">LAN access stops working</a></li>

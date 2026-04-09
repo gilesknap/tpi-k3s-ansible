@@ -924,8 +924,8 @@ Dex OIDC but receive only read-only access.</p>
 </tr>
 <tr class="row-even"><td><p>Headlamp</p></td>
 <td><p>Cloudflare Access</p></td>
-<td><p>Dex (native OIDC)</p></td>
-<td><p>email → <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> / <code class="docutils literal notranslate"><span class="pre">view</span></code></p></td>
+<td><p>oauth2-proxy + ServiceAccount token</p></td>
+<td><p>—</p></td>
 </tr>
 <tr class="row-odd"><td><p>Longhorn</p></td>
 <td><p>Cloudflare Access</p></td>
@@ -961,7 +961,7 @@ Dex OIDC but receive only read-only access.</p>
 <p>ArgoCD ships with <a class="reference external" href="https://dexidp.io/">Dex</a>, a federated OIDC provider.
 Rather than deploying a separate identity provider, all OIDC-capable
 services share ArgoCD’s Dex instance. Dex connects to GitHub as its
-upstream identity source and issues tokens to five registered static
+upstream identity source and issues tokens to four registered static
 clients.</p>
 <pre  class="mermaid">
         flowchart LR
@@ -973,7 +973,6 @@ clients.</p>
         CON --&gt; C2[argocd-monitor]
         CON --&gt; C3[grafana]
         CON --&gt; C4[open-webui]
-        CON --&gt; C5[headlamp]
     end
 
     GH --&gt; CON
@@ -982,8 +981,7 @@ clients.</p>
     C2 --&gt; argocd-monitor
     C3 --&gt; Grafana
     C4 --&gt; Open-WebUI
-    C5 --&gt; Headlamp
-    </pre><p>All five clients authenticate through a single GitHub OAuth App whose
+    </pre><p>All four clients authenticate through a single GitHub OAuth App whose
 callback URL points to <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;your-domain&gt;/api/dex/callback</span></code>.
 Each client has its own <code class="docutils literal notranslate"><span class="pre">client_secret</span></code> stored in the <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>
 SealedSecret.</p>
@@ -1076,19 +1074,15 @@ secret comes from the <code class="docutils literal notranslate"><span class="pr
 follow the 301 redirect from <code class="docutils literal notranslate"><span class="pre">/api/dex</span></code> to <code class="docutils literal notranslate"><span class="pre">/api/dex/</span></code>.</p>
 </div>
 </section>
-<section id="headlamp-native-oidc-via-dex">
-<h3>Headlamp — native OIDC via Dex<a class="headerlink" href="#headlamp-native-oidc-via-dex" title="Link to this heading">#</a></h3>
-<p>Headlamp uses its built-in OIDC support, configured via environment
-variables from the <code class="docutils literal notranslate"><span class="pre">headlamp-oidc-secret</span></code> SealedSecret. The K3s API
-server is configured with OIDC flags (<code class="docutils literal notranslate"><span class="pre">oidc-issuer-url</span></code>, <code class="docutils literal notranslate"><span class="pre">oidc-client-id</span></code>,
-<code class="docutils literal notranslate"><span class="pre">oidc-username-claim</span></code>, <code class="docutils literal notranslate"><span class="pre">oidc-groups-claim</span></code>) so that Dex-issued tokens
-are accepted for Kubernetes API calls.</p>
-<p>Admin emails receive <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBindings; viewer emails
-receive <code class="docutils literal notranslate"><span class="pre">view</span></code> ClusterRoleBindings. This replaces the previous shared
-<code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ServiceAccount token with per-user Kubernetes RBAC.</p>
+<section id="headlamp-oauth2-proxy-serviceaccount-token">
+<h3>Headlamp — oauth2-proxy + ServiceAccount token<a class="headerlink" href="#headlamp-oauth2-proxy-serviceaccount-token" title="Link to this heading">#</a></h3>
+<p>Headlamp is protected by the cluster-wide oauth2-proxy (admin-only,
+same as Longhorn and Supabase Studio). After authenticating via GitHub,
+users paste a Kubernetes ServiceAccount token to access the dashboard.
+The token is generated with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">create</span> <span class="pre">token</span> <span class="pre">headlamp</span> <span class="pre">-n</span> <span class="pre">headlamp</span></code>.</p>
 </section>
-<section id="oauth2-proxy-services-longhorn-supabase-studio">
-<h3>oauth2-proxy services — Longhorn, Supabase Studio<a class="headerlink" href="#oauth2-proxy-services-longhorn-supabase-studio" title="Link to this heading">#</a></h3>
+<section id="oauth2-proxy-services-headlamp-longhorn-supabase-studio">
+<h3>oauth2-proxy services — Headlamp, Longhorn, Supabase Studio<a class="headerlink" href="#oauth2-proxy-services-headlamp-longhorn-supabase-studio" title="Link to this heading">#</a></h3>
 <p>Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
 through Dex). Only emails in the <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> list can authenticate —
@@ -1148,10 +1142,12 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
             Monitor[argocd-monitor]
             Grafana
             OpenWebUI[Open WebUI]
-            Headlamp
         end
 
+        Headlamp
+
         subgraph ProxyAuth[&quot;oauth2-proxy (admin only)&quot;]
+            Headlamp
             Longhorn
             Supabase[Supabase Studio]
         end
@@ -1180,7 +1176,7 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
     Monitor &lt;-.-&gt; DexPod
     Grafana &lt;-.-&gt; DexPod
     OpenWebUI &lt;-.-&gt; DexPod
-    Headlamp &lt;-.-&gt; DexPod
+    Headlamp &lt;-.-&gt; OAP
     Longhorn &lt;-.-&gt; OAP
     Supabase &lt;-.-&gt; OAP
 
@@ -1217,22 +1213,19 @@ Cloudflare Access (email allowlist) before reaching the cluster.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">open-webui.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OAUTH_ADMIN_EMAIL</span></code> — admin emails get admin role</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dashboard.yaml</span></code></p></td>
-<td><p>ClusterRoleBinding — admin emails get <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">g,</span> <span class="pre">&lt;email&gt;,</span> <span class="pre">role:admin</span></code> — admin emails get ArgoCD admin</p></td>
 </tr>
-<tr class="row-odd"><td><p>Cloudflare Access (manual)</p></td>
+<tr class="row-even"><td><p>Cloudflare Access (manual)</p></td>
 <td><p>Access policy should include both lists</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <p><strong>Viewer emails</strong> authenticate via Dex OIDC and receive read-only roles:
-ArgoCD <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, Grafana <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>, Open WebUI <code class="docutils literal notranslate"><span class="pre">user</span></code>, Headlamp
-<code class="docutils literal notranslate"><span class="pre">view</span></code>. They cannot access oauth2-proxy-gated services (Longhorn,
-Supabase Studio).</p>
+ArgoCD <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, Grafana <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>, Open WebUI <code class="docutils literal notranslate"><span class="pre">user</span></code>. They
+cannot access oauth2-proxy-gated services (Longhorn, Supabase Studio)
+or oauth2-proxy-gated services (Headlamp).</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> must be kept in sync in two places:</p>
@@ -1258,7 +1251,7 @@ to Git:</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/argocd/</span></code></p></td>
-<td><p>GitHub connector credentials + all 6 Dex client secrets</p></td>
+<td><p>GitHub connector credentials + all 5 Dex client secrets</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/grafana/</span></code></p></td>
@@ -1272,11 +1265,7 @@ to Git:</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/argocd-monitor/</span></code></p></td>
 <td><p>argocd-monitor’s Dex client secret + cookie secret</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">headlamp-oidc-secret</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">additions/dashboard/</span></code></p></td>
-<td><p>Headlamp’s Dex OIDC client credentials</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-credentials</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-credentials</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p></td>
 <td><p>GitHub OAuth App credentials + cookie secret</p></td>
 </tr>
@@ -1291,10 +1280,11 @@ watched).</p>
 <h2>Design rationale<a class="headerlink" href="#design-rationale" title="Link to this heading">#</a></h2>
 <p><strong>Why two auth paths (Dex + oauth2-proxy)?</strong> Dex provides proper OIDC
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
-viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI,
-Headlamp) use Dex for authentication, which allows both admin and viewer
-users to log in with differentiated roles. Services without native OIDC
-(Longhorn, Supabase Studio) use oauth2-proxy as a binary admin-only gate.</p>
+viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use
+Dex for authentication, which allows both admin and viewer users to log
+in with differentiated roles. Services without native OIDC (Longhorn,
+Supabase Studio) use oauth2-proxy as a binary admin-only gate. Headlamp
+uses ServiceAccount token auth for simplicity.</p>
 <p><strong>Why is oauth2-proxy admin-only?</strong> oauth2-proxy has no concept of roles —
 it either allows or denies an email. Since Longhorn and Supabase Studio
 have no app-level RBAC, giving viewer users access would grant them full
@@ -1365,8 +1355,8 @@ ConfigMap rather than a standalone Helm chart.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-monitor-dex-cross-client-auth">argocd-monitor — Dex cross-client auth</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-generic-oauth-via-dex">Grafana — generic OAuth via Dex</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui-native-oidc-via-dex">Open WebUI — native OIDC via Dex</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp-native-oidc-via-dex">Headlamp — native OIDC via Dex</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-services-longhorn-supabase-studio">oauth2-proxy services — Longhorn, Supabase Studio</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp-oauth2-proxy-serviceaccount-token">Headlamp — oauth2-proxy + ServiceAccount token</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-services-headlamp-longhorn-supabase-studio">oauth2-proxy services — Headlamp, Longhorn, Supabase Studio</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-cluster-auth-map">Full cluster auth map</a></li>

@@ -435,9 +435,8 @@ devcontainer via a Docker volume.</p></li>
 <h3>Kubernetes RBAC<a class="headerlink" href="#kubernetes-rbac" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The control plane uses the default K3s RBAC configuration.</p></li>
-<li><p>Headlamp uses Dex OIDC with per-user Kubernetes RBAC: admin emails receive
-<code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBindings, viewer emails receive <code class="docutils literal notranslate"><span class="pre">view</span></code>
-ClusterRoleBindings.</p></li>
+<li><p>Headlamp uses ServiceAccount token authentication with <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>
+privileges via the Helm chart’s built-in ClusterRoleBinding.</p></li>
 <li><p>ArgoCD has the <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> AppProject with <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> restricted to the
 project’s GitHub repo and trusted Helm chart registries.</p></li>
 </ul>
@@ -478,8 +477,8 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 </tr>
 <tr class="row-even"><td><p>Headlamp</p></td>
 <td><p>Cloudflare Access</p></td>
-<td><p>Dex (native OIDC)</p></td>
-<td><p>email → admin / view</p></td>
+<td><p>oauth2-proxy + token</p></td>
+<td><p>—</p></td>
 </tr>
 <tr class="row-odd"><td><p>Longhorn</p></td>
 <td><p>Cloudflare Access</p></td>
@@ -519,11 +518,10 @@ controller can decrypt them.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cloudflared/tunnel-secret.yaml</span></code> — Cloudflare tunnel token</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml</span></code> — DNS API token</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd/argocd-dex-secret.yaml</span></code> — GitHub connector + all 6 Dex client secrets</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd/argocd-dex-secret.yaml</span></code> — GitHub connector + all 5 Dex client secrets</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/grafana-oauth-secret.yaml</span></code> — Grafana’s Dex client secret</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml</span></code> — Open WebUI’s Dex client secret</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml</span></code> — argocd-monitor Dex client + cookie secret</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml</span></code> — Headlamp’s Dex OIDC client credentials</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml</span></code> — GitHub OAuth App credentials + cookie secret</p></li>
 </ul>
 </section>

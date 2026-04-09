@@ -447,7 +447,7 @@
 <td><p>0.41.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
-<td><p>Dex (OIDC)</p></td>
+<td><p>OAuth + Token</p></td>
 <td><p>Kubernetes dashboard</p></td>
 </tr>
 <tr class="row-odd"><td><p>ingress-nginx</p></td>
@@ -588,16 +588,13 @@ volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
 </section>
 <section id="headlamp">
 <h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
-<p>Modern Kubernetes dashboard. Authenticates via Dex (native OIDC) with
-GitHub. Admin emails receive <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBindings; viewer
-emails receive <code class="docutils literal notranslate"><span class="pre">view</span></code> ClusterRoleBindings. The K3s API server is
-configured with OIDC flags so Dex-issued tokens are accepted for
-Kubernetes API calls. Resource limits: 50m/128Mi request, 200m/256Mi limit.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/dashboard/</span></code> (Helm sub-chart)</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/rbac.yaml</span></code> — per-user ClusterRoleBindings (admin and viewer)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/headlamp-oidc-secret.yaml</span></code> — SealedSecret for Dex OIDC credentials</p></li>
-</ul>
+<p>Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
+(admin-only, same as Longhorn and Supabase Studio). After OAuth login,
+paste a ServiceAccount token generated with
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">create</span> <span class="pre">token</span> <span class="pre">headlamp</span> <span class="pre">-n</span> <span class="pre">headlamp</span></code> to access the Kubernetes API.
+The Helm chart creates a ClusterRoleBinding granting <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> to
+the default ServiceAccount. Resource limits: 50m/128Mi request,
+200m/256Mi limit.</p>
 </section>
 <section id="ingress-nginx">
 <h3>ingress-nginx<a class="headerlink" href="#ingress-nginx" title="Link to this heading">#</a></h3>

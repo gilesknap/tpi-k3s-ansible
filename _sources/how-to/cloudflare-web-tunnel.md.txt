@@ -328,6 +328,19 @@ Ensure the `oauth2` hostname is included in the tunnel public hostnames. The
 browser must be able to reach `oauth2.example.com` to complete the GitHub OAuth
 flow.
 
+### OIDC discovery fails (invalid JSON / HTML response)
+
+Services that use Dex for OIDC (Headlamp, Grafana, Open WebUI) fetch the
+discovery document from `https://argocd.<domain>/api/dex/.well-known/openid-configuration`.
+When Cloudflare manages DNS, pods resolve this to Cloudflare IPs and the request
+hairpins through the tunnel, often returning a Cloudflare Access HTML page instead
+of JSON.
+
+The fix is split-horizon DNS: the `--tags cluster` playbook creates a
+`coredns-custom` ConfigMap that makes `argocd.<domain>` resolve to the NGINX
+ingress ClusterIP from inside the cluster. If you see this error after a fresh
+cluster build, run `ansible-playbook pb_all.yml --tags cluster`.
+
 ### 502 Bad Gateway on ArgoCD
 
 Check that the ArgoCD tunnel hostname uses **HTTPS** origin (not HTTP) with
