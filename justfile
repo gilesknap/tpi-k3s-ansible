@@ -64,6 +64,12 @@ restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd
     @echo "Restarted argocd-dex-server, argocd-server, argocd-repo-server"
 
+# user management --------------------------------------------------------------
+
+# Add a read-only (viewer) email to the cluster permissions
+add-viewer email="":
+    scripts/add-viewer {{ email }}
+
 # credentials & tokens ---------------------------------------------------------
 
 # Show Supabase Studio dashboard credentials
