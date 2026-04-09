@@ -64,7 +64,7 @@ Dex OIDC but receive only read-only access.
 ArgoCD ships with [Dex](https://dexidp.io/), a federated OIDC provider.
 Rather than deploying a separate identity provider, all OIDC-capable
 services share ArgoCD's Dex instance. Dex connects to GitHub as its
-upstream identity source and issues tokens to six registered static
+upstream identity source and issues tokens to five registered static
 clients.
 
 ```{mermaid}

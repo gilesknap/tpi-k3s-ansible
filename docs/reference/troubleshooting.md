@@ -134,8 +134,7 @@ kubectl patch app <app-name> -n argo-cd --type json \
 ### Viewer emails can access oauth2-proxy-gated services
 
 **Symptom:** Users with viewer emails can access admin-only services
-(Longhorn, Supabase Studio, Headlamp) — oauth2-proxy returns 202 instead
-of 403.
+(Longhorn, Supabase Studio) — oauth2-proxy returns 202 instead of 403.
 
 **Cause:** The oauth2-proxy Helm chart generates `email_domains = ["*"]` in
 its default ConfigMap. This acts as an OR with `authenticatedEmailsFile` —
