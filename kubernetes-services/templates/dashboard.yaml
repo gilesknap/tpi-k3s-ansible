@@ -27,10 +27,21 @@ spec:
               memory: 256Mi
           clusterRoleBinding:
             create: false  # managed by additions/dashboard/rbac.yaml
+          config:
+            oidc:
+              secret:
+                create: false
+              externalSecret:
+                enabled: true
+                name: headlamp-oidc-secret
 
     - path: ./kubernetes-services/additions/dashboard
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          admin_emails: {{ .Values.admin_emails | toJson }}
+          viewer_emails: {{ .Values.viewer_emails | toJson }}
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
@@ -41,7 +52,7 @@ spec:
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: headlamp
           service_port: 80
-          oauth2_proxy: {{ .Values.enable_oauth2_proxy | default false }}
+          oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
   syncPolicy:
     automated:

@@ -6,11 +6,24 @@
     removes: /usr/local/bin/k3s-uninstall.sh
   when: k3s_force
 
+- name: Create K3s config directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Deploy K3s server configuration
+  ansible.builtin.template:
+    src: k3s-server-config.yml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    mode: "0644"
+  notify: Restart k3s
+
 - name: Install k3s control plane version {{ k3s_version | default('latest') }}
   ansible.builtin.shell:
     cmd: >
       INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
-      INSTALL_K3S_EXEC="server --disable=traefik --cluster-init"
+      INSTALL_K3S_EXEC="server"
       /usr/local/bin/k3s-install.sh
     creates: /var/lib/rancher/k3s/server/node-token
   when: is_control_plane

@@ -55,13 +55,15 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 - **Grafana 12.x requires `[users].allow_sign_up`** — the per-provider
   `allow_sign_up` under `[auth.generic_oauth]` is not sufficient alone.
   Also set `[auth].disable_signup_form: true` to block manual signup.
-- **Headlamp OIDC doesn't work** — native Dex OIDC was attempted and
-  reverted (PR #238). TLS verification and redirect issues. Keep Headlamp
-  on oauth2-proxy with token login — 3 auth layers is sufficient.
-- **Headlamp Helm `config.oidc.externalSecret` key names** — if OIDC is
-  ever revisited, the chart uses `envFrom: secretRef` and references
-  `$(OIDC_CLIENT_ID)` etc. Secret keys must be uppercase `OIDC_*`, not
-  the camelCase keys the chart generates internally.
+- **Headlamp OIDC requires K3s API server flags** — the K3s server
+  config (`/etc/rancher/k3s/config.yaml`) includes `oidc-issuer-url`,
+  `oidc-client-id`, `oidc-username-claim`, and `oidc-groups-claim` so
+  that Dex-issued tokens are accepted for Kubernetes API calls. Changing
+  the Dex issuer URL requires updating this config and restarting K3s.
+- **Headlamp Helm `config.oidc.externalSecret` key names** — the chart
+  uses `envFrom: secretRef` and references `$(OIDC_CLIENT_ID)` etc.
+  Secret keys must be uppercase `OIDC_*`, not the camelCase keys the
+  chart generates internally.
 
 ## Key Files
 - `kubernetes-services/values.yaml` — oauth2-proxy toggle and config
