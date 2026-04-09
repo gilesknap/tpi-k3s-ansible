@@ -114,12 +114,44 @@ spec:
                               - ws03
 
           alertmanager:
+            ingress:
+              enabled: true
+              ingressClassName: nginx
+              annotations:
+                nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth"
+                nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.{{ .Values.cluster_domain }}/oauth2/start?rd=https://$host$escaped_request_uri"
+                nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
+{{- if .Values.enable_cloudflare_tunnel }}
+                nginx.ingress.kubernetes.io/ssl-redirect: "false"
+{{- end }}
+              hosts:
+                - alertmanager.{{ .Values.cluster_domain }}
+              tls:
+                - hosts:
+                    - alertmanager.{{ .Values.cluster_domain }}
             alertmanagerSpec:
               tolerations:
                 - key: workstation
                   operator: Equal
                   value: "true"
                   effect: NoSchedule
+              secrets:
+                - alertmanager-slack-secret
+            config:
+              route:
+                receiver: slack
+                group_by:
+                  - alertname
+                  - namespace
+                group_wait: 30s
+                group_interval: 5m
+                repeat_interval: 4h
+              receivers:
+                - name: slack
+                  slack_configs:
+                    - channel: '#alerts'
+                      send_resolved: true
+                      api_url_file: /etc/alertmanager/secrets/alertmanager-slack-secret/webhook-url
 
           prometheusOperator:
             admissionWebhooks:

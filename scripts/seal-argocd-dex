@@ -65,3 +65,15 @@ kubectl create secret generic open-webui-oauth-secret \
   --from-literal=client-secret="$openwebui_secret" \
   --dry-run=client -o yaml | seal_to kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
+# Alertmanager Slack webhook secret
+slack_webhook="${SLACK_WEBHOOK_URL:-}"
+if [ -z "$slack_webhook" ]; then read -p "Slack Webhook URL (blank to skip): " slack_webhook < /dev/tty; fi
+if [ -n "$slack_webhook" ]; then
+  kubectl create secret generic alertmanager-slack-secret \
+    --namespace monitoring \
+    --from-literal=webhook-url="$slack_webhook" \
+    --dry-run=client -o yaml | seal_to kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
+  echo "Sealed: kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml"
+else
+  echo "Skipped: alertmanager-slack-secret (no webhook URL provided)"
+fi
