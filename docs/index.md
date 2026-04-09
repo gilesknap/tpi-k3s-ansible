@@ -6,6 +6,10 @@ html_theme.sidebar_secondary.remove: true
 :end-before: <!-- README only content
 ```
 
+:::{tip}
+Explore the [Interactive Architecture Showcase](_static/architecture.html) — a visual guide to every layer of the cluster, from hardware to applications.
+:::
+
 ## Documentation
 
 ::::{grid} 2

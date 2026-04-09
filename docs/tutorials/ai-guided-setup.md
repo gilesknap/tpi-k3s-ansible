@@ -9,7 +9,7 @@ writes a credentials file — all in one conversation.
 
 - **Claude Code** installed ([claude.ai/claude-code](https://claude.ai/claude-code))
 - A **devcontainer** session open in this repository (see below)
-- Your target hardware ready (Turing Pi boards **or** Linux servers with Ubuntu 24.04)
+- Your target hardware ready (Turing Pi boards **or** any modern Linux servers)
 
 If you haven't forked and cloned the repository yet, do that first:
 
@@ -69,4 +69,4 @@ If you prefer to follow written steps rather than an interactive guide, use the
 hardware-specific tutorials instead:
 
 - {doc}`getting-started-tpi` — for Turing Pi v2.5 boards
-- {doc}`getting-started-generic` — for any Linux servers running Ubuntu 24.04
+- {doc}`getting-started-generic` — for any modern Linux servers

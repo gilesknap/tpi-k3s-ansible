@@ -16,6 +16,7 @@ in minutes.
 Source          | <https://github.com/gilesknap/tpi-k3s-ansible>
 :---:           | :---:
 Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
+**Architecture**    | [**Interactive Architecture Showcase**](https://gilesknap.github.io/tpi-k3s-ansible/architecture.html) — visual guide to every layer of the cluster
 
 ## Features
 
@@ -24,7 +25,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Automated flashing** of Turing Pi compute modules with Ubuntu 24.04 LTS
 - **Optional NVMe migration** — move the root filesystem to fast storage
 - **K3s cluster** with one control-plane node and multiple workers
-- **Works with any Linux server** — Turing Pi hardware is optional
+- **Works with any modern Linux server** — Turing Pi hardware is optional
 - **Kernel tuning** — DaemonSet for network buffers and multipathd fixes
 
 ### GitOps & Deployment

@@ -7,7 +7,7 @@ playbooks for you.
 :::
 
 This tutorial walks you through deploying a K3s cluster on **any set of Linux servers**
-that are already running Ubuntu 24.04 LTS — no Turing Pi hardware required.
+that are already running a modern Linux distribution — no Turing Pi hardware required.
 
 All Ansible roles except the BMC flashing step work identically on standalone servers,
 Intel NUCs, Raspberry Pis, VMs, or cloud instances.
@@ -16,7 +16,7 @@ Intel NUCs, Raspberry Pis, VMs, or cloud instances.
 
 ### Target Servers
 
-- **One or more** Linux servers running **Ubuntu 24.04 LTS**
+- **One or more** Linux servers running a **modern Linux distribution** (Ubuntu, Debian, Fedora, etc.)
 - SSH access from your workstation to each server
 - All servers on the **same subnet** (or with routable network connectivity)
 - One server designated as the **control plane**; any extras are **workers**
