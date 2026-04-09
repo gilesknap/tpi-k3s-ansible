@@ -67,6 +67,12 @@
   / "Authorize" clicks are OK — they only redirect back to the cluster.
   For all other GitHub work, use CLI tools (`gh`, `curl`) instead.
 - **No automated tests** — validate by running playbook tags against the cluster.
+- **Dex/Grafana need restart after re-sealing** — pods that read secrets
+  via `envFrom` or `secretKeyRef` cache values at startup. After
+  `--tags cluster` or `just seal-argocd-dex`, run `just restart-dex`
+  and restart Grafana (`kubectl rollout restart sts grafana-prometheus -n monitoring`).
+  Without this, Dex reports "invalid client_secret" even though the
+  Kubernetes Secret objects match.
 - **`gh pr edit` fails on this repo** — classic projects warning causes a
   GraphQL error. Use `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...`
   instead.
