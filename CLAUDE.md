@@ -34,6 +34,18 @@
   oauth2-proxy. Use `secrets.token_hex(16)` (32 hex chars = 32 bytes).
   This bug has been fixed and regressed before — do not change the
   cookie-secret generation in `scripts/seal-argocd-dex`.
+- **Re-sealing secrets requires pod restarts** — `seal-argocd-dex` now
+  restarts affected pods automatically. If you re-seal secrets manually
+  or via a different path, you must restart pods in `argocd-monitor`,
+  `monitoring` (grafana), `open-webui`, and `headlamp` namespaces.
+  Env vars from K8s Secrets are snapshot-at-startup; running pods keep
+  stale values until restarted.
+- **DEX duplicate `argo-cd` static client** — ArgoCD auto-generates an
+  `argo-cd` DEX client (without `trustedPeers`). Our `dex.config` also
+  declares one (with `trustedPeers: [argocd-monitor]`). DEX v2.45+
+  stores the first and drops the duplicate, so `trustedPeers` never
+  takes effect. This causes a "Grant Access" approval screen for
+  argocd-monitor. Cannot be fixed without upstream ArgoCD changes.
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
 - **Branch switching** — use `just switch-branch <branch>` to point the
