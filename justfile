@@ -77,7 +77,9 @@ supabase-creds:
     @echo "User: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.username}' | base64 -d)"
     @echo "Pass: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.dashboard-password}' | base64 -d)"
 
-# Headlamp now uses Dex OIDC — no token needed. Visit https://headlamp.<domain> to log in via GitHub.
+# Generate a 100 day Headlamp ServiceAccount token (paste into the login page after OAuth)
+headlamp-token:
+    @kubectl create token headlamp -n headlamp --duration=2400h
 
 ################################################################################
 # Commissioning

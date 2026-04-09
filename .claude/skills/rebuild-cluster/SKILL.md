@@ -238,7 +238,7 @@ done
 Expected results:
 - `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
 - `grafana`: HTTP 302 (redirects to OAuth login)
-- `headlamp`: HTTP 302 (redirects to Dex OIDC login)
+- `headlamp`: HTTP 302 (oauth2-proxy redirect)
 - `longhorn`, `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
 
 All services must respond (no timeouts or 5xx errors).
@@ -313,16 +313,11 @@ services reuse the GitHub session and auto-approve.
 | Open WebUI | See note below about scroll-jacking | Page title "Open WebUI" with chat interface |
 | ArgoCD Monitor | Auto-redirects through sidecar oauth2-proxy → Dex | HTML contains "argocd-monitor" or health data |
 
-**4. Headlamp (native Dex OIDC — auto-redirect → Dex → GitHub):**
-
-| Service | Login action | Logged-in indicator |
-|---------|-------------|---------------------|
-| Headlamp | Click "Sign in" → redirects through Dex → GitHub | Cluster view with namespaces or workloads |
-
-**5. Services behind cluster oauth2-proxy (auto-redirect → GitHub):**
+**4. Services behind cluster oauth2-proxy (auto-redirect → GitHub):**
 
 | Service | Logged-in indicator |
 |---------|---------------------|
+| Headlamp | Token login page (after OAuth gate) |
 | Longhorn | Page title contains "Longhorn" |
 | Supabase | Page title contains "Supabase" |
 

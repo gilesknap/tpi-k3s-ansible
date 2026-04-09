@@ -34,8 +34,8 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
   `dex.config` uses `$argocd-dex-secret:key` for each static client.
   Missing keys silently resolve to empty, causing "Failed to get token
   from provider" on login. The `just seal-argocd-dex` recipe generates
-  secrets for all clients (grafana, open-webui, headlamp,
-  argocd-monitor) and also seals the matching service-side secrets.
+  secrets for all clients (grafana, open-webui, argocd-monitor) and
+  also seals the matching service-side secrets.
 - **Sidecar oauth2-proxy cookie clash** — the shared oauth2-proxy sets
   `cookie-domain=.gkcluster.org`, so its `_oauth2_proxy` cookie reaches all
   subdomains. Any service with its own oauth2-proxy sidecar (e.g.
@@ -55,16 +55,6 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 - **Grafana 12.x requires `[users].allow_sign_up`** — the per-provider
   `allow_sign_up` under `[auth.generic_oauth]` is not sufficient alone.
   Also set `[auth].disable_signup_form: true` to block manual signup.
-- **Headlamp OIDC requires K3s API server flags** — the K3s server
-  config (`/etc/rancher/k3s/config.yaml`) includes `oidc-issuer-url`,
-  `oidc-client-id`, `oidc-username-claim`, and `oidc-groups-claim` so
-  that Dex-issued tokens are accepted for Kubernetes API calls. Changing
-  the Dex issuer URL requires updating this config and restarting K3s.
-- **Headlamp Helm `config.oidc.externalSecret` key names** — the chart
-  uses `envFrom: secretRef` and references `$(OIDC_CLIENT_ID)` etc.
-  Secret keys must be uppercase `OIDC_*`, not the camelCase keys the
-  chart generates internally.
-
 ## Key Files
 - `kubernetes-services/values.yaml` — oauth2-proxy toggle and config
 - `kubernetes-services/additions/ingress/` — reusable ingress with auth modes

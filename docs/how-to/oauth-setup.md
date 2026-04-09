@@ -8,7 +8,7 @@ see {doc}`/explanations/authentication`.
 This guide walks through configuring both authentication paths used by the
 cluster:
 
-- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, Headlamp, argocd-monitor)
+- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
 - **Part B** — oauth2-proxy (Longhorn, Supabase Studio — admin-only)
 
 ```{mermaid}
@@ -23,7 +23,6 @@ flowchart LR
     DEX --> ArgoCD
     DEX --> Grafana
     DEX --> Open-WebUI
-    DEX --> Headlamp
     DEX --> argocd-monitor
 
     OAP --> Longhorn
@@ -66,7 +65,7 @@ Each Dex static client needs its own secret. Generate them:
 
 ```bash
 # One secret per client
-for client in argo-cd argocd-monitor grafana open-webui headlamp; do
+for client in argo-cd argocd-monitor grafana open-webui; do
   echo "$client: $(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 done
 ```
@@ -90,8 +89,8 @@ This creates `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`.
 
 ### A4: Seal per-service OAuth secrets
 
-Grafana, Open WebUI, and Headlamp each need their own SealedSecret
-containing the Dex client secret:
+Grafana and Open WebUI each need their own SealedSecret containing the
+Dex client secret:
 
 ```bash
 # Grafana
@@ -109,17 +108,6 @@ kubectl create secret generic open-webui-oauth-secret \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
   kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
-
-# Headlamp (keys must be uppercase OIDC_*)
-kubectl create secret generic headlamp-oidc-secret \
-  --namespace headlamp \
-  --from-literal=OIDC_CLIENT_ID="headlamp" \
-  --from-literal=OIDC_CLIENT_SECRET="<headlamp-client-secret>" \
-  --from-literal=OIDC_ISSUER_URL="https://argocd.<your-domain>/api/dex" \
-  --from-literal=OIDC_SCOPES="openid profile email" \
-  --dry-run=client -o yaml | \
-kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml
 ```
 
 ### A5: Configure admin and viewer emails
