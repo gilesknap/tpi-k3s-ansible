@@ -53,11 +53,19 @@ the `argo-cd` audience so ArgoCD's API accepts them.
 ArgoCD auto-generates Dex static clients (`argo-cd`, `argo-cd-cli`,
 `argo-cd-pkce`) at the start of the client list. Custom clients from
 `dex.config` in `argocd-cm` are appended **after** them. When duplicate client
-IDs exist, the **last entry wins**.
+IDs exist, the **first entry wins** — DEX v2.45+ memory storage rejects
+duplicates with `ErrAlreadyExists` and keeps the original.
 
-We override the `argo-cd` client in `dex.config` to add
-`trustedPeers: [argocd-monitor]`. The `argocd-monitor` oauth2-proxy requests
-scope `audience:server:client_id:argo-cd`, so the Dex token has the `argo-cd`
+We declare an `argo-cd` client in `dex.config` with
+`trustedPeers: [argocd-monitor]`, but because the auto-generated `argo-cd`
+entry (without `trustedPeers`) is stored first, our override is silently
+dropped. As a result, DEX shows a "Grant Access" approval screen for
+argocd-monitor's cross-client auth flow. This is cosmetic (one extra click)
+and cannot be fixed without upstream ArgoCD changes to either suppress
+auto-generated clients or support `trustedPeers` on them.
+
+The `argocd-monitor` oauth2-proxy requests scope
+`audience:server:client_id:argo-cd`, so the Dex token has the `argo-cd`
 audience that ArgoCD accepts.
 
 ### Why not `server.additional.audiences`?

@@ -77,3 +77,19 @@ kubectl create secret generic headlamp-oidc-secret \
   --from-literal=OIDC_SCOPES="openid profile email" \
   --dry-run=client -o yaml | seal_to kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml
 echo "Sealed: kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml"
+
+# Restart pods that read secrets via env vars (env vars are snapshot-at-startup).
+# Without this, pods keep stale client-secret values after re-sealing.
+echo ""
+echo "Restarting pods that reference re-sealed secrets..."
+for ns_deploy in argocd-monitor/argocd-monitor monitoring/grafana-prometheus-grafana open-webui/open-webui headlamp/headlamp; do
+  ns="${ns_deploy%%/*}"
+  deploy="${ns_deploy##*/}"
+  if kubectl get deployment "$deploy" -n "$ns" &>/dev/null; then
+    kubectl rollout restart deployment "$deploy" -n "$ns"
+    echo "  Restarted $ns/$deploy"
+  else
+    echo "  Skipped $ns/$deploy (not found)"
+  fi
+done
+echo "Done. DEX server is restarted separately by 'ansible-playbook --tags cluster'."
