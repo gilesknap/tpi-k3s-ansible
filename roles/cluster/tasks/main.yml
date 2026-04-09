@@ -14,6 +14,35 @@
   when: groups['all_nodes'] | length > 1
 
 
+# Split-horizon DNS: resolve cluster subdomains to the ingress ClusterIP from
+# inside the cluster, so pods calling Dex (argocd.<domain>) don't hairpin
+# through Cloudflare. K3s CoreDNS imports /etc/coredns/custom/*.server as
+# separate server blocks from the coredns-custom ConfigMap.
+- name: Look up the NGINX ingress ClusterIP
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    namespace: ingress-nginx
+    name: ingress-ingress-nginx-controller
+  register: ingress_svc
+
+- name: Create CoreDNS split-horizon override for cluster domain
+  kubernetes.core.k8s:
+    force: true
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns-custom
+        namespace: kube-system
+      data:
+        cluster-domain.server: |
+          argocd.{{ cluster_domain }}:53 {
+            hosts {
+              {{ ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
+            }
+          }
+
 # install services - only ArgoCD for now - it adds everything else
 
 - name: Cluster Install of services
