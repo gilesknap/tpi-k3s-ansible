@@ -36,7 +36,7 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] `admin-auth` secret created for Grafana/basic-auth services
 - [ ] oauth2-proxy deployed with GitHub OAuth credentials
-- [ ] OAuth enabled on Grafana, Longhorn, Headlamp, Open WebUI
+- [ ] OAuth enabled on Grafana, Longhorn, Open WebUI; Headlamp uses Dex OIDC
 - [ ] ArgoCD admin password retrieved and changed from default
 
 ## Resource limits
@@ -63,7 +63,7 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] All container images pinned to specific versions
 - [ ] Security contexts applied to all custom deployments
-- [ ] Headlamp RBAC reviewed (currently cluster-admin; scope down when ready)
+- [ ] Headlamp RBAC reviewed (per-user bindings: admin → cluster-admin, viewer → view)
 - [ ] ArgoCD project `sourceRepos` restricted to known repositories
 - [ ] No plaintext secrets in Ansible output or Git
 

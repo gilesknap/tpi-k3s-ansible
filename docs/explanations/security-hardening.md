@@ -37,9 +37,9 @@ are available.
 
 ### Headlamp dashboard
 
-The Headlamp service account currently uses `cluster-admin`. A future
-improvement is to scope this down to a read-heavy custom ClusterRole once
-the required permissions are mapped out.
+Headlamp uses Dex OIDC with per-user Kubernetes RBAC. Admin emails
+receive `cluster-admin` ClusterRoleBindings; viewer emails receive
+`view` ClusterRoleBindings. There is no shared ServiceAccount.
 
 ### ArgoCD project
 

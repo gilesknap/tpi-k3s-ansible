@@ -52,7 +52,7 @@ Dex OIDC but receive only read-only access.
 | argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
-| Headlamp | Cloudflare Access | oauth2-proxy | Token auth (cluster-admin SA, admin-only) |
+| Headlamp | Cloudflare Access | Dex (native OIDC) | email → `cluster-admin` / `view` |
 | Longhorn | Cloudflare Access | oauth2-proxy | None (full access after auth) |
 | Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test service) |
@@ -77,6 +77,7 @@ flowchart LR
         CON --> C2[argocd-monitor]
         CON --> C3[grafana]
         CON --> C4[open-webui]
+        CON --> C5[headlamp]
     end
 
     GH --> CON
@@ -85,9 +86,10 @@ flowchart LR
     C2 --> argocd-monitor
     C3 --> Grafana
     C4 --> Open-WebUI
+    C5 --> Headlamp
 ```
 
-All four clients authenticate through a single GitHub OAuth App whose
+All five clients authenticate through a single GitHub OAuth App whose
 callback URL points to `https://argocd.<your-domain>/api/dex/callback`.
 Each client has its own `client_secret` stored in the `argocd-dex-secret`
 SealedSecret.
@@ -188,7 +190,19 @@ The discovery URL must be the full path including
 follow the 301 redirect from `/api/dex` to `/api/dex/`.
 :::
 
-### oauth2-proxy services — Headlamp, Longhorn, Supabase Studio
+### Headlamp — native OIDC via Dex
+
+Headlamp uses its built-in OIDC support, configured via environment
+variables from the `headlamp-oidc-secret` SealedSecret. The K3s API
+server is configured with OIDC flags (`oidc-issuer-url`, `oidc-client-id`,
+`oidc-username-claim`, `oidc-groups-claim`) so that Dex-issued tokens
+are accepted for Kubernetes API calls.
+
+Admin emails receive `cluster-admin` ClusterRoleBindings; viewer emails
+receive `view` ClusterRoleBindings. This replaces the previous shared
+`cluster-admin` ServiceAccount token with per-user Kubernetes RBAC.
+
+### oauth2-proxy services — Longhorn, Supabase Studio
 
 Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
@@ -251,10 +265,10 @@ flowchart TB
             Monitor[argocd-monitor]
             Grafana
             OpenWebUI[Open WebUI]
+            Headlamp
         end
 
         subgraph ProxyAuth["oauth2-proxy (admin only)"]
-            Headlamp
             Longhorn
             Supabase[Supabase Studio]
         end
@@ -283,7 +297,7 @@ flowchart TB
     Monitor <-.-> DexPod
     Grafana <-.-> DexPod
     OpenWebUI <-.-> DexPod
-    Headlamp <-.-> OAP
+    Headlamp <-.-> DexPod
     Longhorn <-.-> OAP
     Supabase <-.-> OAP
 
@@ -307,19 +321,21 @@ viewer_emails:
   - carol@example.com     # read-only access to Dex-authenticated services
 ```
 
-**Admin emails** are consumed in five places:
+**Admin emails** are consumed in six places:
 
 | Template / Config | Effect |
 |-------------------|--------|
 | `oauth2-proxy.yaml` | Email allowlist — only admins can access Longhorn, Supabase Studio |
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
 | `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — admin emails get admin role |
+| `dashboard.yaml` | ClusterRoleBinding — admin emails get `cluster-admin` |
 | `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |
 | Cloudflare Access (manual) | Access policy should include both lists |
 
 **Viewer emails** authenticate via Dex OIDC and receive read-only roles:
-ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`. They cannot
-access oauth2-proxy-gated services (Headlamp, Longhorn, Supabase Studio).
+ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`, Headlamp
+`view`. They cannot access oauth2-proxy-gated services (Longhorn,
+Supabase Studio).
 
 :::{important}
 `admin_emails` must be kept in sync in two places:
@@ -338,10 +354,11 @@ to Git:
 
 | SealedSecret | Location | Contents |
 |-------------|----------|----------|
-| `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 5 Dex client secrets |
+| `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 6 Dex client secrets |
 | `grafana-oauth-secret` | `additions/grafana/` | Grafana's Dex client secret |
 | `open-webui-oauth-secret` | `additions/open-webui/` | Open WebUI's Dex client secret |
 | `argocd-monitor-oauth-secret` | `additions/argocd-monitor/` | argocd-monitor's Dex client secret + cookie secret |
+| `headlamp-oidc-secret` | `additions/dashboard/` | Headlamp's Dex OIDC client credentials |
 | `oauth2-proxy-credentials` | `additions/oauth2-proxy/` | GitHub OAuth App credentials + cookie secret |
 
 Re-sealing any of these secrets requires restarting the affected pods
@@ -352,10 +369,10 @@ watched).
 
 **Why two auth paths (Dex + oauth2-proxy)?** Dex provides proper OIDC
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
-viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use Dex
-for authentication, which allows both admin and viewer users to log in
-with differentiated roles. Services without native OIDC (Headlamp,
-Longhorn, Supabase Studio) use oauth2-proxy as a binary admin-only gate.
+viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI,
+Headlamp) use Dex for authentication, which allows both admin and viewer
+users to log in with differentiated roles. Services without native OIDC
+(Longhorn, Supabase Studio) use oauth2-proxy as a binary admin-only gate.
 
 **Why is oauth2-proxy admin-only?** oauth2-proxy has no concept of roles —
 it either allows or denies an email. Since Longhorn and Supabase Studio

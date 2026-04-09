@@ -66,14 +66,6 @@ replicas, and backup status.
 
 ## Headlamp (Kubernetes Dashboard)
 
-Headlamp uses Kubernetes **token authentication** (not the shared admin password).
-
-Generate a login token:
-
-```bash
-kubectl create token headlamp-admin -n headlamp --duration=24h
-```
-
 Via ingress: **https://headlamp.\<domain\>**
 
 Via port-forward:
@@ -85,7 +77,8 @@ kubectl port-forward svc/headlamp -n headlamp 4466:80
 # Open http://localhost:4466
 ```
 
-Paste the token into the login screen.
+Click **Sign in** to authenticate via Dex (GitHub). Admin emails get full
+`cluster-admin` access; viewer emails get read-only `view` access.
 
 ## Open WebUI (LLM Chat)
 

@@ -67,3 +67,13 @@ kubectl create secret generic open-webui-oauth-secret \
   --from-literal=client-secret="$openwebui_secret" \
   --dry-run=client -o yaml | seal_to kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
+# Headlamp OIDC secret — keys must be uppercase OIDC_* (chart uses envFrom)
+CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-gkcluster.org}"
+kubectl create secret generic headlamp-oidc-secret \
+  --namespace headlamp \
+  --from-literal=OIDC_CLIENT_ID="headlamp" \
+  --from-literal=OIDC_CLIENT_SECRET="$headlamp_secret" \
+  --from-literal=OIDC_ISSUER_URL="https://argocd.${CLUSTER_DOMAIN}/api/dex" \
+  --from-literal=OIDC_SCOPES="openid profile email" \
+  --dry-run=client -o yaml | seal_to kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml
+echo "Sealed: kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml"

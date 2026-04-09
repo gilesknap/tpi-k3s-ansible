@@ -177,15 +177,6 @@ kubectl get applications -n argo-cd
 
 ## Phase 5: Post-deploy setup
 
-### Generate Headlamp login token
-
-Headlamp requires a Kubernetes service account token after passing
-through OAuth (or basic-auth). Generate one:
-
-```bash
-just headlamp-token
-```
-
 ### Verify cluster health
 
 ```bash
@@ -201,7 +192,6 @@ Write all generated credentials to `/tmp/cluster-credentials.txt` with clear
 labels. Include:
 
 - Admin password (from `/tmp/cluster-secrets/admin-password.txt`)
-- Headlamp token (from `just headlamp-token` output)
 
 Warn the user to save this file somewhere secure and that `/tmp` is ephemeral.
 

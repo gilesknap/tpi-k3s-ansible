@@ -238,20 +238,10 @@ done
 Expected results:
 - `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
 - `grafana`: HTTP 302 (redirects to OAuth login)
-- `longhorn`, `headlamp`, `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
+- `headlamp`: HTTP 302 (redirects to Dex OIDC login)
+- `longhorn`, `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
 
 All services must respond (no timeouts or 5xx errors).
-
-### 6b. Generate Headlamp login token
-
-Headlamp requires a Kubernetes service account token after passing
-through OAuth. Generate one before browser testing:
-
-```bash
-just headlamp-token
-```
-
-Save the output — pass it to the browser verification subagent.
 
 ## Phase 7: Verify via browser
 
@@ -261,7 +251,6 @@ Cloudflare redirect URLs, navigation retries) that bloats the main
 conversation. Launch a single agent with `subagent_type: "general-purpose"`
 and pass it:
 - The cluster domain (from `group_vars/all.yml`)
-- The Headlamp token generated in Phase 6b
 - The full instructions below (7a–7f)
 - The instruction to report back a summary table of PASS/FAIL per service
 
@@ -324,30 +313,18 @@ services reuse the GitHub session and auto-approve.
 | Open WebUI | See note below about scroll-jacking | Page title "Open WebUI" with chat interface |
 | ArgoCD Monitor | Auto-redirects through sidecar oauth2-proxy → Dex | HTML contains "argocd-monitor" or health data |
 
-**4. Services behind cluster oauth2-proxy (auto-redirect → GitHub):**
+**4. Headlamp (native Dex OIDC — auto-redirect → Dex → GitHub):**
+
+| Service | Login action | Logged-in indicator |
+|---------|-------------|---------------------|
+| Headlamp | Click "Sign in" → redirects through Dex → GitHub | Cluster view with namespaces or workloads |
+
+**5. Services behind cluster oauth2-proxy (auto-redirect → GitHub):**
 
 | Service | Logged-in indicator |
 |---------|---------------------|
 | Longhorn | Page title contains "Longhorn" |
-| Headlamp | Token login required after OAuth — see below |
 | Supabase | Page title contains "Supabase" |
-
-**Headlamp token login** — after oauth2-proxy redirects complete,
-Headlamp shows a token input screen. Paste the token from Phase 6b:
-
-```javascript
-const input = document.querySelector('input[type="password"]');
-if (input) {
-  const nativeSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype, 'value').set;
-  nativeSetter.call(input, '<HEADLAMP_TOKEN>');
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-```
-
-Then click the "Authenticate" button. **Logged-in indicator**: page
-shows a cluster view with namespaces or workloads. If the token is
-rejected, verify: `kubectl get sa headlamp-admin -n headlamp`
 
 ### 7c. OAuth flow procedure
 
@@ -381,7 +358,7 @@ Use a single browser tab for all tests. For each service:
   });
   ```
 - **Cloudflare Access redirect** — services behind Cloudflare Access
-  (`headlamp`, `supabase`, `argocd-monitor`) redirect through
+  (`supabase`, `argocd-monitor`) redirect through
   `gilesk.cloudflareaccess.com` first. The browser's existing
   Cloudflare session typically auto-approves this.
 - **ArgoCD is already logged in** — the `--tags cluster` playbook

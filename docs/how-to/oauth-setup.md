@@ -8,8 +8,8 @@ see {doc}`/explanations/authentication`.
 This guide walks through configuring both authentication paths used by the
 cluster:
 
-- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
-- **Part B** — oauth2-proxy (Headlamp, Longhorn, Supabase Studio — admin-only)
+- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, Headlamp, argocd-monitor)
+- **Part B** — oauth2-proxy (Longhorn, Supabase Studio — admin-only)
 
 ```{mermaid}
 flowchart LR
@@ -23,9 +23,9 @@ flowchart LR
     DEX --> ArgoCD
     DEX --> Grafana
     DEX --> Open-WebUI
+    DEX --> Headlamp
     DEX --> argocd-monitor
 
-    OAP --> Headlamp
     OAP --> Longhorn
     OAP --> Supabase
 ```
@@ -90,8 +90,8 @@ This creates `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`.
 
 ### A4: Seal per-service OAuth secrets
 
-Grafana and Open WebUI each need their own SealedSecret containing the
-Dex client secret:
+Grafana, Open WebUI, and Headlamp each need their own SealedSecret
+containing the Dex client secret:
 
 ```bash
 # Grafana
@@ -109,6 +109,17 @@ kubectl create secret generic open-webui-oauth-secret \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
   kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+
+# Headlamp (keys must be uppercase OIDC_*)
+kubectl create secret generic headlamp-oidc-secret \
+  --namespace headlamp \
+  --from-literal=OIDC_CLIENT_ID="headlamp" \
+  --from-literal=OIDC_CLIENT_SECRET="<headlamp-client-secret>" \
+  --from-literal=OIDC_ISSUER_URL="https://argocd.<your-domain>/api/dex" \
+  --from-literal=OIDC_SCOPES="openid profile email" \
+  --dry-run=client -o yaml | \
+kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
+  kubernetes-services/additions/dashboard/templates/headlamp-oidc-secret.yaml
 ```
 
 ### A5: Configure admin and viewer emails
@@ -147,6 +158,7 @@ restart pods that read secrets from environment variables:
 ```bash
 kubectl rollout restart deployment/grafana-prometheus -n monitoring
 kubectl rollout restart deployment/open-webui -n open-webui
+kubectl rollout restart deployment/headlamp -n headlamp
 ```
 
 ### Adding a new Dex static client
@@ -246,7 +258,6 @@ oauth2-proxy before forwarding each request.
 
 Services protected by oauth2-proxy (admin-only):
 
-- **Headlamp** — requires a ServiceAccount token after OAuth login
 - **Longhorn** — no native auth; OAuth is the only access control
 - **Supabase Studio** — requires a dashboard password after OAuth login
 
@@ -271,8 +282,8 @@ ingress values.
 ### 403 after GitHub login
 
 For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
-in `admin_emails` in `values.yaml`. Viewer users cannot access these
-services by design.
+in `admin_emails` in `values.yaml`. Viewer users cannot access these services
+by design.
 
 For Dex-authenticated services: any GitHub user can log in. A 403 likely
 means the service has additional access restrictions.

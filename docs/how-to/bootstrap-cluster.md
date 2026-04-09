@@ -20,9 +20,8 @@ just set-admin-password
 ```
 
 This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
-creates the ``admin-auth`` secret in the ``longhorn``, ``monitoring``, and
-``headlamp`` namespaces, patches the ArgoCD admin password, and restarts the
-ArgoCD server.
+creates the ``admin-auth`` secret in the ``longhorn`` and ``monitoring``
+namespaces, patches the ArgoCD admin password, and restarts the ArgoCD server.
 
 To update the password later, re-run the same command and restart cached
 services:
@@ -51,24 +50,19 @@ kubectl patch application all-cluster-services -n argo-cd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
-## Generate a Headlamp Login Token
+## Verify Headlamp OIDC Login
 
-Headlamp uses Kubernetes token authentication rather than the shared admin
-password. Generate a token for the pre-configured ``headlamp-admin`` service
-account:
+Headlamp authenticates via Dex (GitHub SSO). After ArgoCD syncs, visit
+``https://headlamp.<your-domain>`` and click **Sign in**. You will be
+redirected to GitHub via Dex. Admin emails get ``cluster-admin`` access;
+viewer emails get read-only ``view`` access.
 
-```bash
-just headlamp-token
-```
-
-Or manually:
-
-```bash
-kubectl create token headlamp-admin -n headlamp --duration=2400h
-```
-
-Paste the token into the Headlamp login screen. Tokens expire after the
-specified duration (~100 days) — re-run the command to generate a new one.
+:::{note}
+Headlamp OIDC requires the K3s API server to be configured with OIDC
+flags. The Ansible ``k3s`` role deploys these automatically via
+``/etc/rancher/k3s/config.yaml``. If you see token validation errors,
+verify the config is deployed and k3s has been restarted.
+:::
 
 ## Clean Up the Initial Admin Secret
 
