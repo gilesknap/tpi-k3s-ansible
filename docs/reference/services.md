@@ -10,7 +10,7 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | cloudflared | Plain manifests | 2026.3.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
 | Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | Dex (OIDC) | Kubernetes dashboard |
+| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | Token | Kubernetes dashboard |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | Longhorn | `longhorn/longhorn` | 1.11.1 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
@@ -67,15 +67,11 @@ Uses `ServerSideApply=true` sync option due to large CRDs.
 
 ### Headlamp
 
-Modern Kubernetes dashboard. Authenticates via Dex (native OIDC) with
-GitHub. Admin emails receive `cluster-admin` ClusterRoleBindings; viewer
-emails receive `view` ClusterRoleBindings. The K3s API server is
-configured with OIDC flags so Dex-issued tokens are accepted for
-Kubernetes API calls. Resource limits: 50m/128Mi request, 200m/256Mi limit.
-
-**Additional manifests:** `additions/dashboard/` (Helm sub-chart)
-- `templates/rbac.yaml` — per-user ClusterRoleBindings (admin and viewer)
-- `templates/headlamp-oidc-secret.yaml` — SealedSecret for Dex OIDC credentials
+Modern Kubernetes dashboard. Authenticates via ServiceAccount token —
+paste a token generated with `kubectl create token headlamp -n headlamp`
+to access the dashboard. The Helm chart creates a ClusterRoleBinding
+granting `cluster-admin` to the default ServiceAccount. Resource limits:
+50m/128Mi request, 200m/256Mi limit.
 
 ### ingress-nginx
 

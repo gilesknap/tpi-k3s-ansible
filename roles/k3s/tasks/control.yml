@@ -12,20 +12,6 @@
     state: directory
     mode: "0755"
 
-# Split-horizon DNS for the control plane node: the kube-apiserver validates
-# OIDC tokens by fetching Dex discovery from argocd.<domain>. When Cloudflare
-# manages DNS, that resolves to Cloudflare IPs and may hit an Access gate.
-# Point it to a worker node running the ingress instead.
-- name: Add split-horizon /etc/hosts entry for cluster domain
-  ansible.builtin.lineinfile:
-    path: /etc/hosts
-    regexp: '.*argocd\.{{ cluster_domain }}$'
-    line: >-
-      {{ hostvars[(groups['all_nodes'] | difference([control_plane]))[0]]['ansible_default_ipv4']['address'] }}
-      argocd.{{ cluster_domain }}
-    state: present
-  notify: Restart k3s
-
 - name: Deploy K3s server configuration
   ansible.builtin.template:
     src: k3s-server-config.yml.j2

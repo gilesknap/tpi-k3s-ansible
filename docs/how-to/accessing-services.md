@@ -77,8 +77,13 @@ kubectl port-forward svc/headlamp -n headlamp 4466:80
 # Open http://localhost:4466
 ```
 
-Click **Sign in** to authenticate via Dex (GitHub). Admin emails get full
-`cluster-admin` access; viewer emails get read-only `view` access.
+Headlamp uses ServiceAccount token authentication. Generate a token:
+
+```bash
+kubectl create token headlamp -n headlamp --duration=24h
+```
+
+Paste the token into the login page to access the cluster dashboard.
 
 ## Open WebUI (LLM Chat)
 

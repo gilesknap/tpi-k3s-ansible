@@ -25,27 +25,6 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
-          clusterRoleBinding:
-            create: false  # managed by additions/dashboard/rbac.yaml
-          config:
-            extraArgs:
-              - -oidc-skip-tls-verify
-              - -insecure-ssl
-              - -oidc-callback-url=https://headlamp.{{ .Values.cluster_domain }}/oidc-callback
-            oidc:
-              secret:
-                create: false
-              externalSecret:
-                enabled: true
-                name: headlamp-oidc-secret
-
-    - path: ./kubernetes-services/additions/dashboard
-      repoURL: {{ .Values.repo_remote }}
-      targetRevision: {{ .Values.repo_branch }}
-      helm:
-        valuesObject:
-          admin_emails: {{ .Values.admin_emails | toJson }}
-          viewer_emails: {{ .Values.viewer_emails | toJson }}
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
