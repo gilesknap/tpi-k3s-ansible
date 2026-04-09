@@ -55,7 +55,7 @@ The project supports two types of compute nodes:
 - **Turing Pi nodes** — compute modules (RK1, CM4) installed in a Turing Pi v2.5 board.
   The BMC provides remote management (flashing, power control) via SSH and the `tpi` CLI.
 - **Extra nodes** — any standalone Linux server (Intel NUC, Raspberry Pi, VM, etc.)
-  with Ubuntu 24.04 and SSH access.
+  with a modern Linux distribution and SSH access.
 
 Both types join the same K3s cluster as either the control plane or workers.
 

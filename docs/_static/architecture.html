@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Showcase — K3s Cluster</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #1a1a2e;
+  --card-bg: #16213e;
+  --card-border: #0f3460;
+  --hover-accent: #533483;
+  --text: #e0e0e0;
+  --text-muted: #a0a0b8;
+  --layer1: #a855f7;
+  --layer2: #6366f1;
+  --layer3: #3b82f6;
+  --layer4: #06b6d4;
+  --layer5: #f59e0b;
+  --layer6: #10b981;
+  --layer7: #818cf8;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Hero ────────────────────────────────────────────────── */
+.hero {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2rem;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  background: linear-gradient(135deg, var(--layer1), var(--layer2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero .tagline {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+
+/* Terminal ------------------------------------------------ */
+.terminal-wrap {
+  display: inline-block;
+  width: 100%;
+  max-width: 680px;
+  margin-bottom: 2rem;
+}
+
+.terminal {
+  background: #0d1117;
+  border: 1px solid var(--layer1);
+  border-radius: 10px;
+  text-align: left;
+  overflow: hidden;
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(168, 85, 247, 0.15); }
+  50%      { box-shadow: 0 0 30px rgba(168, 85, 247, 0.35); }
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+}
+
+.terminal-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+}
+.terminal-dot.red   { background: #ff5f57; }
+.terminal-dot.yel   { background: #febc2e; }
+.terminal-dot.grn   { background: #28c840; }
+
+.terminal-bar span {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #484f58;
+  font-family: var(--mono);
+}
+
+.terminal-body {
+  padding: 1rem 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #c9d1d9;
+}
+
+.terminal-body .prompt { color: var(--layer1); }
+.terminal-body .cmd    { color: #79c0ff; }
+.terminal-body .arg    { color: #c9d1d9; }
+.terminal-body .comment { color: #484f58; }
+
+/* Badges ------------------------------------------------- */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.badge .icon { font-size: 0.9rem; }
+
+/* Safety callout ----------------------------------------- */
+.safety-callout {
+  display: inline-block;
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.safety-callout strong { color: var(--layer1); }
+
+/* ── Layers Container ────────────────────────────────────── */
+.layers {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
+  position: relative;
+}
+
+/* Vertical connector */
+.layers::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-left: 2px dashed rgba(255,255,255,0.06);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+
+/* ── Layer ───────────────────────────────────────────────── */
+.layer {
+  position: relative;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.layer.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.layer-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.layer-header:hover { background: rgba(255,255,255,0.02); }
+
+.layer-accent {
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.layer-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.layer-count {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.layer-chevron {
+  font-size: 0.85rem;
+  transition: transform 0.3s;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.layer.open .layer-chevron { transform: rotate(90deg); }
+
+.layer-body {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.45s ease-out, opacity 0.35s ease;
+}
+
+.layer.open .layer-body {
+  opacity: 1;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.25rem;
+}
+
+/* ── Component Card ──────────────────────────────────────── */
+.card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--layer1);
+  outline-offset: 2px;
+}
+
+.layer-header:focus-visible {
+  outline: 2px solid var(--layer1);
+  outline-offset: -2px;
+}
+
+.card .card-icon {
+  font-size: 1.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.card .card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.card .card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  padding: 1rem;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 2rem;
+  transform: scale(0.92);
+  transition: transform 0.25s;
+  position: relative;
+}
+
+.modal-backdrop.active .modal { transform: scale(1); }
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.modal-close:hover { color: var(--text); }
+.modal-close:focus-visible { outline: 2px solid var(--layer1); }
+
+.modal h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.modal .modal-oneliner {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.modal h4 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  margin-top: 1rem;
+}
+
+.modal ul {
+  list-style: none;
+  padding: 0;
+}
+
+.modal ul li {
+  position: relative;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+
+.modal ul li::before {
+  content: '\25B8';
+  position: absolute;
+  left: 0;
+  color: var(--text-muted);
+}
+
+.modal .modal-rationale {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+.modal .modal-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--layer2);
+  text-decoration: none;
+}
+
+.modal .modal-link:hover { text-decoration: underline; }
+
+/* ── Hardware Footer ─────────────────────────────────────── */
+.hardware {
+  max-width: 1100px;
+  margin: 1rem auto 0;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border-top: 1px solid var(--card-border);
+}
+
+.hardware h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.hw-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.hw-badge {
+  padding: 0.35rem 0.9rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.hw-callout {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+/* ── Page Footer ─────────────────────────────────────────── */
+.page-footer {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border-top: 1px solid var(--card-border);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.page-footer a {
+  color: var(--layer2);
+  text-decoration: none;
+  margin: 0 0.75rem;
+}
+
+.page-footer a:hover { text-decoration: underline; }
+
+.page-footer .built-with {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  color: #484f58;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .hero { padding: 2rem 1rem 1.5rem; }
+  .layers { padding: 0 1rem 2rem; }
+  .terminal-body { font-size: 0.72rem; }
+  .card { min-height: 44px; }
+  .layer-header { min-height: 48px; padding: 0.9rem 1rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section class="hero">
+  <h1>K3s Cluster Architecture</h1>
+  <p class="tagline">AI-Assisted Infrastructure &mdash; Safely Sandboxed</p>
+
+  <div class="terminal-wrap">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot red"></div>
+        <div class="terminal-dot yel"></div>
+        <div class="terminal-dot grn"></div>
+        <span>claude-code &mdash; devcontainer</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="prompt">$</span> <span class="cmd">ansible-playbook</span> <span class="arg">pb_all.yml --tags cluster</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">kubectl</span> <span class="arg">get pods -A</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">helm</span> <span class="arg">template kubernetes-services/</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">kubeseal</span> <span class="arg">--format yaml &lt; secret.yaml</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">git</span> <span class="arg">push origin feature-branch</span></div>
+        <div><span class="comment"># ArgoCD auto-syncs &mdash; cluster updated</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="badges">
+    <span class="badge"><span class="icon">&#129302;</span> Claude Code</span>
+    <span class="badge"><span class="icon">&#9881;</span> Ansible</span>
+    <span class="badge"><span class="icon">&#9875;</span> Helm</span>
+    <span class="badge"><span class="icon">&#9096;</span> kubectl</span>
+    <span class="badge"><span class="icon">&#128274;</span> kubeseal</span>
+    <span class="badge"><span class="icon">&#128736;</span> ArgoCD CLI</span>
+    <span class="badge"><span class="icon">&#9989;</span> pre-commit</span>
+    <span class="badge"><span class="icon">&#128272;</span> SSH isolation</span>
+  </div>
+
+  <div class="safety-callout">
+    <strong>&#128737; Safety:</strong> Never mutates the live cluster &mdash; all changes go through GitOps
+  </div>
+</section>
+
+<!-- ════════════════ LAYERS ════════════════ -->
+<section class="layers" id="layers"></section>
+
+<!-- ════════════════ HARDWARE ════════════════ -->
+<section class="hardware">
+  <h2>&#128421; Hardware</h2>
+  <div class="hw-badges">
+    <span class="hw-badge">Turing Pi v2.5</span>
+    <span class="hw-badge">Rockchip RK1 modules</span>
+    <span class="hw-badge">Raspberry Pi CM4</span>
+    <span class="hw-badge">Intel NUC nodes</span>
+    <span class="hw-badge">NVIDIA GPU workstations</span>
+  </div>
+  <p class="hw-callout">6 nodes in the example cluster &mdash; works with any modern Linux server</p>
+</section>
+
+<!-- ════════════════ PAGE FOOTER ════════════════ -->
+<footer class="page-footer">
+  <div>
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible">GitHub</a>
+    <a href="https://gilesknap.github.io/tpi-k3s-ansible/">Documentation</a>
+    <a href="/">Cluster Dashboard</a>
+  </div>
+  <div class="built-with">Built with Claude Code</div>
+</footer>
+
+<!-- ════════════════ MODAL ════════════════ -->
+<div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-label="Component details">
+  <div class="modal" id="modal">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    <h3 id="modalTitle"></h3>
+    <p class="modal-oneliner" id="modalOneliner"></p>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Data ──────────────────────────────────────────────────
+  var layers = [
+    {
+      name: 'Execution Environment',
+      accent: '#a855f7',
+      openByDefault: true,
+      components: [
+        {
+          icon: '\u{1F916}', name: 'Claude Code',
+          desc: 'AI pair programmer, sandboxed',
+          modal: {
+            oneliner: 'AI pair programmer that operates safely inside a sandboxed devcontainer.',
+            features: [
+              'Sandboxed execution in a devcontainer with full tool access',
+              'Infrastructure automation via Ansible, Helm, and kubectl',
+              'Code review and documentation generation',
+              'Cannot mutate the live cluster directly'
+            ],
+            rationale: 'All changes go through the GitOps pipeline, ensuring safety and auditability.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\u2699', name: 'Ansible',
+          desc: 'Infrastructure automation',
+          modal: {
+            oneliner: 'Automates cluster bootstrapping, node configuration, and service deployment.',
+            features: [
+              'Idempotent playbooks for repeatable deployments',
+              'Role-based structure with tag-driven execution',
+              'Manages OS packages, K3s install, and Helm releases'
+            ],
+            rationale: 'Declarative, agentless, and widely adopted for infrastructure management.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\u2693', name: 'Helm',
+          desc: 'Kubernetes package manager',
+          modal: {
+            oneliner: 'Manages Kubernetes application packaging and templating.',
+            features: [
+              'Templated Kubernetes manifests with values overrides',
+              'Chart dependencies and sub-chart composition',
+              'Version-controlled releases'
+            ],
+            rationale: 'Standard Kubernetes package manager with mature ecosystem.'
+          }
+        },
+        {
+          icon: '\u23B8', name: 'kubectl',
+          desc: 'Cluster CLI (read-only)',
+          modal: {
+            oneliner: 'Kubernetes command-line interface, used read-only in this workflow.',
+            features: [
+              'Inspect pods, services, logs, and events',
+              'Port-forward for local debugging',
+              'Never used for apply/patch/delete on managed resources'
+            ],
+            rationale: 'Essential for observability; write operations are delegated to GitOps.'
+          }
+        },
+        {
+          icon: '\uD83D\uDD12', name: 'kubeseal',
+          desc: 'Secret encryption',
+          modal: {
+            oneliner: 'Encrypts Kubernetes Secrets for safe storage in Git.',
+            features: [
+              'Reads the cluster public key to encrypt secrets',
+              'Produces SealedSecret YAML committed to the repository',
+              'Only the cluster controller can decrypt'
+            ],
+            rationale: 'Enables GitOps for secrets without exposing sensitive values.'
+          }
+        },
+        {
+          icon: '\u2705', name: 'pre-commit',
+          desc: 'Code quality gates',
+          modal: {
+            oneliner: 'Runs linters and checks before every commit.',
+            features: [
+              'ansible-lint for playbook quality',
+              'gitleaks for secret detection',
+              'YAML and Helm template validation'
+            ],
+            rationale: 'Catches issues before they reach the repository.'
+          }
+        },
+        {
+          icon: '\uD83D\uDD10', name: 'SSH isolation',
+          desc: 'Secure node access',
+          modal: {
+            oneliner: 'Agent-forwarded SSH for secure access to cluster nodes.',
+            features: [
+              'SSH agent forwarding from devcontainer',
+              'Key-based authentication only',
+              'No root login; uses ansible user'
+            ],
+            rationale: 'Minimizes attack surface while maintaining operational access.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'GitOps Pipeline',
+      accent: '#6366f1',
+      openByDefault: false,
+      components: [
+        {
+          icon: '\uD83D\uDCE6', name: 'GitHub Repository',
+          desc: 'Single source of truth',
+          modal: {
+            oneliner: 'The Git repository is the single source of truth for all cluster state.',
+            features: [
+              'All Kubernetes manifests, Helm values, and Ansible playbooks version-controlled',
+              'Pull request workflow with branch protection',
+              'Automated CI checks via pre-commit'
+            ],
+            rationale: 'Git provides audit trail, rollback, and collaboration.'
+          }
+        },
+        {
+          icon: '\uD83D\uDD04', name: 'ArgoCD',
+          desc: 'Continuous delivery',
+          modal: {
+            oneliner: 'GitOps continuous delivery that reconciles cluster state with the Git repository.',
+            features: [
+              'Auto-sync keeps cluster in sync with Git',
+              'Self-healing: reverts manual drift automatically',
+              'Application health monitoring with web UI dashboard',
+              'Manages 19+ applications across namespaces'
+            ],
+            rationale: 'Mature, excellent UI, widely adopted in the Kubernetes ecosystem.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\u267B', name: 'Auto-sync',
+          desc: 'Self-healing reconciliation',
+          modal: {
+            oneliner: 'ArgoCD continuously reconciles, reverting any manual drift.',
+            features: [
+              'Detects and corrects configuration drift',
+              'Ensures declared state matches running state',
+              'Configurable sync policies per application'
+            ],
+            rationale: 'Eliminates "works on my machine" by making Git the authority.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Infrastructure',
+      accent: '#3b82f6',
+      openByDefault: false,
+      components: [
+        {
+          icon: '\uD83D\uDDA5', name: 'Turing Pi BMC',
+          desc: 'Board management controller',
+          modal: {
+            oneliner: 'Board management controller for flashing and power-controlling compute modules remotely.',
+            features: [
+              'Remote power on/off/reboot of individual modules',
+              'OS image flashing over the network',
+              'Serial console access for debugging'
+            ],
+            rationale: 'Enables headless management of the cluster hardware.'
+          }
+        },
+        {
+          icon: '\u2638', name: 'K3s Control Plane',
+          desc: 'Lightweight Kubernetes',
+          modal: {
+            oneliner: 'Lightweight CNCF-certified Kubernetes distribution, single binary, ideal for ARM SBCs.',
+            features: [
+              'Embedded etcd for high availability',
+              'Built-in CoreDNS and metrics-server',
+              'Low resource footprint suitable for ARM boards',
+              'Control plane tainted NoSchedule for stability'
+            ],
+            rationale: 'Lightweight, simple, perfect for small clusters and edge deployments.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83D\uDCBB', name: 'Worker Nodes',
+          desc: 'Compute capacity',
+          modal: {
+            oneliner: 'Heterogeneous worker nodes providing compute for all workloads.',
+            features: [
+              'Mix of ARM (RK1, CM4) and x86 (NUC, workstation) nodes',
+              'GPU nodes with NVIDIA CUDA support',
+              'NPU nodes with Rockchip RK3588 neural processing'
+            ],
+            rationale: 'Heterogeneous compute allows matching workloads to optimal hardware.'
+          }
+        },
+        {
+          icon: '\uD83D\uDCBE', name: 'NVMe Migration',
+          desc: 'eMMC to NVMe boot',
+          modal: {
+            oneliner: 'Migrating boot storage from eMMC to NVMe SSDs for reliability and speed.',
+            features: [
+              'Higher throughput and IOPS for etcd and workloads',
+              'Improved longevity over eMMC wear',
+              'Network-flashed via Turing Pi BMC'
+            ],
+            rationale: 'NVMe eliminates the eMMC bottleneck and improves cluster reliability.'
+          }
+        },
+        {
+          icon: '\uD83C\uDF10', name: 'Multi-homed Networking',
+          desc: 'Flannel interface selection',
+          modal: {
+            oneliner: 'Explicit network interface configuration for nodes with multiple NICs.',
+            features: [
+              'node_ip and flannel_iface set per host in inventory',
+              'Prevents K3s from auto-detecting the wrong subnet',
+              'Ensures pod-to-pod traffic uses the correct interface'
+            ],
+            rationale: 'Multi-NIC nodes need explicit configuration to avoid routing issues.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Platform Services',
+      accent: '#06b6d4',
+      openByDefault: false,
+      components: [
+        {
+          icon: '\uD83D\uDEE1', name: 'NGINX Ingress',
+          desc: 'Reverse proxy + TLS',
+          modal: {
+            oneliner: 'Kubernetes Ingress controller providing reverse proxy and TLS termination.',
+            features: [
+              'TLS termination and passthrough support',
+              'Path-based and host-based routing',
+              'Integration with cert-manager for automated certificates'
+            ],
+            rationale: 'More widely documented than Traefik, better TLS passthrough support.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83D\uDCDC', name: 'cert-manager',
+          desc: 'Automated TLS certificates',
+          modal: {
+            oneliner: "Automated TLS certificates via Let's Encrypt DNS-01 challenge.",
+            features: [
+              'DNS-01 challenge via Cloudflare API',
+              'Works for LAN-only services with no public HTTP route',
+              'Automatic renewal before expiry'
+            ],
+            rationale: "DNS-01 is the only viable challenge type for internal services.",
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83D\uDD10', name: 'Sealed Secrets',
+          desc: 'Encrypted secrets in Git',
+          modal: {
+            oneliner: 'Encrypt Kubernetes Secrets for safe storage in Git repositories.',
+            features: [
+              'Asymmetric encryption using cluster public key',
+              'Decrypted only by the sealed-secrets controller in-cluster',
+              'Committed alongside application manifests'
+            ],
+            rationale: 'Kubernetes-native, no external key management system needed.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83D\uDCBE', name: 'Longhorn',
+          desc: 'Distributed block storage',
+          modal: {
+            oneliner: 'Cloud-native distributed block storage for Kubernetes.',
+            features: [
+              'Replicated volumes across nodes',
+              'Snapshot and backup support',
+              'Web UI for volume management'
+            ],
+            rationale: 'Simpler than Rook-Ceph, lower resource overhead, good for small clusters.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83C\uDF10', name: 'CoreDNS Split-horizon',
+          desc: 'LAN DNS resolution',
+          modal: {
+            oneliner: 'Split-horizon DNS so cluster services resolve to internal IPs on the LAN.',
+            features: [
+              'Overrides external DNS for cluster domains',
+              'Routes LAN traffic directly without hairpin NAT',
+              'Configured via CoreDNS custom ConfigMap'
+            ],
+            rationale: 'Eliminates hairpin routing and reduces latency for LAN clients.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Security & Auth',
+      accent: '#f59e0b',
+      openByDefault: false,
+      components: [
+        {
+          icon: '\uD83D\uDD11', name: 'Dex OIDC',
+          desc: 'Identity broker (GitHub)',
+          modal: {
+            oneliner: 'Identity broker using GitHub as upstream OIDC provider.',
+            features: [
+              'Single sign-on for ArgoCD, Grafana, Open WebUI, Headlamp',
+              'GitHub organization and team-based access control',
+              'Static client configuration for each service',
+              'Trusted peers for cross-service token exchange'
+            ],
+            rationale: 'Centralizes authentication through a single GitHub identity.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83D\uDEAA', name: 'oauth2-proxy',
+          desc: 'Auth gateway',
+          modal: {
+            oneliner: 'Authentication gateway for services that do not support OIDC natively.',
+            features: [
+              'Protects Longhorn UI, Supabase Studio, and other services',
+              'Email-based access control list',
+              'Cookie-based session management'
+            ],
+            rationale: 'Adds authentication to any HTTP service without code changes.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\u2601', name: 'Cloudflare Tunnel + Access',
+          desc: 'Zero-trust external access',
+          modal: {
+            oneliner: 'Zero-trust external access without exposing any ports to the internet.',
+            features: [
+              'Edge TLS termination at Cloudflare',
+              'Access policies based on identity provider',
+              'No port forwarding or public IP required',
+              'DDoS protection included'
+            ],
+            rationale: 'Eliminates the need to expose the cluster network to the internet.'
+          }
+        },
+        {
+          icon: '\uD83D\uDC65', name: 'RBAC',
+          desc: 'Role-based access control',
+          modal: {
+            oneliner: 'Kubernetes role-based access control for fine-grained permissions.',
+            features: [
+              'Namespace-scoped roles for service accounts',
+              'ClusterRoles for cross-namespace access',
+              'Integration with Dex OIDC groups'
+            ],
+            rationale: 'Principle of least privilege for all cluster access.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Application Services',
+      accent: '#10b981',
+      openByDefault: true,
+      components: [
+        {
+          icon: '\uD83D\uDCCA', name: 'Grafana + Prometheus',
+          desc: 'Monitoring stack',
+          modal: {
+            oneliner: 'Full monitoring stack with metrics collection, dashboards, and alerting.',
+            features: [
+              'Prometheus scrapes cluster, node, and application metrics',
+              'Grafana dashboards for visualization',
+              'Alertmanager for notification routing',
+              'Persistent storage via Longhorn PVCs'
+            ],
+            rationale: 'Industry-standard observability stack with mature ecosystem.',
+            link: 'explanations/architecture.html'
+          }
+        },
+        {
+          icon: '\uD83C\uDFA8', name: 'Headlamp',
+          desc: 'Kubernetes dashboard',
+          modal: {
+            oneliner: 'Modern Kubernetes dashboard with OIDC authentication.',
+            features: [
+              'Clean web UI for cluster resource browsing',
+              'OIDC login via Dex for access control',
+              'Plugin ecosystem for extensibility'
+            ],
+            rationale: 'Lightweight alternative to Kubernetes Dashboard with better UX.'
+          }
+        },
+        {
+          icon: '\uD83D\uDCAC', name: 'Open WebUI',
+          desc: 'LLM chat interface',
+          modal: {
+            oneliner: 'LLM chat interface supporting multiple inference backends.',
+            features: [
+              'Connects to RKLLama (NPU) and llama.cpp (GPU) backends',
+              'Conversation history and prompt management',
+              'OIDC authentication via Dex'
+            ],
+            rationale: 'Self-hosted ChatGPT-like interface for local LLM inference.'
+          }
+        },
+        {
+          icon: '\uD83E\uDDE0', name: 'RKLLama',
+          desc: 'ARM NPU inference',
+          modal: {
+            oneliner: 'ARM NPU inference engine for Rockchip RK3588 neural processing units.',
+            features: [
+              'Runs LLMs on the RK1 module NPU (6 TOPS)',
+              'Low power consumption compared to GPU inference',
+              'Optimized quantized models for edge deployment'
+            ],
+            rationale: 'Utilizes dedicated NPU hardware already present on RK1 modules.'
+          }
+        },
+        {
+          icon: '\uD83D\uDD25', name: 'llama.cpp',
+          desc: 'GPU CUDA inference',
+          modal: {
+            oneliner: 'GPU CUDA inference server for running larger language models.',
+            features: [
+              'Runs on NVIDIA GPU workstation nodes',
+              'Supports large models that exceed ARM memory',
+              'OpenAI-compatible API endpoint'
+            ],
+            rationale: 'GPU inference for models too large for ARM NPU nodes.'
+          }
+        },
+        {
+          icon: '\uD83D\uDDC4', name: 'Supabase',
+          desc: 'Database + auth + API',
+          modal: {
+            oneliner: 'Self-hosted Supabase providing PostgreSQL, PostgREST, auth, and Studio.',
+            features: [
+              'PostgreSQL database with automatic API generation',
+              'Row-level security and JWT authentication',
+              'Studio web UI for database management',
+              'Edge Functions for serverless logic'
+            ],
+            rationale: 'Full backend-as-a-service, self-hosted for data sovereignty.'
+          }
+        },
+        {
+          icon: '\uD83E\uDDE0', name: 'Open Brain MCP',
+          desc: 'AI memory server',
+          modal: {
+            oneliner: 'FastAPI MCP server providing persistent AI memory via Supabase Postgres.',
+            features: [
+              'Model Context Protocol (MCP) endpoint for Claude.ai',
+              'Persistent thought storage in PostgreSQL',
+              'File attachment support',
+              'Semantic search over stored memories'
+            ],
+            rationale: 'Gives Claude.ai persistent memory across conversations.'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Landing Page',
+      accent: '#818cf8',
+      openByDefault: false,
+      components: [
+        {
+          icon: '\uD83C\uDFE0', name: 'Home Dashboard',
+          desc: 'Service directory with LAN detection',
+          modal: {
+            oneliner: 'Landing page that serves as a directory for all cluster services.',
+            features: [
+              'Automatic LAN detection for internal vs external URLs',
+              'Service health status indicators',
+              'Quick-access links to all web UIs',
+              'Responsive dark theme matching cluster aesthetic'
+            ],
+            rationale: 'Single entry point for discovering and accessing all cluster services.'
+          }
+        }
+      ]
+    }
+  ];
+
+  // ── Render Layers ─────────────────────────────────────────
+  var container = document.getElementById('layers');
+
+  layers.forEach(function(layer, i) {
+    var el = document.createElement('div');
+    el.className = 'layer' + (layer.openByDefault ? ' open visible' : '');
+
+    var cardsHtml = '';
+    layer.components.forEach(function(c, ci) {
+      cardsHtml += '<div class="card" tabindex="0" role="button" aria-label="View details for ' +
+        c.name + '" data-layer="' + i + '" data-comp="' + ci + '">' +
+        '<div class="card-icon">' + c.icon + '</div>' +
+        '<div class="card-name">' + c.name + '</div>' +
+        '<div class="card-desc">' + c.desc + '</div>' +
+        '</div>';
+    });
+
+    el.innerHTML =
+      '<div class="layer-header" role="button" tabindex="0" aria-expanded="' +
+        (layer.openByDefault ? 'true' : 'false') + '" aria-label="' + layer.name + ' layer">' +
+        '<div class="layer-accent" style="background:' + layer.accent + '"></div>' +
+        '<h2>' + layer.name + '</h2>' +
+        '<span class="layer-count" style="background:' + layer.accent + '22;color:' +
+          layer.accent + '">' + layer.components.length + '</span>' +
+        '<span class="layer-chevron">&#9654;</span>' +
+      '</div>' +
+      '<div class="layer-body"><div class="cards">' + cardsHtml + '</div></div>';
+
+    container.appendChild(el);
+  });
+
+  // ── Hover shadows with layer color ───────────────────────
+  document.querySelectorAll('.card').forEach(function(card) {
+    var li = parseInt(card.getAttribute('data-layer'));
+    var color = layers[li].accent;
+    card.addEventListener('mouseenter', function() {
+      card.style.boxShadow = '0 4px 16px ' + color + '33';
+    });
+    card.addEventListener('mouseleave', function() {
+      card.style.boxShadow = '';
+    });
+  });
+
+  // ── Expand / Collapse ────────────────────────────────────
+  function setLayerHeight(layer, open) {
+    var body = layer.querySelector('.layer-body');
+    if (open) {
+      body.style.maxHeight = body.scrollHeight + 'px';
+    } else {
+      body.style.maxHeight = '0';
+    }
+  }
+
+  // Set initial heights for layers that start open
+  document.querySelectorAll('.layer.open').forEach(function(layer) {
+    setLayerHeight(layer, true);
+  });
+
+  document.querySelectorAll('.layer-header').forEach(function(header) {
+    function toggle() {
+      var layer = header.parentElement;
+      var isOpen = layer.classList.toggle('open');
+      header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      setLayerHeight(layer, isOpen);
+    }
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+
+  // ── Modal ────────────────────────────────────────────────
+  var backdrop = document.getElementById('modalBackdrop');
+  var modal = document.getElementById('modal');
+  var modalTitle = document.getElementById('modalTitle');
+  var modalOneliner = document.getElementById('modalOneliner');
+  var modalBody = document.getElementById('modalBody');
+  var modalCloseBtn = document.getElementById('modalClose');
+  var lastFocused = null;
+
+  function openModal(layerIdx, compIdx) {
+    var comp = layers[layerIdx].components[compIdx];
+    var m = comp.modal;
+    if (!m) return;
+    lastFocused = document.activeElement;
+
+    modalTitle.textContent = comp.icon + ' ' + comp.name;
+    modalOneliner.textContent = m.oneliner;
+
+    var html = '';
+    if (m.features && m.features.length) {
+      html += '<h4>Key Features</h4><ul>';
+      m.features.forEach(function(f) { html += '<li>' + f + '</li>'; });
+      html += '</ul>';
+    }
+    if (m.rationale) {
+      html += '<h4>Why This Choice?</h4><p class="modal-rationale">' + m.rationale + '</p>';
+    }
+    if (m.link) {
+      html += '<a class="modal-link" href="' + m.link + '">\u2192 Read more in the docs</a>';
+    }
+    modalBody.innerHTML = html;
+
+    backdrop.classList.add('active');
+    modalCloseBtn.focus();
+  }
+
+  function closeModal() {
+    backdrop.classList.remove('active');
+    if (lastFocused) lastFocused.focus();
+  }
+
+  modalCloseBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', function(e) {
+    if (e.target === backdrop) closeModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && backdrop.classList.contains('active')) closeModal();
+  });
+
+  // Trap focus inside modal
+  modal.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    var focusable = modal.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  // Card click / keyboard
+  document.querySelectorAll('.card').forEach(function(card) {
+    function open() {
+      openModal(
+        parseInt(card.getAttribute('data-layer')),
+        parseInt(card.getAttribute('data-comp'))
+      );
+    }
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+  });
+
+  // ── Scroll Animation (IntersectionObserver) ──────────────
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px 50px 0px' });
+
+  document.querySelectorAll('.layer').forEach(function(el) {
+    observer.observe(el);
+  });
+
+})();
+</script>
+</body>
+</html>

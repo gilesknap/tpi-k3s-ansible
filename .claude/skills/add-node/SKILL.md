@@ -24,7 +24,7 @@ Ask the user:
 
 1. **Is this a Turing Pi node or a standalone server?**
    - Turing Pi: Which BMC? What slot number? What type (RK1/CM4)? NVMe drive?
-   - Standalone: Hostname or IP? What OS? (should be Ubuntu 24.04 LTS)
+   - Standalone: Hostname or IP? What OS? (any modern Linux distribution)
    - Architecture? (x86/amd64 or ARM64)
 
 2. **Does this node have special hardware?**
