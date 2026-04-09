@@ -44,8 +44,11 @@
   `argo-cd` DEX client (without `trustedPeers`). Our `dex.config` also
   declares one (with `trustedPeers: [argocd-monitor]`). DEX v2.45+
   stores the first and drops the duplicate, so `trustedPeers` never
-  takes effect. This causes a "Grant Access" approval screen for
-  argocd-monitor. Cannot be fixed without upstream ArgoCD changes.
+  takes effect. Fixed by adding `oidc.config` with
+  `allowedAudiences: [argo-cd, argocd-monitor]` in PR #297, which
+  lets argocd-monitor authenticate as itself (no cross-client scope).
+  The duplicate `argo-cd` client in `dex.config` is harmless but
+  redundant — kept for clarity about the intended `trustedPeers`.
 - **Playbook tag for packages is `servers`**, not `update_packages`.
   `--tags update_packages` silently does nothing.
 - **Branch switching** — use `just switch-branch <branch>` to point the

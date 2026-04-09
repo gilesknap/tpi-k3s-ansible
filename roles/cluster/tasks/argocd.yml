@@ -54,6 +54,18 @@
         cm:
           url: "https://argocd.{{ cluster_domain }}"
           admin.enabled: "false"
+          oidc.config: |
+            name: Dex
+            issuer: https://argocd.{{ cluster_domain }}/api/dex
+            clientID: argo-cd
+            clientSecret: {{ _argocd_dex_client_secret }}
+            allowedAudiences:
+              - argo-cd
+              - argocd-monitor
+            requestedScopes:
+              - openid
+              - profile
+              - email
           dex.config: |
             connectors:
               - type: github
