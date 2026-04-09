@@ -108,14 +108,39 @@ Subsequent Dex services reuse the session.
 
 For each service:
 1. Navigate to the URL
-2. Run cookie-clearing JavaScript
+2. Run cookie-clearing JavaScript from Step 2
 3. Reload and wait up to 10 seconds for redirects
-4. Check URL and page content:
+4. Handle redirects:
    - **Dex "Grant Access" page** -> click the submit button, wait 5s
    - **GitHub authorize page** -> click "Authorize" if visible, else wait 5s
    - **Service login page** -> click the OAuth/sign-in button
-   - **Authenticated page** -> take a screenshot, record PASS
-5. On error, record FAIL with the error message. Do NOT retry.
+5. **Post-login validation** (CRITICAL — do this after every OAuth redirect):
+   After the final redirect lands, run this JavaScript to detect errors:
+   ```javascript
+   JSON.stringify({
+     url: window.location.href,
+     title: document.title,
+     // Check for common OAuth error patterns in visible text
+     bodyText: document.body?.innerText?.substring(0, 2000) || '',
+     // Specific error selectors
+     hasLoginInUrl: window.location.pathname.includes('/login'),
+     hasErrorInUrl: window.location.search.includes('error'),
+   });
+   ```
+   Then check the result:
+   - **FAIL if** the URL still contains `/login` AND the page text contains
+     any of: "Login failed", "Failed to get token", "invalid_client",
+     "access_denied", "unauthorized_client", "server_error", "temporarily_unavailable"
+   - **FAIL if** the URL contains `error=` query parameter
+   - **FAIL if** the page shows a raw error page (HTTP 500, 502, 503)
+   - **PASS if** the page shows the expected logged-in content (dashboard,
+     app interface, etc.) and the URL does NOT contain `/login`
+
+   **Do NOT assume success just because the page loaded** — OAuth can
+   redirect back to the login page with an error message that looks like
+   a normal page at first glance.
+6. Take a screenshot and record PASS or FAIL with evidence.
+7. On FAIL, record the exact error text and URL. Do NOT retry in a loop.
 
 #### Known gotchas
 
@@ -130,6 +155,11 @@ For each service:
   `*.cloudflareaccess.com` first. The browser's existing session
   typically auto-approves.
 - **ArgoCD is usually already logged in** from the playbook run.
+- **Post-redirect login page** — the most common false-positive is when
+  OAuth completes the redirect but the service shows "Login failed" on
+  its own login page. This looks like a successful page load but is
+  actually a failure. Always check the page text for error messages
+  after OAuth redirects.
 
 #### Step 5: Report
 
@@ -148,7 +178,10 @@ Return a summary table:
 | Supabase       | PASS   | Studio dashboard            |
 ```
 
-Any FAIL entries must include the error message or screenshot description.
+Any FAIL entries must include:
+- The final URL
+- The exact error text visible on the page
+- Whether the URL contained `/login` or `error=`
 
 #### Step 6: Final state
 
