@@ -77,7 +77,7 @@ kubectl port-forward svc/headlamp -n headlamp 4466:80
 # Open http://localhost:4466
 ```
 
-Headlamp uses ServiceAccount token authentication. Generate a token:
+Authenticate via GitHub (oauth2-proxy), then paste a ServiceAccount token:
 
 ```bash
 kubectl create token headlamp -n headlamp --duration=24h

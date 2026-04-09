@@ -91,16 +91,11 @@ Subsequent Dex services reuse the session.
 | Open WebUI | `https://open-webui.<cluster_domain>` | See note about scroll-jacking below | Chat interface |
 | ArgoCD Monitor | `https://argocd-monitor.<cluster_domain>` | Auto-redirects through sidecar oauth2-proxy -> Dex | HTML contains "argocd-monitor" |
 
-**3d. Token auth:**
-
-| Service | URL | Action | Logged-in indicator |
-|---------|-----|--------|---------------------|
-| Headlamp | `https://headlamp.<cluster_domain>` | Token login page loads (do NOT attempt to paste a token) | Login page visible with token input |
-
-**3e. oauth2-proxy services:**
+**3d. oauth2-proxy services:**
 
 | Service | URL | Logged-in indicator |
 |---------|-----|---------------------|
+| Headlamp | `https://headlamp.<cluster_domain>` | Token login page (after OAuth gate) |
 | Longhorn | `https://longhorn.<cluster_domain>` | Page title "Longhorn" |
 | Supabase | `https://supabase.<cluster_domain>` | Page title "Supabase" |
 

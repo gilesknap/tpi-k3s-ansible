@@ -52,7 +52,7 @@ Dex OIDC but receive only read-only access.
 | argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
-| Headlamp | Cloudflare Access | ServiceAccount token | — |
+| Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
 | Longhorn | Cloudflare Access | oauth2-proxy | None (full access after auth) |
 | Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test service) |
@@ -188,14 +188,14 @@ The discovery URL must be the full path including
 follow the 301 redirect from `/api/dex` to `/api/dex/`.
 :::
 
-### Headlamp — ServiceAccount token
+### Headlamp — oauth2-proxy + ServiceAccount token
 
-Headlamp uses Kubernetes ServiceAccount token authentication. Users
-paste a token generated with `kubectl create token headlamp -n headlamp`
-to access the dashboard. The default ServiceAccount has `cluster-admin`
-privileges via the Headlamp Helm chart's built-in ClusterRoleBinding.
+Headlamp is protected by the cluster-wide oauth2-proxy (admin-only,
+same as Longhorn and Supabase Studio). After authenticating via GitHub,
+users paste a Kubernetes ServiceAccount token to access the dashboard.
+The token is generated with `kubectl create token headlamp -n headlamp`.
 
-### oauth2-proxy services — Longhorn, Supabase Studio
+### oauth2-proxy services — Headlamp, Longhorn, Supabase Studio
 
 Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
@@ -260,9 +260,10 @@ flowchart TB
             OpenWebUI[Open WebUI]
         end
 
-        Headlamp[Headlamp<br/>token auth]
+        Headlamp
 
         subgraph ProxyAuth["oauth2-proxy (admin only)"]
+            Headlamp
             Longhorn
             Supabase[Supabase Studio]
         end
@@ -282,6 +283,7 @@ flowchart TB
     NGINX --> Monitor
     NGINX --> Grafana
     NGINX --> OpenWebUI
+    NGINX --> Headlamp
     NGINX --> Longhorn
     NGINX --> Supabase
     NGINX --> Echo
@@ -290,6 +292,7 @@ flowchart TB
     Monitor <-.-> DexPod
     Grafana <-.-> DexPod
     OpenWebUI <-.-> DexPod
+    Headlamp <-.-> OAP
     Longhorn <-.-> OAP
     Supabase <-.-> OAP
 
@@ -326,7 +329,7 @@ viewer_emails:
 **Viewer emails** authenticate via Dex OIDC and receive read-only roles:
 ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`. They
 cannot access oauth2-proxy-gated services (Longhorn, Supabase Studio)
-or token-authenticated services (Headlamp).
+or oauth2-proxy-gated services (Headlamp).
 
 :::{important}
 `admin_emails` must be kept in sync in two places:
