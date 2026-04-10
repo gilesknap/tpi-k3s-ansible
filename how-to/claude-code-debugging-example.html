@@ -1,0 +1,824 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Worked Example: Debugging Cluster Alerts with Claude Code &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/claude-code-debugging-example';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Explanations" href="../explanations.html" />
+    <link rel="prev" title="Using Claude Code" href="claude-code.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Worked Example: Debugging Cluster Alerts with Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Worked Example: Debugging Cluster Alerts with Claude Code</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="worked-example-debugging-cluster-alerts-with-claude-code">
+<h1>Worked Example: Debugging Cluster Alerts with Claude Code<a class="headerlink" href="#worked-example-debugging-cluster-alerts-with-claude-code" title="Link to this heading">#</a></h1>
+<p>This is a real (lightly edited) transcript of a session in which Claude
+Code diagnosed a set of Prometheus alerts firing on the cluster, proposed
+a fix, opened a pull request, and validated the change against the live
+cluster — all driven from short natural-language prompts.</p>
+<p>It is intended as a practical example of what “AI-assisted operations”
+looks like on a homelab K3s cluster: Claude does the read-only kubectl
+spelunking and writes the patch; the human stays in the loop for the
+judgement calls and the merge.</p>
+<section id="setting">
+<h2>Setting<a class="headerlink" href="#setting" title="Link to this heading">#</a></h2>
+<p>The cluster is the GitOps-managed K3s setup described in
+<a class="reference internal" href="../explanations/architecture.html"><span class="std std-doc">Architecture</span></a>. Alertmanager delivers
+firing alerts to a Slack channel. One afternoon the user notices four
+alerts have fired and asks Claude to take a look.</p>
+</section>
+<section id="transcript">
+<h2>Transcript<a class="headerlink" href="#transcript" title="Link to this heading">#</a></h2>
+<section id="reporting-the-symptom">
+<h3>1. Reporting the symptom<a class="headerlink" href="#reporting-the-symptom" title="Link to this heading">#</a></h3>
+<blockquote>
+<div><p><strong>User:</strong>
+we had some alerts. diagnose: gkcluster alerts</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">APP</span>  <span class="mi">3</span><span class="p">:</span><span class="mi">59</span> <span class="n">PM</span>
+<span class="p">[</span><span class="n">FIRING</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="n">TargetDown</span> <span class="n">monitoring</span>
+    <span class="p">(</span><span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">operator</span>
+     <span class="n">monitoring</span><span class="o">/</span><span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">prometheus</span>
+     <span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">operator</span> <span class="n">warning</span><span class="p">)</span>
+     <span class="mi">4</span><span class="p">:</span><span class="mi">04</span>
+<span class="p">[</span><span class="n">FIRING</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="n">KubeSchedulerDown</span>
+    <span class="p">(</span><span class="n">kube</span><span class="o">-</span><span class="n">scheduler</span> <span class="n">monitoring</span><span class="o">/</span><span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">prometheus</span> <span class="n">critical</span><span class="p">)</span>
+     <span class="mi">4</span><span class="p">:</span><span class="mi">04</span>
+<span class="p">[</span><span class="n">FIRING</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="n">KubeProxyDown</span>
+    <span class="p">(</span><span class="n">kube</span><span class="o">-</span><span class="n">proxy</span> <span class="n">monitoring</span><span class="o">/</span><span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">prometheus</span> <span class="n">critical</span><span class="p">)</span>
+     <span class="mi">4</span><span class="p">:</span><span class="mi">04</span>
+<span class="p">[</span><span class="n">FIRING</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="n">KubeControllerManagerDown</span>
+    <span class="p">(</span><span class="n">kube</span><span class="o">-</span><span class="n">controller</span><span class="o">-</span><span class="n">manager</span> <span class="n">monitoring</span><span class="o">/</span><span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">prometheus</span> <span class="n">critical</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</section>
+<section id="investigation">
+<h3>2. Investigation<a class="headerlink" href="#investigation" title="Link to this heading">#</a></h3>
+<p>Claude started with the obvious health checks — all read-only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>wide
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>get<span class="w"> </span>pods
+</pre></div>
+</div>
+<p>Both came back clean: 6 nodes Ready, every monitoring pod Running. So
+the alerts weren’t reflecting actual workload failure — they were
+<em>scrape-config</em> failures. Claude then queried Prometheus’s own targets
+API from inside the pod:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>prometheus-grafana-prometheus-kube-pr-prometheus-0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>prometheus<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>wget<span class="w"> </span>-qO-<span class="w"> </span><span class="s1">&#39;http://localhost:9090/api/v1/targets?state=active&#39;</span>
+</pre></div>
+</div>
+<p>Two findings emerged from grouping the results by job:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Job</p></th>
+<th class="head"><p>Up</p></th>
+<th class="head"><p>Down</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-operator</span></code></p></td>
+<td><p>0</p></td>
+<td><p>1</p></td>
+<td><p>TLS verify error</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kube-scheduler</span></code> / <code class="docutils literal notranslate"><span class="pre">kube-proxy</span></code> / <code class="docutils literal notranslate"><span class="pre">kube-controller-manager</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>No targets discovered at all</p></td>
+</tr>
+<tr class="row-even"><td><p>everything else</p></td>
+<td><p>✓</p></td>
+<td><p>0</p></td>
+<td><p>Healthy</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The down operator target was reporting:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tls</span><span class="p">:</span> <span class="n">failed</span> <span class="n">to</span> <span class="n">verify</span> <span class="n">certificate</span><span class="p">:</span> <span class="n">x509</span><span class="p">:</span> <span class="n">certificate</span> <span class="ow">is</span> <span class="n">valid</span> <span class="k">for</span>
+<span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">admission</span><span class="o">.</span><span class="n">monitoring</span><span class="o">.</span><span class="n">svc</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span>
+<span class="ow">not</span> <span class="n">grafana</span><span class="o">-</span><span class="n">prometheus</span><span class="o">-</span><span class="n">kube</span><span class="o">-</span><span class="n">pr</span><span class="o">-</span><span class="n">operator</span>
+</pre></div>
+</div>
+<p>The K3s control-plane Services had <strong>empty endpoints</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">&#39;scheduler|proxy|controller&#39;</span>
+<span class="c1"># grafana-prometheus-kube-pr-kube-controller-manager  ClusterIP  None  10257/TCP</span>
+<span class="c1"># grafana-prometheus-kube-pr-kube-proxy               ClusterIP  None  10249/TCP</span>
+<span class="c1"># grafana-prometheus-kube-pr-kube-scheduler           ClusterIP  None  10259/TCP</span>
+</pre></div>
+</div>
+<p>No pods carry the <code class="docutils literal notranslate"><span class="pre">component:</span> <span class="pre">kube-scheduler</span></code> label that those Services
+select on, so the absent-style <code class="docutils literal notranslate"><span class="pre">Kube*Down</span></code> rules fire on every evaluation.</p>
+</section>
+<section id="diagnosis">
+<h3>3. Diagnosis<a class="headerlink" href="#diagnosis" title="Link to this heading">#</a></h3>
+<p>Claude reported back with two distinct root causes:</p>
+<p><strong>Cause 1 — operator <code class="docutils literal notranslate"><span class="pre">TargetDown</span></code>.</strong> The kube-prometheus-stack operator
+serves its metrics endpoint over TLS using the cert from the
+<code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-admission</span></code> Secret. That secret is created on
+fresh installs by <code class="docutils literal notranslate"><span class="pre">scripts/create-prometheus-admission-secret</span></code>, which
+generated a single-CN certificate with <strong>no Subject Alternative Name
+list</strong>. Modern TLS verification ignores CN entirely and requires a SAN
+match — so the ServiceMonitor’s <code class="docutils literal notranslate"><span class="pre">serverName:</span> <span class="pre">grafana-prometheus-kube-pr-operator</span></code>
+could never match. Failing every scrape.</p>
+<p><strong>Cause 2 — <code class="docutils literal notranslate"><span class="pre">KubeScheduler/Proxy/ControllerManagerDown</span></code>.</strong> K3s bundles
+those three components into the single <code class="docutils literal notranslate"><span class="pre">k3s-server</span></code> process. There are
+no individual pods with <code class="docutils literal notranslate"><span class="pre">component=kube-scheduler</span></code> etc., so the
+chart-default Services have empty endpoints, the <code class="docutils literal notranslate"><span class="pre">up{}</span></code> series is
+absent, and the matching default rules fire.</p>
+<p>The two are independent. The cluster itself was completely healthy —
+this was monitoring config drift, not workload failure.</p>
+</section>
+<section id="reframing-the-fix">
+<h3>4. Reframing the fix<a class="headerlink" href="#reframing-the-fix" title="Link to this heading">#</a></h3>
+<p>Claude’s first instinct on Cause 1 was to suggest disabling TLS on the
+operator (<code class="docutils literal notranslate"><span class="pre">prometheusOperator.tls.enabled:</span> <span class="pre">false</span></code>) since the cluster is
+single-tenant. The user pushed back:</p>
+<blockquote>
+<div><p><strong>User:</strong>
+isn’t prometheus operator tls usually enabled? this is removing a security feature, right?</p>
+</div></blockquote>
+<p>Good question, and the honest answer is yes — the chart ships with
+<code class="docutils literal notranslate"><span class="pre">prometheusOperator.tls.enabled:</span> <span class="pre">true</span></code> by default, the same cert is
+reused if the admission webhook is ever re-enabled, and it costs almost
+nothing to keep. The real bug isn’t TLS — it’s that our cert generator
+forgot the SAN list.</p>
+<p>Claude revised the proposal: keep TLS on, fix the cert generator
+instead. One <code class="docutils literal notranslate"><span class="pre">-addext</span></code> line on the <code class="docutils literal notranslate"><span class="pre">openssl</span> <span class="pre">req</span></code> command, with SAN
+entries for all six forms the ServiceMonitor or peer DNS lookups might
+expect:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-admission</span></code> (bare)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-admission.monitoring.svc</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-admission.monitoring.svc.cluster.local</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-operator</span></code> (bare — this is the literal <code class="docutils literal notranslate"><span class="pre">serverName</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-operator.monitoring.svc</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus-kube-pr-operator.monitoring.svc.cluster.local</span></code></p></li>
+</ul>
+<p>For Cause 2, the cleanest fix is to disable the K3s-incompatible
+exporters and their default rules in the Helm values; the same metrics
+remain visible via the kubelet and apiserver ServiceMonitors.</p>
+</section>
+<section id="implementing-the-fix">
+<h3>5. Implementing the fix<a class="headerlink" href="#implementing-the-fix" title="Link to this heading">#</a></h3>
+<p>Claude branched from <code class="docutils literal notranslate"><span class="pre">origin/main</span></code> and made three edits, all flowing
+through ArgoCD via the GitOps pipeline (no direct cluster mutations):</p>
+<ol class="arabic">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">scripts/create-prometheus-admission-secret</span></code></strong> — added the
+<code class="docutils literal notranslate"><span class="pre">subjectAltName</span></code> extension to the <code class="docutils literal notranslate"><span class="pre">openssl</span> <span class="pre">req</span></code> invocation.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code></strong> — added the K3s
+component disables to the <code class="docutils literal notranslate"><span class="pre">valuesObject</span></code> of the
+<code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> Helm release:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">kubeControllerManager</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="nt">kubeScheduler</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="nt">kubeProxy</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="nt">defaultRules</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">kubeControllerManager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">kubeScheduler</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">kubeProxyAlerting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/main.yml</span></code></strong> — Claude noticed the Ansible task
+inlined its own copy of the cert-generation logic instead of calling
+the script, which would have silently re-minted the buggy cert on
+the next playbook run. Replaced the inline <code class="docutils literal notranslate"><span class="pre">shell</span></code> task with a
+<code class="docutils literal notranslate"><span class="pre">command</span></code> invocation of the script, so there is one source of truth.</p></li>
+</ol>
+<p>Each cert SAN list was sanity-checked locally before committing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>openssl<span class="w"> </span>x509<span class="w"> </span>-in<span class="w"> </span>/tmp/c.pem<span class="w"> </span>-noout<span class="w"> </span>-ext<span class="w"> </span>subjectAltName
+<span class="c1"># X509v3 Subject Alternative Name:</span>
+<span class="c1">#   DNS:grafana-prometheus-kube-pr-admission, DNS:...operator, ...</span>
+</pre></div>
+</div>
+</section>
+<section id="open-the-pr-and-test">
+<h3>6. Open the PR and test<a class="headerlink" href="#open-the-pr-and-test" title="Link to this heading">#</a></h3>
+<blockquote>
+<div><p><strong>User:</strong>
+open a pr and switch branch to test before merging</p>
+</div></blockquote>
+<p>Claude pushed the branch and opened the PR with <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">pr</span> <span class="pre">create</span></code>, then
+pointed the cluster at the branch to validate before merging:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>switch-branch<span class="w"> </span>fix/prometheus-scrape-alerts
+</pre></div>
+</div>
+<p>This is the sanctioned bootstrap path — <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>
+with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">repo_branch=...</span></code>. The playbook re-applied the admission secret
+(now via the corrected script), and ArgoCD reconciled the
+<code class="docutils literal notranslate"><span class="pre">grafana-prometheus</span></code> Application with the new Helm values.</p>
+<p>After cycling the operator and Prometheus pods to pick up the new cert
+bundle (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">delete</span> <span class="pre">pod</span> <span class="pre">-l</span> <span class="pre">app=...</span></code> — the Deployment recreates them
+without touching the ArgoCD-managed spec), Claude validated the
+end-state:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># All scrape targets healthy</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>prometheus-...-0<span class="w"> </span>-c<span class="w"> </span>prometheus<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>wget<span class="w"> </span>-qO-<span class="w"> </span><span class="s1">&#39;http://localhost:9090/api/v1/targets?state=active&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;[.data.activeTargets[] | .health] | group_by(.) | map({(.[0]): length}) | add&#39;</span>
+<span class="c1"># {&quot;up&quot;: 33}</span>
+
+<span class="c1"># K3s component rules removed from the loaded ruleset</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>get<span class="w"> </span>prometheusrule<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{...}&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">&#39;KubeScheduler|KubeProxy|KubeController&#39;</span>
+<span class="c1"># (no output)</span>
+
+<span class="c1"># ArgoCD app healthy</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>get<span class="w"> </span>application<span class="w"> </span>grafana-prometheus<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.health.status} {.status.sync.status}&#39;</span>
+<span class="c1"># Healthy Synced</span>
+
+<span class="c1"># Only the always-firing heartbeat alert remains active</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>alertmanager-...-0<span class="w"> </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>wget<span class="w"> </span>-qO-<span class="w"> </span><span class="s1">&#39;http://localhost:9093/api/v2/alerts?active=true&amp;silenced=false&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;[.[] | .labels.alertname]&#39;</span>
+<span class="c1"># [&quot;Watchdog&quot;]</span>
+</pre></div>
+</div>
+<p>All four firing alerts cleared. PR merged.</p>
+</section>
+</section>
+<section id="what-this-illustrates">
+<h2>What this illustrates<a class="headerlink" href="#what-this-illustrates" title="Link to this heading">#</a></h2>
+<p>A few things that make this kind of session work well in practice:</p>
+<p><strong>Read-only kubectl is the bulk of the work.</strong> Claude spent most of the
+session running <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span></code>, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span> <span class="pre">...</span> <span class="pre">wget</span></code>, and parsing JSON
+responses. None of those mutate cluster state, so the human never has
+to micro-approve them. The <code class="docutils literal notranslate"><span class="pre">Bash(kubectl</span> <span class="pre">get</span> <span class="pre">*)</span></code> allow-list in
+<a class="reference internal" href="claude-code.html"><span class="std std-doc">claude-code.md</span></a> is what makes that practical.</p>
+<p><strong>The user’s domain knowledge sets the direction.</strong> Claude’s first
+draft of the fix would have ripped out TLS to make the alert go away.
+A one-line nudge from the user (“is TLS usually enabled?”) reframed it
+into the <em>right</em> fix without having to write out the reasoning. When
+working with an AI agent, treat its first proposal as a starting point
+for discussion, not the final answer.</p>
+<p><strong>All durable fixes go through GitOps.</strong> The cluster mutations Claude
+made directly (deleting pods to force a re-mount, reapplying a Secret
+via the sanctioned script) are all of the “self-healing” variety —
+deleting a pod is reversible because the Deployment recreates it; the
+Secret reapply is part of the bootstrap path documented in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>.
+The actual <em>fix</em> is in the repo, applied by ArgoCD, surviving any
+future rebuild. This is the rule from <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>:</p>
+<blockquote>
+<div><p>Never mutate the live cluster — no <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">apply/patch/edit/delete</span></code>
+on ArgoCD-managed resources. All fixes go through the CD pipeline:
+change the repo, push, let ArgoCD sync.</p>
+</div></blockquote>
+<p><strong>Validate against the cluster, not in your head.</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">switch-branch</span></code>
+exists specifically so a feature branch can be exercised end-to-end
+against the real cluster before merging. Claude used it to confirm:
+the playbook still runs cleanly, ArgoCD still reaches Synced+Healthy,
+the scrape targets are actually up, and the alerts have actually
+cleared. Catching a regression on a branch is cheap; catching it after
+merge to <code class="docutils literal notranslate"><span class="pre">main</span></code> is not.</p>
+<p><strong>The failure modes are usually two layers deep.</strong> The visible symptom
+(“four alerts firing”) masked two unrelated bugs that happened to
+manifest at the same time. A bot that stops at the first plausible
+cause would have fixed half of it and called it done. The discipline
+of dumping <em>all</em> unhealthy scrape targets and grouping them by job
+made it obvious that there were two stories, not one.</p>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="claude-code.html"><span class="std std-doc">Using Claude Code</span></a> — devcontainer setup, permission
+tiers, and credential isolation.</p></li>
+<li><p><a class="reference internal" href="../explanations/gitops-flow.html"><span class="std std-doc">GitOps flow</span></a> — why repo-first fixes
+are the rule on this cluster.</p></li>
+<li><p><a class="reference internal" href="monitoring.html"><span class="std std-doc">Monitoring</span></a> — Grafana / Prometheus / Alertmanager
+configuration and dashboards.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="claude-code.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Using Claude Code</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../explanations.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Explanations</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting">Setting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#transcript">Transcript</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reporting-the-symptom">1. Reporting the symptom</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#investigation">2. Investigation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#diagnosis">3. Diagnosis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reframing-the-fix">4. Reframing the fix</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#implementing-the-fix">5. Implementing the fix</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-the-pr-and-test">6. Open the PR and test</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-illustrates">What this illustrates</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/claude-code-debugging-example.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/claude-code-debugging-example.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
