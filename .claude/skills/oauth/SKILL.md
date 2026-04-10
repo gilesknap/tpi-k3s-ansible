@@ -25,7 +25,8 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 - **`oidc.config` disables Dex** — having `oidc.config` in argocd-cm causes
   `IsDexDisabled()=true`. Use `dex.config` only.
 - **Re-sealing secrets requires pod restart** — pod env vars from `secretKeyRef`
-  are read at startup. After `just seal-argocd-dex`, restart affected pods.
+  are read at startup. After rotating with `just seal-argocd-dex <subcommand>`,
+  restart affected pods.
 - **Dex secret needs ArgoCD label** — the `argocd-dex-secret` SealedSecret
   template must include `app.kubernetes.io/part-of: argocd` label. Without
   it, ArgoCD's `$secret:key` resolution in `dex.config` silently fails,
@@ -33,9 +34,9 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 - **Dex static client secrets must all be in argocd-dex-secret** —
   `dex.config` uses `$argocd-dex-secret:key` for each static client.
   Missing keys silently resolve to empty, causing "Failed to get token
-  from provider" on login. The `just seal-argocd-dex` recipe generates
-  secrets for all clients (grafana, open-webui, argocd-monitor) and
-  also seals the matching service-side secrets.
+  from provider" on login. The rebuild path (`scripts/seal-from-json`)
+  seals all clients (grafana, open-webui, argocd-monitor) along with
+  the matching service-side secrets in one pass.
 - **Sidecar oauth2-proxy cookie clash** — the shared oauth2-proxy sets
   `cookie-domain=.gkcluster.org`, so its `_oauth2_proxy` cookie reaches all
   subdomains. Any service with its own oauth2-proxy sidecar (e.g.

@@ -1,11 +1,6 @@
 ################################################################################
-# Operations / Development
-#
-# Day-to-day tasks: devcontainer setup, linting, docs, cluster diagnostics,
-# credential lookup, and ArgoCD management.
+# dev/CI — devcontainer setup, linting, docs
 ################################################################################
-
-# devcontainer setup -----------------------------------------------------------
 
 # First-time devcontainer setup: copy SSH keys, authenticate gh, start agent
 setup:
@@ -22,8 +17,6 @@ gh-auth:
 # Start Claude Code in sandbox mode (uses container-local SSH agent only)
 claude:
     SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome
-
-# linting & docs ---------------------------------------------------------------
 
 # Run all checks before committing (lint + docs in parallel)
 check:
@@ -45,7 +38,9 @@ docs-watch:
 pre-commit:
     uv run pre-commit run --all-files --show-diff-on-failure
 
-# cluster diagnostics ----------------------------------------------------------
+################################################################################
+# maintenance — day-to-day cluster operations and rotation
+################################################################################
 
 # Quick cluster health check: nodes, ArgoCD apps, failing pods, certificates
 status:
@@ -64,13 +59,9 @@ restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd
     @echo "Restarted argocd-dex-server, argocd-server, argocd-repo-server"
 
-# user management --------------------------------------------------------------
-
 # Add a read-only (viewer) email to the cluster permissions
 add-viewer email="":
     scripts/add-viewer {{ email }}
-
-# credentials & tokens ---------------------------------------------------------
 
 # Show Supabase Studio dashboard credentials
 supabase-creds:
@@ -81,39 +72,26 @@ supabase-creds:
 headlamp-token:
     @kubectl create token headlamp -n headlamp --duration=2400h
 
-################################################################################
-# Commissioning
-#
-# Cluster build, rebuild, and secret management. Used during initial bootstrap,
-# teardown/rebuild cycles, and secret rotation.
-################################################################################
+# Rotate a single Dex-related secret in the live cluster. Subcommand required:
+# github, argocd, monitor, grafana, open-webui, slack (see scripts/seal-argocd-dex help)
+seal-argocd-dex target:
+    scripts/seal-argocd-dex {{ target }}
 
-# secret extraction ------------------------------------------------------------
+################################################################################
+# bootstrap / rebuild — initial install and full teardown/rebuild
+################################################################################
 
 # Export 8 external credentials to .env at repo root (gitignored)
 export-external-creds:
     scripts/export-external-creds
 
-# Extract all plaintext secrets from running cluster before teardown
-extract-secrets output_dir="/tmp/cluster-secrets":
-    scripts/extract-secrets {{ output_dir }}
-
-# sealed secrets ---------------------------------------------------------------
-
-# Seal all non-Dex secrets from an extracted-secrets JSON file
-seal-from-json json_file:
-    scripts/seal-from-json {{ json_file }}
-
-# Seal Dex-related secrets. No arg = all; otherwise one of:
-# github, argocd, monitor, grafana, open-webui, slack (see scripts/seal-argocd-dex help)
-seal-argocd-dex target="":
-    scripts/seal-argocd-dex {{ target }}
-
 # Generate all secrets fresh and seal in one step (for rebuild)
 generate-and-seal-all output_dir="/tmp/cluster-secrets":
     scripts/generate-and-seal-all {{ output_dir }}
 
-# cluster bootstrap ------------------------------------------------------------
+# Seal every cluster secret from a generated/extracted JSON file
+seal-from-json json_file:
+    scripts/seal-from-json {{ json_file }}
 
 # Set the shared admin password (basic-auth ingresses + ArgoCD admin).
 # Reads ADMIN_PASSWORD env var or prompts interactively.

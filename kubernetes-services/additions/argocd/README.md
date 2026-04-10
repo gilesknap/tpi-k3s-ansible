@@ -84,7 +84,7 @@ The `argo-cd` client secret is derived from ArgoCD's `server.secretkey`:
 SHA256(server.secretkey string)[:30 bytes] → base64url (no padding)
 ```
 
-The `just seal-argocd-dex` recipe computes this automatically.
+The `just seal-argocd-dex argocd` recipe computes this automatically.
 
 ## Dex as shared OIDC provider
 

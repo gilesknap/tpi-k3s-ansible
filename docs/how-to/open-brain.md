@@ -334,16 +334,11 @@ kubectl get pvc -n supabase | grep minio
 
 ### Add the Supabase service key to the MCP secret
 
-The MCP server needs the Supabase service-role key for `get_attachment`. Re-seal
-the `open-brain-mcp-secret` using the provided script, which fetches the database
-password and service key from the cluster automatically:
-
-```bash
-./scripts/seal-mcp-secret
-```
-
-The script prompts for GitHub OAuth credentials and auto-generates the JWT
-secret. Commit and push the updated sealed secret.
+The MCP server needs the Supabase service-role key for `get_attachment`. See
+{doc}`claude-ai-mcp` step 3 for the kubectl/kubeseal pipeline that re-seals
+`open-brain-mcp-secret` with the database password, service key, GitHub OAuth
+credentials, and a fresh JWT signing secret. Commit and push the updated
+sealed secret.
 
 ## Disable Open Brain
 
