@@ -1,8 +1,10 @@
 #!/bin/bash
-# Export the 8 external credentials (GitHub OAuth, Cloudflare) from the
+# Export external credentials (GitHub OAuth, Cloudflare, Slack) from the
 # running cluster into a .env file at the repo root (gitignored).
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
+# Optional secret: returns empty if the secret/key doesn't exist.
+get_key_opt() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" 2>/dev/null | base64 -d 2>/dev/null || true; }
 cat > .env <<EOF
 GITHUB_CLIENT_ID=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientID')
 GITHUB_CLIENT_SECRET=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientSecret')
@@ -12,6 +14,7 @@ OAUTH2_PROXY_CLIENT_ID=$(get_key oauth2-proxy-credentials oauth2-proxy client-id
 OAUTH2_PROXY_CLIENT_SECRET=$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)
 OPEN_BRAIN_GITHUB_CLIENT_ID=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_ID)
 OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)
+SLACK_WEBHOOK_URL=$(get_key_opt alertmanager-slack-secret monitoring webhook-url)
 EOF
-echo "Wrote .env (8 credentials, gitignored)"
+echo "Wrote .env (gitignored)"
 echo "Source with: set -a && source .env && set +a"

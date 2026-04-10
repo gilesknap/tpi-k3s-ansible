@@ -98,5 +98,15 @@ kubectl create secret generic supabase-mcp-env --namespace=supabase \
     --from-literal=MCP_ACCESS_KEY="$mcp_key" \
     --dry-run=client -o yaml | seal_to "$BASE/supabase/templates/mcp-env-secret.yaml"
 echo "  -> $BASE/supabase/templates/mcp-env-secret.yaml"
+# 7. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
+if has_secret alertmanager-slack-secret monitoring; then
+    echo "Sealing: alertmanager-slack-secret..."
+    kubectl create secret generic alertmanager-slack-secret --namespace=monitoring \
+        --from-literal=webhook-url="$(get_key alertmanager-slack-secret monitoring webhook-url)" \
+        --dry-run=client -o yaml | seal_to "$BASE/grafana/alertmanager-slack-secret.yaml"
+    echo "  -> $BASE/grafana/alertmanager-slack-secret.yaml"
+else
+    echo "Skipping: alertmanager-slack-secret (not in JSON)"
+fi
 echo ""
 echo "All non-Dex secrets sealed. Run 'just seal-argocd-dex' separately for Dex/OAuth secrets."
