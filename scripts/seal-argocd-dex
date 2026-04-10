@@ -1,12 +1,32 @@
 #!/bin/bash
-# Seal all Dex-related secrets: argocd-dex-secret (all static client
-# secrets), argocd-monitor oauth2-proxy, grafana-oauth, open-webui-oauth.
-# Reads GITHUB_CLIENT_ID/SECRET from env or prompts interactively.
+# Seal Dex-related secrets. With no arguments, seals everything (original
+# behavior): prompts for GitHub OAuth creds + Slack webhook, generates all
+# Dex static client secrets, and writes all SealedSecret files.
+#
+# Subcommands re-seal a single logical secret without the full prompt set.
+# Partial subcommands that touch argocd-dex-secret read existing keys from
+# the running secret to preserve values they don't touch:
+#
+#   github      Prompt for GitHub OAuth Client ID/Secret, update argocd-dex-secret
+#   argocd      Re-derive argo-cd client secret from server.secretkey
+#   monitor     Rotate argocd-monitor client + cookie secrets
+#   grafana     Rotate grafana client secret
+#   open-webui  Rotate open-webui client secret
+#   slack       Re-seal alertmanager Slack webhook (standalone, not in argocd-dex-secret)
+#
 # The argo-cd client secret is auto-derived from server.secretkey so it
-# matches ArgoCD's internal value. All Dex static client secrets are
-# generated and stored in argocd-dex-secret so $secret:key resolution works.
+# matches ArgoCD's internal value. All Dex static client secrets are stored
+# in argocd-dex-secret so $secret:key resolution works.
 set -euo pipefail
+
 SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+
+DEX_SECRET_FILE=kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+MONITOR_SECRET_FILE=kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
+GRAFANA_SECRET_FILE=kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+OPENWEBUI_SECRET_FILE=kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
+SLACK_SECRET_FILE=kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
+
 # Atomic seal: write to temp file, move on success. Prevents truncating
 # existing sealed secrets when kubeseal fails (e.g. controller not ready).
 seal_to() {
@@ -20,60 +40,183 @@ seal_to() {
         exit 1
     fi
 }
-client_id="${GITHUB_CLIENT_ID:-}"
-client_secret="${GITHUB_CLIENT_SECRET:-}"
-if [ -z "$client_id" ]; then read -p "GitHub OAuth Client ID: " client_id < /dev/tty; fi
-if [ -z "$client_secret" ]; then read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo; fi
-# argo-cd client secret: SHA256(server.secretkey as base64 string) → base64url[:40]
-argocd_client_secret=$(kubectl get secret argocd-secret -n argo-cd \
-    -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
-    python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()).decode()[:40])")
-monitor_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-cookie_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")  # 32 hex chars = 32 bytes, valid for AES-256
-grafana_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-openwebui_secret=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-# Dex secret (argo-cd namespace) — GitHub OAuth + ALL static client secrets
-kubectl create secret generic argocd-dex-secret \
-  --namespace argo-cd \
-  --from-literal=dex.github.clientID="$client_id" \
-  --from-literal=dex.github.clientSecret="$client_secret" \
-  --from-literal=argo-cd.clientSecret="$argocd_client_secret" \
-  --from-literal=argocd.clientSecret="$argocd_client_secret" \
-  --from-literal=argocd-monitor.clientSecret="$monitor_secret" \
-  --from-literal=grafana.clientSecret="$grafana_secret" \
-  --from-literal=open-webui.clientSecret="$openwebui_secret" \
-  --dry-run=client -o yaml | \
-  yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
-  seal_to kubernetes-services/additions/argocd/argocd-dex-secret.yaml
-echo "Sealed: kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
-# argocd-monitor oauth2-proxy secret
-kubectl create secret generic argocd-monitor-oauth \
-  --namespace argocd-monitor \
-  --from-literal=client-secret="$monitor_secret" \
-  --from-literal=cookie-secret="$cookie_secret" \
-  --dry-run=client -o yaml | seal_to kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
-echo "Sealed: kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml"
-# Grafana OAuth secret — key must be CLIENT_SECRET (loaded via envFromSecrets)
-kubectl create secret generic grafana-oauth-secret \
-  --namespace monitoring \
-  --from-literal=CLIENT_SECRET="$grafana_secret" \
-  --dry-run=client -o yaml | seal_to kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
-echo "Sealed: kubernetes-services/additions/grafana/grafana-oauth-secret.yaml"
-# Open WebUI OAuth secret — key must be client-secret (loaded via secretKeyRef)
-kubectl create secret generic open-webui-oauth-secret \
-  --namespace open-webui \
-  --from-literal=client-secret="$openwebui_secret" \
-  --dry-run=client -o yaml | seal_to kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
-echo "Sealed: kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml"
-# Alertmanager Slack webhook secret
-slack_webhook="${SLACK_WEBHOOK_URL:-}"
-if [ -z "$slack_webhook" ]; then read -p "Slack Webhook URL (blank to skip): " slack_webhook < /dev/tty; fi
-if [ -n "$slack_webhook" ]; then
-  kubectl create secret generic alertmanager-slack-secret \
-    --namespace monitoring \
-    --from-literal=webhook-url="$slack_webhook" \
-    --dry-run=client -o yaml | seal_to kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
-  echo "Sealed: kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml"
-else
-  echo "Skipped: alertmanager-slack-secret (no webhook URL provided)"
-fi
+
+# Read a dotted key from the running argocd-dex-secret (base64-decoded).
+# The caller must backslash-escape dots so jsonpath treats them as literal.
+get_dex_key() {
+    kubectl get secret argocd-dex-secret -n argo-cd \
+        -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d
+}
+
+require_existing_dex_secret() {
+    if ! kubectl get secret argocd-dex-secret -n argo-cd >/dev/null 2>&1; then
+        echo "ERROR: argocd-dex-secret not found in argo-cd namespace." >&2
+        echo "Run '$0' with no arguments first to seal everything." >&2
+        exit 1
+    fi
+}
+
+prompt_github() {
+    client_id="${GITHUB_CLIENT_ID:-}"
+    client_secret="${GITHUB_CLIENT_SECRET:-}"
+    if [ -z "$client_id" ]; then read -p "GitHub OAuth Client ID: " client_id < /dev/tty; fi
+    if [ -z "$client_secret" ]; then read -sp "GitHub OAuth Client Secret: " client_secret < /dev/tty && echo; fi
+}
+
+# base64url(SHA256(server.secretkey))[:40] — matches ArgoCD's internal value
+derive_argocd_client_secret() {
+    kubectl get secret argocd-secret -n argo-cd \
+        -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
+        python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()).decode()[:40])"
+}
+
+# 32 hex chars = 32 bytes, valid for AES-256 (oauth2-proxy cookie-secret
+# requires exactly 16, 24, or 32 bytes — see CLAUDE.md foot-guns)
+rand_hex32() {
+    python3 -c "import secrets; print(secrets.token_hex(16))"
+}
+
+# Re-seal argocd-dex-secret. Any of the following variables that are unset
+# or empty are populated from the currently-running secret in the cluster:
+#   client_id client_secret argocd_client_secret
+#   monitor_secret grafana_secret openwebui_secret
+seal_dex_secret() {
+    : "${client_id:=$(get_dex_key 'dex\.github\.clientID')}"
+    : "${client_secret:=$(get_dex_key 'dex\.github\.clientSecret')}"
+    : "${argocd_client_secret:=$(get_dex_key 'argo-cd\.clientSecret')}"
+    : "${monitor_secret:=$(get_dex_key 'argocd-monitor\.clientSecret')}"
+    : "${grafana_secret:=$(get_dex_key 'grafana\.clientSecret')}"
+    : "${openwebui_secret:=$(get_dex_key 'open-webui\.clientSecret')}"
+
+    kubectl create secret generic argocd-dex-secret \
+      --namespace argo-cd \
+      --from-literal=dex.github.clientID="$client_id" \
+      --from-literal=dex.github.clientSecret="$client_secret" \
+      --from-literal=argo-cd.clientSecret="$argocd_client_secret" \
+      --from-literal=argocd.clientSecret="$argocd_client_secret" \
+      --from-literal=argocd-monitor.clientSecret="$monitor_secret" \
+      --from-literal=grafana.clientSecret="$grafana_secret" \
+      --from-literal=open-webui.clientSecret="$openwebui_secret" \
+      --dry-run=client -o yaml | \
+      yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
+      seal_to "$DEX_SECRET_FILE"
+    echo "Sealed: $DEX_SECRET_FILE"
+}
+
+# Re-seal argocd-monitor-oauth. Uses $monitor_secret if set, otherwise
+# generates a fresh one. Cookie-secret is always regenerated.
+seal_monitor_secret() {
+    : "${monitor_secret:=$(rand_hex32)}"
+    local cookie_secret
+    cookie_secret=$(rand_hex32)
+    kubectl create secret generic argocd-monitor-oauth \
+      --namespace argocd-monitor \
+      --from-literal=client-secret="$monitor_secret" \
+      --from-literal=cookie-secret="$cookie_secret" \
+      --dry-run=client -o yaml | seal_to "$MONITOR_SECRET_FILE"
+    echo "Sealed: $MONITOR_SECRET_FILE"
+}
+
+# Key must be CLIENT_SECRET (loaded via envFromSecrets)
+seal_grafana_secret() {
+    : "${grafana_secret:=$(rand_hex32)}"
+    kubectl create secret generic grafana-oauth-secret \
+      --namespace monitoring \
+      --from-literal=CLIENT_SECRET="$grafana_secret" \
+      --dry-run=client -o yaml | seal_to "$GRAFANA_SECRET_FILE"
+    echo "Sealed: $GRAFANA_SECRET_FILE"
+}
+
+# Key must be client-secret (loaded via secretKeyRef)
+seal_openwebui_secret() {
+    : "${openwebui_secret:=$(rand_hex32)}"
+    kubectl create secret generic open-webui-oauth-secret \
+      --namespace open-webui \
+      --from-literal=client-secret="$openwebui_secret" \
+      --dry-run=client -o yaml | seal_to "$OPENWEBUI_SECRET_FILE"
+    echo "Sealed: $OPENWEBUI_SECRET_FILE"
+}
+
+# Seal alertmanager Slack webhook. $require controls behavior on blank input:
+#   "required" (partial subcommand) → error on blank
+#   "optional" (all path)           → skip silently on blank
+seal_slack_secret() {
+    local require="${1:-optional}"
+    local slack_webhook="${SLACK_WEBHOOK_URL:-}"
+    if [ -z "$slack_webhook" ]; then
+        if [ "$require" = "required" ]; then
+            read -p "Slack Webhook URL: " slack_webhook < /dev/tty
+        else
+            read -p "Slack Webhook URL (blank to skip): " slack_webhook < /dev/tty
+        fi
+    fi
+    if [ -z "$slack_webhook" ]; then
+        if [ "$require" = "required" ]; then
+            echo "ERROR: Slack Webhook URL is required" >&2
+            exit 1
+        fi
+        echo "Skipped: alertmanager-slack-secret (no webhook URL provided)"
+        return 0
+    fi
+    kubectl create secret generic alertmanager-slack-secret \
+      --namespace monitoring \
+      --from-literal=webhook-url="$slack_webhook" \
+      --dry-run=client -o yaml | seal_to "$SLACK_SECRET_FILE"
+    echo "Sealed: $SLACK_SECRET_FILE"
+}
+
+cmd="${1:-all}"
+
+case "$cmd" in
+    all)
+        prompt_github
+        argocd_client_secret=$(derive_argocd_client_secret)
+        monitor_secret=$(rand_hex32)
+        grafana_secret=$(rand_hex32)
+        openwebui_secret=$(rand_hex32)
+        seal_dex_secret
+        seal_monitor_secret
+        seal_grafana_secret
+        seal_openwebui_secret
+        seal_slack_secret optional
+        ;;
+    github)
+        require_existing_dex_secret
+        prompt_github
+        seal_dex_secret
+        ;;
+    argocd)
+        require_existing_dex_secret
+        argocd_client_secret=$(derive_argocd_client_secret)
+        seal_dex_secret
+        ;;
+    monitor)
+        require_existing_dex_secret
+        monitor_secret=$(rand_hex32)
+        seal_dex_secret
+        seal_monitor_secret
+        ;;
+    grafana)
+        require_existing_dex_secret
+        grafana_secret=$(rand_hex32)
+        seal_dex_secret
+        seal_grafana_secret
+        ;;
+    open-webui)
+        require_existing_dex_secret
+        openwebui_secret=$(rand_hex32)
+        seal_dex_secret
+        seal_openwebui_secret
+        ;;
+    slack)
+        seal_slack_secret required
+        ;;
+    -h|--help|help)
+        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    *)
+        echo "Usage: $0 [all|github|argocd|monitor|grafana|open-webui|slack]" >&2
+        exit 1
+        ;;
+esac
