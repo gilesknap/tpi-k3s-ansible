@@ -26,6 +26,10 @@
     name: ingress-ingress-nginx-controller
   register: ingress_svc
 
+# On a fresh bootstrap, ingress-nginx is installed by ArgoCD *after* this
+# role runs, so the lookup above returns no resources. Skip the override on
+# the first pass — re-running --tags cluster after ArgoCD has converged
+# applies it idempotently.
 - name: Create CoreDNS split-horizon override for cluster domain
   kubernetes.core.k8s:
     force: true
@@ -42,6 +46,7 @@
               {{ ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
             }
           }
+  when: ingress_svc.resources | length > 0
 
 # install services - only ArgoCD for now - it adds everything else
 

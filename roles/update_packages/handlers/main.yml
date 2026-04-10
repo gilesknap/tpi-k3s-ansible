@@ -1,7 +1,12 @@
 - name: Restart k3s-agent
+  # On a fresh-bootstrap rebuild, the GPU node containerd template task fires
+  # this handler before k3s has been installed. Skip the restart if the
+  # service unit is not loaded yet — k3s install in the next play will pick
+  # up the new template on first start.
   ansible.builtin.service:
     name: k3s-agent
     state: restarted
+  failed_when: false
 
 - name: Reboot node
   ansible.builtin.reboot:
