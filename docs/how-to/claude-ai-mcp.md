@@ -76,17 +76,38 @@ Keep these values — you will need them in the next step.
 
 ## 3 -- Create and seal the MCP server secret
 
-The MCP server needs four secret values. A helper script prompts for the
-GitHub OAuth credentials interactively (hidden input) and fetches the
-database password from the cluster automatically:
+The MCP server needs five secret values. Fetch the database password and
+service key from the running Supabase stack, generate a random JWT signing
+secret, and seal everything in one pipeline:
 
 ```bash
-./scripts/seal-mcp-secret
+DB_PASSWORD=$(kubectl get secret supabase-credentials -n supabase \
+  -o jsonpath='{.data.password}' | base64 -d)
+SERVICE_KEY=$(kubectl get secret supabase-credentials -n supabase \
+  -o jsonpath='{.data.serviceKey}' | base64 -d)
+DATABASE_URL="postgresql://supabase_admin:${DB_PASSWORD}@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres"
+MCP_JWT_SECRET=$(openssl rand -hex 32)
+
+read -rsp "GITHUB_CLIENT_ID: " GITHUB_CLIENT_ID; echo
+read -rsp "GITHUB_CLIENT_SECRET: " GITHUB_CLIENT_SECRET; echo
+
+kubectl create secret generic open-brain-mcp-secret \
+  --namespace=open-brain-mcp \
+  --from-literal=DATABASE_URL="$DATABASE_URL" \
+  --from-literal=MCP_JWT_SECRET="$MCP_JWT_SECRET" \
+  --from-literal=GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
+  --from-literal=GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET" \
+  --from-literal=SUPABASE_SERVICE_KEY="$SERVICE_KEY" \
+  --dry-run=client -o yaml | \
+  kubeseal --format yaml \
+    --controller-name sealed-secrets \
+    --controller-namespace kube-system \
+  > kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
 ```
 
-The script generates a random `MCP_JWT_SECRET`, constructs the `DATABASE_URL`
-from the existing `supabase-credentials` secret, and writes the sealed output
-to the SealedSecret manifest.
+(For a fresh cluster build, `just generate-and-seal-all` produces this
+secret automatically from the `OPEN_BRAIN_GITHUB_CLIENT_ID` /
+`OPEN_BRAIN_GITHUB_CLIENT_SECRET` env vars.)
 
 ## 4 -- Commit and deploy the sealed secret
 

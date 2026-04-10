@@ -72,7 +72,7 @@ used on the internal cluster network.
 | POSITIVE | All 10 SealedSecret files use `encryptedData` (not plaintext) | All `*-secret.yaml` in `additions/` | No action needed |
 | POSITIVE | Pre-commit gitleaks v8.28.0 enforces secret scanning | `.pre-commit-config.yaml:22-26` | Compliant |
 | POSITIVE | All Python code reads secrets from env vars | `open-brain-mcp/`, `open-brain-cli/` | No hardcoded secrets found |
-| POSITIVE | Seal scripts use secure practices | `scripts/seal-mcp-secret` | No shell history exposure |
+| POSITIVE | Seal scripts use secure practices | `scripts/seal-from-json` | No shell history exposure |
 | POSITIVE | `.gitignore` excludes `.env/`, `.venv/`, `venv/`, `env/` | `.gitignore:13-17` | Compliant |
 | POSITIVE | No AWS/GCP/Azure credentials found | Full codebase scan | Clean |
 

@@ -1,7 +1,8 @@
-#!/bin/bash
-# Seal Dex-related secrets. With no arguments, seals everything (original
-# behavior): prompts for GitHub OAuth creds + Slack webhook, generates all
-# Dex static client secrets, and writes all SealedSecret files.
+#!/usr/bin/env bash
+# Rotate a single Dex-related secret in the live cluster.
+#
+# This script is for maintenance/rotation only — full sealing during a
+# rebuild is handled by `scripts/seal-from-json`. A subcommand is required.
 #
 # Subcommands re-seal a single logical secret without the full prompt set.
 # Partial subcommands that touch argocd-dex-secret read existing keys from
@@ -19,27 +20,13 @@
 # in argocd-dex-secret so $secret:key resolution works.
 set -euo pipefail
 
-SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+. "$(dirname "$0")/lib/seal.sh"
 
 DEX_SECRET_FILE=kubernetes-services/additions/argocd/argocd-dex-secret.yaml
 MONITOR_SECRET_FILE=kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
 GRAFANA_SECRET_FILE=kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
 OPENWEBUI_SECRET_FILE=kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 SLACK_SECRET_FILE=kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
-
-# Atomic seal: write to temp file, move on success. Prevents truncating
-# existing sealed secrets when kubeseal fails (e.g. controller not ready).
-seal_to() {
-    local dest="$1"
-    local tmp="${dest}.tmp"
-    if $SEAL > "$tmp"; then
-        mv "$tmp" "$dest"
-    else
-        rm -f "$tmp"
-        echo "ERROR: kubeseal failed for $dest" >&2
-        exit 1
-    fi
-}
 
 # Read a dotted key from the running argocd-dex-secret (base64-decoded).
 # The caller must backslash-escape dots so jsonpath treats them as literal.
@@ -51,7 +38,7 @@ get_dex_key() {
 require_existing_dex_secret() {
     if ! kubectl get secret argocd-dex-secret -n argo-cd >/dev/null 2>&1; then
         echo "ERROR: argocd-dex-secret not found in argo-cd namespace." >&2
-        echo "Run '$0' with no arguments first to seal everything." >&2
+        echo "Run a full rebuild (scripts/seal-from-json) to seed it." >&2
         exit 1
     fi
 }
@@ -137,26 +124,15 @@ seal_openwebui_secret() {
     echo "Sealed: $OPENWEBUI_SECRET_FILE"
 }
 
-# Seal alertmanager Slack webhook. $require controls behavior on blank input:
-#   "required" (partial subcommand) → error on blank
-#   "optional" (all path)           → skip silently on blank
+# Re-seal alertmanager Slack webhook. Errors on blank input.
 seal_slack_secret() {
-    local require="${1:-optional}"
     local slack_webhook="${SLACK_WEBHOOK_URL:-}"
     if [ -z "$slack_webhook" ]; then
-        if [ "$require" = "required" ]; then
-            read -p "Slack Webhook URL: " slack_webhook < /dev/tty
-        else
-            read -p "Slack Webhook URL (blank to skip): " slack_webhook < /dev/tty
-        fi
+        read -p "Slack Webhook URL: " slack_webhook < /dev/tty
     fi
     if [ -z "$slack_webhook" ]; then
-        if [ "$require" = "required" ]; then
-            echo "ERROR: Slack Webhook URL is required" >&2
-            exit 1
-        fi
-        echo "Skipped: alertmanager-slack-secret (no webhook URL provided)"
-        return 0
+        echo "ERROR: Slack Webhook URL is required" >&2
+        exit 1
     fi
     kubectl create secret generic alertmanager-slack-secret \
       --namespace monitoring \
@@ -165,21 +141,14 @@ seal_slack_secret() {
     echo "Sealed: $SLACK_SECRET_FILE"
 }
 
-cmd="${1:-all}"
+usage() {
+    echo "Usage: $0 {github|argocd|monitor|grafana|open-webui|slack}" >&2
+    echo "Run '$0 help' for details." >&2
+}
+
+cmd="${1:-}"
 
 case "$cmd" in
-    all)
-        prompt_github
-        argocd_client_secret=$(derive_argocd_client_secret)
-        monitor_secret=$(rand_hex32)
-        grafana_secret=$(rand_hex32)
-        openwebui_secret=$(rand_hex32)
-        seal_dex_secret
-        seal_monitor_secret
-        seal_grafana_secret
-        seal_openwebui_secret
-        seal_slack_secret optional
-        ;;
     github)
         require_existing_dex_secret
         prompt_github
@@ -209,14 +178,18 @@ case "$cmd" in
         seal_openwebui_secret
         ;;
     slack)
-        seal_slack_secret required
+        seal_slack_secret
         ;;
     -h|--help|help)
-        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
+    "")
+        usage
+        exit 1
+        ;;
     *)
-        echo "Usage: $0 [all|github|argocd|monitor|grafana|open-webui|slack]" >&2
+        usage
         exit 1
         ;;
 esac

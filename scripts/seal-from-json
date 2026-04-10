@@ -1,29 +1,23 @@
-#!/bin/bash
-# Seal all non-Dex secrets from an extracted-secrets JSON file.
+#!/usr/bin/env bash
+# Seal every cluster secret from a generated/extracted JSON file.
 # Usage: scripts/seal-from-json <json-file>
-# Skips secrets handled by seal-argocd-dex. Uses the correct key names
-# and output paths for each secret.
+#
+# This is the single sealing entry point. It writes SealedSecret YAML files
+# under kubernetes-services/additions/ for every secret the cluster needs.
+# `seal-argocd-dex` is for live rotation only — not used during rebuild.
 set -euo pipefail
-SEAL="kubeseal --controller-name sealed-secrets --controller-namespace kube-system --format yaml"
+
+. "$(dirname "$0")/lib/seal.sh"
+
 BASE="kubernetes-services/additions"
-# Atomic seal: write to temp file, move on success. Prevents truncating
-# existing sealed secrets when kubeseal fails (e.g. controller not ready).
-seal_to() {
-    local dest="$1"
-    local tmp="${dest}.tmp"
-    if $SEAL > "$tmp"; then
-        mv "$tmp" "$dest"
-    else
-        rm -f "$tmp"
-        echo "ERROR: kubeseal failed for $dest" >&2
-        exit 1
-    fi
-}
-JSON="$1"
-if [ ! -f "$JSON" ]; then
-    echo "ERROR: JSON file not found: $JSON" >&2
+
+JSON="${1:-}"
+if [ -z "$JSON" ] || [ ! -f "$JSON" ]; then
+    echo "ERROR: JSON file not found: ${JSON:-<missing>}" >&2
+    echo "Usage: $0 <json-file>" >&2
     exit 1
 fi
+
 # Helper: extract a key value from the JSON for a given secret name and namespace
 get_key() {
     local name="$1" ns="$2" key="$3"
@@ -35,24 +29,28 @@ get_key() {
     fi
     echo "$val"
 }
+
 # Helper: check a secret exists in the JSON
 has_secret() {
     local name="$1" ns="$2"
     jq -e --arg name "$name" --arg ns "$ns" \
         '.[] | select(.name == $name and .namespace == $ns)' "$JSON" > /dev/null 2>&1
 }
+
 # 1. cloudflare-api-token (cert-manager)
 echo "Sealing: cloudflare-api-token..."
 kubectl create secret generic cloudflare-api-token --namespace=cert-manager \
     --from-literal=api-token="$(get_key cloudflare-api-token cert-manager api-token)" \
     --dry-run=client -o yaml | seal_to "$BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
 echo "  -> $BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
+
 # 2. cloudflared-credentials (cloudflared)
 echo "Sealing: cloudflared-credentials..."
 kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
     --from-literal=TUNNEL_TOKEN="$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN)" \
     --dry-run=client -o yaml | seal_to "$BASE/cloudflared/tunnel-secret.yaml"
 echo "  -> $BASE/cloudflared/tunnel-secret.yaml"
+
 # 3. oauth2-proxy-credentials (oauth2-proxy)
 echo "Sealing: oauth2-proxy-credentials..."
 kubectl create secret generic oauth2-proxy-credentials --namespace=oauth2-proxy \
@@ -61,6 +59,7 @@ kubectl create secret generic oauth2-proxy-credentials --namespace=oauth2-proxy 
     --from-literal=client-id="$(get_key oauth2-proxy-credentials oauth2-proxy client-id)" \
     --dry-run=client -o yaml | seal_to "$BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
 echo "  -> $BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
+
 # 4. open-brain-mcp-secret (open-brain-mcp)
 echo "Sealing: open-brain-mcp-secret..."
 kubectl create secret generic open-brain-mcp-secret --namespace=open-brain-mcp \
@@ -71,6 +70,7 @@ kubectl create secret generic open-brain-mcp-secret --namespace=open-brain-mcp \
     --from-literal=SUPABASE_SERVICE_KEY="$(get_key open-brain-mcp-secret open-brain-mcp SUPABASE_SERVICE_KEY)" \
     --dry-run=client -o yaml | seal_to "$BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
 echo "  -> $BASE/open-brain-mcp/templates/open-brain-mcp-secret.yaml"
+
 # 5. supabase-credentials (supabase) — all keys from extracted JSON
 echo "Sealing: supabase-credentials..."
 literals=""
@@ -86,6 +86,7 @@ fi
 kubectl create secret generic supabase-credentials --namespace=supabase \
     $literals --dry-run=client -o yaml | seal_to "$BASE/supabase/templates/supabase-secret.yaml"
 echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
+
 # 6. supabase-mcp-env (supabase) — MCP_ACCESS_KEY
 echo "Sealing: supabase-mcp-env..."
 if has_secret supabase-mcp-env supabase; then
@@ -98,7 +99,45 @@ kubectl create secret generic supabase-mcp-env --namespace=supabase \
     --from-literal=MCP_ACCESS_KEY="$mcp_key" \
     --dry-run=client -o yaml | seal_to "$BASE/supabase/templates/mcp-env-secret.yaml"
 echo "  -> $BASE/supabase/templates/mcp-env-secret.yaml"
-# 7. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
+
+# 7. argocd-dex-secret (argo-cd) — all Dex static client secrets
+echo "Sealing: argocd-dex-secret..."
+kubectl create secret generic argocd-dex-secret --namespace=argo-cd \
+    --from-literal=dex.github.clientID="$(get_key argocd-dex-secret argo-cd dex.github.clientID)" \
+    --from-literal=dex.github.clientSecret="$(get_key argocd-dex-secret argo-cd dex.github.clientSecret)" \
+    --from-literal=argo-cd.clientSecret="$(get_key argocd-dex-secret argo-cd argo-cd.clientSecret)" \
+    --from-literal=argocd.clientSecret="$(get_key argocd-dex-secret argo-cd argocd.clientSecret)" \
+    --from-literal=argocd-monitor.clientSecret="$(get_key argocd-dex-secret argo-cd argocd-monitor.clientSecret)" \
+    --from-literal=grafana.clientSecret="$(get_key argocd-dex-secret argo-cd grafana.clientSecret)" \
+    --from-literal=open-webui.clientSecret="$(get_key argocd-dex-secret argo-cd open-webui.clientSecret)" \
+    --dry-run=client -o yaml | \
+    yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
+    seal_to "$BASE/argocd/argocd-dex-secret.yaml"
+echo "  -> $BASE/argocd/argocd-dex-secret.yaml"
+
+# 8. argocd-monitor-oauth (argocd-monitor)
+echo "Sealing: argocd-monitor-oauth..."
+kubectl create secret generic argocd-monitor-oauth --namespace=argocd-monitor \
+    --from-literal=client-secret="$(get_key argocd-monitor-oauth argocd-monitor client-secret)" \
+    --from-literal=cookie-secret="$(get_key argocd-monitor-oauth argocd-monitor cookie-secret)" \
+    --dry-run=client -o yaml | seal_to "$BASE/argocd-monitor/argocd-monitor-oauth-secret.yaml"
+echo "  -> $BASE/argocd-monitor/argocd-monitor-oauth-secret.yaml"
+
+# 9. grafana-oauth-secret (monitoring)
+echo "Sealing: grafana-oauth-secret..."
+kubectl create secret generic grafana-oauth-secret --namespace=monitoring \
+    --from-literal=CLIENT_SECRET="$(get_key grafana-oauth-secret monitoring CLIENT_SECRET)" \
+    --dry-run=client -o yaml | seal_to "$BASE/grafana/grafana-oauth-secret.yaml"
+echo "  -> $BASE/grafana/grafana-oauth-secret.yaml"
+
+# 10. open-webui-oauth-secret (open-webui)
+echo "Sealing: open-webui-oauth-secret..."
+kubectl create secret generic open-webui-oauth-secret --namespace=open-webui \
+    --from-literal=client-secret="$(get_key open-webui-oauth-secret open-webui client-secret)" \
+    --dry-run=client -o yaml | seal_to "$BASE/open-webui/open-webui-oauth-secret.yaml"
+echo "  -> $BASE/open-webui/open-webui-oauth-secret.yaml"
+
+# 11. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
 if has_secret alertmanager-slack-secret monitoring; then
     echo "Sealing: alertmanager-slack-secret..."
     kubectl create secret generic alertmanager-slack-secret --namespace=monitoring \
@@ -108,5 +147,6 @@ if has_secret alertmanager-slack-secret monitoring; then
 else
     echo "Skipping: alertmanager-slack-secret (not in JSON)"
 fi
+
 echo ""
-echo "All non-Dex secrets sealed. Run 'just seal-argocd-dex' separately for Dex/OAuth secrets."
+echo "All secrets sealed."

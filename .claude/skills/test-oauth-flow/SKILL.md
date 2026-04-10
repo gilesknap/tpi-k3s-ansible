@@ -189,8 +189,8 @@ sees the dashboard when done.
 
 If services fail:
 
-1. **"invalid client_secret"** — run `just seal-argocd-dex` to re-seal
-   Dex secrets, then `just restart-dex`.
+1. **"invalid client_secret"** — re-seal Dex with the matching subcommand
+   (e.g. `just seal-argocd-dex grafana`), then `just restart-dex`.
 2. **"Failed to get token from provider"** — the service-side secret
    doesn't match `argocd-dex-secret`. Re-seal all secrets.
 3. **Redirect loop** — clear cookies and retry. If persistent, check

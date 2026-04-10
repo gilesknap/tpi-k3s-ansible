@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Generate all secrets fresh and seal them in one step. Used during rebuild
 # to eliminate the extract→decommission→seal→second-run cycle. External
 # credentials must be set as env vars (see scripts/generate-secrets --help).
-# After sealing, also sets the admin password and restarts Dex.
+# After sealing, also sets the admin password.
 set -euo pipefail
 OUTPUT_DIR="${1:-/tmp/cluster-secrets}"
 
@@ -10,12 +10,8 @@ echo "=== Generating fresh secrets ==="
 scripts/generate-secrets "$OUTPUT_DIR"
 JSON="$OUTPUT_DIR/generated-secrets.json"
 echo ""
-echo "=== Sealing all non-Dex secrets ==="
+echo "=== Sealing all secrets ==="
 scripts/seal-from-json "$JSON"
-echo ""
-echo "=== Sealing Dex/OAuth secrets ==="
-# seal-argocd-dex reads GITHUB_CLIENT_ID/SECRET from env (already set)
-scripts/seal-argocd-dex
 echo ""
 echo "=== Setting admin password ==="
 ADMIN_PASSWORD=$(cat "$OUTPUT_DIR/admin-password.txt")
