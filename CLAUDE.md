@@ -24,6 +24,21 @@
   that were previously set on an Ingress. If you remove annotations from a
   template (e.g. `ssl-passthrough`), you must `kubectl delete` the old
   Ingress first, then re-run the playbook to recreate it cleanly.
+- **SealedSecret placeholders must use valid base64** — never commit a
+  `*-secret.yaml` with placeholder text like `REPLACE_ME` in
+  `encryptedData`. The sealed-secrets controller fails to decrypt
+  (`illegal base64 data`), the real Secret never gets created, and any
+  Prometheus operator CR (Alertmanager/Prometheus) referencing it via
+  `secrets:` silently omits the volume mount. Always seal a real value
+  immediately, or omit the file entirely until you have one.
+- **`scripts/seal-argocd-dex` has per-secret subcommands** — running
+  it bare (or with `all`) re-seals everything and prompts for GitHub
+  creds + Slack webhook. To rotate just one secret without re-entering
+  unrelated values, use a subcommand:
+  `seal-argocd-dex [github|argocd|monitor|grafana|open-webui|slack]`.
+  Subcommands read existing keys from the running `argocd-dex-secret`
+  to preserve values they don't touch, so `all` must have been run
+  at least once before.
 - **oauth2-proxy `email_domains` must be `[]`** — the Helm chart defaults
   to `email_domains = ["*"]`, which allows any GitHub user through and
   silently overrides `authenticatedEmailsFile`. The fix is
