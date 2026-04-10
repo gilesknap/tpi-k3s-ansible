@@ -163,21 +163,38 @@
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-project.yaml') }}"
 
-- name: Add the Git Repo for the aboved project to track
-  kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'argo-cd/argo-git-repository.yaml') }}"
-
 - name: Add an ingress for ArgoCD
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
     namespace: argo-cd
 
+# Install sealed-secrets directly so kubeseal has a controller to talk
+# to *before* the root Application fans out child syncs. Without this,
+# the fastest child app (cert-manager today) applies stale SealedSecret
+# resources from the prior cluster that the new controller cannot
+# decrypt. The root Application also includes this Application via
+# app-of-apps; the tracking-id annotation lets ArgoCD adopt this
+# resource cleanly when the root later syncs.
+- name: Bootstrap sealed-secrets Application standalone
+  kubernetes.core.k8s:
+    state: present
+    definition: >-
+      {{ (lookup('file', playbook_dir
+         ~ '/kubernetes-services/templates/sealed-secrets.yaml')
+         | from_yaml)
+         | combine({
+             'metadata': {
+               'annotations': {
+                 'argocd.argoproj.io/tracking-id':
+                   'all-cluster-services:argoproj.io/Application:argo-cd/sealed-secrets'
+               }
+             }
+           }, recursive=True) }}
+
 # Wait for sealed-secrets controller before applying SealedSecret resources.
-# The root Application (above) triggers ArgoCD to sync the sealed-secrets
-# child app, which installs the CRD and controller. Without this wait,
-# SealedSecret resources fail because the CRD does not exist yet. (#247)
+# Without this wait, SealedSecret resources fail because the CRD does
+# not exist yet. (#247)
 - name: Wait for sealed-secrets controller to be ready
   kubernetes.core.k8s_info:
     kind: Deployment
@@ -230,6 +247,16 @@
     executable: /bin/bash
   when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
   changed_when: true
+
+# Create the root Application *after* secrets have been sealed and
+# pushed, so all child app syncs see the freshly-pushed secrets. If
+# the root is created before this point, the fastest-syncing child
+# app (cert-manager today) races ahead and applies prior-cluster stale
+# SealedSecret resources that the new controller cannot decrypt.
+- name: Add the Git Repo for the aboved project to track
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'argo-cd/argo-git-repository.yaml') }}"
 
 - name: Check for ArgoCD Dex sealed secret file
   ansible.builtin.stat:
