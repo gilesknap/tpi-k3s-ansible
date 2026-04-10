@@ -491,16 +491,59 @@ days (kube-prometheus-stack default).</p>
 </section>
 <section id="alerting">
 <h2>Alerting<a class="headerlink" href="#alerting" title="Link to this heading">#</a></h2>
-<p>Alertmanager is deployed as part of the stack. By default, alerts are only visible
-in the Alertmanager UI (accessible via port-forward):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>port-forward<span class="w"> </span>svc/alertmanager-operated<span class="w"> </span><span class="m">9093</span>
-<span class="c1"># Open http://localhost:9093</span>
+<p>Alertmanager is deployed as part of the stack and exposed at
+<strong>https://alertmanager.your-domain.com</strong> behind the shared oauth2-proxy
+(GitHub OAuth, admin emails only). The kube-prometheus-stack ships with a
+suite of default alert rules covering node health, pod restarts, PVC usage,
+certificate expiry, etc.</p>
+<section id="configure-slack-notifications">
+<h3>Configure Slack notifications<a class="headerlink" href="#configure-slack-notifications" title="Link to this heading">#</a></h3>
+<p>Alertmanager is pre-configured to route all alerts to a <code class="docutils literal notranslate"><span class="pre">#alerts</span></code> Slack
+channel via a webhook URL stored in the <code class="docutils literal notranslate"><span class="pre">alertmanager-slack-secret</span></code>
+SealedSecret.</p>
+<p>To populate the webhook:</p>
+<ol class="arabic">
+<li><p><strong>Create a Slack incoming webhook</strong> at https://api.slack.com/apps:</p>
+<ul class="simple">
+<li><p>Create New App → From scratch</p></li>
+<li><p>Incoming Webhooks → toggle on → Add New Webhook to Workspace</p></li>
+<li><p>Pick the <code class="docutils literal notranslate"><span class="pre">#alerts</span></code> channel and copy the webhook URL</p></li>
+</ul>
+</li>
+<li><p><strong>Seal it into the cluster</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>alertmanager-slack-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>webhook-url<span class="o">=</span><span class="s2">&quot;https://hooks.slack.com/services/...&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>--format<span class="w"> </span>yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
 </pre></div>
 </div>
-<p>To configure alert notifications (email, Slack, PagerDuty), add an Alertmanager
-config to the Helm values. See the
-<a class="reference external" href="https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack">kube-prometheus-stack documentation</a>
-for details.</p>
+</li>
+<li><p><strong>Commit and push</strong> — ArgoCD syncs the SealedSecret, the controller
+decrypts it, and the Prometheus operator rolls the Alertmanager pod
+automatically with the webhook mounted.</p></li>
+</ol>
+</section>
+<section id="test-the-slack-integration">
+<h3>Test the Slack integration<a class="headerlink" href="#test-the-slack-integration" title="Link to this heading">#</a></h3>
+<p>Post a fake alert directly to the Alertmanager API:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>wget<span class="w"> </span>-qO-<span class="w"> </span>--post-data<span class="o">=</span><span class="s1">&#39;[{&quot;labels&quot;:{&quot;alertname&quot;:&quot;SlackTestAlert&quot;,&quot;severity&quot;:&quot;warning&quot;},&quot;annotations&quot;:{&quot;summary&quot;:&quot;Test alert&quot;}}]&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--header<span class="o">=</span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://localhost:9093/api/v2/alerts
+</pre></div>
+</div>
+<p>A message should appear in <code class="docutils literal notranslate"><span class="pre">#alerts</span></code> within 30 seconds (the configured
+<code class="docutils literal notranslate"><span class="pre">group_wait</span></code>). If nothing arrives, check the alertmanager logs:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--tail<span class="o">=</span><span class="m">30</span>
+</pre></div>
+</div>
+</section>
 </section>
 </section>
 
@@ -559,7 +602,11 @@ for details.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#default-dashboards">Default dashboards</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-prometheus-scrapes-metrics">How Prometheus scrapes metrics</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-retention">Data retention</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alerting">Alerting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alerting">Alerting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-slack-notifications">Configure Slack notifications</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-slack-integration">Test the Slack integration</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
