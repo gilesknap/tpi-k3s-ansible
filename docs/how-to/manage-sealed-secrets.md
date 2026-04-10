@@ -38,6 +38,7 @@ These secrets are created during the setup guides:
 | `cloudflared-credentials` | `cloudflared` | Cloudflare tunnel token | additions/cloudflared/tunnel-secret.yaml |
 | `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/templates/cloudflare-api-token-secret.yaml |
 | `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
+| `alertmanager-slack-secret` | `monitoring` | Alertmanager Slack webhook URL | additions/grafana/alertmanager-slack-secret.yaml |
 
 ## Prerequisites
 
@@ -100,6 +101,66 @@ git push
 ```
 
 ArgoCD syncs the SealedSecret automatically.
+
+## The `seal-argocd-dex` recipe
+
+`scripts/seal-argocd-dex` seals all authentication-related secrets and
+supports both a one-shot bootstrap mode and per-secret subcommands for
+rotation.
+
+### Secrets it manages
+
+| Secret | Namespace | Subcommand | Source |
+|--------|-----------|------------|--------|
+| `argocd-dex-secret` | `argo-cd` | (all paths) | GitHub OAuth credentials + every Dex static client secret |
+| `argocd-monitor-oauth` | `argocd-monitor` | `monitor` | oauth2-proxy client + fresh cookie secret |
+| `grafana-oauth-secret` | `monitoring` | `grafana` | Grafana Dex client secret |
+| `open-webui-oauth-secret` | `open-webui` | `open-webui` | Open WebUI Dex client secret |
+| `alertmanager-slack-secret` | `monitoring` | `slack` | Slack incoming webhook URL |
+
+### Bootstrap mode (seal everything)
+
+Use this on initial setup or after a cluster rebuild:
+
+```bash
+GITHUB_CLIENT_ID=Iv1.xxx \
+GITHUB_CLIENT_SECRET=xxx \
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... \
+  scripts/seal-argocd-dex
+```
+
+Equivalent to `scripts/seal-argocd-dex all`. Any variable you omit is
+prompted for interactively. Leave `SLACK_WEBHOOK_URL` blank at the
+prompt to skip sealing the Alertmanager Slack secret.
+
+### Rotate a single secret
+
+The subcommands re-seal one logical secret without re-prompting for
+unrelated values. They read existing keys from the running
+`argocd-dex-secret` to preserve everything they don't touch, so you
+must have run `all` once before.
+
+```bash
+scripts/seal-argocd-dex github       # Update GitHub OAuth credentials
+scripts/seal-argocd-dex argocd       # Re-derive argo-cd client from server.secretkey
+scripts/seal-argocd-dex monitor      # Rotate argocd-monitor client + cookie
+scripts/seal-argocd-dex grafana      # Rotate grafana Dex client secret
+scripts/seal-argocd-dex open-webui   # Rotate open-webui Dex client secret
+scripts/seal-argocd-dex slack        # Re-seal alertmanager Slack webhook
+```
+
+The `slack` subcommand stands alone (its secret is not part of
+`argocd-dex-secret`). Pass `SLACK_WEBHOOK_URL=...` or it prompts
+interactively — blank input is an error in this mode (use `all` to
+skip).
+
+### After running
+
+Commit the updated `*-secret.yaml` files and push. ArgoCD syncs them
+and the sealed-secrets controller decrypts them. Pods that read
+secrets via `envFrom` or `secretKeyRef` (Dex, Grafana, Open WebUI,
+Headlamp, argocd-monitor) cache values at startup, so the script also
+rolls out the affected workloads automatically.
 
 ## Rotate a secret
 
