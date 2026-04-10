@@ -492,15 +492,36 @@ dashboard.</p></li>
 </section>
 <section id="create-and-seal-the-mcp-server-secret">
 <h2>3 – Create and seal the MCP server secret<a class="headerlink" href="#create-and-seal-the-mcp-server-secret" title="Link to this heading">#</a></h2>
-<p>The MCP server needs four secret values. A helper script prompts for the
-GitHub OAuth credentials interactively (hidden input) and fetches the
-database password from the cluster automatically:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./scripts/seal-mcp-secret
+<p>The MCP server needs five secret values. Fetch the database password and
+service key from the running Supabase stack, generate a random JWT signing
+secret, and seal everything in one pipeline:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">DB_PASSWORD</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>supabase-credentials<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.password}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="k">)</span>
+<span class="nv">SERVICE_KEY</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>supabase-credentials<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.serviceKey}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="k">)</span>
+<span class="nv">DATABASE_URL</span><span class="o">=</span><span class="s2">&quot;postgresql://supabase_admin:</span><span class="si">${</span><span class="nv">DB_PASSWORD</span><span class="si">}</span><span class="s2">@supabase-supabase-db.supabase.svc.cluster.local:5432/postgres&quot;</span>
+<span class="nv">MCP_JWT_SECRET</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+
+<span class="nb">read</span><span class="w"> </span>-rsp<span class="w"> </span><span class="s2">&quot;GITHUB_CLIENT_ID: &quot;</span><span class="w"> </span>GITHUB_CLIENT_ID<span class="p">;</span><span class="w"> </span><span class="nb">echo</span>
+<span class="nb">read</span><span class="w"> </span>-rsp<span class="w"> </span><span class="s2">&quot;GITHUB_CLIENT_SECRET: &quot;</span><span class="w"> </span>GITHUB_CLIENT_SECRET<span class="p">;</span><span class="w"> </span><span class="nb">echo</span>
+
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>open-brain-mcp-secret<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="o">=</span>open-brain-mcp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">DATABASE_URL</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$DATABASE_URL</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">MCP_JWT_SECRET</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$MCP_JWT_SECRET</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">GITHUB_CLIENT_ID</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$GITHUB_CLIENT_ID</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">GITHUB_CLIENT_SECRET</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$GITHUB_CLIENT_SECRET</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">SUPABASE_SERVICE_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$SERVICE_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>kubeseal<span class="w"> </span>--format<span class="w"> </span>yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>kubernetes-services/additions/open-brain-mcp/templates/open-brain-mcp-secret.yaml
 </pre></div>
 </div>
-<p>The script generates a random <code class="docutils literal notranslate"><span class="pre">MCP_JWT_SECRET</span></code>, constructs the <code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code>
-from the existing <code class="docutils literal notranslate"><span class="pre">supabase-credentials</span></code> secret, and writes the sealed output
-to the SealedSecret manifest.</p>
+<p>(For a fresh cluster build, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code> produces this
+secret automatically from the <code class="docutils literal notranslate"><span class="pre">OPEN_BRAIN_GITHUB_CLIENT_ID</span></code> /
+<code class="docutils literal notranslate"><span class="pre">OPEN_BRAIN_GITHUB_CLIENT_SECRET</span></code> env vars.)</p>
 </section>
 <section id="commit-and-deploy-the-sealed-secret">
 <h2>4 – Commit and deploy the sealed secret<a class="headerlink" href="#commit-and-deploy-the-sealed-secret" title="Link to this heading">#</a></h2>

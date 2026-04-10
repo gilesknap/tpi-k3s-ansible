@@ -281,48 +281,7 @@ kubectl get nodes
 
 Expected output: your cluster nodes in `Ready` state.
 
-## Part 6: Access cluster web services remotely
-
-The `scripts/remote-cluster` script brings up the Kubernetes API tunnel and
-`kubectl port-forward` sessions for every cluster service in one command.
-Copy it to your **client machine** (not the devcontainer) and create
-`~/.remote-cluster.conf` with your cluster settings:
-
-```bash
-SSH_HOST="ssh.example.com"
-CONTROL_PLANE="node01.lan"
-```
-
-Then run:
-
-```bash
-./remote-cluster
-```
-
-This forwards:
-
-| Service | Local URL |
-|---------|-----------|
-| Kubernetes API | `https://127.0.0.1:6443` |
-| ArgoCD | `https://localhost:8080` |
-| Grafana | `http://localhost:3000` |
-| Headlamp | `http://localhost:4466` |
-| Longhorn | `http://localhost:8081` |
-| Open WebUI | `http://localhost:8082` |
-
-To tear down all forwards:
-
-```bash
-remote-cluster --kill
-```
-
-:::{tip}
-Authentication is handled by the SSH `ProxyCommand` — if your Cloudflare Access
-token has expired, the SSH connection will trigger a browser login automatically.
-You can override port assignments and `KUBECONFIG_FILE` in `~/.remote-cluster.conf`.
-:::
-
-## Part 7: Verification
+## Part 6: Verification
 
 ### Confirm Access policy is enforced
 

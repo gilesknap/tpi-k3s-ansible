@@ -104,41 +104,27 @@ ArgoCD syncs the SealedSecret automatically.
 
 ## The `seal-argocd-dex` recipe
 
-`scripts/seal-argocd-dex` seals all authentication-related secrets and
-supports both a one-shot bootstrap mode and per-secret subcommands for
-rotation.
+`scripts/seal-argocd-dex` rotates a single authentication-related
+secret in the live cluster. For full sealing during a rebuild, use
+`just generate-and-seal-all` instead — it runs `seal-from-json` over
+freshly generated values.
 
 ### Secrets it manages
 
 | Secret | Namespace | Subcommand | Source |
 |--------|-----------|------------|--------|
-| `argocd-dex-secret` | `argo-cd` | (all paths) | GitHub OAuth credentials + every Dex static client secret |
+| `argocd-dex-secret` | `argo-cd` | `github` / `argocd` | GitHub OAuth credentials + every Dex static client secret |
 | `argocd-monitor-oauth` | `argocd-monitor` | `monitor` | oauth2-proxy client + fresh cookie secret |
 | `grafana-oauth-secret` | `monitoring` | `grafana` | Grafana Dex client secret |
 | `open-webui-oauth-secret` | `open-webui` | `open-webui` | Open WebUI Dex client secret |
 | `alertmanager-slack-secret` | `monitoring` | `slack` | Slack incoming webhook URL |
 
-### Bootstrap mode (seal everything)
-
-Use this on initial setup or after a cluster rebuild:
-
-```bash
-GITHUB_CLIENT_ID=Iv1.xxx \
-GITHUB_CLIENT_SECRET=xxx \
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... \
-  scripts/seal-argocd-dex
-```
-
-Equivalent to `scripts/seal-argocd-dex all`. Any variable you omit is
-prompted for interactively. Leave `SLACK_WEBHOOK_URL` blank at the
-prompt to skip sealing the Alertmanager Slack secret.
-
 ### Rotate a single secret
 
 The subcommands re-seal one logical secret without re-prompting for
 unrelated values. They read existing keys from the running
-`argocd-dex-secret` to preserve everything they don't touch, so you
-must have run `all` once before.
+`argocd-dex-secret` to preserve everything they don't touch, so the
+secret must already exist (it is created during the rebuild path).
 
 ```bash
 scripts/seal-argocd-dex github       # Update GitHub OAuth credentials
@@ -151,8 +137,7 @@ scripts/seal-argocd-dex slack        # Re-seal alertmanager Slack webhook
 
 The `slack` subcommand stands alone (its secret is not part of
 `argocd-dex-secret`). Pass `SLACK_WEBHOOK_URL=...` or it prompts
-interactively — blank input is an error in this mode (use `all` to
-skip).
+interactively.
 
 ### After running
 
