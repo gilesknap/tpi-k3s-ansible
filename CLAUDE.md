@@ -71,6 +71,20 @@
   an override without editing `group_vars/all.yml`. Never change
   `repo_branch` in `all.yml` — it must always be `main`. To revert,
   run `just switch-branch main`.
+- **Check what the cluster is actually tracking before branching** — the
+  cluster may be on a feature branch (e.g. mid-validation of an open PR),
+  not `main`. Branching new work off `origin/main` then running
+  `just switch-branch <new-branch>` will silently roll back any commits
+  that exist only on the previously-tracked branch. The most painful
+  case is sealed secrets re-sealed during a rebuild: the new branch
+  applies the older (un-decryptable) versions from `main`, the
+  controller logs `no key could decrypt secret`, and consumer pods
+  drift from their live Secrets. Before creating a new working branch,
+  run `kubectl -n argo-cd get application <app> -o jsonpath='{.spec.sources[*].targetRevision}'`
+  (or any ArgoCD app pointing at this repo) to see the actual tracked
+  branch. If it's not `main`, **stop and ask the user** whether to:
+  (a) merge the tracked branch to main first, then branch off main, or
+  (b) base the new work on the currently-tracked branch.
 - **`known_hosts` task must be `serial: 1`** — parallel writes race.
 - **Traefik is disabled** — project uses `--disable=traefik` with NGINX Ingress.
 - **Multi-homed nodes** — K3s and flannel auto-detect the IP from the default

@@ -178,6 +178,24 @@ spec:
                 value: "true"
                 effect: NoSchedule
 
+          # K3s bundles scheduler, controller-manager and kube-proxy into the
+          # k3s-server process — there are no pods with component=kube-scheduler
+          # etc., so the chart-default Services end up with empty endpoints and
+          # the matching Down alert rules fire via absent(up{...}). Disable both
+          # the scrape targets and the default rules. The same components are
+          # still visible via the apiserver and kubelet ServiceMonitors.
+          kubeControllerManager:
+            enabled: false
+          kubeScheduler:
+            enabled: false
+          kubeProxy:
+            enabled: false
+          defaultRules:
+            rules:
+              kubeControllerManager: false
+              kubeScheduler: false
+              kubeProxyAlerting: false
+
     - path: ./kubernetes-services/additions/grafana
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
