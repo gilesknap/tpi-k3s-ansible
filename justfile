@@ -104,9 +104,10 @@ extract-secrets output_dir="/tmp/cluster-secrets":
 seal-from-json json_file:
     scripts/seal-from-json {{ json_file }}
 
-# Seal all Dex-related secrets (argocd-dex, monitor, grafana, open-webui oauth)
-seal-argocd-dex:
-    scripts/seal-argocd-dex
+# Seal Dex-related secrets. No arg = all; otherwise one of:
+# github, argocd, monitor, grafana, open-webui, slack (see scripts/seal-argocd-dex help)
+seal-argocd-dex target="":
+    scripts/seal-argocd-dex {{ target }}
 
 # Generate all secrets fresh and seal in one step (for rebuild)
 generate-and-seal-all output_dir="/tmp/cluster-secrets":
