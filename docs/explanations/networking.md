@@ -1,60 +1,10 @@
 # Networking
 
-This page explains the networking architecture: how traffic reaches cluster services,
-TLS certificate issuance, and the Cloudflare tunnel integration.
-
-## Ingress architecture
-
-```mermaid
-flowchart TB
-    subgraph Internet
-        CF[Cloudflare Edge]
-    end
-
-    subgraph LAN["Local Network"]
-        CLIENT[LAN Client]
-    end
-
-    subgraph Cluster["K3s Cluster"]
-        ING[ingress-nginx<br/>LoadBalancer on workers]
-        SVC1[echo service]
-        SVC2[grafana service]
-        SVC3[argocd service]
-        CFPOD[cloudflared pod]
-    end
-
-    CF -->|"tunnel"| CFPOD
-    CFPOD -->|"HTTP"| ING
-    CLIENT -->|"DNS → worker IP"| ING
-    ING --> SVC1 & SVC2 & SVC3
-```
-
-### NGINX Ingress (not Traefik)
-
-K3s ships Traefik as its default ingress controller, but this project disables it
-(`--disable=traefik`) and deploys **ingress-nginx** instead. Reasons:
-
-- More widely documented in the Kubernetes ecosystem
-- Better support for TLS passthrough (needed for ArgoCD)
-- More straightforward configuration model
-
-### LoadBalancer on workers
-
-The ingress-nginx controller runs on **worker nodes** (in multi-node clusters the
-control plane has a `NoSchedule` taint). DNS entries for all services must point to
-worker node IPs, not the control plane. For single-node clusters, DNS points to that
-single node.
-
-For round-robin across workers:
-
-```
-*.example.com  A  192.168.1.82
-*.example.com  A  192.168.1.83
-*.example.com  A  192.168.1.84
-```
-
-A single worker IP also works — kube-proxy routes traffic to the ingress pod
-regardless of which worker receives the connection.
+This page explains cluster routing and TLS: how TLS certificates are issued,
+how the Cloudflare tunnel provides external access, and how ArgoCD terminates
+TLS at the ingress. The ingress-nginx routing architecture itself — which is
+the entry point for Layer 2 authentication — lives in
+{doc}`authentication` under "Ingress architecture".
 
 ## TLS certificates
 
