@@ -130,7 +130,7 @@ idle until configured.
 :::{note}
 `enable_oauth2_proxy` controls whether cluster services require GitHub login.
 Leave it `false` until you have completed the {doc}`/how-to/oauth-setup` guide —
-otherwise services like Grafana and Longhorn will return errors because the
+otherwise services like Grafana will return errors because the
 OAuth proxy is not yet deployed.
 :::
 <!-- end:configure-cluster -->

@@ -13,8 +13,7 @@ All services deployed by ArgoCD, with their chart sources, versions, and access 
 | Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| Longhorn | `longhorn/longhorn` | 1.11.1 | `longhorn` | `longhorn.<domain>` | OAuth | Distributed block storage |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Longhorn, Supabase |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Supabase Studio |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
@@ -59,16 +58,17 @@ Image pinned to `0.9.2`.
 
 Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
 Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
-emails in `admin_emails` get Admin role, those in `viewer_emails` get Viewer. Longhorn persistent
-volumes for data (30Gi Grafana, 40Gi Prometheus). Grafana resource limits:
-100m/256Mi request, 500m/512Mi limit.
+emails in `admin_emails` get Admin role, those in `viewer_emails` get Viewer. Uses
+static `local-nvme` PVs pinned by node affinity (Grafana → node03 30Gi,
+Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
+500m/512Mi limit.
 
 Uses `ServerSideApply=true` sync option due to large CRDs.
 
 ### Headlamp
 
 Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
-(admin-only, same as Longhorn and Supabase Studio). After OAuth login,
+(admin-only, same as Supabase Studio). After OAuth login,
 paste a ServiceAccount token generated with
 `kubectl create token headlamp -n headlamp` to access the Kubernetes API.
 The Helm chart creates a ClusterRoleBinding granting `cluster-admin` to
@@ -84,23 +84,13 @@ NGINX ingress controller. Admission webhooks are disabled. Resource limits:
 
 DaemonSet that applies system tuning on all nodes:
 - Sets `rmem_max` and `wmem_max` to 7500000 (network buffers)
-- Blacklists Longhorn iSCSI devices from multipathd
 
 All busybox images pinned to `1.37`.
-
-### Longhorn
-
-Distributed block storage with replication, snapshots, and backup support. Includes a
-`VolumeSnapshotClass` for Kubernetes volume snapshots. Web UI protected with OAuth via
-oauth2-proxy. ServiceMonitor enabled for Prometheus metrics.
-
-**Additional manifests:** `additions/longhorn/`
-- `volume-snapshot-class.yaml` — VolumeSnapshotClass (default, Delete policy)
 
 ### oauth2-proxy
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Longhorn and
+for login. Protects services without native OIDC support: Headlamp and
 Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.
 
@@ -191,8 +181,8 @@ user role. Password login is disabled. Connects to both:
 - **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
 
 Models from both backends appear merged in the model dropdown. Stores chat history
-and user accounts in a Longhorn-backed 5Gi volume. Resource limits: 100m/256Mi
-request, 500m/1Gi limit.
+and user accounts on a static `local-nvme` PV pinned to node04 (5Gi). Resource
+limits: 100m/256Mi request, 500m/1Gi limit.
 
 :::{note}
 Either backend is optional. The service works with just RKLLama (RK1 cluster),
@@ -238,7 +228,8 @@ Components: db, auth, rest, realtime, storage, functions, studio, kong, meta,
 minio (10 pods total). All pods scheduled on x86/amd64 nodes.
 
 MinIO provides S3-compatible object storage for file attachments, backed by a
-Longhorn PVC. Studio is protected by OAuth via oauth2-proxy.
+static `local-nvme` PV pinned to nuc2. Studio is protected by OAuth via
+oauth2-proxy.
 
 **Additional manifests:** `additions/supabase/`
 - `templates/supabase-secret.yaml` — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)

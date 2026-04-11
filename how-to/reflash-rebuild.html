@@ -466,8 +466,11 @@ services. This is the nuclear option — use it when you want a completely clean
 </pre></div>
 </div>
 <p>This uninstalls K3s from every node, reinstalls it, and redeploys ArgoCD and all services.
-Persistent volume data on NVMe/Longhorn will survive if the underlying storage is not
-reformatted.</p>
+Stateful workload data under <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> (nuc2) and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code>
+(RK1 nodes) is preserved by default — these host directories back the static
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs and are left untouched unless <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> is
+passed. NFS backups on the NAS are always preserved (they live outside the
+cluster).</p>
 </section>
 <section id="reinstall-k3s-on-a-single-worker">
 <h2>Reinstall K3s on a single worker<a class="headerlink" href="#reinstall-k3s-on-a-single-worker" title="Link to this heading">#</a></h2>
@@ -502,7 +505,8 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <tr class="row-odd"><th class="head"><p>Operation</p></th>
 <th class="head"><p>eMMC</p></th>
 <th class="head"><p>NVMe</p></th>
-<th class="head"><p>Longhorn volumes</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data dirs</p></th>
+<th class="head"><p>NFS backups on NAS</p></th>
 <th class="head"><p>ArgoCD state</p></th>
 </tr>
 </thead>
@@ -510,12 +514,14 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <tr class="row-even"><td><p>Re-flash</p></td>
 <td><p>Erased</p></td>
 <td><p>Preserved</p></td>
-<td><p>Preserved (if on NVMe)</p></td>
+<td><p>Preserved (on host)</p></td>
+<td><p>Preserved (external)</p></td>
 <td><p>Redeployed from Git</p></td>
 </tr>
 <tr class="row-odd"><td><p>K3s reinstall</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Unchanged</p></td>
+<td><p>Preserved</p></td>
 <td><p>Preserved</p></td>
 <td><p>Redeployed from Git</p></td>
 </tr>
@@ -523,11 +529,15 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <td><p>Unchanged</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Preserved</p></td>
+<td><p>Preserved</p></td>
 <td><p>Reinstalled</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<p>The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data directories are <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> on nuc2 and
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code> on RK1 nodes. They are only removed when the
+decommission playbook is run with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>eMMC always remains the bootloader for RK1 nodes. The <code class="docutils literal notranslate"><span class="pre">ubuntu-rockchip-install</span></code> tool

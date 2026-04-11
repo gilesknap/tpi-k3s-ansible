@@ -128,7 +128,7 @@ ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
 This runs only the relevant stages:
 
 1. **`known_hosts`** — updates SSH known_hosts for all nodes
-2. **`servers`** — dist-upgrade, installs dependencies (`open-iscsi`, etc.)
+2. **`servers`** — dist-upgrade and installs base dependencies
 3. **`k3s`** — installs K3s control plane and worker nodes
 4. **`cluster`** — installs ArgoCD and deploys all cluster services
 

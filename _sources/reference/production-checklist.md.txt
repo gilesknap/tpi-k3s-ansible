@@ -36,7 +36,7 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] `admin-auth` secret created for Grafana/basic-auth services
 - [ ] oauth2-proxy deployed with GitHub OAuth credentials
-- [ ] OAuth enabled on Grafana, Longhorn, Open WebUI; Headlamp uses Dex OIDC
+- [ ] OAuth enabled on Grafana and Open WebUI; Headlamp and Supabase Studio gated by oauth2-proxy
 - [ ] ArgoCD admin password retrieved and changed from default
 
 ## Resource limits
@@ -47,16 +47,16 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 ## Storage
 
-- [ ] Longhorn deployed with 3 replicas per volume
-- [ ] VolumeSnapshotClass deployed
+- [ ] Every static PV in `additions/local-storage/` is `Bound` to its pod
+- [ ] `k8s_data_dirs` role has run on every node (directories exist under `/home/k8s-data/*` on nuc2 and `/var/lib/k8s-data/*` on RK1 nodes)
+- [ ] NAS NFS share is mounted by the `k8s-cluster-nfs` PVC in the `backups` namespace
+- [ ] At least one backup CronJob run has produced a file on the NAS under `/bigdisk/k8s-cluster/backups/`
 - [ ] NFS server configured for LLM model storage (if applicable)
-- [ ] Backup target configured in Longhorn (NFS or S3)
 
 ## Monitoring
 
 - [ ] kube-prometheus-stack deployed (Prometheus + Grafana + Alertmanager)
 - [ ] Grafana accessible and showing dashboards
-- [ ] Longhorn ServiceMonitor enabled
 - [ ] Alert rules reviewed and customised
 
 ## Security
@@ -76,6 +76,6 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 ## Backups
 
-- [ ] Longhorn volume snapshots configured (recurring)
+- [ ] CronJob backup targets verified with at least 7 days of retention on NAS
 - [ ] Sealed-secrets key exported and stored securely
 - [ ] Disaster recovery procedure documented and tested

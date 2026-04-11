@@ -41,15 +41,15 @@ Prometheus discovers scrape targets via **ServiceMonitor** resources. The
 kube-prometheus-stack automatically creates ServiceMonitors for core Kubernetes
 components.
 
-Additional services can be monitored by creating their own ServiceMonitor. For example,
-Longhorn has `serviceMonitor.enabled: true` in its Helm values, which creates a
-ServiceMonitor for Longhorn metrics.
+Additional services can be monitored by creating their own ServiceMonitor — set
+`serviceMonitor.enabled: true` in the service's Helm values (where supported) or
+ship a ServiceMonitor manifest alongside the app.
 
 ## Data retention
 
-Prometheus stores metrics data in a Longhorn persistent volume (40Gi by default,
-configured in `kubernetes-services/templates/grafana.yaml`). Default retention is 10
-days (kube-prometheus-stack default).
+Prometheus stores metrics data on a static `local-nvme` PV on node02 (40Gi by
+default, configured in `kubernetes-services/templates/grafana.yaml`). Default
+retention is 10 days (kube-prometheus-stack default).
 
 To change retention, add to the Prometheus Helm values:
 

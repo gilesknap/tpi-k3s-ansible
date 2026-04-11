@@ -844,16 +844,17 @@ body {
           }
         },
         {
-          icon: '\uD83D\uDCBE', name: 'Longhorn',
-          desc: 'Distributed block storage',
+          icon: '\uD83D\uDCBE', name: 'local-nvme PVs + NFS backups',
+          desc: 'Static host PVs with CronJob backups to NAS',
           modal: {
-            oneliner: 'Cloud-native distributed block storage for Kubernetes.',
+            oneliner: 'Static local-nvme PVs per host, backed up nightly to NAS via CronJobs.',
             features: [
-              'Replicated volumes across nodes',
-              'Snapshot and backup support',
-              'Web UI for volume management'
+              'One static PersistentVolume per stateful pod, pinned by node affinity',
+              'Data directories live under /home/k8s-data (nuc2) and /var/lib/k8s-data (RK1 nodes)',
+              'Daily and weekly backup CronJobs dump data to an NFS share on the NAS',
+              'Survives cluster rebuilds unless wipe_local_data=true is passed explicitly'
             ],
-            rationale: 'Simpler than Rook-Ceph, lower resource overhead, good for small clusters.',
+            rationale: 'Lower overhead and simpler failure modes than distributed block storage; reuses the existing NAS for durability.',
             link: 'explanations/architecture.html'
           }
         },
@@ -898,7 +899,7 @@ body {
           modal: {
             oneliner: 'Authentication gateway for services that do not support OIDC natively.',
             features: [
-              'Protects Longhorn UI, Supabase Studio, and other services',
+              'Protects Supabase Studio and Headlamp',
               'Email-based access control list',
               'Cookie-based session management'
             ],
@@ -949,7 +950,7 @@ body {
               'Prometheus scrapes cluster, node, and application metrics',
               'Grafana dashboards for visualization',
               'Alertmanager for notification routing',
-              'Persistent storage via Longhorn PVCs'
+              'Persistent storage via static local-nvme PVs'
             ],
             rationale: 'Industry-standard observability stack with mature ecosystem.',
             link: 'explanations/architecture.html'

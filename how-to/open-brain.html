@@ -429,8 +429,9 @@ container images do not reliably support ARM64.</p>
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>An x86/amd64 node in your cluster (any node with <code class="docutils literal notranslate"><span class="pre">kubernetes.io/arch:</span> <span class="pre">amd64</span></code>)</p></li>
-<li><p>An NFS export for database backups (optional — the database uses Longhorn
-by default)</p></li>
+<li><p>An NFS export for database backups (used by the daily/weekly backup
+CronJobs — the Supabase database itself runs on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code>
+PV on nuc2)</p></li>
 <li><p><a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc std std-doc">Cloudflare Tunnel</span></a> configured (for external access)</p></li>
 <li><p><a class="reference internal" href="oauth-setup.html"><span class="doc std std-doc">OAuth2 proxy</span></a> configured (for Studio dashboard access)</p></li>
 </ul>
@@ -452,9 +453,11 @@ by default)</p></li>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>The NFS settings are currently used only by the additions chart for potential
-future storage needs. The PostgreSQL database uses Longhorn block storage,
-which is more reliable for database workloads.</p>
+<p>The NFS export is used by the daily/weekly backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code>
+namespace — they dump <code class="docutils literal notranslate"><span class="pre">supabase-db</span></code> to NAS as compressed SQL files. The
+live Supabase PostgreSQL database, Storage and MinIO all run on static
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs pinned to nuc2, which is more reliable for database
+workloads than networked storage.</p>
 </div>
 </section>
 <section id="generate-and-seal-credentials">
@@ -740,7 +743,7 @@ through the context window.</p>
 <h2>File Attachments (Images, PDFs)<a class="headerlink" href="#file-attachments-images-pdfs" title="Link to this heading">#</a></h2>
 <p>Open Brain supports saving file attachments alongside thoughts using MinIO
 as an S3-compatible object store. Files are stored in a private Supabase
-Storage bucket (<code class="docutils literal notranslate"><span class="pre">brain-attachments</span></code>) backed by a Longhorn PVC.</p>
+Storage bucket (<code class="docutils literal notranslate"><span class="pre">brain-attachments</span></code>) backed by a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVC on nuc2.</p>
 <section id="how-it-works">
 <h3>How it works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h3>
 <ul class="simple">
@@ -759,7 +762,8 @@ from MinIO and returns base64 — works for viewing individual files.</p></li>
 this feature was added, verify that <code class="docutils literal notranslate"><span class="pre">deployment.minio.enabled:</span> <span class="pre">true</span></code> is set in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/supabase.yaml</span></code>. After pushing the change, ArgoCD
 will deploy MinIO automatically.</p>
-<p>The MinIO pod needs its own Longhorn PVC. Verify it is provisioned:</p>
+<p>The MinIO pod needs its own <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVC on nuc2. Verify it is
+provisioned and bound:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pvc<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>minio
 </pre></div>
 </div>
@@ -777,8 +781,11 @@ sealed secret.</p>
 <h2>Disable Open Brain<a class="headerlink" href="#disable-open-brain" title="Link to this heading">#</a></h2>
 <p>To remove Supabase from your cluster, set <code class="docutils literal notranslate"><span class="pre">enable_supabase:</span> <span class="pre">false</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, commit, push, and re-run the playbook.
-ArgoCD will prune all Supabase resources. The Longhorn PVC retains your
-data until manually deleted.</p>
+ArgoCD will prune the Supabase Application resources, but the underlying
+data directories on nuc2 (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code>, <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code>) are
+preserved across rebuilds and are only removed if you explicitly pass
+<code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> to <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>.</p>
 </section>
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
@@ -799,8 +806,9 @@ Always include both headers:</p>
 <h3>Database pod CrashLoopBackOff<a class="headerlink" href="#database-pod-crashloopbackoff" title="Link to this heading">#</a></h3>
 <p>If the DB pod fails with <code class="docutils literal notranslate"><span class="pre">chown:</span> <span class="pre">Operation</span> <span class="pre">not</span> <span class="pre">permitted</span></code>, the storage
 backend does not support ownership changes. The default configuration uses
-Longhorn which handles this correctly. If you switched to NFS, you need
-<code class="docutils literal notranslate"><span class="pre">no_root_squash</span></code> on the NFS export.</p>
+a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on nuc2 (backed by a plain hostPath under
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>), which handles ownership changes correctly.
+If you switched to NFS, you need <code class="docutils literal notranslate"><span class="pre">no_root_squash</span></code> on the NFS export.</p>
 </section>
 <section id="argocd-not-permitted-in-project">
 <h3>ArgoCD “not permitted in project”<a class="headerlink" href="#argocd-not-permitted-in-project" title="Link to this heading">#</a></h3>

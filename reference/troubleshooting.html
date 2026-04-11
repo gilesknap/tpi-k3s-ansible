@@ -515,7 +515,7 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 <section id="viewer-emails-can-access-oauth2-proxy-gated-services">
 <h3>Viewer emails can access oauth2-proxy-gated services<a class="headerlink" href="#viewer-emails-can-access-oauth2-proxy-gated-services" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> Users with viewer emails can access admin-only services
-(Longhorn, Supabase Studio) — oauth2-proxy returns 202 instead of 403.</p>
+(Headlamp, Supabase Studio) — oauth2-proxy returns 202 instead of 403.</p>
 <p><strong>Cause:</strong> The oauth2-proxy Helm chart generates <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[&quot;*&quot;]</span></code> in
 its default ConfigMap. This acts as an OR with <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> —
 any email from any domain passes the domain check, so the restrictive email
@@ -606,33 +606,24 @@ This avoids polluting your browser cache with intermediate states.</p>
 </div>
 </section>
 </section>
-<section id="longhorn">
-<h2>Longhorn<a class="headerlink" href="#longhorn" title="Link to this heading">#</a></h2>
-<section id="cannot-uninstall-longhorn">
-<h3>Cannot uninstall Longhorn<a class="headerlink" href="#cannot-uninstall-longhorn" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">uninstall</span> <span class="pre">longhorn</span></code> hangs or fails.</p>
-<p><strong>Cause:</strong> Longhorn requires its uninstall job to detach all volumes and clean up
-node state. Volumes still attached to running pods prevent uninstall.</p>
-<p><strong>Fix:</strong></p>
-<ol class="arabic simple">
-<li><p>Scale down all workloads using Longhorn PVCs</p></li>
-<li><p>Delete any remaining PVCs manually</p></li>
-<li><p>Run the Longhorn uninstall procedure:</p></li>
-</ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>longhorn<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>https://raw.githubusercontent.com/longhorn/longhorn/master/uninstall/uninstall.yaml
-kubectl<span class="w"> </span>-n<span class="w"> </span>longhorn<span class="w"> </span>get<span class="w"> </span>job/longhorn-uninstall<span class="w"> </span>-w
-<span class="c1"># Wait for completion, then</span>
-helm<span class="w"> </span>uninstall<span class="w"> </span>longhorn<span class="w"> </span>-n<span class="w"> </span>longhorn
-</pre></div>
-</div>
+<section id="local-nvme-pvs-and-nfs-backups">
+<h2>Local-nvme PVs and NFS backups<a class="headerlink" href="#local-nvme-pvs-and-nfs-backups" title="Link to this heading">#</a></h2>
+<section id="static-pv-not-bound">
+<h3>Static PV not bound<a class="headerlink" href="#static-pv-not-bound" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> A pod stuck <code class="docutils literal notranslate"><span class="pre">Pending</span></code> with events like <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">persistent</span> <span class="pre">volumes</span> <span class="pre">available</span> <span class="pre">for</span> <span class="pre">this</span> <span class="pre">claim</span></code>.</p>
+<p><strong>Check:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">-l</span> <span class="pre">type=local-nvme</span></code> — every PV listed in
+<code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code> should be <code class="docutils literal notranslate"><span class="pre">Bound</span></code>.</p>
+<p><strong>Fix:</strong> Verify the data directory exists on the target node
+(<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/&lt;app&gt;</span></code> on nuc2, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/&lt;app&gt;</span></code> on the RK1
+nodes); re-run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> to let the
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role recreate any missing directory.</p>
 </section>
-<section id="volume-degraded-replica-rebuilding">
-<h3>Volume degraded — replica rebuilding<a class="headerlink" href="#volume-degraded-replica-rebuilding" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Longhorn UI shows a volume as <code class="docutils literal notranslate"><span class="pre">Degraded</span></code> with replicas rebuilding.</p>
-<p><strong>Cause:</strong> A node was restarted or lost network temporarily. Longhorn
-automatically rebuilds under-replicated volumes.</p>
-<p><strong>Action:</strong> No action needed. Monitor progress in the Longhorn UI. Rebuilding
-typically completes within minutes depending on volume size.</p>
+<section id="restoring-from-an-nfs-backup">
+<h3>Restoring from an NFS backup<a class="headerlink" href="#restoring-from-an-nfs-backup" title="Link to this heading">#</a></h3>
+<p>The daily/weekly backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code> namespace write
+compressed dumps to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS. To find
+the latest, <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-lt</span> <span class="pre">/bigdisk/k8s-cluster/backups/supabase-db/</span></code> on the
+NAS host and pick the newest <code class="docutils literal notranslate"><span class="pre">*.sql.gz</span></code>.</p>
 </section>
 </section>
 <section id="networking">
@@ -783,8 +774,14 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class=
 <p><strong>Cause:</strong> NFS with <code class="docutils literal notranslate"><span class="pre">root_squash</span></code> prevents the Postgres container (UID 105,
 GID 106) from changing file ownership. Unlike most Postgres images that use
 UID/GID 999, the Supabase image uses non-standard IDs.</p>
-<p><strong>Fix:</strong> Use Longhorn (or another block storage provider) instead of NFS for
-the Postgres PVC. See <a class="reference internal" href="../explanations/decisions/0006-supabase-nfs-storage.html"><span class="doc">6. Supabase Database Storage on NAS via NFS</span></a>.</p>
+<p><strong>Fix:</strong> The Supabase database runs on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV pinned to
+nuc2 (backed by <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>) — plain filesystem ownership
+works correctly. NFS is used only by the backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code>
+namespace to write compressed <code class="docutils literal notranslate"><span class="pre">pg_dump</span></code> output to the NAS; the live
+database never touches NFS. See
+<a class="reference internal" href="../explanations/decisions/0006-supabase-nfs-storage.html"><span class="doc">6. Supabase Database Storage on NAS via NFS</span></a> for the original
+context and <a class="reference internal" href="../explanations/decisions/0012-drop-longhorn.html"><span class="doc">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></a> for the
+current architecture.</p>
 </section>
 <section id="kong-oomkilled">
 <h3>Kong OOMKilled<a class="headerlink" href="#kong-oomkilled" title="Link to this heading">#</a></h3>
@@ -819,8 +816,9 @@ use <code class="docutils literal notranslate"><span class="pre">basePath:</span
 <h3>MinIO CrashLoopBackOff — file access denied<a class="headerlink" href="#minio-crashloopbackoff-file-access-denied" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> MinIO pod crashes with <code class="docutils literal notranslate"><span class="pre">unable</span> <span class="pre">to</span> <span class="pre">rename</span> <span class="pre">/data/.minio.sys/tmp</span> <span class="pre">—</span> <span class="pre">file</span> <span class="pre">access</span> <span class="pre">denied,</span> <span class="pre">drive</span> <span class="pre">may</span> <span class="pre">be</span> <span class="pre">faulty</span></code>.</p>
 <p><strong>Cause:</strong> The Chainguard MinIO image (<code class="docutils literal notranslate"><span class="pre">cgr.dev/chainguard/minio</span></code>) runs as
-UID 65532 (nonroot). Longhorn PVCs are created with root ownership, so MinIO
-cannot write to the volume.</p>
+UID 65532 (nonroot). Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs are backed by hostPath
+directories created with root ownership, so MinIO cannot write to the
+volume.</p>
 <p><strong>Fix:</strong> Add <code class="docutils literal notranslate"><span class="pre">podSecurityContext.fsGroup:</span> <span class="pre">65532</span></code> to the MinIO deployment
 config in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/supabase.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deployment</span><span class="p">:</span>
@@ -968,9 +966,9 @@ tpi<span class="w"> </span>info
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#service-shows-blank-page-or-stale-ui-after-config-change">Service shows blank page or stale UI after config change</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn">Longhorn</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cannot-uninstall-longhorn">Cannot uninstall Longhorn</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#volume-degraded-replica-rebuilding">Volume degraded — replica rebuilding</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-nvme-pvs-and-nfs-backups">Local-nvme PVs and NFS backups</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#static-pv-not-bound">Static PV not bound</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restoring-from-an-nfs-backup">Restoring from an NFS backup</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a><ul class="nav section-nav flex-column">

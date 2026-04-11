@@ -65,8 +65,6 @@ Before exposing services, consider the risk profile of each:
 
 **Services deliberately excluded:**
 
-- **Longhorn** — no native authentication. If OAuth is bypassed, an attacker gets
-  full storage admin access. Keep it LAN-only.
 - **RKLlama** — internal API consumed by Open WebUI. No reason to expose directly.
 
 **Overall risk assessment:** The combination of Cloudflare Access + oauth2-proxy +

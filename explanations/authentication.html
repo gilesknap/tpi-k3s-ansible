@@ -928,27 +928,22 @@ Dex OIDC but receive only read-only access.</p>
 <td><p>oauth2-proxy + ServiceAccount token</p></td>
 <td><p>—</p></td>
 </tr>
-<tr class="row-odd"><td><p>Longhorn</p></td>
-<td><p>Cloudflare Access</p></td>
-<td><p>oauth2-proxy</p></td>
-<td><p>None (full access after auth)</p></td>
-</tr>
-<tr class="row-even"><td><p>Supabase Studio</p></td>
+<tr class="row-odd"><td><p>Supabase Studio</p></td>
 <td><p>Cloudflare Access</p></td>
 <td><p>oauth2-proxy</p></td>
 <td><p>Dashboard password</p></td>
 </tr>
-<tr class="row-odd"><td><p>Echo</p></td>
+<tr class="row-even"><td><p>Echo</p></td>
 <td><p>Cloudflare Access</p></td>
 <td><p>None</p></td>
 <td><p>None (public test service)</p></td>
 </tr>
-<tr class="row-even"><td><p>Open Brain MCP</p></td>
+<tr class="row-odd"><td><p>Open Brain MCP</p></td>
 <td><p>Cloudflare Access</p></td>
 <td><p>OAuth 2.1 (GitHub)</p></td>
 <td><p>x-brain-key</p></td>
 </tr>
-<tr class="row-odd"><td><p>Supabase API</p></td>
+<tr class="row-even"><td><p>Supabase API</p></td>
 <td><p>Bypass (no Access)</p></td>
 <td><p>x-brain-key</p></td>
 <td><p>—</p></td>
@@ -1078,12 +1073,12 @@ follow the 301 redirect from <code class="docutils literal notranslate"><span cl
 <section id="headlamp-oauth2-proxy-serviceaccount-token">
 <h3>Headlamp — oauth2-proxy + ServiceAccount token<a class="headerlink" href="#headlamp-oauth2-proxy-serviceaccount-token" title="Link to this heading">#</a></h3>
 <p>Headlamp is protected by the cluster-wide oauth2-proxy (admin-only,
-same as Longhorn and Supabase Studio). After authenticating via GitHub,
+same as Supabase Studio). After authenticating via GitHub,
 users paste a Kubernetes ServiceAccount token to access the dashboard.
 The token is generated with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">create</span> <span class="pre">token</span> <span class="pre">headlamp</span> <span class="pre">-n</span> <span class="pre">headlamp</span></code>.</p>
 </section>
-<section id="oauth2-proxy-services-headlamp-longhorn-supabase-studio">
-<h3>oauth2-proxy services — Headlamp, Longhorn, Supabase Studio<a class="headerlink" href="#oauth2-proxy-services-headlamp-longhorn-supabase-studio" title="Link to this heading">#</a></h3>
+<section id="oauth2-proxy-services-headlamp-and-supabase-studio">
+<h3>oauth2-proxy services — Headlamp and Supabase Studio<a class="headerlink" href="#oauth2-proxy-services-headlamp-and-supabase-studio" title="Link to this heading">#</a></h3>
 <p>Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
 through Dex). Only emails in the <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> list can authenticate —
@@ -1096,7 +1091,7 @@ viewer users cannot access these services.</p>
     participant GitHub
     participant Svc as Backend service
 
-    User-&gt;&gt;NGINX: Visit longhorn.&lt;domain&gt;
+    User-&gt;&gt;NGINX: Visit supabase-studio.&lt;domain&gt;
     NGINX-&gt;&gt;OAP: Auth subrequest
     OAP--&gt;&gt;NGINX: 401 (not authenticated)
     NGINX-&gt;&gt;User: Redirect to oauth2.&lt;domain&gt;
@@ -1149,7 +1144,6 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
 
         subgraph ProxyAuth[&quot;oauth2-proxy (admin only)&quot;]
             Headlamp
-            Longhorn
             Supabase[Supabase Studio]
         end
 
@@ -1169,7 +1163,6 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
     NGINX --&gt; Grafana
     NGINX --&gt; OpenWebUI
     NGINX --&gt; Headlamp
-    NGINX --&gt; Longhorn
     NGINX --&gt; Supabase
     NGINX --&gt; Echo
 
@@ -1178,7 +1171,6 @@ unreachable from inside the cluster, causing intermittent 500 errors.</p>
     Grafana &lt;-.-&gt; DexPod
     OpenWebUI &lt;-.-&gt; DexPod
     Headlamp &lt;-.-&gt; OAP
-    Longhorn &lt;-.-&gt; OAP
     Supabase &lt;-.-&gt; OAP
 
     DexPod &lt;-.-&gt; GH
@@ -1206,7 +1198,7 @@ Cloudflare Access (email allowlist) before reaching the cluster.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy.yaml</span></code></p></td>
-<td><p>Email allowlist — only admins can access Longhorn, Supabase Studio</p></td>
+<td><p>Email allowlist — only admins can access Supabase Studio and Headlamp</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">role_attribute_path</span></code> — admin emails get <code class="docutils literal notranslate"><span class="pre">Admin</span></code>, others get <code class="docutils literal notranslate"><span class="pre">Viewer</span></code></p></td>
@@ -1225,8 +1217,7 @@ Cloudflare Access (email allowlist) before reaching the cluster.</p>
 </div>
 <p><strong>Viewer emails</strong> authenticate via Dex OIDC and receive read-only roles:
 ArgoCD <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, Grafana <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>, Open WebUI <code class="docutils literal notranslate"><span class="pre">user</span></code>. They
-cannot access oauth2-proxy-gated services (Longhorn, Supabase Studio)
-or oauth2-proxy-gated services (Headlamp).</p>
+cannot access oauth2-proxy-gated services (Headlamp, Supabase Studio).</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> must be kept in sync in two places:</p>
@@ -1283,12 +1274,12 @@ watched).</p>
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
 viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use
 Dex for authentication, which allows both admin and viewer users to log
-in with differentiated roles. Services without native OIDC (Longhorn,
-Supabase Studio) use oauth2-proxy as a binary admin-only gate. Headlamp
+in with differentiated roles. Services without native OIDC (Supabase
+Studio) use oauth2-proxy as a binary admin-only gate. Headlamp
 uses ServiceAccount token auth for simplicity.</p>
 <p><strong>Why is oauth2-proxy admin-only?</strong> oauth2-proxy has no concept of roles —
-it either allows or denies an email. Since Longhorn and Supabase Studio
-have no app-level RBAC, giving viewer users access would grant them full
+it either allows or denies an email. Since Supabase Studio has no
+app-level RBAC, giving viewer users access would grant them full
 admin capabilities. Restricting oauth2-proxy to <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> ensures
 only trusted operators can reach these destructive admin tools.</p>
 <p><strong>Why not a standalone Dex deployment?</strong> Running Dex inside ArgoCD avoids
@@ -1357,7 +1348,7 @@ ConfigMap rather than a standalone Helm chart.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-generic-oauth-via-dex">Grafana — generic OAuth via Dex</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui-native-oidc-via-dex">Open WebUI — native OIDC via Dex</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp-oauth2-proxy-serviceaccount-token">Headlamp — oauth2-proxy + ServiceAccount token</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-services-headlamp-longhorn-supabase-studio">oauth2-proxy services — Headlamp, Longhorn, Supabase Studio</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-services-headlamp-and-supabase-studio">oauth2-proxy services — Headlamp and Supabase Studio</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-cluster-auth-map">Full cluster auth map</a></li>
