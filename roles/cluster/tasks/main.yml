@@ -14,22 +14,39 @@
   when: groups['all_nodes'] | length > 1
 
 
+# install services - only ArgoCD for now - it adds everything else
+
+- name: Cluster Install of services
+  ansible.builtin.include_tasks: "{{ cluster_service }}.yml"
+  loop: "{{  cluster_install_list }}"
+  when: cluster_install_list is defined
+  loop_control:
+    loop_var: cluster_service
+
 # Split-horizon DNS: resolve cluster subdomains to the ingress ClusterIP from
 # inside the cluster, so pods calling Dex (argocd.<domain>) don't hairpin
-# through Cloudflare. K3s CoreDNS imports /etc/coredns/custom/*.server as
-# separate server blocks from the coredns-custom ConfigMap.
-- name: Look up the NGINX ingress ClusterIP
+# through Cloudflare. Without this, argocd-server's OIDC token exchange
+# against `https://argocd.<domain>/api/dex` gets intercepted by Cloudflare
+# Access and returns HTML, breaking SSO login with
+# `expected Content-Type = application/json, got "text/html"`.
+#
+# Must run *after* argocd.yml because ingress-nginx is provisioned by
+# ArgoCD as part of the cluster services sync — on a fresh bootstrap the
+# Service doesn't exist until the root Application fans out. Wait for it
+# to appear, then write the override. K3s CoreDNS imports
+# /etc/coredns/custom/*.server as separate server blocks from the
+# coredns-custom ConfigMap.
+- name: Wait for NGINX ingress Service to be provisioned by ArgoCD
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Service
     namespace: ingress-nginx
     name: ingress-ingress-nginx-controller
   register: ingress_svc
+  retries: 60
+  delay: 5
+  until: ingress_svc.resources | length > 0
 
-# On a fresh bootstrap, ingress-nginx is installed by ArgoCD *after* this
-# role runs, so the lookup above returns no resources. Skip the override on
-# the first pass — re-running --tags cluster after ArgoCD has converged
-# applies it idempotently.
 - name: Create CoreDNS split-horizon override for cluster domain
   kubernetes.core.k8s:
     force: true
@@ -46,16 +63,17 @@
               {{ ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
             }
           }
-  when: ingress_svc.resources | length > 0
+  register: coredns_override
 
-# install services - only ArgoCD for now - it adds everything else
-
-- name: Cluster Install of services
-  ansible.builtin.include_tasks: "{{ cluster_service }}.yml"
-  loop: "{{  cluster_install_list }}"
-  when: cluster_install_list is defined
-  loop_control:
-    loop_var: cluster_service
+# CoreDNS reloads the Corefile every 15s via the `reload` directive, but
+# argocd-server has already cached the old Cloudflare-resolved address in
+# its HTTP client connection pool. Restart it so subsequent OIDC token
+# exchanges resolve the new in-cluster IP.
+- name: Rollout restart argocd-server to flush DNS cache # noqa no-handler
+  ansible.builtin.command: >
+    kubectl rollout restart -n argo-cd deployment argocd-server
+  when: coredns_override.changed
+  changed_when: true
 
 # kube-prometheus-stack's webhook TLS secret is normally created by a Helm
 # hook job, but ArgoCD prunes hook jobs so the secret never appears.

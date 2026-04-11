@@ -19,12 +19,22 @@
 # trustedPeers), so the secret must match exactly or OAuth callbacks fail
 # with "invalid_client". Delegate to the script so the derivation lives in
 # one place (see scripts/derive-argocd-client-secret).
+#
+# On a fresh bootstrap, `helm install` above creates `argocd-secret` with
+# only `admin.password` — the argocd-server pod patches in
+# `server.secretkey` a few seconds later when it starts up. Retry the
+# derivation until the script stops failing (fail-fast on empty input),
+# otherwise we'd silently render the empty-hash
+# `47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hS` into the configmap.
 - name: Derive Dex argo-cd client secret
   ansible.builtin.command:
     cmd: scripts/derive-argocd-client-secret
     chdir: "{{ playbook_dir }}"
   register: _dex_secret_cmd
   changed_when: false
+  retries: 30
+  delay: 2
+  until: _dex_secret_cmd.rc == 0
 
 - name: Set Dex client secret fact
   ansible.builtin.set_fact:
