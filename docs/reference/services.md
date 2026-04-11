@@ -1,6 +1,124 @@
 # Services Reference
 
-All services deployed by ArgoCD, with their chart sources, versions, and access methods.
+All services deployed by ArgoCD, with their chart sources, versions, and access
+methods. If you are trying to decide *what to install*, start with
+**Quick-start configurations** below. If you already know what you want, skip
+down to the **Service catalogue** for the reference table and per-service
+details.
+
+## Quick-start configurations
+
+Not every cluster needs every service. This section helps you pick a
+configuration based on what you actually want to run. Services can be
+individually enabled or disabled — see {doc}`/how-to/add-remove-services`.
+
+### Baseline (always installed)
+
+All configurations below assume the baseline plumbing that makes ingress,
+TLS, and human login work:
+
+- **cert-manager** — Let's Encrypt TLS via Cloudflare DNS-01
+- **ingress-nginx** — HTTP(S) ingress controller
+- **oauth2-proxy** — GitHub OAuth gate for services without native OIDC
+- **Sealed Secrets** — encrypted secrets committed to Git
+- **cloudflared** — outbound Cloudflare tunnel (external access without opening ports)
+
+**Baseline prerequisites:**
+
+- A Cloudflare-managed domain (set via `cluster_domain` in `group_vars/all.yml`)
+- A Cloudflare API token with DNS edit + Tunnel permissions
+- **Two** GitHub OAuth Apps for human logins — one for Dex (OIDC services)
+  and one for oauth2-proxy (services without native OIDC)
+
+See {doc}`/how-to/oauth-setup` and {doc}`/how-to/cloudflare-tunnel` for the
+setup steps.
+
+### LLM-only — private ChatGPT
+
+Run local LLMs behind a ChatGPT-style web UI. No databases, no memory,
+no external APIs. This is the smallest useful deployment on a pure
+Turing Pi cluster.
+
+**Install:** RKLLama (*or* llama.cpp), Open WebUI.
+
+**Hardware prerequisites:**
+
+- **RKLLama** — one or more Rockchip RK1 nodes with NPUs (Turing Pi RK1 modules)
+- **llama.cpp** — one x86 node with an NVIDIA GPU (`nvidia_gpu_node: true` in `extra_nodes`)
+- **Open WebUI** — one x86 node (pinned to `node04` by default)
+
+Either backend works on its own — or run both and Open WebUI will merge
+them in a single model dropdown.
+
+**Storage prerequisites:**
+
+- An NFS share for model files (shared across LLM backends — see {doc}`/how-to/nas-setup`)
+- `/var/lib/k8s-data/open-webui` on the Open WebUI host (5Gi for chat history and user accounts)
+
+### AI memory — Claude with long-term recall
+
+Give Claude.ai and Claude Code a persistent memory via an MCP server, backed
+by Supabase (PostgreSQL + S3-compatible MinIO). Add Open WebUI if you also
+want a browser chat interface over the same backend.
+
+**Install:** Supabase (full stack), Open Brain MCP, *(optionally)* Open WebUI.
+
+**Hardware prerequisites:**
+
+- One x86/amd64 node for the full Supabase stack — 10 pods, all scheduled
+  on `amd64` (pinned to `nuc2` by default)
+- Optionally: an x86 node for Open WebUI (pinned to `node04`)
+
+**Storage prerequisites:**
+
+- `/home/k8s-data/supabase-db`, `/home/k8s-data/supabase-storage`, and
+  `/home/k8s-data/supabase-minio` on the Supabase host
+- An NFS share for PostgreSQL backups — see {doc}`/how-to/nas-setup` and
+  {doc}`/how-to/backup-restore`
+
+**Other prerequisites:**
+
+- A **third** GitHub OAuth App — Open Brain MCP uses its own OAuth client,
+  separate from the baseline Dex and oauth2-proxy apps (see {doc}`/how-to/open-brain`)
+
+### Monitoring-only — dashboards and alerts
+
+Metrics, dashboards, and Slack/email alerting for the cluster and any
+workloads you add. Useful as a standalone observability cluster.
+
+**Install:** kube-prometheus-stack (Grafana + Prometheus + Alertmanager).
+
+**Hardware prerequisites:**
+
+- Two x86 nodes — one for Prometheus (pinned to `node02`), one for Grafana
+  (pinned to `node03`)
+
+**Storage prerequisites:**
+
+- `/var/lib/k8s-data/prometheus` on the Prometheus host (40Gi)
+- `/var/lib/k8s-data/grafana` on the Grafana host (30Gi)
+
+**Other prerequisites:**
+
+- Optional: a Slack webhook for Alertmanager notifications
+  (see {doc}`/how-to/monitoring`)
+
+### Full stack — everything
+
+Install every service in the catalogue below. Use this if you have the
+hardware and want the full experience out of the box.
+
+**Minimum hardware:**
+
+- 1× x86 node for Supabase (`nuc2` role — hosts the 10-pod Supabase stack)
+- 2× x86 nodes for Prometheus and Grafana pinning (`node02`, `node03`)
+- 1× x86 node for Open WebUI (`node04`)
+- 1× RK1 *or* NVIDIA GPU node for LLM inference (at least one)
+- A NAS with two NFS exports: one for LLM model files, one for database backups
+
+**Other prerequisites:**
+
+- Everything listed under the baseline and the individual configurations above
 
 ## Service catalogue
 
