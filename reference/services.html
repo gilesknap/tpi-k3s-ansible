@@ -395,7 +395,121 @@
                   
   <section id="services-reference">
 <h1>Services Reference<a class="headerlink" href="#services-reference" title="Link to this heading">#</a></h1>
-<p>All services deployed by ArgoCD, with their chart sources, versions, and access methods.</p>
+<p>All services deployed by ArgoCD, with their chart sources, versions, and access
+methods. If you are trying to decide <em>what to install</em>, start with
+<strong>Quick-start configurations</strong> below. If you already know what you want, skip
+down to the <strong>Service catalogue</strong> for the reference table and per-service
+details.</p>
+<section id="quick-start-configurations">
+<h2>Quick-start configurations<a class="headerlink" href="#quick-start-configurations" title="Link to this heading">#</a></h2>
+<p>Not every cluster needs every service. This section helps you pick a
+configuration based on what you actually want to run. Services can be
+individually enabled or disabled — see <a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or Remove Services</span></a>.</p>
+<section id="baseline-always-installed">
+<h3>Baseline (always installed)<a class="headerlink" href="#baseline-always-installed" title="Link to this heading">#</a></h3>
+<p>All configurations below assume the baseline plumbing that makes ingress,
+TLS, and human login work:</p>
+<ul class="simple">
+<li><p><strong>cert-manager</strong> — Let’s Encrypt TLS via Cloudflare DNS-01</p></li>
+<li><p><strong>ingress-nginx</strong> — HTTP(S) ingress controller</p></li>
+<li><p><strong>oauth2-proxy</strong> — GitHub OAuth gate for services without native OIDC</p></li>
+<li><p><strong>Sealed Secrets</strong> — encrypted secrets committed to Git</p></li>
+<li><p><strong>cloudflared</strong> — outbound Cloudflare tunnel (external access without opening ports)</p></li>
+</ul>
+<p><strong>Baseline prerequisites:</strong></p>
+<ul class="simple">
+<li><p>A Cloudflare-managed domain (set via <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>)</p></li>
+<li><p>A Cloudflare API token with DNS edit + Tunnel permissions</p></li>
+<li><p><strong>Two</strong> GitHub OAuth Apps for human logins — one for Dex (OIDC services)
+and one for oauth2-proxy (services without native OIDC)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> and <a class="reference internal" href="../how-to/cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> for the
+setup steps.</p>
+</section>
+<section id="llm-only-private-chatgpt">
+<h3>LLM-only — private ChatGPT<a class="headerlink" href="#llm-only-private-chatgpt" title="Link to this heading">#</a></h3>
+<p>Run local LLMs behind a ChatGPT-style web UI. No databases, no memory,
+no external APIs. This is the smallest useful deployment on a pure
+Turing Pi cluster.</p>
+<p><strong>Install:</strong> RKLLama (<em>or</em> llama.cpp), Open WebUI.</p>
+<p><strong>Hardware prerequisites:</strong></p>
+<ul class="simple">
+<li><p><strong>RKLLama</strong> — one or more Rockchip RK1 nodes with NPUs (Turing Pi RK1 modules)</p></li>
+<li><p><strong>llama.cpp</strong> — one x86 node with an NVIDIA GPU (<code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>)</p></li>
+<li><p><strong>Open WebUI</strong> — one x86 node (pinned to <code class="docutils literal notranslate"><span class="pre">node04</span></code> by default)</p></li>
+</ul>
+<p>Either backend works on its own — or run both and Open WebUI will merge
+them in a single model dropdown.</p>
+<p><strong>Storage prerequisites:</strong></p>
+<ul class="simple">
+<li><p>An NFS share for model files (shared across LLM backends — see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code> on the Open WebUI host (5Gi for chat history and user accounts)</p></li>
+</ul>
+</section>
+<section id="ai-memory-claude-with-long-term-recall">
+<h3>AI memory — Claude with long-term recall<a class="headerlink" href="#ai-memory-claude-with-long-term-recall" title="Link to this heading">#</a></h3>
+<p>Give Claude.ai and Claude Code a persistent memory via an MCP server, backed
+by Supabase (PostgreSQL + S3-compatible MinIO). Add Open WebUI if you also
+want a browser chat interface over the same backend.</p>
+<p><strong>Install:</strong> Supabase (full stack), Open Brain MCP, <em>(optionally)</em> Open WebUI.</p>
+<p><strong>Hardware prerequisites:</strong></p>
+<ul class="simple">
+<li><p>One x86/amd64 node for the full Supabase stack — 10 pods, all scheduled
+on <code class="docutils literal notranslate"><span class="pre">amd64</span></code> (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default)</p></li>
+<li><p>Optionally: an x86 node for Open WebUI (pinned to <code class="docutils literal notranslate"><span class="pre">node04</span></code>)</p></li>
+</ul>
+<p><strong>Storage prerequisites:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>, <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code> on the Supabase host</p></li>
+<li><p>An NFS share for PostgreSQL backups — see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> and
+<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and Restore</span></a></p></li>
+</ul>
+<p><strong>Other prerequisites:</strong></p>
+<ul class="simple">
+<li><p>A <strong>third</strong> GitHub OAuth App — Open Brain MCP uses its own OAuth client,
+separate from the baseline Dex and oauth2-proxy apps (see <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a>)</p></li>
+</ul>
+</section>
+<section id="monitoring-only-dashboards-and-alerts">
+<h3>Monitoring-only — dashboards and alerts<a class="headerlink" href="#monitoring-only-dashboards-and-alerts" title="Link to this heading">#</a></h3>
+<p>Metrics, dashboards, and Slack/email alerting for the cluster and any
+workloads you add. Useful as a standalone observability cluster.</p>
+<p><strong>Install:</strong> kube-prometheus-stack (Grafana + Prometheus + Alertmanager).</p>
+<p><strong>Hardware prerequisites:</strong></p>
+<ul class="simple">
+<li><p>Two x86 nodes — one for Prometheus (pinned to <code class="docutils literal notranslate"><span class="pre">node02</span></code>), one for Grafana
+(pinned to <code class="docutils literal notranslate"><span class="pre">node03</span></code>)</p></li>
+</ul>
+<p><strong>Storage prerequisites:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code> on the Prometheus host (40Gi)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code> on the Grafana host (30Gi)</p></li>
+</ul>
+<p><strong>Other prerequisites:</strong></p>
+<ul class="simple">
+<li><p>Optional: a Slack webhook for Alertmanager notifications
+(see <a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring with Grafana and Prometheus</span></a>)</p></li>
+</ul>
+</section>
+<section id="full-stack-everything">
+<h3>Full stack — everything<a class="headerlink" href="#full-stack-everything" title="Link to this heading">#</a></h3>
+<p>Install every service in the catalogue below. Use this if you have the
+hardware and want the full experience out of the box.</p>
+<p><strong>Minimum hardware:</strong></p>
+<ul class="simple">
+<li><p>1× x86 node for Supabase (<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> role — hosts the 10-pod Supabase stack)</p></li>
+<li><p>2× x86 nodes for Prometheus and Grafana pinning (<code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code>)</p></li>
+<li><p>1× x86 node for Open WebUI (<code class="docutils literal notranslate"><span class="pre">node04</span></code>)</p></li>
+<li><p>1× RK1 <em>or</em> NVIDIA GPU node for LLM inference (at least one)</p></li>
+<li><p>A NAS with two NFS exports: one for LLM model files, one for database backups</p></li>
+</ul>
+<p><strong>Other prerequisites:</strong></p>
+<ul class="simple">
+<li><p>Everything listed under the baseline and the individual configurations above</p></li>
+</ul>
+</section>
+</section>
 <section id="service-catalogue">
 <h2>Service catalogue<a class="headerlink" href="#service-catalogue" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -799,6 +913,14 @@ across services.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start-configurations">Quick-start configurations</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#baseline-always-installed">Baseline (always installed)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-only-private-chatgpt">LLM-only — private ChatGPT</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ai-memory-claude-with-long-term-recall">AI memory — Claude with long-term recall</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#monitoring-only-dashboards-and-alerts">Monitoring-only — dashboards and alerts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-stack-everything">Full stack — everything</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-catalogue">Service catalogue</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-details">Service details</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager">cert-manager</a></li>
