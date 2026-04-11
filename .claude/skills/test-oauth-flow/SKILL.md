@@ -146,9 +146,20 @@ For each service:
     if (b.textContent.includes('GitHub')) b.click();
   });
   ```
-- **Cloudflare Access redirect** — some services redirect through
-  `*.cloudflareaccess.com` first. The browser's existing session
-  typically auto-approves.
+- **Cloudflare Access redirect** — some services (currently Supabase)
+  sit behind a Cloudflare Access app in addition to ingress oauth2-proxy.
+  The non-incognito Chrome session usually has an existing
+  `CF_Authorization` cookie that auto-approves. **But**: each Access app
+  also sets a per-app `CF_AppSession` cookie with the `HttpOnly` flag.
+  `document.cookie` cannot read or clear HttpOnly cookies, so the Step 2
+  JS is useless against them. A stale `CF_AppSession` from a prior
+  cluster session will make CF Access return **503 in the browser** even
+  though the cluster-side path is healthy. To flush it, navigate to
+  `https://<access-team>.cloudflareaccess.com/cdn-cgi/access/logout`
+  before retrying. Note: the `clusterapps` Access policy requires
+  interactive email-OTP sign-in with no SSO fallback — meaning after a
+  logout, Supabase cannot be fully browser-tested automatically. Stop
+  at the OTP prompt and report.
 - **ArgoCD is usually already logged in** from the playbook run.
 - **Post-redirect login page** — the most common false-positive is when
   OAuth completes the redirect but the service shows "Login failed" on
@@ -195,6 +206,13 @@ If services fail:
    doesn't match `argocd-dex-secret`. Re-seal all secrets.
 3. **Redirect loop** — clear cookies and retry. If persistent, check
    oauth2-proxy cookie name conflicts.
-4. **502/503** — pod not ready. Check `kubectl get pods -A | grep -v Running`.
+4. **502/503** — diagnose cluster-side vs edge-side before touching pods:
+   - `curl -o /dev/null -w '%{http_code}\n' https://<service>.<domain>` —
+     a 302 to `*.cloudflareaccess.com` means the cluster-side path is fine.
+   - `kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --since=5m | grep <service>` —
+     only 401s mean oauth2-proxy is working as designed; 503s here mean a
+     real origin problem. No 503s in ingress logs + a 503 in the browser =
+     Cloudflare Access stale cookie (see gotcha above), not a pod issue.
+   - Only after ruling those out: `kubectl get pods -A | grep -v Running`.
 5. **Headlamp shows OIDC error** — the old OIDC config may still be cached.
    Restart the Headlamp pod: `kubectl rollout restart deployment headlamp -n headlamp`.
