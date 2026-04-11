@@ -13,10 +13,25 @@ All cluster customisation lives in just **two files**
 so you can fork the repo, edit those files, and have your own cluster running
 in minutes.
 
+## Architecture at a glance
+
+The cluster is GitOps-first: Ansible bootstraps K3s and ArgoCD, then
+ArgoCD syncs everything else from `kubernetes-services/` in this repo.
+Stateful data lives on **static `local-nvme` PVs** — one per workload,
+pinned to a specific node — with **daily and weekly CronJob backups to
+NFS** on a NAS. This keeps operations simple (no replicated CSI driver)
+while still surviving cluster rebuilds and giving off-cluster
+point-in-time restore. See the
+[**Interactive Architecture Showcase**](https://gilesknap.github.io/tpi-k3s-ansible/architecture.html)
+for a visual tour, the [architecture explanation](https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html)
+for the layered model, and the
+[services reference](https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html)
+for quick-start configurations (LLM-only, AI memory, monitoring, full
+stack) to help you pick which services to run.
+
 Source          | <https://github.com/gilesknap/tpi-k3s-ansible>
 :---:           | :---:
 Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
-**Architecture**    | [**Interactive Architecture Showcase**](https://gilesknap.github.io/tpi-k3s-ansible/architecture.html) — visual guide to every layer of the cluster
 
 ## Features
 

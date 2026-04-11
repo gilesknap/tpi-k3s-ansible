@@ -9,6 +9,18 @@ configured first — see {doc}`cloudflare-tunnel` Parts 1–3. **Port-forward**
 commands work immediately after bootstrap with no additional setup.
 :::
 
+## I want to…
+
+| Task | Jump to |
+|---|---|
+| Watch ArgoCD sync status | [ArgoCD](#argocd) |
+| Review ArgoCD app health history | [argocd-monitor](#argocd-monitor) |
+| View cluster metrics and dashboards | [Grafana](#grafana) |
+| Inspect pods, logs, and Kubernetes objects in a UI | [Headlamp (Kubernetes Dashboard)](#headlamp-kubernetes-dashboard) |
+| Chat with a local LLM | [Open WebUI (LLM Chat)](#open-webui-llm-chat) |
+| Run SQL or browse the Open Brain database | [Supabase Studio (Open Brain)](#supabase-studio-open-brain) |
+| Verify ingress, TLS and request headers end-to-end | [Echo Test Service](#echo-test-service) |
+
 ## ArgoCD
 
 Via ingress: **https://argocd.\<domain\>**

@@ -127,6 +127,15 @@ llamacpp), you can leave the NFS settings as-is. The services will deploy but re
 idle until configured.
 :::
 
+:::{important}
+**NFS is also a prerequisite for backups.** The daily and weekly backup
+CronJobs write stateful-service dumps (Supabase DB, Grafana, Open WebUI,
+…) to a shared NFS tree on a NAS. If you plan to run backups — strongly
+recommended for any stateful workload — set up the NAS share before the
+first backup fires using {doc}`/how-to/nas-setup`. This is a one-time
+manual runbook on the NAS itself (Ansible has no access to it by design).
+:::
+
 :::{note}
 `enable_oauth2_proxy` controls whether cluster services require GitHub login.
 Leave it `false` until you have completed the {doc}`/how-to/oauth-setup` guide —
