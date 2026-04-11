@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supabase-storage-weekly
+  namespace: backups
+spec:
+  schedule: "15 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: nuc2
+          containers:
+            - name: tar
+              image: alpine:3.19
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  apk add --no-cache tar gzip >/dev/null
+                  stamp=$(date +%F)
+                  out="/backup/${stamp}.tar.gz"
+                  tar -czf "${out}" -C /data .
+                  ls -lh /backup
+                  find /backup -maxdepth 1 -type f -name '*.tar.gz' -mtime +28 -delete
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: nfs
+                  mountPath: /backup
+                  subPath: backups/supabase-storage/weekly
+          volumes:
+            - name: data
+              hostPath:
+                path: /home/k8s-data/supabase-storage
+                type: Directory
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs

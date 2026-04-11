@@ -13,6 +13,7 @@ how-to/cloudflare-tunnel
 how-to/cloudflare-ssh-tunnel
 how-to/cloudflare-web-tunnel
 how-to/oauth-setup
+how-to/nas-setup
 ```
 
 ## Optional Features

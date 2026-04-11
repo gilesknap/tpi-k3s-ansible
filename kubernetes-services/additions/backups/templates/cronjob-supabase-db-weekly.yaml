@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supabase-db-weekly
+  namespace: backups
+spec:
+  # 03:00 UTC Sunday — runs after all daily jobs have finished.
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pgdump
+              image: postgres:15-alpine
+              env:
+                - name: PGHOST
+                  value: supabase-supabase-db.supabase.svc.cluster.local
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: database
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  stamp=$(date +%F)
+                  out="/backup/${stamp}.sql.gz"
+                  pg_dump --format=plain --no-owner --no-privileges \
+                    | gzip -9 > "${out}"
+                  ls -lh /backup
+                  # Retain 4 weeks of weeklies (28 days).
+                  find /backup -maxdepth 1 -type f -name '*.sql.gz' -mtime +28 -delete
+              volumeMounts:
+                - name: nfs
+                  mountPath: /backup
+                  subPath: backups/supabase-db/weekly
+          volumes:
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs

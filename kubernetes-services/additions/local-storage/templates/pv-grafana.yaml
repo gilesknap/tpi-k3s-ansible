@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-local
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  # Grafana is deployed as a StatefulSet (persistence.type=sts) by the
+  # kube-prometheus-stack chart. The PVC name is derived from the STS
+  # volumeClaimTemplate: <vct-name>-<sts-name>-<ordinal>
+  # vct-name = "storage", sts-name = "grafana-prometheus", ordinal = 0.
+  claimRef:
+    namespace: monitoring
+    name: storage-grafana-prometheus-0
+  local:
+    path: /var/lib/k8s-data/grafana
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node03

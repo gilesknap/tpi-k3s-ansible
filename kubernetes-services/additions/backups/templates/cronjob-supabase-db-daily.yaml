@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supabase-db-daily
+  namespace: backups
+spec:
+  # 02:00 UTC daily. Offset from supabase-storage (02:15) to avoid
+  # both mounting the NFS export at the same moment.
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pgdump
+              image: postgres:15-alpine
+              env:
+                # Helm release name "supabase" is hardcoded here —
+                # if the release is ever renamed, update this URL too.
+                - name: PGHOST
+                  value: supabase-supabase-db.supabase.svc.cluster.local
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: database
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  stamp=$(date +%F_%H%M)
+                  out="/backup/${stamp}.sql.gz"
+                  echo "pg_dump → ${out}"
+                  pg_dump --format=plain --no-owner --no-privileges \
+                    | gzip -9 > "${out}"
+                  ls -lh /backup
+                  # Retain 7 days of dailies; weekly cronjob keeps its own retention.
+                  find /backup -maxdepth 1 -type f -name '*.sql.gz' -mtime +7 -delete
+              volumeMounts:
+                - name: nfs
+                  mountPath: /backup
+                  subPath: backups/supabase-db
+          volumes:
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs

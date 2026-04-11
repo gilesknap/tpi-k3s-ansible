@@ -1,6 +1,6 @@
 # Ansible Roles in Detail
 
-The playbook `pb_all.yml` runs seven roles in sequence. Each role is fully idempotent —
+The playbook `pb_all.yml` runs eight roles in sequence. Each role is fully idempotent —
 it checks state before acting and does nothing if the desired state is already achieved.
 
 ## Execution order
@@ -12,7 +12,8 @@ flowchart TD
     F --> KH["known_hosts<br/><i>all_nodes + turing_pis</i>"]
     KH --> MF["move_fs<br/><i>all_nodes</i>"]
     MF --> UP["update_packages<br/><i>all_nodes</i>"]
-    UP --> K["k3s<br/><i>all_nodes</i>"]
+    UP --> DD["k8s_data_dirs<br/><i>all_nodes</i>"]
+    DD --> K["k3s<br/><i>all_nodes</i>"]
     K --> C["cluster<br/><i>localhost</i>"]
 ```
 
@@ -24,7 +25,7 @@ ansible-playbook pb_all.yml --tags flash
 # etc.
 ```
 
-The `servers` tag covers both `move_fs` and `update_packages`.
+The `servers` tag covers `move_fs`, `update_packages`, and `k8s_data_dirs`.
 
 ---
 
@@ -160,6 +161,33 @@ Prepares each node for K3s:
      runtime set as the default containerd runtime. k3s regenerates `config.toml` on
      every agent restart from this template, so the configuration persists across reboots.
    - Restart `k3s-agent` to apply the new containerd config
+
+---
+
+## `k8s_data_dirs` — Local PV host directories
+
+**Runs on:** `all_nodes`
+**Tag:** `servers`
+
+Creates the host directories that back the `local-nvme` PVs defined in
+`kubernetes-services/additions/local-storage/`. Each app's PV is pinned via
+`nodeAffinity` to one specific node, so the role creates each directory only
+on its target node (guarded by `inventory_hostname`).
+
+| Node   | Directory                         | Owner / mode         | Consumed by |
+|--------|-----------------------------------|----------------------|-------------|
+| nuc2   | `/home/k8s-data/supabase-db`      | root / 0777          | supabase    |
+| nuc2   | `/home/k8s-data/supabase-storage` | root / 0777          | supabase    |
+| nuc2   | `/home/k8s-data/supabase-minio`   | 65532:65532 / 0755   | supabase    |
+| node02 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
+| node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
+| node04 | `/var/lib/k8s-data/open-webui`    | root / 0777          | open-webui  |
+
+Data lives outside `/var/lib/rancher` deliberately: `pb_decommission.yml`
+wipes `/var/lib/rancher` to reset K3s, but these directories are preserved
+so PVC data survives a cluster rebuild. The one-time NFS share setup that
+hosts the backup CronJob output is a separate manual runbook — see
+`docs/how-to/nas-setup.md`.
 
 ---
 
