@@ -854,58 +854,11 @@ window.addEventListener("load", load);</script>
                   
   <section id="networking">
 <h1>Networking<a class="headerlink" href="#networking" title="Link to this heading">#</a></h1>
-<p>This page explains the networking architecture: how traffic reaches cluster services,
-TLS certificate issuance, and the Cloudflare tunnel integration.</p>
-<section id="ingress-architecture">
-<h2>Ingress architecture<a class="headerlink" href="#ingress-architecture" title="Link to this heading">#</a></h2>
-<pre  class="mermaid">
-        flowchart TB
-    subgraph Internet
-        CF[Cloudflare Edge]
-    end
-
-    subgraph LAN[&quot;Local Network&quot;]
-        CLIENT[LAN Client]
-    end
-
-    subgraph Cluster[&quot;K3s Cluster&quot;]
-        ING[ingress-nginx&lt;br/&gt;LoadBalancer on workers]
-        SVC1[echo service]
-        SVC2[grafana service]
-        SVC3[argocd service]
-        CFPOD[cloudflared pod]
-    end
-
-    CF --&gt;|&quot;tunnel&quot;| CFPOD
-    CFPOD --&gt;|&quot;HTTP&quot;| ING
-    CLIENT --&gt;|&quot;DNS → worker IP&quot;| ING
-    ING --&gt; SVC1 &amp; SVC2 &amp; SVC3
-    </pre><section id="nginx-ingress-not-traefik">
-<h3>NGINX Ingress (not Traefik)<a class="headerlink" href="#nginx-ingress-not-traefik" title="Link to this heading">#</a></h3>
-<p>K3s ships Traefik as its default ingress controller, but this project disables it
-(<code class="docutils literal notranslate"><span class="pre">--disable=traefik</span></code>) and deploys <strong>ingress-nginx</strong> instead. Reasons:</p>
-<ul class="simple">
-<li><p>More widely documented in the Kubernetes ecosystem</p></li>
-<li><p>Better support for TLS passthrough (needed for ArgoCD)</p></li>
-<li><p>More straightforward configuration model</p></li>
-</ul>
-</section>
-<section id="loadbalancer-on-workers">
-<h3>LoadBalancer on workers<a class="headerlink" href="#loadbalancer-on-workers" title="Link to this heading">#</a></h3>
-<p>The ingress-nginx controller runs on <strong>worker nodes</strong> (in multi-node clusters the
-control plane has a <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> taint). DNS entries for all services must point to
-worker node IPs, not the control plane. For single-node clusters, DNS points to that
-single node.</p>
-<p>For round-robin across workers:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*.</span><span class="n">example</span><span class="o">.</span><span class="n">com</span>  <span class="n">A</span>  <span class="mf">192.168.1.82</span>
-<span class="o">*.</span><span class="n">example</span><span class="o">.</span><span class="n">com</span>  <span class="n">A</span>  <span class="mf">192.168.1.83</span>
-<span class="o">*.</span><span class="n">example</span><span class="o">.</span><span class="n">com</span>  <span class="n">A</span>  <span class="mf">192.168.1.84</span>
-</pre></div>
-</div>
-<p>A single worker IP also works — kube-proxy routes traffic to the ingress pod
-regardless of which worker receives the connection.</p>
-</section>
-</section>
+<p>This page explains cluster routing and TLS: how TLS certificates are issued,
+how the Cloudflare tunnel provides external access, and how ArgoCD terminates
+TLS at the ingress. The ingress-nginx routing architecture itself — which is
+the entry point for Layer 2 authentication — lives in
+<a class="reference internal" href="authentication.html"><span class="doc">Authentication Architecture</span></a> under “Ingress architecture”.</p>
 <section id="tls-certificates">
 <h2>TLS certificates<a class="headerlink" href="#tls-certificates" title="Link to this heading">#</a></h2>
 <section id="cert-manager-let-s-encrypt-dns-01">
@@ -1048,11 +1001,6 @@ through the Cloudflare tunnel and protected by Cloudflare Access.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-architecture">Ingress architecture</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nginx-ingress-not-traefik">NGINX Ingress (not Traefik)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#loadbalancer-on-workers">LoadBalancer on workers</a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tls-certificates">TLS certificates</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager-let-s-encrypt-dns-01">cert-manager + Let’s Encrypt DNS-01</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#certificate-lifecycle">Certificate lifecycle</a></li>

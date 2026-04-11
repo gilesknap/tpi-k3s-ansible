@@ -44,6 +44,78 @@ receive admin privileges; everyone else gets a read-only or viewer role.
 A separate `viewer_emails` list identifies users who can authenticate via
 Dex OIDC but receive only read-only access.
 
+## Ingress architecture
+
+Layer 2 authentication is enforced at **ingress-nginx**, the single
+entry point for every request that reaches the cluster. Understanding
+where ingress-nginx sits clarifies *where* Dex and oauth2-proxy plug in
+and *why* the auth-url subrequest pattern works.
+
+```{mermaid}
+flowchart TB
+    subgraph Internet
+        CF[Cloudflare Edge]
+    end
+
+    subgraph LAN["Local Network"]
+        CLIENT[LAN Client]
+    end
+
+    subgraph Cluster["K3s Cluster"]
+        ING[ingress-nginx<br/>LoadBalancer on workers]
+        SVC1[echo service]
+        SVC2[grafana service]
+        SVC3[argocd service]
+        CFPOD[cloudflared pod]
+    end
+
+    CF -->|"tunnel"| CFPOD
+    CFPOD -->|"HTTP"| ING
+    CLIENT -->|"DNS → worker IP"| ING
+    ING --> SVC1 & SVC2 & SVC3
+```
+
+Tunnel-routed requests arrive at the `cloudflared` pod via an outbound
+tunnel and are forwarded over plain HTTP to ingress-nginx. LAN clients
+hit ingress-nginx directly over the worker node IPs. In both cases
+ingress-nginx is where OAuth subrequests are issued — either to the
+cluster-wide oauth2-proxy or, indirectly, to a service that authenticates
+itself against Dex.
+
+### NGINX Ingress (not Traefik)
+
+K3s ships Traefik as its default ingress controller, but this project
+disables it (`--disable=traefik`) and deploys **ingress-nginx** instead.
+Reasons:
+
+- More widely documented in the Kubernetes ecosystem
+- Better support for TLS passthrough (needed for ArgoCD)
+- More straightforward configuration model
+- Mature `auth-url` / `auth-signin` annotation support, which is what
+  oauth2-proxy relies on for the subrequest flow described later in this
+  page
+
+### LoadBalancer on workers
+
+The ingress-nginx controller runs on **worker nodes** — in multi-node
+clusters the control plane carries a `NoSchedule` taint. DNS entries for
+all services must therefore point to worker node IPs, not the control
+plane. For single-node clusters, DNS points to that single node.
+
+For round-robin across workers:
+
+```
+*.example.com  A  192.168.1.82
+*.example.com  A  192.168.1.83
+*.example.com  A  192.168.1.84
+```
+
+A single worker IP also works — kube-proxy routes traffic to the ingress
+pod regardless of which worker receives the connection.
+
+See {doc}`networking` for TLS certificate issuance, Cloudflare tunnel
+details, and ArgoCD's TLS termination pattern.
+
 ## Auth method summary
 
 | Service | Layer 1 (Cloudflare) | Layer 2 (Ingress) | Layer 3 (App RBAC) |
