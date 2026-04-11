@@ -357,6 +357,21 @@ and arbitrary additional Linux servers — fully idempotent and repeatable.</p>
 (<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>),
 so you can fork the repo, edit those files, and have your own cluster running
 in minutes.</p>
+<section id="architecture-at-a-glance">
+<h2>Architecture at a glance<a class="headerlink" href="#architecture-at-a-glance" title="Link to this heading">#</a></h2>
+<p>The cluster is GitOps-first: Ansible bootstraps K3s and ArgoCD, then
+ArgoCD syncs everything else from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> in this repo.
+Stateful data lives on <strong>static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs</strong> — one per workload,
+pinned to a specific node — with <strong>daily and weekly CronJob backups to
+NFS</strong> on a NAS. This keeps operations simple (no replicated CSI driver)
+while still surviving cluster rebuilds and giving off-cluster
+point-in-time restore. See the
+<a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/architecture.html"><strong>Interactive Architecture Showcase</strong></a>
+for a visual tour, the <a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html">architecture explanation</a>
+for the layered model, and the
+<a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html">services reference</a>
+for quick-start configurations (LLM-only, AI memory, monitoring, full
+stack) to help you pick which services to run.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head text-center"><p>Source</p></th>
@@ -367,12 +382,10 @@ in minutes.</p>
 <tr class="row-even"><td class="text-center"><p>Documentation</p></td>
 <td class="text-center"><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible">https://gilesknap.github.io/tpi-k3s-ansible</a></p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><strong>Architecture</strong></p></td>
-<td class="text-center"><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/architecture.html"><strong>Interactive Architecture Showcase</strong></a> — visual guide to every layer of the cluster</p></td>
-</tr>
 </tbody>
 </table>
 </div>
+</section>
 <section id="features">
 <h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
 <section id="infrastructure">
@@ -466,10 +479,7 @@ to match your environment</p></li>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="tutorials/ai-guided-setup.html">AI-Guided Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorials/getting-started-tpi.html">Getting Started with Turing Pi</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorials/getting-started-generic.html">Getting Started without Turing Pi</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorials/common-setup.html">Common Setup Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#why-the-cluster-is-built-this-way">Why the cluster is built this way</a></li>
 </ul>
 </li>
 </ul>

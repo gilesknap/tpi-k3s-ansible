@@ -6,28 +6,12 @@ see {doc}`/explanations/authentication`.
 :::
 
 This guide walks through configuring both authentication paths used by the
-cluster:
+cluster. Each path uses its own GitHub OAuth App:
 
-- **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
-- **Part B** — oauth2-proxy (Supabase Studio, Headlamp — admin-only)
-
-```{mermaid}
-flowchart LR
-    GH[GitHub]
-    DEX[Dex inside ArgoCD]
-    OAP[oauth2-proxy]
-
-    GH -->|OAuth App 1| DEX
-    GH -->|OAuth App 2| OAP
-
-    DEX --> ArgoCD
-    DEX --> Grafana
-    DEX --> Open-WebUI
-    DEX --> argocd-monitor
-
-    OAP --> Supabase
-    OAP --> Headlamp
-```
+- **Part A** — Dex OIDC, used by **ArgoCD, Grafana, Open WebUI, and
+  argocd-monitor** (services with native OIDC support).
+- **Part B** — oauth2-proxy, used by **Supabase Studio and Headlamp**
+  (admin-only services with no native OIDC).
 
 ## Prerequisites
 

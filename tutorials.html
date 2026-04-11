@@ -390,6 +390,39 @@
   <section id="tutorials">
 <h1>Tutorials<a class="headerlink" href="#tutorials" title="Link to this heading">#</a></h1>
 <p>Step-by-step guides that walk you through setting up a K3s cluster from scratch.</p>
+<section id="why-the-cluster-is-built-this-way">
+<h2>Why the cluster is built this way<a class="headerlink" href="#why-the-cluster-is-built-this-way" title="Link to this heading">#</a></h2>
+<p>Before you start installing, two design choices shape everything the
+tutorials ask you to do. Neither is the only way to run K3s at home —
+they are the choices this repo made, and knowing <em>why</em> will save you
+from fighting the defaults later.</p>
+<p><strong>Static local-nvme PVs, one per stateful workload.</strong> Each stateful
+service (Supabase DB, Grafana, Prometheus, Open WebUI, …) gets a
+hand-declared <code class="docutils literal notranslate"><span class="pre">PersistentVolume</span></code> backed by a plain directory on a
+specific node — e.g. <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>. The PV
+is pre-bound to its PVC via <code class="docutils literal notranslate"><span class="pre">claimRef</span></code> and pinned to its node via
+<code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>, so the pod <em>must</em> land there and the data <em>must</em>
+survive a rebuild. No CSI driver, no replicas, no block-storage
+cluster. The trade-off is explicit: you accept that losing a
+worker’s disk loses that workload until the disk is restored, in
+exchange for far simpler operations, lower RAM/CPU overhead on small
+nodes, and data that transparently survives
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span></code>. The full rationale is in
+<a class="reference internal" href="explanations/decisions/0012-drop-longhorn.html"><span class="doc">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></a>.</p>
+<p><strong>Backups live on NFS, not in the cluster.</strong> Point-in-time backups of
+every stateful service are written by <code class="docutils literal notranslate"><span class="pre">CronJob</span></code>s to a single NFS tree
+on a NAS. That NAS is set up <strong>once, by hand</strong>, via
+<a class="reference internal" href="how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> — Ansible has no access to it, by design,
+because the NAS hosts mixed personal data. So the stateful-data
+strategy has two halves: local PVs give you rebuild survival, and
+NFS CronJobs give you off-cluster point-in-time restore.</p>
+<p><strong>Pod-to-node pinning is deliberate.</strong> Because each stateful PV is
+tied to one node, the corresponding Deployment/StatefulSet must also
+land on that node. The existing pinning — <code class="docutils literal notranslate"><span class="pre">prometheus→node02</span></code>,
+<code class="docutils literal notranslate"><span class="pre">grafana→node03</span></code>, <code class="docutils literal notranslate"><span class="pre">open-webui→node04</span></code>, Supabase trio <code class="docutils literal notranslate"><span class="pre">→nuc2</span></code> — is
+not an accident, and new RWO <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> workloads need to pick
+their own host. This is called out in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> as a hard rule.</p>
+<p>With that mental model in place, pick your install path:</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/ai-guided-setup.html">AI-Guided Setup</a></li>
@@ -398,6 +431,7 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/common-setup.html">Common Setup Steps</a></li>
 </ul>
 </div>
+</section>
 </section>
 
 
@@ -438,6 +472,18 @@
                 <dialog id="pst-secondary-sidebar-modal"></dialog>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-cluster-is-built-this-way">Why the cluster is built this way</a></li>
+</ul>
+  </nav></div>
 
   <div class="sidebar-secondary-item">
 
