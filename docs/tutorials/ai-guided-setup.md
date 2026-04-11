@@ -58,10 +58,13 @@ network speed.
 After the command completes, your cluster is running with all core services
 managed by ArgoCD. Claude will print next steps, but here is a summary:
 
+- **Pick which services to run** — see {doc}`/reference/services` for the
+  quick-start configurations (LLM-only, AI memory, monitoring, full stack)
 - **Access services now** via port-forward — see {doc}`/how-to/accessing-services`
 - **Expose services to the internet** — follow {doc}`/how-to/cloudflare-tunnel`
 - **Add GitHub OAuth** — follow {doc}`/how-to/oauth-setup`
 - **Enable AI memory** — follow {doc}`/how-to/open-brain`
+- **Set up the NAS share for backups** — follow {doc}`/how-to/nas-setup`
 
 ## Prefer a manual setup?
 

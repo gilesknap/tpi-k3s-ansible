@@ -145,7 +145,10 @@ Two special services implement the cluster's stateful-data strategy:
   On-disk backing lives at `/home/k8s-data/*` (nuc2) and
   `/var/lib/k8s-data/*` (RK1 nodes) — directories created idempotently
   by the `k8s_data_dirs` Ansible role and **preserved by default** on
-  decommission (see {doc}`../how-to/backup-restore`).
+  decommission. For the authoritative per-workload directory → node →
+  owner mapping, and the opt-in `-e wipe_local_data=true` flag that
+  removes them, see the `k8s_data_dirs` section of
+  {doc}`ansible-roles`.
 
 - **`backups`** (`templates/backups.yaml`, `additions/backups/`) — one
   namespace, one static NFS `PersistentVolume` pointing at
