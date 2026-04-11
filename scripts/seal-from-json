@@ -87,6 +87,15 @@ kubectl create secret generic supabase-credentials --namespace=supabase \
     $literals --dry-run=client -o yaml | seal_to "$BASE/supabase/templates/supabase-secret.yaml"
 echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
 
+# 5b. supabase-credentials (backups) — same values, different namespace.
+# The supabase-db-daily/weekly pg_dump CronJobs run in the backups namespace
+# so they can mount the k8s-cluster-nfs PVC directly. Cross-namespace secret
+# reads are not possible, so seal a copy into the backups namespace too.
+echo "Sealing: supabase-credentials (backups)..."
+kubectl create secret generic supabase-credentials --namespace=backups \
+    $literals --dry-run=client -o yaml | seal_to "$BASE/backups/templates/supabase-credentials-secret.yaml"
+echo "  -> $BASE/backups/templates/supabase-credentials-secret.yaml"
+
 # 6. supabase-mcp-env (supabase) — MCP_ACCESS_KEY
 echo "Sealing: supabase-mcp-env..."
 if has_secret supabase-mcp-env supabase; then
