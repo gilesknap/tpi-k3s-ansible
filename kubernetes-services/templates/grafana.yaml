@@ -61,7 +61,9 @@ spec:
             persistence:
               enabled: true
               type: sts
-              storageClassName: longhorn
+              # Static local-nvme PV (additions/local-storage) pre-bound to
+              # the storage-grafana-prometheus-0 PVC with nodeAffinity: node03.
+              storageClassName: local-nvme
               accessModes:
                 - ReadWriteOnce
               size: 30Gi
@@ -72,17 +74,6 @@ spec:
                 operator: Equal
                 value: "true"
                 effect: NoSchedule
-            # Avoid ws03: tolerates the taint (for metrics collection) but
-            # Longhorn doesn't run there, so PVC-backed pods would hang.
-            affinity:
-              nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: kubernetes.io/hostname
-                          operator: NotIn
-                          values:
-                            - ws03
 
           prometheus:
             annotations:
@@ -91,7 +82,9 @@ spec:
               storageSpec:
                 volumeClaimTemplate:
                   spec:
-                    storageClassName: longhorn
+                    # Static local-nvme PV (additions/local-storage) pre-bound
+                    # via claimRef to the operator-generated PVC, nodeAffinity: node02.
+                    storageClassName: local-nvme
                     accessModes:
                       - ReadWriteOnce
                     resources:
@@ -102,16 +95,6 @@ spec:
                   operator: Equal
                   value: "true"
                   effect: NoSchedule
-              # Avoid ws03: same reason as grafana above.
-              affinity:
-                nodeAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    nodeSelectorTerms:
-                      - matchExpressions:
-                          - key: kubernetes.io/hostname
-                            operator: NotIn
-                            values:
-                              - ws03
 
           alertmanager:
             ingress:

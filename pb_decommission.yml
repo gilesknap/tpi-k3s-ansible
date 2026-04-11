@@ -1,15 +1,24 @@
-# Decommission playbook — tears down the K3s cluster while preserving NFS data.
-# Data on Longhorn PVCs is lost; NFS-backed models and backups survive.
+# Decommission playbook — tears down the K3s cluster.
+#
+# Data preservation (default):
+#   * NFS-backed models and backups on the NAS survive (never touched).
+#   * Local PV data under /home/k8s-data (nuc2) and /var/lib/k8s-data/*
+#     (RK1s) is PRESERVED — the rebuild re-binds the same local-nvme PVs
+#     to the same PVCs so stateful apps come back with their data intact.
+#
+# Clean-slate opt-in:
+#   Pass -e wipe_local_data=true to also wipe /home/k8s-data and
+#   /var/lib/k8s-data — use this only for a genuine fresh start.
 #
 # Usage:
 #   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml
+#   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml \
+#     -e wipe_local_data=true
 #
 # The playbook is idempotent — safe to re-run if interrupted.
 #
 # Key insight: ArgoCD reconciliation must be stopped BEFORE scaling down
 # workloads, otherwise ArgoCD re-creates them faster than we can remove them.
-# After controller uninstall, CRD resources retain finalizers that never
-# resolve — the playbook strips them to unblock namespace deletion.
 
 # ---------------------------------------------------------------------------
 # Play 1: Stop ArgoCD reconciliation (orphan cascade)
@@ -60,9 +69,11 @@
       failed_when: false
 
 # ---------------------------------------------------------------------------
-# Play 2: Graceful Longhorn teardown
+# Play 2: Scale down stateful workloads and delete chart-owned PVCs
 # ---------------------------------------------------------------------------
-- name: Gracefully tear down Longhorn volumes
+# The PVCs are re-created cleanly on the next ArgoCD sync and re-bound to
+# the existing static local-nvme PVs (whose data is preserved on-disk).
+- name: Scale down workloads and delete chart-owned PVCs
   hosts: localhost
   gather_facts: false
   tasks:
@@ -122,7 +133,7 @@
       ansible.builtin.pause:
         seconds: 30
 
-    - name: Delete Longhorn PVCs
+    - name: Delete chart-owned stateful PVCs
       kubernetes.core.k8s:
         api_version: v1
         kind: PersistentVolumeClaim
@@ -140,114 +151,6 @@
         - { ns: supabase, name: supabase-snippets }
         - { ns: supabase, name: supabase-storage }
       ignore_errors: true  # noqa ignore-errors
-
-    - name: Wait for Longhorn volumes to detach
-      ansible.builtin.command:
-        cmd: kubectl get volumes.longhorn.io -A --no-headers
-      register: lh_volumes
-      until: lh_volumes.stdout == ""
-      retries: 18
-      delay: 10
-      changed_when: false
-      failed_when: false
-
-    # After controller uninstall, Longhorn finalizers never resolve.
-    # Strip them so volumes and attachments can be garbage-collected.
-    - name: Strip finalizers from Longhorn volume attachments
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail &&
-          kubectl get volumeattachments.longhorn.io -A -o json 2>/dev/null |
-          python3 -c "import sys,json,subprocess;
-          [subprocess.run(['kubectl','patch','volumeattachment.longhorn.io/'+i['metadata']['name'],
-          '-n',i['metadata']['namespace'],'--type=merge',
-          '-p','{\"metadata\":{\"finalizers\":null}}'],capture_output=True)
-          for i in json.load(sys.stdin).get('items',[]) if i['metadata'].get('finalizers')]"
-        executable: /bin/bash
-      changed_when: true
-      failed_when: false
-
-    - name: Strip finalizers from Longhorn volumes
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail &&
-          kubectl get volumes.longhorn.io -A -o json 2>/dev/null |
-          python3 -c "import sys,json,subprocess;
-          [subprocess.run(['kubectl','patch','volume.longhorn.io/'+i['metadata']['name'],
-          '-n',i['metadata']['namespace'],'--type=merge',
-          '-p','{\"metadata\":{\"finalizers\":null}}'],capture_output=True)
-          for i in json.load(sys.stdin).get('items',[]) if i['metadata'].get('finalizers')]"
-        executable: /bin/bash
-      changed_when: true
-      failed_when: false
-
-    - name: Uninstall longhorn Helm release
-      ansible.builtin.command:
-        cmd: helm uninstall longhorn -n longhorn
-      changed_when: true
-      failed_when: false
-
-    - name: Wait for longhorn namespace resources to drain
-      ansible.builtin.pause:
-        seconds: 30
-
-    # Strip finalizers from all remaining Longhorn CRD instances so CRD
-    # deletion does not block indefinitely.
-    - name: Strip finalizers from all Longhorn CRD resources
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail &&
-          for crd in $(kubectl get crd 2>/dev/null | grep longhorn | awk '{print $1}'); do
-            kubectl get "$crd" -A -o json 2>/dev/null |
-            python3 -c "import sys,json,subprocess;
-            [subprocess.run(['kubectl','patch',
-            sys.argv[1]+'/'+i['metadata']['name'],
-            '-n',i['metadata'].get('namespace','default'),
-            '--type=merge','-p','{\"metadata\":{\"finalizers\":null}}'],
-            capture_output=True)
-            for i in json.load(sys.stdin).get('items',[])
-            if i['metadata'].get('finalizers')]" "$crd";
-          done
-        executable: /bin/bash
-      changed_when: true
-      failed_when: false
-
-    - name: Remove lingering Longhorn CRDs
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail &&
-          kubectl get crd 2>/dev/null | grep longhorn | awk '{print $1}' |
-          xargs -r -n1 kubectl delete crd --timeout=15s
-        executable: /bin/bash
-      changed_when: true
-      failed_when: false
-
-    - name: Force-delete remaining longhorn namespace resources
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail &&
-          kubectl delete all --all -n longhorn --force --grace-period=0 2>/dev/null;
-          kubectl delete jobs --all -n longhorn --force --grace-period=0 2>/dev/null;
-          true
-        executable: /bin/bash
-      changed_when: true
-      failed_when: false
-
-    - name: Delete longhorn namespace
-      ansible.builtin.command:
-        cmd: kubectl delete namespace longhorn --timeout=60s
-      changed_when: true
-      failed_when: false
-
-    - name: Wait for longhorn namespace to terminate
-      ansible.builtin.command:
-        cmd: kubectl get namespace longhorn
-      register: lh_ns
-      until: lh_ns.rc != 0
-      retries: 18
-      delay: 10
-      changed_when: false
-      failed_when: false
 
 # ---------------------------------------------------------------------------
 # Play 3: Remove ArgoCD and remaining namespaces
@@ -299,12 +202,12 @@
       loop:
         - argo-rollouts
         - argocd-monitor
+        - backups
         - cert-manager
         - cloudflared
         - echo
         - headlamp
         - ingress-nginx
-        - longhorn
         - monitoring
         - oauth2-proxy
         - open-brain-mcp
@@ -347,17 +250,6 @@
   gather_facts: false
   become: true
   tasks:
-    - name: Disconnect orphaned iSCSI sessions
-      ansible.builtin.command:
-        cmd: iscsiadm -m session --logout
-      changed_when: true
-      failed_when: false
-
-    - name: Remove /var/lib/longhorn
-      ansible.builtin.file:
-        path: /var/lib/longhorn
-        state: absent
-
     - name: Remove /var/lib/rancher
       ansible.builtin.file:
         path: /var/lib/rancher
@@ -369,3 +261,16 @@
         executable: /bin/bash
       changed_when: true
       failed_when: false
+
+    # Destructive opt-in: wipe local PV data roots. OFF by default — the
+    # whole point of the local-nvme plan is that these paths survive a
+    # rebuild so stateful apps come back with their data intact.
+    # Pass -e wipe_local_data=true only for a genuine clean-slate rebuild.
+    - name: Wipe local k8s data directories (destructive, opt-in)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /home/k8s-data
+        - /var/lib/k8s-data
+      when: wipe_local_data | default(false) | bool

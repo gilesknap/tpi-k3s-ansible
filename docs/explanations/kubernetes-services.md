@@ -11,6 +11,7 @@ kubernetes-services/
 ├── Chart.yaml              # Minimal Helm chart metadata
 ├── values.yaml             # Shared values (repo_branch, admin_emails, viewer_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
+│   ├── backups.yaml
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
 │   ├── dashboard.yaml      # Headlamp
@@ -19,7 +20,7 @@ kubernetes-services/
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
 │   ├── llamacpp.yaml
-│   ├── longhorn.yaml
+│   ├── local-storage.yaml
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
 │   ├── open-webui.yaml
@@ -27,13 +28,14 @@ kubernetes-services/
 │   └── sealed-secrets.yaml
 └── additions/              # Extra manifests per service
     ├── argocd/             # Custom CM for ArgoCD health checks
+    ├── backups/            # CronJobs + single NFS PV for per-app backups
     ├── cert-manager/       # SealedSecret + ClusterIssuer
     ├── cloudflared/        # Deployment + SealedSecret
     ├── dashboard/          # RBAC for Headlamp
     ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
     ├── llamacpp/           # NFS volume + GPU config
-    ├── longhorn/           # VolumeSnapshotClass
+    ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
 ```
@@ -128,6 +130,35 @@ Key values propagated to all child apps:
 | `repo_branch` | `kubernetes-services/values.yaml` | Branch for `targetRevision` |
 | `cluster_domain` | `group_vars/all.yml` | Domain for ingress hosts |
 | `domain_email` | `group_vars/all.yml` | Let's Encrypt email |
+
+## Storage layer: `local-storage` and `backups`
+
+Two special services implement the cluster's stateful-data strategy:
+
+- **`local-storage`** (`templates/local-storage.yaml`,
+  `additions/local-storage/`) — creates the `local-nvme` `StorageClass`
+  (`no-provisioner`, `WaitForFirstConsumer`, `Retain`) plus one static
+  `PersistentVolume` per stateful workload, each pre-bound to the
+  consuming `PersistentVolumeClaim` via `spec.claimRef` and pinned to a
+  specific node via `spec.nodeAffinity`. Sync wave `-5` ensures the SC
+  and PVs exist before the stateful charts try to create their PVCs.
+  On-disk backing lives at `/home/k8s-data/*` (nuc2) and
+  `/var/lib/k8s-data/*` (RK1 nodes) — directories created idempotently
+  by the `k8s_data_dirs` Ansible role and **preserved by default** on
+  decommission (see {doc}`../how-to/backup-restore`).
+
+- **`backups`** (`templates/backups.yaml`, `additions/backups/`) — one
+  namespace, one static NFS `PersistentVolume` pointing at
+  `<nas>:/bigdisk/k8s-cluster`, one namespace-scoped `PVC`, and a fleet
+  of `CronJob`s (one daily + one weekly per stateful app). Each CronJob
+  mounts the shared PVC with a workload-specific `subPath` so it only
+  sees `backups/<app>/{,weekly}/`. The NFS share itself is created
+  manually on the NAS via {doc}`../how-to/nas-setup` — Ansible has no
+  access to the NAS.
+
+Together these give you per-rebuild data survival (local PVs) **plus**
+off-cluster point-in-time backups (NFS CronJobs), without the
+operational overhead of a replicated CSI driver.
 
 ## Renovate integration
 

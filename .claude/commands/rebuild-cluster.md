@@ -2,19 +2,42 @@
 
 Decommission and rebuild the K3s cluster from scratch, validating the
 bootstrap path a new user would follow. NFS-backed data (LLM models,
-Supabase DB backups) survives; **Longhorn PVC data is destroyed**.
+Supabase DB backups, NFS backup targets) and **local PV data under
+`/home/k8s-data` (nuc2) and `/var/lib/k8s-data/*` (RK1s) are preserved
+by default** — stateful apps come back with their data intact because
+the rebuild re-binds the same static local-nvme PVs to the same PVCs.
 
-## WARNING — DATA LOSS
+## WARNING — DATA PRESERVATION MODEL
 
-This command **destroys all Longhorn-backed persistent data** including:
-- Prometheus/Grafana metrics history
-- Open WebUI chat history and uploads
-- Supabase database (tables, storage objects, edge functions)
-- Any other data on Longhorn volumes
+Default behaviour: **local PV data is preserved.** Supabase DB,
+Supabase storage + MinIO, Grafana sqlite, Prometheus TSDB, and Open
+WebUI sqlite all live on on-disk directories that `pb_decommission.yml`
+does NOT touch:
+- `/home/k8s-data/{supabase-db,supabase-storage,supabase-minio}` (nuc2)
+- `/var/lib/k8s-data/{grafana,prometheus,open-webui}` (RK1s)
 
-NFS-backed data (LLM models, Supabase DB backups) is preserved.
+NFS-backed data on the NAS (LLM models, Supabase DB dumps, nightly
+backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
+preserved — Ansible never touches the NAS.
 
-**Ask the user to confirm they accept data loss before proceeding.**
+**Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
+decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`
+as well. Use only for a deliberate fresh start; after this, Supabase
+re-runs its init migrations and Grafana/Prometheus/Open WebUI come up
+empty.
+
+**Ask the user to confirm their preservation preference before
+proceeding.**
+
+### One-time NAS prerequisite
+
+Before the FIRST rebuild on this plan, the user must run
+`docs/how-to/nas-setup.md` on the NAS by hand. This creates
+`/bigdisk/k8s-cluster/` with the `models`, `supabase-dumps`, and
+`backups/*` subtrees that rkllama, llamacpp, supabase-db-data, and the
+backup CronJobs all mount. **This command does NOT touch the NAS** —
+Ansible has zero trust boundary with it. If the setup has already been
+done (check with `showmount -e <nas>`), no action is needed.
 
 ## Important rules
 
@@ -85,19 +108,20 @@ SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml
 
 The playbook handles:
 1. Stopping ArgoCD reconciliation (orphan cascade + finalizer stripping)
-2. Scaling down Longhorn workloads and deleting PVCs
-3. Stripping finalizers from Longhorn CRD resources
-4. Uninstalling Longhorn and ArgoCD Helm releases
-5. Deleting all app namespaces
-6. Uninstalling k3s from all nodes (workers first, then control plane)
-7. Cleaning up node state (iSCSI, /var/lib/longhorn, /var/lib/rancher)
+2. Scaling down stateful workloads and deleting chart-owned PVCs so
+   they re-create cleanly on the next sync (and re-bind to the
+   preserved static local-nvme PVs)
+3. Uninstalling the ArgoCD Helm release
+4. Deleting all app namespaces
+5. Uninstalling k3s from all nodes (workers first, then control plane)
+6. Cleaning up node state (`/var/lib/rancher`, device-mapper leftovers)
+   — **does NOT touch `/home/k8s-data` or `/var/lib/k8s-data` unless
+   `-e wipe_local_data=true` is passed**
 
 ### Monitoring the playbook
 
 The playbook has retry loops for stuck resources. If a step takes longer
 than expected, check for:
-- **Longhorn volumes still attached** — strip finalizers from
-  `volumeattachments.longhorn.io` and `volumes.longhorn.io`
 - **Namespaces stuck in Terminating** — find remaining resources with
   `kubectl api-resources --verbs=list --namespaced -o name` and delete them
 - **ArgoCD apps with finalizers** — patch finalizers to null
@@ -108,6 +132,9 @@ than expected, check for:
 kubectl get nodes  # should fail — API server down
 ssh ansible@<worker-node> "which k3s"  # should return nothing
 ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
+# Local PV data preserved (unless wipe_local_data=true):
+ssh ansible@nuc2 "ls /home/k8s-data"            # still has subdirs + data
+ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir
 ```
 
 ## Phase 3: Rebuild (single playbook run)
@@ -217,10 +244,15 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 
 ### 5c. Common issues
 
-- **Monitoring pods stuck on ws03** — ws03 is tainted `workstation=true:NoSchedule`.
-  Longhorn does NOT tolerate this taint, so no Longhorn storage is available on ws03.
-  Pods needing PVCs should not schedule there. Monitoring components (Prometheus,
-  Grafana, etc.) tolerate the taint but use Longhorn PVCs from other nodes.
+- **Stateful pods Pending with "waiting for first consumer"** — the
+  `local-nvme` StorageClass uses `WaitForFirstConsumer`. Pods can only
+  schedule on the node that owns the PV: prometheus→node02,
+  grafana→node03, open-webui→node04, supabase→nuc2. If a pod is
+  Pending, check that its target node is Ready and untainted.
+- **Stateful pods CrashLooping with permission denied on /data** —
+  the on-disk UID/mode set by `k8s_data_dirs` does not match what the
+  pod wants. Verify with `kubectl get pod <name> -o jsonpath='{.spec.securityContext}'`
+  and fix `roles/k8s_data_dirs/tasks/main.yml`.
 - **Prometheus operator CrashLoop** — the admission webhook secret is
   created automatically by `--tags cluster`. If it is still missing,
   run `just create-prometheus-admission-secret` then delete the stuck pod.
@@ -238,7 +270,7 @@ Read `cluster_domain` from `group_vars/all.yml`. Test all service URLs:
 ```bash
 for url in https://echo.<domain> https://grafana.<domain> \
            https://headlamp.<domain> https://open-webui.<domain> \
-           https://longhorn.<domain> https://argocd-monitor.<domain> \
+           https://argocd-monitor.<domain> \
            https://supabase.<domain> https://argocd.<domain>; do
   status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$url")
   echo "$url -> HTTP $status"
@@ -249,7 +281,7 @@ Expected results:
 - `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
 - `grafana`: HTTP 302 (redirects to OAuth login)
 - `headlamp`: HTTP 302 (oauth2-proxy redirect)
-- `longhorn`, `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
+- `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
 
 All services must respond (no timeouts or 5xx errors).
 

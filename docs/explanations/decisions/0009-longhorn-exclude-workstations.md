@@ -1,6 +1,8 @@
 # 9. Exclude Workstation Nodes from Longhorn Storage
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 0012](0012-drop-longhorn.md) — Longhorn has
+been removed from the cluster in favour of static local-nvme PVs plus
+NFS backups, so the workstation-exclusion setting no longer applies.
 
 ## Context
 

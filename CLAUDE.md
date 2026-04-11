@@ -21,6 +21,16 @@
 - **Docs are generic** — this repo is intended to be reusable across
   clusters. Write all docs for a general audience. Specific node names
   (ws03, nuc2, node01) are fine as labelled examples.
+- **Local PV data paths are sacred.** `/home/k8s-data/*` (nuc2) and
+  `/var/lib/k8s-data/*` (RK1s) back the static `local-nvme` PVs that
+  carry Supabase/Grafana/Prometheus/Open-WebUI state across rebuilds.
+  Do not wipe them. `pb_decommission.yml` preserves them by default;
+  only `-e wipe_local_data=true` (opt-in, destructive) removes them.
+- **New RWO `local-nvme` workloads must pin a host explicitly.** The
+  existing pinning is prometheus→node02, grafana→node03,
+  open-webui→node04, supabase-db/storage/minio→nuc2. Each local PV in
+  `additions/local-storage/` has `spec.nodeAffinity` matching its pod;
+  a new workload needs its own PV + node choice, not a shared pool.
 
 ## Testing Rebuild-Affecting Changes
 
