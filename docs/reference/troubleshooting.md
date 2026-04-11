@@ -344,6 +344,42 @@ the tunnel as inactive.
 3. **Ingress resource exists?** Check the target namespace has an ingress
    for the hostname.
 
+### New tunnel hostname won't resolve on LAN
+
+**Symptom:** You add a new public hostname in the Cloudflare tunnel
+dashboard, Cloudflare auto-creates the proxied CNAME, but LAN clients
+keep getting `NXDOMAIN` for the new name. Public resolvers (`dig
+@1.1.1.1`) return the record correctly.
+
+**Cause:** Negative DNS caching. Before the record existed, your
+router / `systemd-resolved` / browser queried the name, got
+`NXDOMAIN`, and cached *that* result for its TTL. The cache doesn't
+clear when Cloudflare publishes the new record — you have to flush it.
+
+**Fix:** Flush the LAN-side caches in order of how hard they are to
+reach:
+
+```bash
+# 1. Local browser — use incognito or clear browser DNS cache
+#    (chrome://net-internals/#dns → "Clear host cache")
+
+# 2. systemd-resolved on the client
+sudo resolvectl flush-caches
+
+# 3. The router's DNS cache — usually via Reboot or a "Flush DNS"
+#    button in the admin UI. This is the one that tends to persist.
+```
+
+To confirm the negative cache is the cause, bypass the local resolver:
+
+```bash
+dig @1.1.1.1 new-hostname.example.com  # public resolver — should work
+dig new-hostname.example.com           # local resolver — still NXDOMAIN
+```
+
+If only the local-resolver lookup fails, you are hitting cached
+`NXDOMAIN`, not a Cloudflare problem.
+
 ## NFS Mount Issues
 
 ### PVC stuck in Pending
