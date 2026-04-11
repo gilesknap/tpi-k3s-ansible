@@ -14,8 +14,9 @@ container images do not reliably support ARM64.
 ## Prerequisites
 
 - An x86/amd64 node in your cluster (any node with `kubernetes.io/arch: amd64`)
-- An NFS export for database backups (optional — the database uses Longhorn
-  by default)
+- An NFS export for database backups (used by the daily/weekly backup
+  CronJobs — the Supabase database itself runs on a static `local-nvme`
+  PV on nuc2)
 - [Cloudflare Tunnel](cloudflare-web-tunnel) configured (for external access)
 - [OAuth2 proxy](oauth-setup) configured (for Studio dashboard access)
 
@@ -37,9 +38,11 @@ enable_open_brain_mcp: true
 ```
 
 :::{tip}
-The NFS settings are currently used only by the additions chart for potential
-future storage needs. The PostgreSQL database uses Longhorn block storage,
-which is more reliable for database workloads.
+The NFS export is used by the daily/weekly backup CronJobs in the `backups`
+namespace — they dump `supabase-db` to NAS as compressed SQL files. The
+live Supabase PostgreSQL database, Storage and MinIO all run on static
+`local-nvme` PVs pinned to nuc2, which is more reliable for database
+workloads than networked storage.
 :::
 
 ## 2 -- Generate and seal credentials
@@ -307,7 +310,7 @@ through the context window.
 
 Open Brain supports saving file attachments alongside thoughts using MinIO
 as an S3-compatible object store. Files are stored in a private Supabase
-Storage bucket (`brain-attachments`) backed by a Longhorn PVC.
+Storage bucket (`brain-attachments`) backed by a `local-nvme` PVC on nuc2.
 
 ### How it works
 
@@ -326,7 +329,8 @@ this feature was added, verify that `deployment.minio.enabled: true` is set in
 `kubernetes-services/templates/supabase.yaml`. After pushing the change, ArgoCD
 will deploy MinIO automatically.
 
-The MinIO pod needs its own Longhorn PVC. Verify it is provisioned:
+The MinIO pod needs its own `local-nvme` PVC on nuc2. Verify it is
+provisioned and bound:
 
 ```bash
 kubectl get pvc -n supabase | grep minio
@@ -344,8 +348,11 @@ sealed secret.
 
 To remove Supabase from your cluster, set `enable_supabase: false` in
 `kubernetes-services/values.yaml`, commit, push, and re-run the playbook.
-ArgoCD will prune all Supabase resources. The Longhorn PVC retains your
-data until manually deleted.
+ArgoCD will prune the Supabase Application resources, but the underlying
+data directories on nuc2 (`/home/k8s-data/supabase-db`,
+`/home/k8s-data/supabase-storage`, `/home/k8s-data/supabase-minio`) are
+preserved across rebuilds and are only removed if you explicitly pass
+`-e wipe_local_data=true` to `pb_decommission.yml`.
 
 ## Troubleshooting
 
@@ -367,8 +374,9 @@ Always include both headers:
 
 If the DB pod fails with `chown: Operation not permitted`, the storage
 backend does not support ownership changes. The default configuration uses
-Longhorn which handles this correctly. If you switched to NFS, you need
-`no_root_squash` on the NFS export.
+a static `local-nvme` PV on nuc2 (backed by a plain hostPath under
+`/home/k8s-data/supabase-db`), which handles ownership changes correctly.
+If you switched to NFS, you need `no_root_squash` on the NFS export.
 
 ### ArgoCD "not permitted in project"
 

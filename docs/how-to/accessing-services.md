@@ -51,19 +51,6 @@ disabled. Emails in the `oauth2_emails` list get the Admin role; everyone
 else gets Viewer. Grafana comes preconfigured with the
 `kube-prometheus-stack` dashboards for cluster monitoring.
 
-## Longhorn UI
-
-Via ingress: **https://longhorn.\<domain\>** (oauth2-proxy login)
-
-Via port-forward:
-
-```bash
-longhorn.sh
-```
-
-Authenticate via GitHub (oauth2-proxy). The UI shows storage volumes,
-replicas, and backup status.
-
 ## Headlamp (Kubernetes Dashboard)
 
 Via ingress: **https://headlamp.\<domain\>**

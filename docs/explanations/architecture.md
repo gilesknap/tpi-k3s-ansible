@@ -30,7 +30,7 @@ flowchart TB
     subgraph Cluster["K3s Cluster"]
         K3S[K3s Control Plane]
         ARGO[ArgoCD]
-        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Longhorn, Grafana, Supabase,<br/>Open Brain, etc.]
+        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Grafana, Supabase,<br/>Open Brain, etc.]
     end
 
     subgraph Git["Git Repository"]
@@ -120,7 +120,7 @@ ArgoCD continuously reconciles the cluster state with the repository. See
 | K3s over K8s | Lightweight, single binary, ideal for ARM and small clusters |
 | ArgoCD over Flux | Mature, excellent UI, widely adopted |
 | NGINX Ingress over Traefik | More widely documented, better TLS passthrough support |
-| Longhorn over Rook-Ceph | Simpler, lower resource overhead, good for small clusters |
+| Static `local-nvme` PVs + NFS backup CronJobs over distributed block storage | Lower overhead, simpler failure modes, known host pinning; the NAS was already present so backups reuse existing infrastructure |
 | cert-manager + DNS-01 | Works for LAN-only services that have no public HTTP route |
 | Sealed Secrets over SOPS | Kubernetes-native, no external key management needed |
 | DevContainer over bare metal | Reproducible execution environment, zero host contamination |

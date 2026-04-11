@@ -27,7 +27,7 @@ cloudflared pod (in cluster, outbound connection only — no inbound firewall po
 ingress-nginx → service
 
 LAN ACCESS (all services)
-  DNS: grafana/argocd/headlamp/longhorn/rkllama.<domain> → worker IP  (DNS-only A records)
+  DNS: grafana/argocd/headlamp/rkllama.<domain> → worker IP  (DNS-only A records)
   Clients resolve directly to ingress-nginx without going via Cloudflare
 ```
 
@@ -124,7 +124,7 @@ Cloudflare will round-robin across them:
 
 Replace the IPs with the LAN addresses of your worker nodes (e.g.
 `192.168.1.82`, `.83`, `.84`). Services to add: `argocd`, `grafana`,
-`headlamp`, `longhorn`, `oauth2`, `open-webui`, `rkllama`.
+`headlamp`, `oauth2`, `open-webui`, `rkllama`.
 
 These resolve to private RFC-1918 addresses — only reachable from your LAN.
 For a single-node cluster, one A record per service is sufficient.

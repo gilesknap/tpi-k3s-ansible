@@ -20,8 +20,8 @@ just set-admin-password
 ```
 
 This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
-creates the ``admin-auth`` secret in the ``longhorn`` and ``monitoring``
-namespaces, patches the ArgoCD admin password, and restarts the ArgoCD server.
+creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
+Grafana), patches the ArgoCD admin password, and restarts the ArgoCD server.
 
 To update the password later, re-run the same command and restart cached
 services:
