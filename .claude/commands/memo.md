@@ -1,8 +1,3 @@
----
-name: memo
-description: Save current task state to auto-memory, then promote reusable knowledge to docs/skills/CLAUDE.md and trim memory.
----
-
 # Memo
 
 Save a snapshot of current work to persistent memory, then graduate

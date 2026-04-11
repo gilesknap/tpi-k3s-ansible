@@ -29,9 +29,9 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - **All ansible commands need `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"`**
   (start with `just ssh-agent`).
 - **Commits need `uv run`** — pre-commit hooks live in the uv venv.
-- **Adding a node**: use `/add-node` skill.
-- **Full bootstrap**: use `/bootstrap-cluster` skill.
-- **Rebuild cluster**: use `/rebuild-cluster` skill.
+- **Adding a node**: run `/add-node`.
+- **Full bootstrap**: run `/bootstrap-cluster`.
+- **Rebuild cluster**: run `/rebuild-cluster`.
 
 ## Branch switching
 
@@ -94,7 +94,7 @@ reboot unexpectedly. This has three consequences you must design for:
 Replica counts in `kubernetes-services/values.yaml` must match the
 number of Longhorn-capable nodes (i.e. excluding ws03). Going too high
 leaves volumes permanently Degraded; going too low under-replicates on
-adds. Update after any `add-node` run.
+adds. Update after any `/add-node` run.
 
 ## Foot-guns
 

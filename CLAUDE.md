@@ -14,7 +14,6 @@
 - **Rebase over `main` before new work** — squash-merged commits have
   different SHAs from the originals, so skipping rebase causes phantom
   conflicts.
-- **Use `uv run`** for git commits (pre-commit hooks need the uv venv).
 - **Chrome browser is not incognito** — never navigate to Google services.
   For GitHub: OAuth "Grant Access" / "Authorize" clicks are OK (they only
   redirect back to the cluster), but do not modify any GitHub resources
@@ -27,23 +26,9 @@
 
 Changes to Ansible roles, secret derivation, CoreDNS, or ArgoCD app
 templates can silently break the rebuild path while the live cluster
-stays healthy. Validate with a full rebuild **before** merging:
-
-1. Push your change to a feature branch and `just switch-branch <branch>`
-   to point the live cluster at it.
-2. Open a PR (draft is fine).
-3. `/rebuild-cluster on this branch to test #<PR>` — the skill branches
-   off your PR, decommissions, and rebuilds against that branch.
-4. If the rebuild surfaces bugs, fix them and cherry-pick the fix
-   commit(s) onto the PR branch (force-push).
-5. **Cherry-pick the playbook-generated `Re-seal all secrets for
-   rebuilt cluster` commit onto the PR branch as a separate commit.**
-   One merge must deliver both the code fix *and* the new sealed
-   secrets — otherwise `main` keeps the old (un-decryptable)
-   ciphertexts and the cluster can't be safely pointed back at `main`
-   after merge.
-6. Merge the PR, then `ansible-playbook pb_all.yml --tags cluster` to
-   switch ArgoCD tracking back to `main`. Delete the rebuild branch.
+stays healthy. Before merging such a PR, suggest validating it with
+`/rebuild-cluster` on the PR branch — the command handles the PR-test
+workflow, including cherry-picking the reseal commit back.
 
 ## Key Paths
 

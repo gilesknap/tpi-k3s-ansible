@@ -1,9 +1,3 @@
----
-name: rebuild-cluster
-description: Tear down and rebuild the K3s cluster from scratch to validate documentation and commissioning. Destructive — all Longhorn data is lost.
-user-invocable: true
----
-
 # Rebuild Cluster
 
 Decommission and rebuild the K3s cluster from scratch, validating the
@@ -12,7 +6,7 @@ Supabase DB backups) survives; **Longhorn PVC data is destroyed**.
 
 ## WARNING — DATA LOSS
 
-This skill **destroys all Longhorn-backed persistent data** including:
+This command **destroys all Longhorn-backed persistent data** including:
 - Prometheus/Grafana metrics history
 - Open WebUI chat history and uploads
 - Supabase database (tables, storage objects, edge functions)
@@ -47,6 +41,20 @@ git push -u origin rebuild-$(date +%Y%m%d)
 **Push the branch immediately** — ArgoCD's root app is configured with
 `repo_branch` during Phase 3 and will fail to sync if the branch does
 not exist on the remote (`unable to resolve '<branch>' to a commit SHA`).
+
+#### If testing a PR branch
+
+A common invocation is "rebuild on this branch to test PR #N". The PR
+branch itself is the base branch for the rebuild:
+
+1. Ask the user to `just switch-branch <pr-branch>` first so the live
+   cluster is pointing at the PR state. (They should have a draft PR
+   open already.)
+2. Use the PR branch as `<base-branch>` in the commands above.
+3. Note that this is a PR-testing rebuild — **Phase 8 has extra steps**
+   (cherry-picking fixes and the reseal commit back onto the PR branch)
+   so that merging the PR delivers both the code fix and the new sealed
+   secrets in one go.
 
 ### 1b. Collect external credentials
 
@@ -247,7 +255,7 @@ All services must respond (no timeouts or 5xx errors).
 
 ## Phase 7: Verify via browser
 
-Invoke **`/test-oauth-flow`** — that skill contains the full browser
+Invoke **`/test-oauth-flow`** — that command contains the full browser
 test matrix, cookie-clearing JavaScript, scroll-jacking workaround,
 and failure-reporting procedure, and delegates the browser work to a
 subagent to keep the main conversation context clean.
@@ -290,13 +298,38 @@ after they have tested the cluster manually.
 rm -rf /tmp/cluster-secrets/
 ```
 
-### 8e. Report
+### 8e. If this rebuild was testing a PR branch
+
+Skip this subsection for fresh rebuilds. For PR-testing rebuilds, the
+user wants one merge of **their PR** to deliver both the code fix *and*
+the new sealed secrets — otherwise `main` keeps the old un-decryptable
+ciphertexts and the cluster can't be safely pointed back at `main`
+after merge.
+
+1. **Cherry-pick any fix commits** made on the rebuild branch (bugs
+   surfaced during rebuild) back onto the PR branch, then force-push
+   the PR branch.
+2. **Cherry-pick the playbook-generated `Re-seal all secrets for
+   rebuilt cluster` commit** from the rebuild branch onto the PR
+   branch as a separate commit. Force-push the PR branch.
+3. **Do not** create a second PR from the rebuild branch — the PR
+   that gets merged is the user's original PR, now carrying the
+   reseal commit.
+4. After the user merges their PR, they run
+   `ansible-playbook pb_all.yml --tags cluster` (no `--extra-vars`)
+   to switch ArgoCD tracking back to `main`, then delete the rebuild
+   branch.
+
+### 8f. Report
 
 Tell the user:
 - The cluster is rebuilt and all services are verified
 - ArgoCD is tracking the **rebuild branch** (not main)
-- The PR is ready for review
-- After merging the PR, run this command to switch ArgoCD back to main:
+- For fresh rebuilds: the PR is ready for review
+- For PR-testing rebuilds: any fix commits and the reseal commit have
+  been cherry-picked onto their PR branch and force-pushed; their PR
+  is ready to merge
+- After merging, run this command to switch ArgoCD back to main:
   ```
   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
   ```

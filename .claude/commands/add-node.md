@@ -1,9 +1,3 @@
----
-name: add-node
-description: Interactively add a new worker node to an existing K3s cluster — configure inventory, bootstrap SSH, join cluster, and adjust topology settings.
-user_invocable: true
----
-
 # Add Node
 
 Guide the user through adding a new worker node to an existing cluster. Ask
