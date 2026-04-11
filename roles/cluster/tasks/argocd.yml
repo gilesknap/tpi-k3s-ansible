@@ -14,24 +14,15 @@
         params:
           server.insecure: "true"
 
-- name: Read ArgoCD server.secretkey for Dex client secret computation
-  ansible.builtin.shell:
-    cmd: kubectl get secret argocd-secret -n argo-cd -o 'jsonpath={.data.server\.secretkey}'
-    executable: /bin/bash
-  register: _server_secretkey_b64
-  changed_when: false
-
 # ArgoCD auto-generates a Dex `argo-cd` static client with a secret derived
-# from server.secretkey: SHA256(base64_string) → base64url[:40].
-# Our dex.config re-declares this client (to add trustedPeers), so the secret
-# must match exactly or OAuth callbacks fail with "invalid_client".
-- name: Compute Dex argo-cd client secret
+# from server.secretkey. Our dex.config re-declares this client (to add
+# trustedPeers), so the secret must match exactly or OAuth callbacks fail
+# with "invalid_client". Delegate to the script so the derivation lives in
+# one place (see scripts/derive-argocd-client-secret).
+- name: Derive Dex argo-cd client secret
   ansible.builtin.command:
-    cmd: >-
-      python3 -c "import hashlib,base64,sys;
-      k=base64.b64decode(sys.argv[1]).decode();
-      print(base64.urlsafe_b64encode(hashlib.sha256(k.encode()).digest()).decode()[:40])"
-      "{{ _server_secretkey_b64.stdout }}"
+    cmd: scripts/derive-argocd-client-secret
+    chdir: "{{ playbook_dir }}"
   register: _dex_secret_cmd
   changed_when: false
 
