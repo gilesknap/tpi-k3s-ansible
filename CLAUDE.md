@@ -55,6 +55,13 @@
   `monitoring` (grafana), `open-webui`, and `headlamp` namespaces.
   Env vars from K8s Secrets are snapshot-at-startup; running pods keep
   stale values until restarted.
+- **Every re-seal rewrites every `encryptedData` field** — sealed-secrets
+  encryption is non-deterministic, so running `seal-argocd-dex` (or any
+  reseal path) always produces a diff where *all* keys in `encryptedData`
+  changed, even if only one plaintext value actually changed. This is
+  not a regression — don't waste time investigating. To verify a reseal
+  was benign, decode the running Secret in-cluster and compare plaintexts,
+  not the sealed ciphertext.
 - **DEX duplicate `argo-cd` static client** — ArgoCD auto-generates an
   `argo-cd` DEX client (without `trustedPeers`). Our `dex.config` also
   declares one (with `trustedPeers: [argocd-monitor]`). DEX v2.45+
