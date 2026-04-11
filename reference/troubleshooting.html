@@ -712,6 +712,35 @@ the Kubernetes service DNS name (e.g.
 for the hostname.</p></li>
 </ol>
 </section>
+<section id="new-tunnel-hostname-won-t-resolve-on-lan">
+<h3>New tunnel hostname won’t resolve on LAN<a class="headerlink" href="#new-tunnel-hostname-won-t-resolve-on-lan" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> You add a new public hostname in the Cloudflare tunnel
+dashboard, Cloudflare auto-creates the proxied CNAME, but LAN clients
+keep getting <code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code> for the new name. Public resolvers (<code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&#64;1.1.1.1</span></code>) return the record correctly.</p>
+<p><strong>Cause:</strong> Negative DNS caching. Before the record existed, your
+router / <code class="docutils literal notranslate"><span class="pre">systemd-resolved</span></code> / browser queried the name, got
+<code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code>, and cached <em>that</em> result for its TTL. The cache doesn’t
+clear when Cloudflare publishes the new record — you have to flush it.</p>
+<p><strong>Fix:</strong> Flush the LAN-side caches in order of how hard they are to
+reach:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Local browser — use incognito or clear browser DNS cache</span>
+<span class="c1">#    (chrome://net-internals/#dns → &quot;Clear host cache&quot;)</span>
+
+<span class="c1"># 2. systemd-resolved on the client</span>
+sudo<span class="w"> </span>resolvectl<span class="w"> </span>flush-caches
+
+<span class="c1"># 3. The router&#39;s DNS cache — usually via Reboot or a &quot;Flush DNS&quot;</span>
+<span class="c1">#    button in the admin UI. This is the one that tends to persist.</span>
+</pre></div>
+</div>
+<p>To confirm the negative cache is the cause, bypass the local resolver:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dig<span class="w"> </span>@1.1.1.1<span class="w"> </span>new-hostname.example.com<span class="w">  </span><span class="c1"># public resolver — should work</span>
+dig<span class="w"> </span>new-hostname.example.com<span class="w">           </span><span class="c1"># local resolver — still NXDOMAIN</span>
+</pre></div>
+</div>
+<p>If only the local-resolver lookup fails, you are hitting cached
+<code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code>, not a Cloudflare problem.</p>
+</section>
 </section>
 <section id="nfs-mount-issues">
 <h2>NFS Mount Issues<a class="headerlink" href="#nfs-mount-issues" title="Link to this heading">#</a></h2>
@@ -981,6 +1010,7 @@ tpi<span class="w"> </span>info
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#waf-blocks-access-to-ssh-tunnel">WAF blocks access to SSH tunnel</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tunnel-not-connecting">Tunnel not connecting</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connection-refused-for-tunnelled-service">Connection refused for tunnelled service</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-tunnel-hostname-won-t-resolve-on-lan">New tunnel hostname won’t resolve on LAN</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-mount-issues">NFS Mount Issues</a><ul class="nav section-nav flex-column">
