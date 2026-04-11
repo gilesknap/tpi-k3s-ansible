@@ -853,7 +853,7 @@ window.addEventListener("load", load);</script>
                   
   <section id="ansible-roles-in-detail">
 <h1>Ansible Roles in Detail<a class="headerlink" href="#ansible-roles-in-detail" title="Link to this heading">#</a></h1>
-<p>The playbook <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> runs seven roles in sequence. Each role is fully idempotent —
+<p>The playbook <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> runs eight roles in sequence. Each role is fully idempotent —
 it checks state before acting and does nothing if the desired state is already achieved.</p>
 <section id="execution-order">
 <h2>Execution order<a class="headerlink" href="#execution-order" title="Link to this heading">#</a></h2>
@@ -864,7 +864,8 @@ flowchart TD
     F --&gt; KH[&quot;known_hosts&lt;br/&gt;&lt;i&gt;all_nodes + turing_pis&lt;/i&gt;&quot;]
     KH --&gt; MF[&quot;move_fs&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
     MF --&gt; UP[&quot;update_packages&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
-    UP --&gt; K[&quot;k3s&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
+    UP --&gt; DD[&quot;k8s_data_dirs&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
+    DD --&gt; K[&quot;k3s&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
     K --&gt; C[&quot;cluster&lt;br/&gt;&lt;i&gt;localhost&lt;/i&gt;&quot;]
     </pre><p>Each role is tagged with its own name, so you can run individual stages:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>tools
@@ -872,7 +873,7 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <span class="c1"># etc.</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">servers</span></code> tag covers both <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> and <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">servers</span></code> tag covers <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>.</p>
 </section>
 <hr class="docutils" />
 <section id="tools-cli-tool-installation">
@@ -1054,6 +1055,63 @@ every agent restart from this template, so the configuration persists across reb
 </ol>
 </section>
 <hr class="docutils" />
+<section id="k8s-data-dirs-local-pv-host-directories">
+<h2><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> — Local PV host directories<a class="headerlink" href="#k8s-data-dirs-local-pv-host-directories" title="Link to this heading">#</a></h2>
+<p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>
+<strong>Tag:</strong> <code class="docutils literal notranslate"><span class="pre">servers</span></code></p>
+<p>Creates the host directories that back the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs defined in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/local-storage/</span></code>. Each app’s PV is pinned via
+<code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code> to one specific node, so the role creates each directory only
+on its target node (guarded by <code class="docutils literal notranslate"><span class="pre">inventory_hostname</span></code>).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node</p></th>
+<th class="head"><p>Directory</p></th>
+<th class="head"><p>Owner / mode</p></th>
+<th class="head"><p>Consumed by</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code></p></td>
+<td><p>root / 0777</p></td>
+<td><p>supabase</p></td>
+</tr>
+<tr class="row-odd"><td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code></p></td>
+<td><p>root / 0777</p></td>
+<td><p>supabase</p></td>
+</tr>
+<tr class="row-even"><td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code></p></td>
+<td><p>65532:65532 / 0755</p></td>
+<td><p>supabase</p></td>
+</tr>
+<tr class="row-odd"><td><p>node02</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code></p></td>
+<td><p>1000:2000 / 0755</p></td>
+<td><p>monitoring</p></td>
+</tr>
+<tr class="row-even"><td><p>node03</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
+<td><p>472:472 / 0755</p></td>
+<td><p>monitoring</p></td>
+</tr>
+<tr class="row-odd"><td><p>node04</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code></p></td>
+<td><p>root / 0777</p></td>
+<td><p>open-webui</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Data lives outside <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code> deliberately: <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>
+wipes <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code> to reset K3s, but these directories are preserved
+so PVC data survives a cluster rebuild. The one-time NFS share setup that
+hosts the backup CronJob output is a separate manual runbook — see
+<code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code>.</p>
+</section>
+<hr class="docutils" />
 <section id="k3s-kubernetes-installation">
 <h2><code class="docutils literal notranslate"><span class="pre">k3s</span></code> — Kubernetes installation<a class="headerlink" href="#k3s-kubernetes-installation" title="Link to this heading">#</a></h2>
 <p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>
@@ -1180,6 +1238,7 @@ managed by ArgoCD once it’s running.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-hosts-ssh-host-key-management"><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> — SSH host key management</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#move-fs-os-migration-to-nvme"><code class="docutils literal notranslate"><span class="pre">move_fs</span></code> — OS migration to NVMe</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#update-packages-os-preparation"><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> — OS preparation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k8s-data-dirs-local-pv-host-directories"><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> — Local PV host directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-kubernetes-installation"><code class="docutils literal notranslate"><span class="pre">k3s</span></code> — Kubernetes installation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#control-plane-control-yml">Control plane (<code class="docutils literal notranslate"><span class="pre">control.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#workers-worker-yml">Workers (<code class="docutils literal notranslate"><span class="pre">worker.yml</span></code>)</a></li>
