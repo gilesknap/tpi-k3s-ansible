@@ -49,5 +49,4 @@ how-to/alternative-storage
 
 how-to/work-in-branches
 how-to/claude-code
-how-to/claude-code-debugging-example
 ```
