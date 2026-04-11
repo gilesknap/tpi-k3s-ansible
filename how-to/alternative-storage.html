@@ -416,94 +416,119 @@
                   
   <section id="use-an-alternative-storage-provider">
 <h1>Use an Alternative Storage Provider<a class="headerlink" href="#use-an-alternative-storage-provider" title="Link to this heading">#</a></h1>
-<p>This project deploys <a class="reference external" href="https://longhorn.io/">Longhorn</a> as the default CSI (Container
-Storage Interface) provider. If you prefer a different storage solution — such as
-local-path, NFS, Rook-Ceph, or OpenEBS — follow this guide.</p>
-<section id="what-longhorn-provides">
-<h2>What Longhorn provides<a class="headerlink" href="#what-longhorn-provides" title="Link to this heading">#</a></h2>
-<p>Longhorn gives you:</p>
+<p>This project uses <strong>static local <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs plus an NFS backup target</strong>
+as its default storage architecture. If you prefer a CSI-based solution — such
+as Longhorn, Rook-Ceph, OpenEBS, or a dynamic NFS provisioner — follow this
+guide to replace the defaults.</p>
+<section id="what-the-default-architecture-gives-you">
+<h2>What the default architecture gives you<a class="headerlink" href="#what-the-default-architecture-gives-you" title="Link to this heading">#</a></h2>
+<p>The default has two layers:</p>
 <ul class="simple">
-<li><p>Replicated block storage distributed across worker nodes</p></li>
+<li><p><strong>Per-node static local PVs</strong> (<code class="docutils literal notranslate"><span class="pre">additions/local-storage</span></code>) — one NVMe PV per
+stateful workload, pre-bound via <code class="docutils literal notranslate"><span class="pre">claimRef</span></code>, pinned with <code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>, and
+backed by an on-disk path (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> on nuc2, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code>
+on RK1 nodes). <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> preserves these directories by
+default, so stateful apps survive cluster rebuilds.</p></li>
+<li><p><strong>One shared NFS PV on the NAS for backups</strong> (<code class="docutils literal notranslate"><span class="pre">additions/backups</span></code>) — per-app
+<code class="docutils literal notranslate"><span class="pre">CronJob</span></code>s write to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/&lt;app&gt;/{,weekly}</span></code> via
+<code class="docutils literal notranslate"><span class="pre">subPath</span></code>. See <a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a> for retention, restore recipes, and the
+manual NAS runbook (<a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>).</p></li>
+</ul>
+<p>What the default does <strong>not</strong> give you:</p>
+<ul class="simple">
+<li><p>Replicated block storage across nodes (a node loss loses that node’s live data)</p></li>
 <li><p>A web UI for volume management</p></li>
-<li><p>Volume snapshots and backups</p></li>
-<li><p>Automatic replica rebuilding when nodes go down</p></li>
+<li><p>Live (non-snapshot) block-level backups</p></li>
+<li><p>Automatic rebalancing when nodes are added or removed</p></li>
 </ul>
-<p>If you do not need these features, or your environment has a different storage solution,
-you can replace Longhorn entirely.</p>
+<p>If you need those, replace the local-nvme layer with a CSI provider.</p>
 </section>
-<section id="step-1-remove-longhorn-from-argocd">
-<h2>Step 1: Remove Longhorn from ArgoCD<a class="headerlink" href="#step-1-remove-longhorn-from-argocd" title="Link to this heading">#</a></h2>
-<p>Delete the Longhorn ArgoCD Application template and its additions:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>kubernetes-services/templates/longhorn.yaml
-rm<span class="w"> </span>-rf<span class="w"> </span>kubernetes-services/additions/longhorn/
+<section id="step-1-remove-the-static-local-nvme-layer">
+<h2>Step 1: Remove the static local-nvme layer<a class="headerlink" href="#step-1-remove-the-static-local-nvme-layer" title="Link to this heading">#</a></h2>
+<p>Delete the local-storage chart and ArgoCD Application template:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>kubernetes-services/templates/local-storage.yaml
+rm<span class="w"> </span>-rf<span class="w"> </span>kubernetes-services/additions/local-storage/
+</pre></div>
+</div>
+<p>Also remove the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role from <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> (<code class="docutils literal notranslate"><span class="pre">servers</span></code> play) if
+your replacement does not need the on-disk directories, and drop the role
+itself:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>roles/k8s_data_dirs/
 </pre></div>
 </div>
 </section>
-<section id="step-2-remove-longhorn-specific-kernel-settings">
-<h2>Step 2: Remove Longhorn-specific kernel settings<a class="headerlink" href="#step-2-remove-longhorn-specific-kernel-settings" title="Link to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">kernel-settings.yaml</span></code> DaemonSet includes iSCSI-related configuration that is
-specifically for Longhorn. Review <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/kernel-settings.yaml</span></code>
-and either:</p>
-<ul>
-<li><p><strong>Delete it entirely</strong> if you do not need the sysctl tuning:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>kubernetes-services/templates/kernel-settings.yaml
+<section id="step-2-update-storage-references-in-stateful-services">
+<h2>Step 2: Update storage references in stateful services<a class="headerlink" href="#step-2-update-storage-references-in-stateful-services" title="Link to this heading">#</a></h2>
+<p>Search for <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> in the templates and swap it for your provider’s
+StorageClass name:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span>-rn<span class="w"> </span>local-nvme<span class="w"> </span>kubernetes-services/templates/
 </pre></div>
 </div>
-</li>
-<li><p><strong>Edit it</strong> to keep only the network buffer settings (<code class="docutils literal notranslate"><span class="pre">rmem_max</span></code>/<code class="docutils literal notranslate"><span class="pre">wmem_max</span></code>) and
-remove the multipathd blacklist for Longhorn iSCSI devices.</p></li>
-</ul>
-</section>
-<section id="step-3-remove-open-iscsi-dependency-optional">
-<h2>Step 3: Remove <code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> dependency (optional)<a class="headerlink" href="#step-3-remove-open-iscsi-dependency-optional" title="Link to this heading">#</a></h2>
-<p>Longhorn requires <code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> on each node. If your replacement does not need it,
-you can remove it from the <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role. Edit
-<code class="docutils literal notranslate"><span class="pre">roles/update_packages/tasks/main.yml</span></code> and remove <code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> from the package list.</p>
-</section>
-<section id="step-4-update-storage-references-in-other-services">
-<h2>Step 4: Update storage references in other services<a class="headerlink" href="#step-4-update-storage-references-in-other-services" title="Link to this heading">#</a></h2>
-<p>Some services request persistent volumes using Longhorn’s <code class="docutils literal notranslate"><span class="pre">storageClassName</span></code>. Search
-for <code class="docutils literal notranslate"><span class="pre">longhorn</span></code> references in other templates:</p>
-<section id="grafana-prometheus">
-<h3>Grafana / Prometheus<a class="headerlink" href="#grafana-prometheus" title="Link to this heading">#</a></h3>
-<p>In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code>, update the storage configuration:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Change from:</span>
-<span class="nt">storageSpec</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">volumeClaimTemplate</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
-<span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">requests</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40Gi</span>
-
-<span class="c1"># To your provider:</span>
-<span class="nt">storageSpec</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">volumeClaimTemplate</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">storageClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your-storage-class</span><span class="w">   </span><span class="c1"># or remove to use the cluster default</span>
-<span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">requests</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40Gi</span>
-</pre></div>
-</div>
-<p>Update both the Prometheus and Grafana volume claims in this file.</p>
+<p>Expect hits in <code class="docutils literal notranslate"><span class="pre">supabase.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>, and <code class="docutils literal notranslate"><span class="pre">open-webui.yaml</span></code>. For
+each, change <code class="docutils literal notranslate"><span class="pre">storageClassName:</span> <span class="pre">local-nvme</span></code> (or <code class="docutils literal notranslate"><span class="pre">storageClass:</span> <span class="pre">local-nvme</span></code>
+for Open WebUI’s chart) to your provider’s class.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>If your replacement storage provider registers itself as the <strong>default</strong> StorageClass,
-you can simply remove the <code class="docutils literal notranslate"><span class="pre">storageClassName</span></code> field entirely and Kubernetes will use
-the default.</p>
+<p>If your replacement storage provider registers itself as the <strong>default</strong>
+StorageClass, you can remove the <code class="docutils literal notranslate"><span class="pre">storageClassName</span></code> field entirely and
+Kubernetes will pick the default.</p>
 </div>
 </section>
+<section id="step-3-update-the-decommission-playbook">
+<h2>Step 3: Update the decommission playbook<a class="headerlink" href="#step-3-update-the-decommission-playbook" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> has no Longhorn-specific surgery — it just scales down
+stateful workloads and deletes chart-owned PVCs so they re-create cleanly on
+the next sync. If your replacement provider needs additional teardown
+(Longhorn volumes detach, Ceph OSDs drain, etc.), add those steps to the
+“Scale down workloads and delete chart-owned PVCs” play.</p>
+</section>
+<section id="step-4-adjust-decommission-retention">
+<h2>Step 4: Adjust decommission retention<a class="headerlink" href="#step-4-adjust-decommission-retention" title="Link to this heading">#</a></h2>
+<p>The default decommission preserves <code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code> and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>
+unless you pass <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code>. If you remove the local-nvme layer
+entirely, these paths become irrelevant and the gated wipe task in
+<code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> can be removed.</p>
 </section>
 <section id="step-5-add-your-replacement-storage-provider">
 <h2>Step 5: Add your replacement storage provider<a class="headerlink" href="#step-5-add-your-replacement-storage-provider" title="Link to this heading">#</a></h2>
-<p>Create a new ArgoCD Application template for your CSI driver. For example, to use
-the built-in K3s <code class="docutils literal notranslate"><span class="pre">local-path</span></code> provisioner (already included in K3s by default):</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># No template needed — local-path-provisioner is built into K3s</span>
-<span class="c1"># Just remove Longhorn and update storageClassName references to &quot;local-path&quot;</span>
+<p>Create a new ArgoCD Application template for your CSI driver. Examples:</p>
+<section id="longhorn-block-storage-replicated">
+<h3>Longhorn (block storage, replicated)<a class="headerlink" href="#longhorn-block-storage-replicated" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># kubernetes-services/templates/longhorn.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argoproj.io/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Application</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argo-cd</span>
+<span class="w">  </span><span class="nt">finalizers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resources-finalizer.argocd.argoproj.io</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kubernetes</span>
+<span class="w">  </span><span class="nt">destination</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://kubernetes.default.svc</span>
+<span class="w">    </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
+<span class="w">  </span><span class="nt">sources</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">chart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
+<span class="w">      </span><span class="nt">repoURL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://charts.longhorn.io/</span>
+<span class="w">      </span><span class="nt">targetRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.11.1</span>
+<span class="w">      </span><span class="nt">helm</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">          </span><span class="no">persistence:</span>
+<span class="w">            </span><span class="no">defaultClassReplicaCount: 3</span>
+<span class="w">  </span><span class="nt">syncPolicy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">automated</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">prune</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">selfHeal</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">syncOptions</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CreateNamespace=true</span>
 </pre></div>
 </div>
-<p>For NFS:</p>
+<p>Add <code class="docutils literal notranslate"><span class="pre">https://charts.longhorn.io/</span></code> to <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> in
+<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>, and re-add <code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> to the <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>
+role’s package list (Longhorn needs it for iSCSI target presentation).</p>
+</section>
+<section id="dynamic-nfs-csi">
+<h3>Dynamic NFS CSI<a class="headerlink" href="#dynamic-nfs-csi" title="Link to this heading">#</a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># kubernetes-services/templates/nfs-csi.yaml</span>
 <span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argoproj.io/v1alpha1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Application</span>
@@ -538,14 +563,26 @@ the built-in K3s <code class="docutils literal notranslate"><span class="pre">lo
 </pre></div>
 </div>
 </section>
+<section id="k3s-built-in-local-path-only">
+<h3>k3s built-in <code class="docutils literal notranslate"><span class="pre">local-path</span></code> only<a class="headerlink" href="#k3s-built-in-local-path-only" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">local-path-provisioner</span></code> is already installed by k3s as the cluster default
+StorageClass. To use it without any static PVs, just remove the local-nvme
+layer (Step 1) and change <code class="docutils literal notranslate"><span class="pre">storageClassName:</span> <span class="pre">local-nvme</span></code> to
+<code class="docutils literal notranslate"><span class="pre">storageClassName:</span> <span class="pre">local-path</span></code> in the stateful templates. Note that
+<code class="docutils literal notranslate"><span class="pre">local-path</span></code> binds a PVC to a specific node’s <code class="docutils literal notranslate"><span class="pre">hostPath</span></code>, and those bindings
+live in etcd — they are <strong>not recoverable after a cluster rebuild</strong>, which is
+why this project ships static PVs with <code class="docutils literal notranslate"><span class="pre">claimRef</span></code> instead.</p>
+</section>
+</section>
 <section id="step-6-commit-and-push">
 <h2>Step 6: Commit and push<a class="headerlink" href="#step-6-commit-and-push" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>-A
-git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Replace Longhorn with &lt;your-provider&gt;&quot;</span>
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Replace static local PVs with &lt;your-provider&gt;&quot;</span>
 git<span class="w"> </span>push
 </pre></div>
 </div>
-<p>ArgoCD will remove Longhorn and deploy your replacement storage provider.</p>
+<p>ArgoCD will provision your replacement storage provider. Stateful workloads
+will re-create their PVCs against the new StorageClass.</p>
 </section>
 <section id="common-alternative-providers">
 <h2>Common alternative providers<a class="headerlink" href="#common-alternative-providers" title="Link to this heading">#</a></h2>
@@ -559,21 +596,25 @@ git<span class="w"> </span>push
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local-path</span></code></p></td>
 <td><p>Single-node, dev clusters</p></td>
-<td><p>Built into K3s, no replication</p></td>
+<td><p>Built into K3s, no replication, not rebuild-safe</p></td>
 </tr>
-<tr class="row-odd"><td><p>NFS CSI</p></td>
+<tr class="row-odd"><td><p>Longhorn</p></td>
+<td><p>Replicated block storage on commodity nodes</p></td>
+<td><p>Heavy; needs iSCSI</p></td>
+</tr>
+<tr class="row-even"><td><p>NFS CSI</p></td>
 <td><p>Shared storage, NAS</p></td>
-<td><p>Requires external NFS server</p></td>
+<td><p>Requires external NFS server; live data on NFS not ideal for Postgres</p></td>
 </tr>
-<tr class="row-even"><td><p>Rook-Ceph</p></td>
+<tr class="row-odd"><td><p>Rook-Ceph</p></td>
 <td><p>Production, multi-node</p></td>
 <td><p>Complex setup, high resource usage</p></td>
 </tr>
-<tr class="row-odd"><td><p>OpenEBS</p></td>
+<tr class="row-even"><td><p>OpenEBS</p></td>
 <td><p>Flexible, lightweight</p></td>
 <td><p>Multiple engine options</p></td>
 </tr>
-<tr class="row-even"><td><p>Democratic CSI</p></td>
+<tr class="row-odd"><td><p>Democratic CSI</p></td>
 <td><p>iSCSI/NFS to TrueNAS</p></td>
 <td><p>Good for home labs with NAS</p></td>
 </tr>
@@ -630,15 +671,17 @@ git<span class="w"> </span>push
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-longhorn-provides">What Longhorn provides</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-remove-longhorn-from-argocd">Step 1: Remove Longhorn from ArgoCD</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-remove-longhorn-specific-kernel-settings">Step 2: Remove Longhorn-specific kernel settings</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-remove-open-iscsi-dependency-optional">Step 3: Remove <code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> dependency (optional)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-update-storage-references-in-other-services">Step 4: Update storage references in other services</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-prometheus">Grafana / Prometheus</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-the-default-architecture-gives-you">What the default architecture gives you</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-remove-the-static-local-nvme-layer">Step 1: Remove the static local-nvme layer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-update-storage-references-in-stateful-services">Step 2: Update storage references in stateful services</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-update-the-decommission-playbook">Step 3: Update the decommission playbook</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-adjust-decommission-retention">Step 4: Adjust decommission retention</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-add-your-replacement-storage-provider">Step 5: Add your replacement storage provider</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn-block-storage-replicated">Longhorn (block storage, replicated)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-nfs-csi">Dynamic NFS CSI</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-built-in-local-path-only">k3s built-in <code class="docutils literal notranslate"><span class="pre">local-path</span></code> only</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-add-your-replacement-storage-provider">Step 5: Add your replacement storage provider</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-commit-and-push">Step 6: Commit and push</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-alternative-providers">Common alternative providers</a></li>
 </ul>

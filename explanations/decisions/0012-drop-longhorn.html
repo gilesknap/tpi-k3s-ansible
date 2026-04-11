@@ -1,0 +1,743 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>12. Drop Longhorn in Favour of Static Local PVs + NFS Backups &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/decisions/0012-drop-longhorn';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Reference" href="../../reference.html" />
+    <link rel="prev" title="11. MinIO for Open Brain File Attachments" href="0011-minio-file-attachments.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gitops-flow.html">GitOps Flow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../kubernetes-services.html">Kubernetes Services Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible Roles in Detail</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../authentication.html">Authentication Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../network-policies.html">Network Policies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../security.html">Security Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../security-hardening.html">Security Hardening</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../open-brain-clients.html">Open Brain Client Options</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../decisions.html">Decision Records</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../decisions.html" class="nav-link">Decision Records</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="drop-longhorn-in-favour-of-static-local-pvs-nfs-backups">
+<h1>12. Drop Longhorn in Favour of Static Local PVs + NFS Backups<a class="headerlink" href="#drop-longhorn-in-favour-of-static-local-pvs-nfs-backups" title="Link to this heading">#</a></h1>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Supersedes:</strong> 0009 (workstation exclusion from Longhorn — no longer
+relevant with Longhorn removed).</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading">#</a></h2>
+<p>The cluster previously used Longhorn as its block-storage CSI provider for
+six stateful PVCs (Supabase <code class="docutils literal notranslate"><span class="pre">db</span></code>/<code class="docutils literal notranslate"><span class="pre">storage</span></code>/<code class="docutils literal notranslate"><span class="pre">minio</span></code>, Grafana, Prometheus,
+Open WebUI), totalling about 225Gi of live data. Two compounding problems
+forced a rethink:</p>
+<ol class="arabic simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> destroys all Longhorn data.</strong> The decommission
+playbook wipes <code class="docutils literal notranslate"><span class="pre">/var/lib/longhorn</span></code> and <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code>, and Longhorn’s
+volume metadata lives in Kubernetes CRDs that are gone once the cluster
+is torn down. Every rebuild was therefore a total loss of Supabase,
+Grafana history, and Open WebUI chat state.</p></li>
+<li><p><strong>No backup system.</strong> Longhorn’s built-in volume snapshots are
+node-local and vanish with the node. Longhorn-to-NFS backup targets
+exist but were never wired up, because the recovery story still
+required a Longhorn cluster on the other side.</p></li>
+</ol>
+<p>Additionally, the RK1 nodes each have a 1TB NVMe sitting mostly unused
+(OS + free space) and nuc2 has a 931GB <code class="docutils literal notranslate"><span class="pre">/home</span></code> disk mounted at <code class="docutils literal notranslate"><span class="pre">/home</span></code>,
+so local high-quality storage is already paid for.</p>
+<p>The NAS (<code class="docutils literal notranslate"><span class="pre">gknas</span></code>, <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code>) hosts existing NFS shares for LLM models
+(rkllama/llamacpp) and Supabase DB dumps, <em>plus unrelated personal shares</em>
+(JellyFin library, files, etc.) that must not be touched. Any NAS change
+has to respect that trust boundary.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading">#</a></h2>
+<p><strong>Drop Longhorn entirely. Replace it with two orthogonal layers:</strong></p>
+<ol class="arabic">
+<li><p><strong>Per-node static local PVs</strong> (<code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code>). A
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> <code class="docutils literal notranslate"><span class="pre">StorageClass</span></code> with <code class="docutils literal notranslate"><span class="pre">provisioner:</span> <span class="pre">kubernetes.io/no-provisioner</span></code>,
+<code class="docutils literal notranslate"><span class="pre">volumeBindingMode:</span> <span class="pre">WaitForFirstConsumer</span></code>, and <code class="docutils literal notranslate"><span class="pre">reclaimPolicy:</span> <span class="pre">Retain</span></code>.
+Six static <code class="docutils literal notranslate"><span class="pre">PersistentVolume</span></code> objects — one per live Longhorn PVC —
+each pre-bound via <code class="docutils literal notranslate"><span class="pre">spec.claimRef:</span> <span class="pre">{namespace,</span> <span class="pre">name}</span></code> to the exact
+chart-generated PVC name, and pinned via <code class="docutils literal notranslate"><span class="pre">spec.nodeAffinity</span></code> to a
+specific node:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>PVC</p></th>
+<th class="head"><p>Node</p></th>
+<th class="head"><p>On-disk path</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">supabase-db</span></code></p></td>
+<td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">supabase-storage</span></code></p></td>
+<td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">supabase-minio</span></code></p></td>
+<td><p>nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">storage-grafana-prometheus-0</span></code></p></td>
+<td><p>node03</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prometheus-grafana-prometheus-kube-pr-prometheus-...</span></code></p></td>
+<td><p>node02</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
+<td><p>node04</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> Ansible role creates these directories
+idempotently (part of the <code class="docutils literal notranslate"><span class="pre">servers</span></code> play), with owner/mode chosen to
+match each workload’s pod <code class="docutils literal notranslate"><span class="pre">securityContext</span></code>. <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>
+<strong>preserves</strong> <code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code> and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> by default; a
+new opt-in flag <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> removes them for a genuine
+clean-slate rebuild.</p>
+</li>
+<li><p><strong>Per-app backup CronJobs writing to one NFS share on the NAS</strong>
+(<code class="docutils literal notranslate"><span class="pre">additions/backups/</span></code>). A single cluster-owned subtree
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/</span></code> hosts all cluster data the cluster reads or
+writes over NFS — LLM models, Supabase DB dumps, and the new backup
+targets (<code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/{,weekly}</span></code>). One static NFS <code class="docutils literal notranslate"><span class="pre">PV</span></code>/<code class="docutils literal notranslate"><span class="pre">PVC</span></code> covers
+the whole subtree; each CronJob mounts it with a workload-specific
+<code class="docutils literal notranslate"><span class="pre">subPath</span></code>. Daily + weekly schedules per app; retention is enforced
+in-job with <code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span></code>. Prometheus is deliberately excluded —
+metrics are reconstructible from re-scrape.</p></li>
+</ol>
+</section>
+<section id="rejected-alternatives">
+<h2>Rejected alternatives<a class="headerlink" href="#rejected-alternatives" title="Link to this heading">#</a></h2>
+<section id="keep-longhorn-add-a-backup-pipeline">
+<h3>Keep Longhorn, add a backup pipeline<a class="headerlink" href="#keep-longhorn-add-a-backup-pipeline" title="Link to this heading">#</a></h3>
+<p>Possible, but doesn’t fix the fundamental problem: a rebuild destroys the
+primary data store and the restore path would need a working Longhorn
+cluster on the other side. Longhorn is also the single biggest source of
+rebuild pain (iSCSI cleanup, stuck finalizers, multiple retry loops in
+<code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>), and removing it simplifies the teardown
+significantly.</p>
+</section>
+<section id="local-path-provisioner-instead-of-static-pvs">
+<h3><code class="docutils literal notranslate"><span class="pre">local-path-provisioner</span></code> instead of static PVs<a class="headerlink" href="#local-path-provisioner-instead-of-static-pvs" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">local-path-provisioner</span></code> is already the default StorageClass (bundled
+with k3s), so in principle we could just point charts at it. Rejected
+because its PVC→<code class="docutils literal notranslate"><span class="pre">hostPath</span></code> bindings live in <strong>etcd</strong> — they are lost
+when the cluster is rebuilt. The new cluster’s <code class="docutils literal notranslate"><span class="pre">local-path-provisioner</span></code>
+would allocate a brand new <code class="docutils literal notranslate"><span class="pre">hostPath</span></code> for each PVC, not re-bind to the
+existing on-disk data. Static PVs with <code class="docutils literal notranslate"><span class="pre">claimRef</span></code> pinning are the only
+way to guarantee a PVC re-binds to the <em>same</em> directory after a rebuild.</p>
+</section>
+<section id="ansible-managed-nfs-setup-on-the-nas">
+<h3>Ansible-managed NFS setup on the NAS<a class="headerlink" href="#ansible-managed-nfs-setup-on-the-nas" title="Link to this heading">#</a></h3>
+<p>The NAS is a QNAP (QTS) hosting unrelated personal data. Giving Ansible
+access to it would require a trust boundary we don’t want, and QTS
+regenerates <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> from its web UI on every change, so any
+Ansible-written configuration would be fragile. Decision: <strong>NAS setup
+is a documented manual runbook</strong> (<code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code>) the user
+runs by hand on the NAS. The runbook creates <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/</span></code> as
+a subdirectory of the existing <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code> NFS export (which is already
+<code class="docutils literal notranslate"><span class="pre">rw</span></code> to the cluster subnet), so no QTS config changes are needed at
+all. Rollback = leave the repo on the old paths (which still exist
+untouched on the NAS).</p>
+</section>
+<section id="tar-out-copy-in-migration">
+<h3>Tar-out / copy-in migration<a class="headerlink" href="#tar-out-copy-in-migration" title="Link to this heading">#</a></h3>
+<p>Rejected because the Longhorn data being left behind is recreatable:
+Supabase runs its init migrations fresh, Grafana starts with empty
+dashboards (we had no saved dashboards), Prometheus starts empty (fine),
+Open WebUI starts empty (chat history was disposable). A one-time
+fresh-start cost was deemed acceptable versus the effort of tar-dumping
+Longhorn volumes and restoring them into raw hostPath directories with
+the right ownership.</p>
+</section>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading">#</a></h2>
+<section id="positive">
+<h3>Positive<a class="headerlink" href="#positive" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Stateful app data now <strong>survives <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> by default.</strong> A
+rebuild re-binds the existing local-nvme PVs to fresh chart-generated
+PVCs; Supabase Studio shows the same thoughts, Grafana shows the
+same dashboards, Open WebUI shows the same chat history.</p></li>
+<li><p><strong>Actual backup system exists.</strong> Nightly CronJobs write to the NAS,
+retention is enforced automatically, restore recipes are documented
+in <a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and Restore</span></a>.</p></li>
+<li><p><strong>Decommission is simpler.</strong> All Longhorn-specific teardown (volume
+detachment waits, finalizer stripping, CRD cleanup, iSCSI logout,
+<code class="docutils literal notranslate"><span class="pre">/var/lib/longhorn</span></code> wipe) is gone. <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> is shorter
+and faster.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">open-iscsi</span></code> no longer required</strong> on cluster nodes.</p></li>
+</ul>
+</section>
+<section id="negative">
+<h3>Negative<a class="headerlink" href="#negative" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>No replication.</strong> Losing a node loses that node’s live data until
+the NFS backup is restored. Mitigation: per-app pinning spreads blast
+radius across four nodes (prometheus→node02, grafana→node03,
+open-webui→node04, supabase trio→nuc2), and RPO is one day (matching
+the daily CronJob schedule).</p></li>
+<li><p><strong>New RWO <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> workloads must choose a host explicitly.</strong> The
+StorageClass is <code class="docutils literal notranslate"><span class="pre">WaitForFirstConsumer</span></code> + static PVs, so a new PVC
+with no matching PV stays Pending until someone adds one. This is
+captured as a hard rule in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>.</p></li>
+<li><p><strong>NAS remains a single point of failure</strong> for LLM models, Supabase
+DB dumps, and backup targets — unchanged from the previous design.</p></li>
+<li><p><strong>Manual NAS runbook must be run once</strong> before the first rebuild on
+this plan. Documented in <code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code>; the cluster
+cannot come up without it (rkllama/llamacpp/supabase-db-data PVs
+would fail to mount their new paths).</p></li>
+<li><p><strong>Supabase <code class="docutils literal notranslate"><span class="pre">db-data</span></code> NFS path changed</strong> from <code class="docutils literal notranslate"><span class="pre">/bigdisk/OpenBrain</span></code> to
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/supabase-dumps</span></code> — ADR 0006 is still accepted
+(NFS for the dump store), but its path is superseded by this ADR.</p></li>
+</ul>
+</section>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>PR #321 — scaffolds (this ADR’s infrastructure, no cutover)</p></li>
+<li><p>PR #NNN — cutover (this ADR, chart StorageClass flips + Longhorn removal)</p></li>
+<li><p>ADR 0006 — Supabase DB dump storage on NFS (path updated by this ADR)</p></li>
+<li><p>ADR 0009 — Longhorn workstation exclusion (superseded by this ADR)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code> — manual NAS runbook</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/how-to/backup-restore.md</span></code> — CronJob schedule + restore recipes</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="0011-minio-file-attachments.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">11. MinIO for Open Brain File Attachments</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../reference.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#context">Context</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decision">Decision</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rejected-alternatives">Rejected alternatives</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-longhorn-add-a-backup-pipeline">Keep Longhorn, add a backup pipeline</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-path-provisioner-instead-of-static-pvs"><code class="docutils literal notranslate"><span class="pre">local-path-provisioner</span></code> instead of static PVs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ansible-managed-nfs-setup-on-the-nas">Ansible-managed NFS setup on the NAS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tar-out-copy-in-migration">Tar-out / copy-in migration</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#consequences">Consequences</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#positive">Positive</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#negative">Negative</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/decisions/0012-drop-longhorn.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/decisions/0012-drop-longhorn.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

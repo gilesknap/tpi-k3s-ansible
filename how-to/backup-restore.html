@@ -430,69 +430,142 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Persistent Volume data</p></td>
-<td><p>Longhorn volumes on NVMe</p></td>
-<td><p>Longhorn snapshots/backups</p></td>
+<tr class="row-even"><td><p>Stateful app data</p></td>
+<td><p>static local-nvme PVs on nuc2 / RK1 nodes</p></td>
+<td><p>nightly CronJob → NFS NAS</p></td>
 </tr>
 <tr class="row-odd"><td><p>Sealed Secrets private key</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace</p></td>
-<td><p>Manual export</p></td>
+<td><p>manual export</p></td>
 </tr>
 <tr class="row-even"><td><p>Admin passwords</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (manual)</p></td>
-<td><p>Re-create from password manager</p></td>
+<td><p>re-create from password manager</p></td>
 </tr>
 <tr class="row-odd"><td><p>ArgoCD initial admin secret</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace</p></td>
-<td><p>Regenerated on install</p></td>
+<td><p>regenerated on install</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 </section>
-<section id="longhorn-volume-snapshots">
-<h2>Longhorn volume snapshots<a class="headerlink" href="#longhorn-volume-snapshots" title="Link to this heading">#</a></h2>
-<p>Longhorn supports both <strong>snapshots</strong> (local, on the same nodes) and <strong>backups</strong>
-(to external storage like NFS or S3).</p>
-<section id="create-a-snapshot">
-<h3>Create a snapshot<a class="headerlink" href="#create-a-snapshot" title="Link to this heading">#</a></h3>
-<p>Via the Longhorn UI at <strong>https://longhorn.your-domain.com</strong>:</p>
-<ol class="arabic simple">
-<li><p>Navigate to <strong>Volumes</strong>.</p></li>
-<li><p>Click on the volume name.</p></li>
-<li><p>Click <strong>Take Snapshot</strong>.</p></li>
-</ol>
-<p>Via <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
-<span class="s">apiVersion: snapshot.storage.k8s.io/v1</span>
-<span class="s">kind: VolumeSnapshot</span>
-<span class="s">metadata:</span>
-<span class="s">  name: my-snapshot</span>
-<span class="s">  namespace: my-namespace</span>
-<span class="s">spec:</span>
-<span class="s">  volumeSnapshotClassName: longhorn-snapshot</span>
-<span class="s">  source:</span>
-<span class="s">    persistentVolumeClaimName: my-pvc</span>
-<span class="s">EOF</span>
+<section id="stateful-app-data-cronjob-to-nfs-backups">
+<h2>Stateful app data: CronJob-to-NFS backups<a class="headerlink" href="#stateful-app-data-cronjob-to-nfs-backups" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">backups</span></code> ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/backups.yaml</span></code>)
+deploys one daily and one weekly CronJob per stateful workload. Each CronJob
+mounts a single NFS PV — <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> on the NAS — with a
+workload-specific <code class="docutils literal notranslate"><span class="pre">subPath</span></code> so it only sees its own target subdirectory.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Workload</p></th>
+<th class="head"><p>Backup method</p></th>
+<th class="head"><p>NFS path</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Supabase Postgres</p></td>
+<td><p>`pg_dump</p></td>
+<td><p>gzip`</p></td>
+</tr>
+<tr class="row-odd"><td><p>Supabase Storage</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/supabase-storage/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Supabase MinIO</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/supabase-minio/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Grafana sqlite</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/grafana/{,weekly}/&lt;date&gt;.db</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Open WebUI sqlite</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/open-webui/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Prometheus is deliberately <strong>not</strong> backed up — metrics are reconstructible
+via re-scrape, and the snapshot-API dance is not worth the complexity.</p>
+<section id="retention">
+<h3>Retention<a class="headerlink" href="#retention" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Daily CronJobs run at <code class="docutils literal notranslate"><span class="pre">02:00</span></code> and keep 7 files (<code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span> <span class="pre">+7</span> <span class="pre">-delete</span></code>).</p></li>
+<li><p>Weekly CronJobs run Sunday <code class="docutils literal notranslate"><span class="pre">03:00</span></code> and keep 4 files (<code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span> <span class="pre">+28</span> <span class="pre">-delete</span></code>).</p></li>
+</ul>
+</section>
+<section id="trigger-a-one-off-backup">
+<h3>Trigger a one-off backup<a class="headerlink" href="#trigger-a-one-off-backup" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>--from<span class="o">=</span>cronjob/supabase-db-daily<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span><span class="w"> </span>-n<span class="w"> </span>backups
+kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>backups<span class="w"> </span>job/manual-&lt;timestamp&gt;<span class="w"> </span>-f
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">longhorn-snapshot</span></code> VolumeSnapshotClass is deployed by this project at
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/longhorn/volume-snapshot-class.yaml</span></code>.</p>
+<p>Then verify on the NAS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s1">&#39;ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/supabase-db/&#39;</span>
+</pre></div>
+</div>
 </section>
-<section id="set-up-recurring-snapshots">
-<h3>Set up recurring snapshots<a class="headerlink" href="#set-up-recurring-snapshots" title="Link to this heading">#</a></h3>
-<p>In the Longhorn UI, configure recurring snapshots under <strong>Volume → Recurring Jobs</strong>.
-This can be set per-volume or globally.</p>
+<section id="restore-supabase-postgres">
+<h3>Restore — Supabase Postgres<a class="headerlink" href="#restore-supabase-postgres" title="Link to this heading">#</a></h3>
+<p>Copy the gzipped dump into the running DB pod and pipe it into <code class="docutils literal notranslate"><span class="pre">psql</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>cp<span class="w"> </span>/path/to/local/YYYY-MM-DD.sql.gz<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>supabase/supabase-supabase-db-0:/tmp/restore.sql.gz
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;gunzip -c /tmp/restore.sql.gz | psql -U postgres&#39;</span>
+</pre></div>
+</div>
+<p>Or restore from the NFS PV directly by mounting it into a debug pod:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>run<span class="w"> </span>pg-restore<span class="w"> </span>-n<span class="w"> </span>backups<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--overrides<span class="o">=</span><span class="s1">&#39;{</span>
+<span class="s1">    &quot;spec&quot;: {</span>
+<span class="s1">      &quot;containers&quot;: [{</span>
+<span class="s1">        &quot;name&quot;: &quot;psql&quot;,</span>
+<span class="s1">        &quot;image&quot;: &quot;postgres:15&quot;,</span>
+<span class="s1">        &quot;command&quot;: [&quot;sh&quot;, &quot;-c&quot;, &quot;gunzip -c /backup/$(ls -1t /backup | head -1) | psql -h supabase-supabase-db.supabase -U postgres&quot;],</span>
+<span class="s1">        &quot;volumeMounts&quot;: [{&quot;name&quot;: &quot;nfs&quot;, &quot;mountPath&quot;: &quot;/backup&quot;, &quot;subPath&quot;: &quot;backups/supabase-db&quot;}]</span>
+<span class="s1">      }],</span>
+<span class="s1">      &quot;volumes&quot;: [{&quot;name&quot;: &quot;nfs&quot;, &quot;persistentVolumeClaim&quot;: {&quot;claimName&quot;: &quot;k8s-cluster-nfs&quot;}}]</span>
+<span class="s1">    }</span>
+<span class="s1">  }&#39;</span>
+</pre></div>
+</div>
 </section>
-<section id="back-up-to-nfs">
-<h3>Back up to NFS<a class="headerlink" href="#back-up-to-nfs" title="Link to this heading">#</a></h3>
-<p>To back up Longhorn volumes to an NFS target:</p>
-<ol class="arabic simple">
-<li><p>In the Longhorn UI, go to <strong>Settings → Backup Target</strong>.</p></li>
-<li><p>Set the backup target URL: <code class="docutils literal notranslate"><span class="pre">nfs://nas.local:/backup/longhorn</span></code></p></li>
-<li><p>Save.</p></li>
-</ol>
-<p>Now you can create backups (not just snapshots) that are stored externally.</p>
+<section id="restore-supabase-storage-minio-open-webui-tar-archives">
+<h3>Restore — Supabase Storage / MinIO / Open WebUI (tar archives)<a class="headerlink" href="#restore-supabase-storage-minio-open-webui-tar-archives" title="Link to this heading">#</a></h3>
+<p>Scale the owning workload to zero, untar over the local-PV hostPath, then
+scale back up. Example for Supabase Storage (nuc2 hostPath
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Scale down</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>deploy/supabase-supabase-storage<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
+
+<span class="c1"># 2. Extract on the node (NFS share is already mounted on nuc2)</span>
+ssh<span class="w"> </span>ansible@nuc2<span class="w"> </span><span class="s1">&#39;</span>
+<span class="s1">  cd /home/k8s-data/supabase-storage &amp;&amp;</span>
+<span class="s1">  sudo rm -rf ./* ./.* 2&gt;/dev/null;</span>
+<span class="s1">  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/supabase-storage/YYYY-MM-DD.tar.gz</span>
+<span class="s1">&#39;</span>
+
+<span class="c1"># 3. Scale back</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>deploy/supabase-supabase-storage<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
+</pre></div>
+</div>
+<p>(If the NFS share is not pre-mounted on the node, run the extract in a
+debug pod that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PVC instead.)</p>
+</section>
+<section id="restore-grafana-sqlite">
+<h3>Restore — Grafana sqlite<a class="headerlink" href="#restore-grafana-sqlite" title="Link to this heading">#</a></h3>
+<p>The Grafana daily backup uses <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> (a consistent live snapshot,
+unlike a raw tar of the db file). To restore:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
+ssh<span class="w"> </span>ansible@node03<span class="w"> </span><span class="s1">&#39;</span>
+<span class="s1">  sudo cp /mnt/nfs/k8s-cluster/backups/grafana/YYYY-MM-DD.db \</span>
+<span class="s1">          /var/lib/k8s-data/grafana/grafana.db</span>
+<span class="s1">&#39;</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
+</pre></div>
+</div>
 </section>
 </section>
 <section id="sealed-secrets-key-backup">
@@ -572,11 +645,16 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w
 <p>To rebuild a cluster from scratch:</p>
 <ol class="arabic simple">
 <li><p>Flash and provision nodes (see tutorials).</p></li>
+<li><p>Run the one-time NAS setup (<code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code>) so the
+cluster-owned <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> share exists on the NAS.</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">-e</span> <span class="pre">do_flash=true</span></code>.</p></li>
 <li><p>Restore the sealed-secrets key (if backed up).</p></li>
 <li><p>Re-create the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (see <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>).</p></li>
 <li><p>ArgoCD auto-syncs all services from Git.</p></li>
-<li><p>Restore Longhorn volumes from NFS backups (if configured).</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> was used on decommission, restore stateful
+data from the latest NFS backup under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code>
+using the restore recipes above. Otherwise, local PV data is still
+intact from before the rebuild and re-binds automatically.</p></li>
 </ol>
 <p>The cluster will be fully operational within minutes, with only persistent data
 requiring explicit restoration.</p>
@@ -631,10 +709,12 @@ requiring explicit restoration.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-needs-backing-up">What needs backing up?</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#longhorn-volume-snapshots">Longhorn volume snapshots</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-snapshot">Create a snapshot</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-recurring-snapshots">Set up recurring snapshots</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#back-up-to-nfs">Back up to NFS</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stateful-app-data-cronjob-to-nfs-backups">Stateful app data: CronJob-to-NFS backups</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#retention">Retention</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-a-one-off-backup">Trigger a one-off backup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-supabase-postgres">Restore — Supabase Postgres</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-supabase-storage-minio-open-webui-tar-archives">Restore — Supabase Storage / MinIO / Open WebUI (tar archives)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-grafana-sqlite">Restore — Grafana sqlite</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets-key-backup">Sealed Secrets key backup</a><ul class="nav section-nav flex-column">

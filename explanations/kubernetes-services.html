@@ -789,6 +789,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 </ul>
 </details></li>
 </ul>
@@ -862,6 +863,7 @@ within it becomes an independent ArgoCD Application.</p>
 ├── Chart.yaml              # Minimal Helm chart metadata
 ├── values.yaml             # Shared values (repo_branch, admin_emails, viewer_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
+│   ├── backups.yaml
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
 │   ├── dashboard.yaml      # Headlamp
@@ -870,7 +872,7 @@ within it becomes an independent ArgoCD Application.</p>
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
 │   ├── llamacpp.yaml
-│   ├── longhorn.yaml
+│   ├── local-storage.yaml
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
 │   ├── open-webui.yaml
@@ -878,13 +880,14 @@ within it becomes an independent ArgoCD Application.</p>
 │   └── sealed-secrets.yaml
 └── additions/              # Extra manifests per service
     ├── argocd/             # Custom CM for ArgoCD health checks
+    ├── backups/            # CronJobs + single NFS PV for per-app backups
     ├── cert-manager/       # SealedSecret + ClusterIssuer
     ├── cloudflared/        # Deployment + SealedSecret
     ├── dashboard/          # RBAC for Headlamp
     ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
     ├── llamacpp/           # NFS volume + GPU config
-    ├── longhorn/           # VolumeSnapshotClass
+    ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
 </pre></div>
@@ -1000,6 +1003,34 @@ Application simply points at the directory.</p>
 </table>
 </div>
 </section>
+<section id="storage-layer-local-storage-and-backups">
+<h2>Storage layer: <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code><a class="headerlink" href="#storage-layer-local-storage-and-backups" title="Link to this heading">#</a></h2>
+<p>Two special services implement the cluster’s stateful-data strategy:</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">local-storage</span></code></strong> (<code class="docutils literal notranslate"><span class="pre">templates/local-storage.yaml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code>) — creates the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> <code class="docutils literal notranslate"><span class="pre">StorageClass</span></code>
+(<code class="docutils literal notranslate"><span class="pre">no-provisioner</span></code>, <code class="docutils literal notranslate"><span class="pre">WaitForFirstConsumer</span></code>, <code class="docutils literal notranslate"><span class="pre">Retain</span></code>) plus one static
+<code class="docutils literal notranslate"><span class="pre">PersistentVolume</span></code> per stateful workload, each pre-bound to the
+consuming <code class="docutils literal notranslate"><span class="pre">PersistentVolumeClaim</span></code> via <code class="docutils literal notranslate"><span class="pre">spec.claimRef</span></code> and pinned to a
+specific node via <code class="docutils literal notranslate"><span class="pre">spec.nodeAffinity</span></code>. Sync wave <code class="docutils literal notranslate"><span class="pre">-5</span></code> ensures the SC
+and PVs exist before the stateful charts try to create their PVCs.
+On-disk backing lives at <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> (nuc2) and
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code> (RK1 nodes) — directories created idempotently
+by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> Ansible role and <strong>preserved by default</strong> on
+decommission (see <a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and Restore</span></a>).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">backups</span></code></strong> (<code class="docutils literal notranslate"><span class="pre">templates/backups.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">additions/backups/</span></code>) — one
+namespace, one static NFS <code class="docutils literal notranslate"><span class="pre">PersistentVolume</span></code> pointing at
+<code class="docutils literal notranslate"><span class="pre">&lt;nas&gt;:/bigdisk/k8s-cluster</span></code>, one namespace-scoped <code class="docutils literal notranslate"><span class="pre">PVC</span></code>, and a fleet
+of <code class="docutils literal notranslate"><span class="pre">CronJob</span></code>s (one daily + one weekly per stateful app). Each CronJob
+mounts the shared PVC with a workload-specific <code class="docutils literal notranslate"><span class="pre">subPath</span></code> so it only
+sees <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/{,weekly}/</span></code>. The NFS share itself is created
+manually on the NAS via <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> — Ansible has no
+access to the NAS.</p></li>
+</ul>
+<p>Together these give you per-rebuild data survival (local PVs) <strong>plus</strong>
+off-cluster point-in-time backups (NFS CronJobs), without the
+operational overhead of a replicated CSI driver.</p>
+</section>
 <section id="renovate-integration">
 <h2>Renovate integration<a class="headerlink" href="#renovate-integration" title="Link to this heading">#</a></h2>
 <p><a class="reference external" href="https://docs.renovatebot.com/">Renovate</a> monitors <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/*.yaml</span></code>
@@ -1065,6 +1096,7 @@ charts release new versions. See <code class="docutils literal notranslate"><spa
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#values-flow">Values flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#storage-layer-local-storage-and-backups">Storage layer: <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renovate-integration">Renovate integration</a></li>
 </ul>
   </nav></div>
