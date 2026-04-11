@@ -1,9 +1,3 @@
----
-name: bootstrap-cluster
-description: Interactively bootstrap a K3s cluster from scratch — configure inventory, generate secrets, run playbooks, and produce a credentials file.
-user_invocable: true
----
-
 # Bootstrap Cluster
 
 Guide the user through setting up a K3s cluster from scratch. Ask questions

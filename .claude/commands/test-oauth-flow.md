@@ -1,23 +1,9 @@
----
-name: test-oauth-flow
-description: Browser-test all cluster services for OAuth/auth flow verification. Delegates to a subagent to protect main context.
-user-invocable: true
----
-
 # Test OAuth Flow
 
 Verify that every cluster service is reachable and authentication works
-end-to-end using Chrome browser automation. This skill delegates all
+end-to-end using Chrome browser automation. This command delegates all
 browser work to a subagent to protect the main conversation context from
 screenshot and redirect bloat.
-
-## How to invoke
-
-```
-/test-oauth-flow
-```
-
-No arguments needed. Reads `cluster_domain` from `group_vars/all.yml`.
 
 ## Important rules
 

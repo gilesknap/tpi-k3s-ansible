@@ -1,8 +1,3 @@
----
-name: pr-squash
-description: Squash-merge the current branch's commits into logical groups (by feature/fix) on a new branch and create a PR. Use when the user wants to clean up commit history before merging, especially after iterative CI/CD work.
----
-
 # PR Squash
 
 Create a clean PR by grouping the current branch's commits into logical squashed

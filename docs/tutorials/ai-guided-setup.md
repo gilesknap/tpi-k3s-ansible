@@ -1,7 +1,7 @@
 # AI-Guided Setup
 
 The fastest way to get a cluster running is to let Claude Code walk you through
-it interactively. The `/bootstrap-cluster` skill asks you a series of questions,
+it interactively. The `/bootstrap-cluster` command asks you a series of questions,
 configures all the files, generates secrets, runs the Ansible playbooks, and
 writes a credentials file — all in one conversation.
 
@@ -25,7 +25,7 @@ Then open the devcontainer:
 :end-before: <!-- end:devcontainer -->
 ```
 
-## Run the skill
+## Run the command
 
 Open a Claude Code session inside the devcontainer and type:
 
@@ -55,8 +55,8 @@ network speed.
 
 ## What happens next
 
-After the skill completes, your cluster is running with all core services
-managed by ArgoCD. The skill will print next steps, but here is a summary:
+After the command completes, your cluster is running with all core services
+managed by ArgoCD. Claude will print next steps, but here is a summary:
 
 - **Access services now** via port-forward — see {doc}`/how-to/accessing-services`
 - **Expose services to the internet** — follow {doc}`/how-to/cloudflare-tunnel`
