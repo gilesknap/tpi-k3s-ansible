@@ -32,6 +32,21 @@ spec:
           service_port: 80
           oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+
+    # LAN-only probe endpoint. Backs the same home service at a grey-clouded
+    # hostname so the landing page's JS can detect "am I on the LAN" by
+    # fetching /healthz — TCP connects only when the client is on the LAN.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: home-lan
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: home
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
   syncPolicy:
     automated:
       prune: true

@@ -154,10 +154,6 @@ data:
           <h2>Open WebUI<span class="badge badge-sso">SSO</span></h2>
           <p>LLM chat interface</p>
         </a>
-        <a class="card card-lan" href="https://longhorn.{{ .Values.cluster_domain }}">
-          <h2>Longhorn<span class="badge badge-oauth">OAuth</span><span class="badge badge-lan lan-badge">LAN only</span></h2>
-          <p>Distributed block storage management</p>
-        </a>
         <a class="card" href="https://supabase.{{ .Values.cluster_domain }}">
           <h2>Supabase Studio<span class="badge badge-oauth">OAuth</span></h2>
           <p>Database and backend management</p>
@@ -173,11 +169,11 @@ data:
       </div>
       <h2 class="section-heading">Network</h2>
       <div class="grid">
-        <a class="card card-lan" href="http://192.168.1.1">
+        <a class="card card-lan disabled" href="http://192.168.1.1">
           <h2>OpenWRT<span class="badge badge-lan lan-badge">LAN only</span></h2>
           <p>Network router administration</p>
         </a>
-        <a class="card card-lan" href="http://192.168.1.92:8096/web/#/home">
+        <a class="card card-lan disabled" href="http://192.168.1.92:8096/web/#/home">
           <h2>JellyFin<span class="badge badge-lan lan-badge">LAN only</span></h2>
           <p>Media server</p>
         </a>
@@ -198,18 +194,20 @@ data:
       </div>
       <script>
         (function() {
-          function disableLan() {
+          function enableLan() {
             document.querySelectorAll('.card-lan').forEach(function(el) {
-              el.classList.add('disabled');
+              el.classList.remove('disabled');
             });
           }
-          // Probe Longhorn (LAN-only) to detect network. Fetch in no-cors
-          // mode: resolves if TCP connects (on LAN), rejects otherwise.
+          // Probe home-lan (grey-clouded LAN-only hostname) to detect network.
+          // Fetch in no-cors mode: resolves if TCP connects (on LAN), rejects
+          // otherwise. LAN cards start disabled in the HTML so WAN visitors
+          // never see a flash of active links; we only enable on success.
           var ctrl = new AbortController();
-          var timer = setTimeout(function() { ctrl.abort(); disableLan(); }, 3000);
-          fetch('https://longhorn.{{ .Values.cluster_domain }}/', {mode:'no-cors', signal:ctrl.signal})
-            .then(function() { clearTimeout(timer); })
-            .catch(function() { clearTimeout(timer); disableLan(); });
+          var timer = setTimeout(function() { ctrl.abort(); }, 3000);
+          fetch('https://home-lan.{{ .Values.cluster_domain }}/healthz', {mode:'no-cors', signal:ctrl.signal})
+            .then(function() { clearTimeout(timer); enableLan(); })
+            .catch(function() { clearTimeout(timer); });
         })();
       </script>
     </body>
