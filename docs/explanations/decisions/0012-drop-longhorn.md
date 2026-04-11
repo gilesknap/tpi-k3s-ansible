@@ -123,7 +123,7 @@ the right ownership.
   same dashboards, Open WebUI shows the same chat history.
 - **Actual backup system exists.** Nightly CronJobs write to the NAS,
   retention is enforced automatically, restore recipes are documented
-  in {doc}`../how-to/backup-restore`.
+  in {doc}`../../how-to/backup-restore`.
 - **Decommission is simpler.** All Longhorn-specific teardown (volume
   detachment waits, finalizer stripping, CRD cleanup, iSCSI logout,
   `/var/lib/longhorn` wipe) is gone. `pb_decommission.yml` is shorter
