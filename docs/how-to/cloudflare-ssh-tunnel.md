@@ -1,5 +1,15 @@
 # Set Up a Cloudflare SSH Tunnel for Remote Cluster Access
 
+:::{note}
+**When to use this guide.** Use this guide when you want to reach the
+cluster's control-plane shell / `kubectl` from outside your LAN without
+opening any inbound firewall ports. It adds an Access-gated SSH route on
+top of the existing Cloudflare tunnel. **Prerequisite:** complete
+{doc}`cloudflare-tunnel` first so that `cloudflared` is running in the
+cluster. For exposing *web* services through the tunnel (Grafana,
+Headlamp, Open WebUI, ArgoCD), see {doc}`cloudflare-web-tunnel` instead.
+:::
+
 This guide walks through setting up secure remote access to your K3s cluster via an
 SSH tunnel through Cloudflare Zero Trust, without opening any inbound firewall ports.
 

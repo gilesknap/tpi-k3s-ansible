@@ -1,5 +1,16 @@
 # Expose Web Services via Cloudflare Tunnel
 
+:::{note}
+**When to use this guide.** Use this guide when you want a single toggle
+(`enable_cloudflare_tunnel: true`) to publish all OAuth-protected web
+services — Grafana, Headlamp, Open WebUI, oauth2-proxy, and ArgoCD —
+through your Cloudflare tunnel at once, gated by Cloudflare Access.
+**Prerequisites:** complete {doc}`cloudflare-tunnel` first (for the base
+tunnel and DNS/TLS setup) and {doc}`oauth-setup` (for the in-cluster
+OAuth layer). If you only need remote shell access, use
+{doc}`cloudflare-ssh-tunnel` instead.
+:::
+
 This guide extends the base Cloudflare Tunnel setup to make cluster web services
 accessible from the internet through Cloudflare Zero Trust. No inbound firewall
 ports are opened — all traffic flows through `cloudflared`'s outbound connection.
