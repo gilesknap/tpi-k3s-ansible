@@ -16,13 +16,14 @@ hand-editing `/etc/exports` is dangerous because the UI overwrites it.
 
 The good news is we don't need a new export at all. Your QNAP already
 exports `/share/CACHEDEV1_DATA/bigdisk` with read-write access to the
-cluster subnet (`192.168.1.1/24`, which equals `192.168.1.0/24`). It is
-already mounted by rkllama, llamacpp, and the supabase db-dump PV using
-the client-visible NFSv4-pseudo-filesystem path `/bigdisk/...`.
+cluster subnet, and it is already mounted by rkllama, llamacpp, and
+the supabase db-dump PV.
 
 So this runbook **just creates a new subdirectory inside the existing
 `bigdisk` export** — `bigdisk/k8s-cluster/` — and populates it. No
-export changes, no `/etc/exports` edits, no QNAP UI configuration.
+export changes, no `/etc/exports` edits, no QNAP UI configuration. The
+exact client-side vs server-side path mapping is covered under
+[Two paths, same directory](#two-paths-same-directory) below.
 
 ## What we're creating
 

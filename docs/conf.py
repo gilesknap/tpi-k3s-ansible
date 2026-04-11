@@ -14,6 +14,9 @@ extensions = [
 # MyST extensions
 myst_enable_extensions = ["colon_fence"]
 myst_fence_as_directive = ["mermaid"]
+# Auto-generate anchors for headings up to level 3 so in-page links like
+# `[ArgoCD](#argocd)` resolve without explicit `(label)=` markers.
+myst_heading_anchors = 3
 
 # Mermaid rendering
 mermaid_output_format = "raw"
