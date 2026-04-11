@@ -208,19 +208,23 @@ spec:
               nodeSelector:
                 kubernetes.io/arch: amd64
 
-          # -- Persistence: use Longhorn for DB (NFS is unreliable for Postgres) --
+          # -- Persistence: static local-nvme PVs pre-bound via claimRef.
+          # The local-storage chart (additions/local-storage) creates the
+          # StorageClass and the three matching PVs; each is pinned to nuc2
+          # via nodeAffinity. NFS is still used for the db-dump share
+          # (additions/supabase) but not for the live Postgres data dir.
           persistence:
             db:
               enabled: true
-              storageClassName: longhorn
+              storageClassName: local-nvme
               size: 50Gi
             storage:
               enabled: true
-              storageClassName: longhorn
+              storageClassName: local-nvme
               size: 50Gi
             minio:
               enabled: true
-              storageClassName: longhorn
+              storageClassName: local-nvme
               size: 50Gi
 
           # -- Database migration: pgvector + thoughts schema --

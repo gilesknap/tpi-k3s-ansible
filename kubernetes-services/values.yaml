@@ -8,7 +8,7 @@ repo_branch: main
 rkllama:
   nfs:
     server: 192.168.1.3 # IP address of your NFS server
-    path: /bigdisk/LMModels # exported path on the NFS server
+    path: /bigdisk/k8s-cluster/models # subdir of the cluster-owned NFS share
 # llama.cpp CUDA server configuration.
 # Uses a separate NFS subdirectory from rkllama — the two backends use
 # incompatible model formats (GGUF for CUDA vs RKLLM for ARM NPU) so
@@ -21,7 +21,7 @@ rkllama:
 llamacpp:
   nfs:
     server: 192.168.1.3 # IP address of your NFS server
-    path: /bigdisk/LMModels/cuda # separate subdir from rkllama (GGUF models only)
+    path: /bigdisk/k8s-cluster/models/cuda # separate subdir from rkllama (GGUF models only)
   model:
     file: "deepseek-coder-33b-instruct.Q4_K_M.gguf" # GGUF model file on your NFS share
     gpuLayers: 99 # offload all layers; reduce if GPU VRAM is insufficient
@@ -64,7 +64,14 @@ enable_supabase: true
 supabase:
   nfs:
     server: 192.168.1.3
-    path: /bigdisk/OpenBrain
+    path: /bigdisk/k8s-cluster/supabase-dumps
 # Open Brain MCP server — standalone FastAPI service for Claude.ai MCP connector.
 # Provides thought storage and retrieval via the Supabase Postgres database.
 enable_open_brain_mcp: true
+# Cluster-owned NFS share on the NAS — single managed subtree under the
+# existing bigdisk export (set up manually via docs/how-to/nas-setup.md).
+# Hosts backup targets AND the hostPath-mirrored model/dump subdirs that
+# rkllama/llamacpp/supabase-db-data also point at.
+nfs:
+  server: 192.168.1.3
+  cluster_share_path: /bigdisk/k8s-cluster

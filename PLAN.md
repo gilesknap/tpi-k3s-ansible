@@ -17,7 +17,7 @@ MCP Server (open-brain-mcp pod, port 8000)       REST clients
   +----> PostgreSQL (asyncpg, direct) <------------+
   |           |
   |           v
-  |      Longhorn (block storage)
+  |      local NVMe PV (static, nuc2)
   |
   +----> Supabase Storage API (via Kong)
               |
@@ -25,7 +25,7 @@ MCP Server (open-brain-mcp pod, port 8000)       REST clients
          MinIO (S3-compatible object store)
               |
               v
-         Longhorn (block storage)
+         local NVMe PV (static, nuc2)
 
 Supabase Stack (k3s): Kong, PostgREST, Auth, Storage, MinIO, Studio
 ```
@@ -41,7 +41,7 @@ Supabase Stack (k3s): Kong, PostgREST, Auth, Storage, MinIO, Studio
 | MCP Ingress | brain.\<your-domain\> (OAuth 2.1 via GitHub) | open-brain-mcp |
 | Studio Ingress | supabase.\<your-domain\> (behind OAuth2 proxy) | supabase |
 | MinIO | S3-compatible object store for file attachments | supabase |
-| Longhorn PVCs | Postgres data + MinIO blobs (block storage) | supabase |
+| local NVMe PVs | Postgres data + MinIO blobs (static local PVs, nuc2) | supabase |
 
 ## MCP Tools (Remote Server)
 
@@ -79,13 +79,13 @@ Replace Obsidian's image/PDF storage with in-cluster object storage.
 Supabase Storage is already deployed (`deployment.storage.enabled: true`) but
 needs an S3-compatible backend for blob persistence. MinIO is wired into the
 Supabase Helm chart — enabling it gives us a production-ready object store
-backed by Longhorn without adding external dependencies.
+backed by a static local NVMe PV without adding external dependencies.
 
 ### Implementation Steps
 
 1. **Enable MinIO in Supabase Helm values** ✓
    - Set `deployment.minio.enabled: true` in `kubernetes-services/templates/supabase.yaml`
-   - Add Longhorn PVC for MinIO data (`storageClassName: longhorn`, 50Gi)
+   - Use a static local-nvme PV for MinIO data (`storageClassName: local-nvme`, 50Gi, pinned to nuc2)
    - Add `nodeSelector: kubernetes.io/arch: amd64` (matches other Supabase pods)
    - Configure MinIO credentials in the existing `supabase-credentials` SealedSecret
 
@@ -126,7 +126,7 @@ backed by Longhorn without adding external dependencies.
 
 ### Design Notes
 
-- Files are stored in MinIO (Longhorn PVC), metadata stays in Postgres
+- Files are stored in MinIO (static local-nvme PV on nuc2), metadata stays in Postgres
 - The MCP server talks to Supabase Storage API (via Kong) rather than MinIO
   directly — this keeps auth consistent and uses Supabase's built-in file
   management (signed URLs, RLS policies, etc.)

@@ -11,57 +11,112 @@ What is **not** in Git and needs separate backup:
 
 | Data | Where it lives | Backup approach |
 |------|-----------------|-----------------|
-| Persistent Volume data | Longhorn volumes on NVMe | Longhorn snapshots/backups |
-| Sealed Secrets private key | `kube-system` namespace | Manual export |
-| Admin passwords | `admin-auth` secrets (manual) | Re-create from password manager |
-| ArgoCD initial admin secret | `argo-cd` namespace | Regenerated on install |
+| Stateful app data | static local-nvme PVs on nuc2 / RK1 nodes | nightly CronJob → NFS NAS |
+| Sealed Secrets private key | `kube-system` namespace | manual export |
+| Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
+| ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
 
-## Longhorn volume snapshots
+## Stateful app data: CronJob-to-NFS backups
 
-Longhorn supports both **snapshots** (local, on the same nodes) and **backups**
-(to external storage like NFS or S3).
+The `backups` ArgoCD Application (`kubernetes-services/templates/backups.yaml`)
+deploys one daily and one weekly CronJob per stateful workload. Each CronJob
+mounts a single NFS PV — `/bigdisk/k8s-cluster` on the NAS — with a
+workload-specific `subPath` so it only sees its own target subdirectory.
 
-### Create a snapshot
+| Workload | Backup method | NFS path |
+|----------|---------------|----------|
+| Supabase Postgres | `pg_dump | gzip` | `backups/supabase-db/{,weekly}/<date>.sql.gz` |
+| Supabase Storage | `tar -czf` on `/home/k8s-data/supabase-storage` | `backups/supabase-storage/{,weekly}/<date>.tar.gz` |
+| Supabase MinIO | `tar -czf` on `/home/k8s-data/supabase-minio` | `backups/supabase-minio/{,weekly}/<date>.tar.gz` |
+| Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` | `backups/grafana/{,weekly}/<date>.db` |
+| Open WebUI sqlite | `tar -czf` on `/var/lib/k8s-data/open-webui` | `backups/open-webui/{,weekly}/<date>.tar.gz` |
 
-Via the Longhorn UI at **https://longhorn.your-domain.com**:
+Prometheus is deliberately **not** backed up — metrics are reconstructible
+via re-scrape, and the snapshot-API dance is not worth the complexity.
 
-1. Navigate to **Volumes**.
-2. Click on the volume name.
-3. Click **Take Snapshot**.
+### Retention
 
-Via `kubectl`:
+- Daily CronJobs run at `02:00` and keep 7 files (`find -mtime +7 -delete`).
+- Weekly CronJobs run Sunday `03:00` and keep 4 files (`find -mtime +28 -delete`).
+
+### Trigger a one-off backup
 
 ```bash
-kubectl apply -f - <<EOF
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
-  name: my-snapshot
-  namespace: my-namespace
-spec:
-  volumeSnapshotClassName: longhorn-snapshot
-  source:
-    persistentVolumeClaimName: my-pvc
-EOF
+kubectl create job --from=cronjob/supabase-db-daily manual-$(date +%s) -n backups
+kubectl logs -n backups job/manual-<timestamp> -f
 ```
 
-The `longhorn-snapshot` VolumeSnapshotClass is deployed by this project at
-`kubernetes-services/additions/longhorn/volume-snapshot-class.yaml`.
+Then verify on the NAS:
 
-### Set up recurring snapshots
+```bash
+ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/supabase-db/'
+```
 
-In the Longhorn UI, configure recurring snapshots under **Volume → Recurring Jobs**.
-This can be set per-volume or globally.
+### Restore — Supabase Postgres
 
-### Back up to NFS
+Copy the gzipped dump into the running DB pod and pipe it into `psql`:
 
-To back up Longhorn volumes to an NFS target:
+```bash
+kubectl cp /path/to/local/YYYY-MM-DD.sql.gz \
+  supabase/supabase-supabase-db-0:/tmp/restore.sql.gz
+kubectl exec -n supabase supabase-supabase-db-0 -- \
+  sh -c 'gunzip -c /tmp/restore.sql.gz | psql -U postgres'
+```
 
-1. In the Longhorn UI, go to **Settings → Backup Target**.
-2. Set the backup target URL: `nfs://nas.local:/backup/longhorn`
-3. Save.
+Or restore from the NFS PV directly by mounting it into a debug pod:
 
-Now you can create backups (not just snapshots) that are stored externally.
+```bash
+kubectl run pg-restore -n backups --rm -it --restart=Never \
+  --overrides='{
+    "spec": {
+      "containers": [{
+        "name": "psql",
+        "image": "postgres:15",
+        "command": ["sh", "-c", "gunzip -c /backup/$(ls -1t /backup | head -1) | psql -h supabase-supabase-db.supabase -U postgres"],
+        "volumeMounts": [{"name": "nfs", "mountPath": "/backup", "subPath": "backups/supabase-db"}]
+      }],
+      "volumes": [{"name": "nfs", "persistentVolumeClaim": {"claimName": "k8s-cluster-nfs"}}]
+    }
+  }'
+```
+
+### Restore — Supabase Storage / MinIO / Open WebUI (tar archives)
+
+Scale the owning workload to zero, untar over the local-PV hostPath, then
+scale back up. Example for Supabase Storage (nuc2 hostPath
+`/home/k8s-data/supabase-storage`):
+
+```bash
+# 1. Scale down
+kubectl scale -n supabase deploy/supabase-supabase-storage --replicas=0
+
+# 2. Extract on the node (NFS share is already mounted on nuc2)
+ssh ansible@nuc2 '
+  cd /home/k8s-data/supabase-storage &&
+  sudo rm -rf ./* ./.* 2>/dev/null;
+  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/supabase-storage/YYYY-MM-DD.tar.gz
+'
+
+# 3. Scale back
+kubectl scale -n supabase deploy/supabase-supabase-storage --replicas=1
+```
+
+(If the NFS share is not pre-mounted on the node, run the extract in a
+debug pod that mounts the `k8s-cluster-nfs` PVC instead.)
+
+### Restore — Grafana sqlite
+
+The Grafana daily backup uses `sqlite3 .backup` (a consistent live snapshot,
+unlike a raw tar of the db file). To restore:
+
+```bash
+kubectl scale -n monitoring sts/grafana-prometheus --replicas=0
+ssh ansible@node03 '
+  sudo cp /mnt/nfs/k8s-cluster/backups/grafana/YYYY-MM-DD.db \
+          /var/lib/k8s-data/grafana/grafana.db
+'
+kubectl scale -n monitoring sts/grafana-prometheus --replicas=1
+```
 
 ## Sealed Secrets key backup
 
@@ -146,11 +201,16 @@ sudo systemctl start k3s
 To rebuild a cluster from scratch:
 
 1. Flash and provision nodes (see tutorials).
-2. Run `ansible-playbook pb_all.yml -e do_flash=true`.
-3. Restore the sealed-secrets key (if backed up).
-4. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
-5. ArgoCD auto-syncs all services from Git.
-6. Restore Longhorn volumes from NFS backups (if configured).
+2. Run the one-time NAS setup (`docs/how-to/nas-setup.md`) so the
+   cluster-owned `/bigdisk/k8s-cluster` share exists on the NAS.
+3. Run `ansible-playbook pb_all.yml -e do_flash=true`.
+4. Restore the sealed-secrets key (if backed up).
+5. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
+6. ArgoCD auto-syncs all services from Git.
+7. If `wipe_local_data=true` was used on decommission, restore stateful
+   data from the latest NFS backup under `/bigdisk/k8s-cluster/backups/`
+   using the restore recipes above. Otherwise, local PV data is still
+   intact from before the rebuild and re-binds automatically.
 
 The cluster will be fully operational within minutes, with only persistent data
 requiring explicit restoration.
