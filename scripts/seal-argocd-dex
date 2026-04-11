@@ -52,9 +52,7 @@ prompt_github() {
 
 # base64url(SHA256(server.secretkey))[:40] — matches ArgoCD's internal value
 derive_argocd_client_secret() {
-    kubectl get secret argocd-secret -n argo-cd \
-        -o jsonpath='{.data.server\.secretkey}' | base64 -d | \
-        python3 -c "import sys,hashlib,base64; print(base64.urlsafe_b64encode(hashlib.sha256(sys.stdin.read().encode()).digest()).decode()[:40])"
+    "$(dirname "$0")/derive-argocd-client-secret"
 }
 
 # 32 hex chars = 32 bytes, valid for AES-256 (oauth2-proxy cookie-secret
