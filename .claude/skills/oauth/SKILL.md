@@ -42,9 +42,30 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
   subdomains. Any service with its own oauth2-proxy sidecar (e.g.
   argocd-monitor) must use `--cookie-name=<unique>` to avoid validating
   the shared proxy's cookie with its own secret (→ infinite login loop).
-- **oauth2-proxy cookie_secret size** — must be exactly 16, 24, or 32 bytes
-  for AES cipher. Using `base64.b64encode(token_bytes(32))` produces 44
-  chars → crash. Use `secrets.token_urlsafe(32)[:32]` instead.
+- **oauth2-proxy `email_domains` must be `[]`** — the Helm chart defaults
+  to `email_domains = ["*"]`, which allows any GitHub user through and
+  **silently overrides** `authenticatedEmailsFile`. The fix is
+  `config.configFile` with `email_domains = []`. This bug was found and
+  fixed in PR #279 — do not remove the `configFile` override.
+- **oauth2-proxy `cookie-secret` size** — must be exactly 16, 24, or 32
+  bytes for the AES cipher. `base64.b64encode(token_bytes(32))` produces
+  44 chars and crashes oauth2-proxy. Use `secrets.token_hex(16)` (32 hex
+  chars = 32 bytes). This bug has regressed before — do not change the
+  generation in `scripts/seal-argocd-dex`. See `/sealed-secrets` skill.
+- **DEX duplicate `argo-cd` static client** — ArgoCD auto-generates an
+  `argo-cd` DEX client (without `trustedPeers`). Our `dex.config` also
+  declares one (with `trustedPeers: [argocd-monitor]`). DEX v2.45+ stores
+  the first and drops the duplicate, so `trustedPeers` never takes
+  effect. Fixed in PR #297 by adding `oidc.config` with
+  `allowedAudiences: [argo-cd, argocd-monitor]`, which lets
+  argocd-monitor authenticate as itself. The duplicate `argo-cd` client
+  in `dex.config` is harmless but redundant — kept for clarity.
+- **Dex/Grafana need restart after re-sealing** — pods that read secrets
+  via `envFrom` or `secretKeyRef` cache values at startup. After
+  `--tags cluster` or `just seal-argocd-dex`, run `just restart-dex` and
+  `kubectl rollout restart sts grafana-prometheus -n monitoring`.
+  Without this, Dex reports "invalid client_secret" even though the
+  Secret objects match. See `/sealed-secrets` for the full namespace list.
 - **Ingress auth-url must be cluster-internal** — the ingress sub-chart's
   `auth-url` uses the internal service (`oauth2-proxy.oauth2-proxy.svc`).
   Using the external domain resolves via Cloudflare to IPv6, which is
