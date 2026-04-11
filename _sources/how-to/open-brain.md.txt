@@ -39,10 +39,11 @@ enable_open_brain_mcp: true
 
 :::{tip}
 The NFS export is used by the daily/weekly backup CronJobs in the `backups`
-namespace — they dump `supabase-db` to NAS as compressed SQL files. The
-live Supabase PostgreSQL database, Storage and MinIO all run on static
-`local-nvme` PVs pinned to nuc2, which is more reliable for database
-workloads than networked storage.
+namespace — they dump `supabase-db` to NAS as compressed SQL files. See
+{doc}`backup-restore` for how the CronJobs are scheduled and how to restore
+from a dump. The live Supabase PostgreSQL database, Storage and MinIO all
+run on static `local-nvme` PVs pinned to nuc2, which is more reliable for
+database workloads than networked storage.
 :::
 
 ## 2 -- Generate and seal credentials

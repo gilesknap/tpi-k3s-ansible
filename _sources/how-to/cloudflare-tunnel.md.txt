@@ -1,5 +1,19 @@
 # Set Up DNS, TLS & Cloudflare Tunnel
 
+:::{note}
+**When to use this guide.** This is the **base** Cloudflare setup — start
+here. It covers the Cloudflare-managed domain, DNS-01 TLS certificates,
+and an optional tunnel for a single echo service. For the specialised
+follow-ups, see the other two Cloudflare how-tos once this one works:
+
+- {doc}`cloudflare-web-tunnel` — expose a set of OAuth-protected web
+  services (Grafana, Headlamp, Open WebUI, ArgoCD) through the tunnel
+  with a single `enable_cloudflare_tunnel` toggle.
+- {doc}`cloudflare-ssh-tunnel` — add a Cloudflare Access-gated SSH
+  tunnel for remote `kubectl` / shell access without opening inbound
+  firewall ports.
+:::
+
 This guide sets up three things:
 
 1. **A Cloudflare-managed domain** — required for DNS and TLS certificates
@@ -186,7 +200,10 @@ on your LAN. If you don't need public internet access, you can stop here.
 
 Follow this section only if you want to expose selected services to the
 internet. If LAN-only access is sufficient, skip to {doc}`oauth-setup` or
-the other guides listed in {doc}`bootstrap-cluster`.
+the other guides listed in {doc}`bootstrap-cluster`. For remote shell /
+`kubectl` access (rather than web exposure), use
+{doc}`cloudflare-ssh-tunnel` instead — it adds an Access-gated SSH route
+on top of the same tunnel.
 
 ### 4.1 Create a tunnel
 

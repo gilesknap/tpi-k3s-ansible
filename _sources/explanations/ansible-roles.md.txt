@@ -184,9 +184,15 @@ on its target node (guarded by `inventory_hostname`).
 
 Data lives outside `/var/lib/rancher` deliberately: `pb_decommission.yml`
 wipes `/var/lib/rancher` to reset K3s, but these directories are preserved
-so PVC data survives a cluster rebuild. The one-time NFS share setup that
-hosts the backup CronJob output is a separate manual runbook — see
-`docs/how-to/nas-setup.md`.
+**by default** so PVC data survives a cluster rebuild. To wipe them as
+part of decommissioning, opt in with the destructive flag:
+
+```bash
+ansible-playbook pb_decommission.yml -e wipe_local_data=true
+```
+
+The one-time NFS share setup that hosts the backup CronJob output is a
+separate manual runbook — see {doc}`../how-to/nas-setup`.
 
 ---
 
