@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: open-webui-weekly
+  namespace: backups
+spec:
+  schedule: "0 4 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: node04
+          containers:
+            - name: sqlite-backup
+              image: alpine:3.19
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  apk add --no-cache sqlite tar gzip >/dev/null
+                  stamp=$(date +%F)
+                  sqlite3 /data/webui.db ".backup /tmp/webui.db"
+                  tar -czf "/backup/${stamp}.tar.gz" -C /tmp webui.db
+                  ls -lh /backup
+                  find /backup -maxdepth 1 -type f -name '*.tar.gz' -mtime +28 -delete
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: nfs
+                  mountPath: /backup
+                  subPath: backups/open-webui/weekly
+          volumes:
+            - name: data
+              hostPath:
+                path: /var/lib/k8s-data/open-webui
+                type: Directory
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs

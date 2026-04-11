@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-local
+spec:
+  capacity:
+    storage: 40Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  # Prometheus Operator generates this PVC name from the StatefulSet
+  # volumeClaimTemplate. The template name itself is derived from the
+  # StatefulSet name, which itself is prefixed with "prometheus-" by the
+  # operator. The resulting PVC name has the prometheus release name
+  # appearing twice (chart name + STS name). Do not "simplify" — this
+  # exact string must match what the operator creates, or the PVC will
+  # not bind to this PV.
+  claimRef:
+    namespace: monitoring
+    name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0
+  local:
+    path: /var/lib/k8s-data/prometheus
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node02

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: backups
+description: |
+  Per-app backup CronJobs writing to a single cluster-owned NFS share.
+
+  One static NFS PV maps the whole /bigdisk/k8s-cluster export; each
+  CronJob mounts it with subPath so app-X only sees backups/app-X.
+  Retention is enforced in-job with find -mtime. Daily + weekly schedules
+  per app; prometheus is deliberately not backed up (metrics are
+  reconstructible via re-scrape, not worth the snapshot-API complexity).
+
+  The NFS share itself is created manually on the NAS via
+  docs/how-to/nas-setup.md — ansible has no access to the NAS.
+type: application
+version: 0.1.0

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: supabase-db-local
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  # Pre-bind to the chart-generated PVC. The supabase chart does not
+  # pass `selector` through to its PVCs, so claimRef is the only
+  # reliable way to glue a static PV to a chart-owned PVC.
+  claimRef:
+    namespace: supabase
+    name: supabase-db
+  local:
+    path: /home/k8s-data/supabase-db
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - nuc2

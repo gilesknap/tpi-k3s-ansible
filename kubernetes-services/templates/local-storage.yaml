@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-storage
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Sync before any chart-owned PVC exists (default wave is 0).
+    # The StorageClass + claimRef-bound PVs must already be in the
+    # cluster when supabase, grafana-prometheus and open-webui create
+    # their PVCs, otherwise those PVCs will dynamically provision
+    # against whatever StorageClass is default (local-path) and never
+    # bind to these PVs.
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    # Cluster-scoped resources (StorageClass, PV) don't use this
+    # namespace, but ArgoCD still requires the field.
+    namespace: kube-system
+  project: kubernetes
+  sources:
+    # local-nvme StorageClass + 6 static PVs pre-bound via claimRef
+    # to the PVCs that supabase / grafana-prometheus / open-webui
+    # generate. Data paths are created on the nodes by the
+    # k8s_data_dirs ansible role.
+    - path: ./kubernetes-services/additions/local-storage
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

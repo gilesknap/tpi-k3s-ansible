@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: grafana-weekly
+  namespace: backups
+spec:
+  schedule: "45 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: node03
+          containers:
+            - name: sqlite-backup
+              image: alpine:3.19
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  apk add --no-cache sqlite tar gzip >/dev/null
+                  stamp=$(date +%F)
+                  sqlite3 /data/grafana.db ".backup /tmp/grafana.db"
+                  tar -czf "/backup/${stamp}.tar.gz" \
+                    -C /tmp grafana.db \
+                    -C /data provisioning 2>/dev/null || \
+                  tar -czf "/backup/${stamp}.tar.gz" -C /tmp grafana.db
+                  ls -lh /backup
+                  find /backup -maxdepth 1 -type f -name '*.tar.gz' -mtime +28 -delete
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: nfs
+                  mountPath: /backup
+                  subPath: backups/grafana/weekly
+          volumes:
+            - name: data
+              hostPath:
+                path: /var/lib/k8s-data/grafana
+                type: Directory
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs
