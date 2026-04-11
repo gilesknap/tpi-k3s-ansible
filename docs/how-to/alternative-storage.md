@@ -116,8 +116,10 @@ spec:
 ```
 
 Add `https://charts.longhorn.io/` to `sourceRepos` in
-`argo-cd/argo-project.yaml`, and re-add `open-iscsi` to the `update_packages`
-role's package list (Longhorn needs it for iSCSI target presentation).
+`argo-cd/argo-project.yaml`. If you choose Longhorn, you also need to add
+`open-iscsi` to the `update_packages` role's package list — Longhorn
+requires it for iSCSI target presentation, and it is no longer installed
+by default because the cluster dropped Longhorn.
 
 ### Dynamic NFS CSI
 

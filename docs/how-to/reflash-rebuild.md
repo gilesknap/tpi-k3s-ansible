@@ -40,8 +40,11 @@ ansible-playbook pb_all.yml --tags k3s,cluster -e k3s_force=true
 ```
 
 This uninstalls K3s from every node, reinstalls it, and redeploys ArgoCD and all services.
-Persistent volume data on NVMe/Longhorn will survive if the underlying storage is not
-reformatted.
+Stateful workload data under `/home/k8s-data/*` (nuc2) and `/var/lib/k8s-data/*`
+(RK1 nodes) is preserved by default — these host directories back the static
+`local-nvme` PVs and are left untouched unless `-e wipe_local_data=true` is
+passed. NFS backups on the NAS are always preserved (they live outside the
+cluster).
 
 ## Reinstall K3s on a single worker
 
@@ -74,11 +77,15 @@ ansible-playbook pb_all.yml --tags cluster      # Install/update ArgoCD + servic
 
 ## What happens to data during a rebuild?
 
-| Operation | eMMC | NVMe | Longhorn volumes | ArgoCD state |
-|-----------|------|------|-------------------|--------------|
-| Re-flash | Erased | Preserved | Preserved (if on NVMe) | Redeployed from Git |
-| K3s reinstall | Unchanged | Unchanged | Preserved | Redeployed from Git |
-| Cluster redeploy | Unchanged | Unchanged | Preserved | Reinstalled |
+| Operation | eMMC | NVMe | `local-nvme` data dirs | NFS backups on NAS | ArgoCD state |
+|-----------|------|------|-------------------------|--------------------|--------------|
+| Re-flash | Erased | Preserved | Preserved (on host) | Preserved (external) | Redeployed from Git |
+| K3s reinstall | Unchanged | Unchanged | Preserved | Preserved | Redeployed from Git |
+| Cluster redeploy | Unchanged | Unchanged | Preserved | Preserved | Reinstalled |
+
+The `local-nvme` data directories are `/home/k8s-data/*` on nuc2 and
+`/var/lib/k8s-data/*` on RK1 nodes. They are only removed when the
+decommission playbook is run with `-e wipe_local_data=true`.
 
 :::{note}
 eMMC always remains the bootloader for RK1 nodes. The `ubuntu-rockchip-install` tool

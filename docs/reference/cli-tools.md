@@ -23,7 +23,7 @@ child app charts.
 ```bash
 helm repo list
 helm list -A
-helm search repo longhorn/longhorn --versions
+helm search repo ingress-nginx/ingress-nginx --versions
 ```
 
 ### kubeseal
@@ -76,16 +76,6 @@ Generates a Headlamp login token and opens a port-forward on port 8443.
 Login Token: <printed>
 URL: https://dashboard.<domain>
  or: https://localhost:8443
-```
-
-### `longhorn.sh`
-
-Prompts you to set a basic-auth password for the Longhorn web UI, then prints the
-access URL.
-
-```text
-Longhorn will be available at:
-  https://longhorn.<domain>
 ```
 
 ## Shell configuration

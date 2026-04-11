@@ -9,7 +9,7 @@ This guide walks through configuring both authentication paths used by the
 cluster:
 
 - **Part A** — Dex OIDC (ArgoCD, Grafana, Open WebUI, argocd-monitor)
-- **Part B** — oauth2-proxy (Longhorn, Supabase Studio — admin-only)
+- **Part B** — oauth2-proxy (Supabase Studio, Headlamp — admin-only)
 
 ```{mermaid}
 flowchart LR
@@ -25,8 +25,8 @@ flowchart LR
     DEX --> Open-WebUI
     DEX --> argocd-monitor
 
-    OAP --> Longhorn
     OAP --> Supabase
+    OAP --> Headlamp
 ```
 
 ## Prerequisites
@@ -246,8 +246,8 @@ oauth2-proxy before forwarding each request.
 
 Services protected by oauth2-proxy (admin-only):
 
-- **Longhorn** — no native auth; OAuth is the only access control
 - **Supabase Studio** — requires a dashboard password after OAuth login
+- **Headlamp** — uses OAuth as the outer access control layer
 
 ---
 
@@ -269,7 +269,7 @@ ingress values.
 
 ### 403 after GitHub login
 
-For oauth2-proxy services (Longhorn, Supabase Studio): the email must be
+For oauth2-proxy services (Headlamp, Supabase Studio): the email must be
 in `admin_emails` in `values.yaml`. Viewer users cannot access these services
 by design.
 

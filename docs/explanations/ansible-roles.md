@@ -47,7 +47,7 @@ Also creates:
 
 - Shell completions for helm, kubectl (bash + zsh)
 - `k` alias for kubectl
-- Port-forward helper scripts: `argo.sh`, `grafana.sh`, `dashboard.sh`, `longhorn.sh`
+- Port-forward helper scripts: `argo.sh`, `grafana.sh`, `dashboard.sh`
 - Sets PATH to include `$BIN_DIR`
 
 The role is split across multiple task files:
@@ -152,7 +152,6 @@ Prepares each node for K3s:
 4. `apt autoremove` (clean up)
 5. Install required packages:
    - `unattended-upgrades` — automatic security updates
-   - `open-iscsi` — required by Longhorn for iSCSI storage
    - `original-awk` — required by some K3s scripts
 6. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver

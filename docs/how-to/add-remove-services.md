@@ -152,7 +152,7 @@ Application, including its namespace if it was created by `CreateNamespace=true`
 
 Most services in this project use multi-source Applications — combining a Helm chart
 from an external repository with local additions from this repo. This pattern is used
-for services like `cert-manager`, `grafana`, and `longhorn`.
+for services like `cert-manager`, `grafana`, and `ingress-nginx`.
 
 Example from `grafana.yaml` (simplified):
 

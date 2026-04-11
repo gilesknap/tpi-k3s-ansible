@@ -53,7 +53,6 @@ Dex OIDC but receive only read-only access.
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
-| Longhorn | Cloudflare Access | oauth2-proxy | None (full access after auth) |
 | Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test service) |
 | Open Brain MCP | Cloudflare Access | OAuth 2.1 (GitHub) | x-brain-key |
@@ -191,11 +190,11 @@ follow the 301 redirect from `/api/dex` to `/api/dex/`.
 ### Headlamp — oauth2-proxy + ServiceAccount token
 
 Headlamp is protected by the cluster-wide oauth2-proxy (admin-only,
-same as Longhorn and Supabase Studio). After authenticating via GitHub,
+same as Supabase Studio). After authenticating via GitHub,
 users paste a Kubernetes ServiceAccount token to access the dashboard.
 The token is generated with `kubectl create token headlamp -n headlamp`.
 
-### oauth2-proxy services — Headlamp, Longhorn, Supabase Studio
+### oauth2-proxy services — Headlamp and Supabase Studio
 
 Services without native OIDC support use the cluster-wide oauth2-proxy.
 This is a separate authentication path that goes directly to GitHub (not
@@ -210,7 +209,7 @@ sequenceDiagram
     participant GitHub
     participant Svc as Backend service
 
-    User->>NGINX: Visit longhorn.<domain>
+    User->>NGINX: Visit supabase-studio.<domain>
     NGINX->>OAP: Auth subrequest
     OAP-->>NGINX: 401 (not authenticated)
     NGINX->>User: Redirect to oauth2.<domain>
@@ -264,7 +263,6 @@ flowchart TB
 
         subgraph ProxyAuth["oauth2-proxy (admin only)"]
             Headlamp
-            Longhorn
             Supabase[Supabase Studio]
         end
 
@@ -284,7 +282,6 @@ flowchart TB
     NGINX --> Grafana
     NGINX --> OpenWebUI
     NGINX --> Headlamp
-    NGINX --> Longhorn
     NGINX --> Supabase
     NGINX --> Echo
 
@@ -293,7 +290,6 @@ flowchart TB
     Grafana <-.-> DexPod
     OpenWebUI <-.-> DexPod
     Headlamp <-.-> OAP
-    Longhorn <-.-> OAP
     Supabase <-.-> OAP
 
     DexPod <-.-> GH
@@ -320,7 +316,7 @@ viewer_emails:
 
 | Template / Config | Effect |
 |-------------------|--------|
-| `oauth2-proxy.yaml` | Email allowlist — only admins can access Longhorn, Supabase Studio |
+| `oauth2-proxy.yaml` | Email allowlist — only admins can access Supabase Studio and Headlamp |
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
 | `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — admin emails get admin role |
 | `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |
@@ -328,8 +324,7 @@ viewer_emails:
 
 **Viewer emails** authenticate via Dex OIDC and receive read-only roles:
 ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`. They
-cannot access oauth2-proxy-gated services (Longhorn, Supabase Studio)
-or oauth2-proxy-gated services (Headlamp).
+cannot access oauth2-proxy-gated services (Headlamp, Supabase Studio).
 
 :::{important}
 `admin_emails` must be kept in sync in two places:
@@ -364,13 +359,13 @@ watched).
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
 viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use
 Dex for authentication, which allows both admin and viewer users to log
-in with differentiated roles. Services without native OIDC (Longhorn,
-Supabase Studio) use oauth2-proxy as a binary admin-only gate. Headlamp
+in with differentiated roles. Services without native OIDC (Supabase
+Studio) use oauth2-proxy as a binary admin-only gate. Headlamp
 uses ServiceAccount token auth for simplicity.
 
 **Why is oauth2-proxy admin-only?** oauth2-proxy has no concept of roles —
-it either allows or denies an email. Since Longhorn and Supabase Studio
-have no app-level RBAC, giving viewer users access would grant them full
+it either allows or denies an email. Since Supabase Studio has no
+app-level RBAC, giving viewer users access would grant them full
 admin capabilities. Restricting oauth2-proxy to `admin_emails` ensures
 only trusted operators can reach these destructive admin tools.
 

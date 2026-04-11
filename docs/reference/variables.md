@@ -63,7 +63,6 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `cluster_force` | `false` | Force ArgoCD reinstall |
-| `cluster_longhorn_version` | (version string) | Longhorn chart version (legacy, now in template) |
 
 ## Command-line overrides
 

@@ -41,15 +41,15 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates
   (DNS-01 via Cloudflare)
 - **OIDC authentication** — ArgoCD Dex with GitHub connector provides native
-  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Longhorn,
-  Headlamp, and Supabase Studio
+  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Headlamp
+  and Supabase Studio
 - **Cloudflare Tunnel + Access** — optional secure public access via
   cloudflared with email-based access control
 
 ### Services
 
 - **Monitoring** — Prometheus + Grafana stack
-- **Distributed storage** — Longhorn with snapshots and backup
+- **Persistent storage** — static `local-nvme` PVs per host, with daily/weekly NFS backup CronJobs to a NAS
 - **Kubernetes dashboard** — Headlamp with RBAC
 - **Supabase** — self-hosted backend with PostgreSQL + pgvector, Auth, Storage
   (MinIO-backed), and Studio UI

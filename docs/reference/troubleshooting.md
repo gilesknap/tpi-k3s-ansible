@@ -134,7 +134,7 @@ kubectl patch app <app-name> -n argo-cd --type json \
 ### Viewer emails can access oauth2-proxy-gated services
 
 **Symptom:** Users with viewer emails can access admin-only services
-(Longhorn, Supabase Studio) — oauth2-proxy returns 202 instead of 403.
+(Headlamp, Supabase Studio) — oauth2-proxy returns 202 instead of 403.
 
 **Cause:** The oauth2-proxy Helm chart generates `email_domains = ["*"]` in
 its default ConfigMap. This acts as an OR with `authenticatedEmailsFile` —
@@ -237,37 +237,27 @@ When testing cluster changes that affect web UIs, use an incognito window first.
 This avoids polluting your browser cache with intermediate states.
 :::
 
-## Longhorn
+## Local-nvme PVs and NFS backups
 
-### Cannot uninstall Longhorn
+### Static PV not bound
 
-**Symptom:** `helm uninstall longhorn` hangs or fails.
+**Symptom:** A pod stuck `Pending` with events like `no persistent volumes
+available for this claim`.
 
-**Cause:** Longhorn requires its uninstall job to detach all volumes and clean up
-node state. Volumes still attached to running pods prevent uninstall.
+**Check:** `kubectl get pv -l type=local-nvme` — every PV listed in
+`additions/local-storage/` should be `Bound`.
 
-**Fix:**
+**Fix:** Verify the data directory exists on the target node
+(`/home/k8s-data/<app>` on nuc2, `/var/lib/k8s-data/<app>` on the RK1
+nodes); re-run `ansible-playbook pb_all.yml --tags cluster` to let the
+`k8s_data_dirs` role recreate any missing directory.
 
-1. Scale down all workloads using Longhorn PVCs
-2. Delete any remaining PVCs manually
-3. Run the Longhorn uninstall procedure:
+### Restoring from an NFS backup
 
-```bash
-kubectl -n longhorn apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/uninstall/uninstall.yaml
-kubectl -n longhorn get job/longhorn-uninstall -w
-# Wait for completion, then
-helm uninstall longhorn -n longhorn
-```
-
-### Volume degraded — replica rebuilding
-
-**Symptom:** Longhorn UI shows a volume as `Degraded` with replicas rebuilding.
-
-**Cause:** A node was restarted or lost network temporarily. Longhorn
-automatically rebuilds under-replicated volumes.
-
-**Action:** No action needed. Monitor progress in the Longhorn UI. Rebuilding
-typically completes within minutes depending on volume size.
+The daily/weekly backup CronJobs in the `backups` namespace write
+compressed dumps to `/bigdisk/k8s-cluster/backups/` on the NAS. To find
+the latest, `ls -lt /bigdisk/k8s-cluster/backups/supabase-db/` on the
+NAS host and pick the newest `*.sql.gz`.
 
 ## Networking
 
@@ -415,8 +405,14 @@ K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
 GID 106) from changing file ownership. Unlike most Postgres images that use
 UID/GID 999, the Supabase image uses non-standard IDs.
 
-**Fix:** Use Longhorn (or another block storage provider) instead of NFS for
-the Postgres PVC. See {doc}`/explanations/decisions/0006-supabase-nfs-storage`.
+**Fix:** The Supabase database runs on a static `local-nvme` PV pinned to
+nuc2 (backed by `/home/k8s-data/supabase-db`) — plain filesystem ownership
+works correctly. NFS is used only by the backup CronJobs in the `backups`
+namespace to write compressed `pg_dump` output to the NAS; the live
+database never touches NFS. See
+{doc}`/explanations/decisions/0006-supabase-nfs-storage` for the original
+context and {doc}`/explanations/decisions/0012-drop-longhorn` for the
+current architecture.
 
 ### Kong OOMKilled
 
@@ -458,8 +454,9 @@ use `basePath: '/open-brain-mcp'`.
 file access denied, drive may be faulty`.
 
 **Cause:** The Chainguard MinIO image (`cgr.dev/chainguard/minio`) runs as
-UID 65532 (nonroot). Longhorn PVCs are created with root ownership, so MinIO
-cannot write to the volume.
+UID 65532 (nonroot). Static `local-nvme` PVs are backed by hostPath
+directories created with root ownership, so MinIO cannot write to the
+volume.
 
 **Fix:** Add `podSecurityContext.fsGroup: 65532` to the MinIO deployment
 config in `kubernetes-services/templates/supabase.yaml`:
