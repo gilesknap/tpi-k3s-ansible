@@ -13,6 +13,7 @@ how-to/cloudflare-tunnel
 how-to/cloudflare-ssh-tunnel
 how-to/cloudflare-web-tunnel
 how-to/oauth-setup
+how-to/nas-setup
 ```
 
 ## Optional Features
@@ -39,7 +40,6 @@ how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild
 how-to/alternative-storage
-how-to/nas-setup
 ```
 
 ## Developer Workflow
