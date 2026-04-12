@@ -10,10 +10,11 @@
   `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
   `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch).
 - **Never commit to `main`** — work in branches, merge when verified. Use
-  `/pr-squash` to tidy history before merging.
-- **Rebase over `main` before new work** — squash-merged commits have
-  different SHAs from the originals, so skipping rebase causes phantom
-  conflicts.
+  `/pr-squash` to tidy history before merging, then merge with
+  `gh pr merge --merge` to preserve the curated commits. Only use
+  `--squash` for PRs that haven't been through `/pr-squash`.
+- **Rebase over `main` before new work** — merged commits have different
+  SHAs from the originals, so skipping rebase causes phantom conflicts.
 - **Chrome browser is not incognito** — never navigate to Google services.
   For GitHub: OAuth "Grant Access" / "Authorize" clicks are OK (they only
   redirect back to the cluster), but do not modify any GitHub resources
