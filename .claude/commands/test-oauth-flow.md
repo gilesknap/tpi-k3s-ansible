@@ -141,7 +141,7 @@ For each service:
   JS is useless against them. A stale `CF_AppSession` from a prior
   cluster session will make CF Access return **503 in the browser** even
   though the cluster-side path is healthy. To flush it, navigate to
-  `https://<access-team>.cloudflareaccess.com/cdn-cgi/access/logout`
+  `https://<cf_access_team from values.yaml>.cloudflareaccess.com/cdn-cgi/access/logout`
   before retrying. Note: the `clusterapps` Access policy requires
   interactive email-OTP sign-in with no SSO fallback — meaning after a
   logout, Supabase cannot be fully browser-tested automatically. Stop
