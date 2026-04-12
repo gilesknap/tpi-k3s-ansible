@@ -23,6 +23,7 @@ MCP_JWT_SECRET = os.environ.get("MCP_JWT_SECRET", "")
 # JWT bearer-token middleware (applied only to /mcp)
 # ---------------------------------------------------------------------------
 
+
 class BearerTokenMiddleware:
     """ASGI middleware that validates a JWT Bearer token.
 
@@ -49,7 +50,10 @@ class BearerTokenMiddleware:
 
         if not auth_header.startswith("Bearer "):
             response = JSONResponse(
-                {"error": "missing_token", "error_description": "Authorization header with Bearer token required"},
+                {
+                    "error": "missing_token",
+                    "error_description": "Authorization header with Bearer token required",
+                },
                 status_code=401,
             )
             await response(scope, receive, send)
@@ -74,6 +78,7 @@ class BearerTokenMiddleware:
 # Health check
 # ---------------------------------------------------------------------------
 
+
 async def health(request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
@@ -81,6 +86,7 @@ async def health(request: Request) -> JSONResponse:
 # ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
+
 
 def create_app() -> Starlette:
     """ASGI application factory used by uvicorn."""

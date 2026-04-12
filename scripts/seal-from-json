@@ -83,6 +83,7 @@ if [ -z "$literals" ]; then
     echo "ERROR: supabase-credentials not found in JSON" >&2
     exit 1
 fi
+# shellcheck disable=SC2086  # $literals intentionally word-splits multiple --from-literal args
 kubectl create secret generic supabase-credentials --namespace=supabase \
     $literals --dry-run=client -o yaml | seal_to "$BASE/supabase/templates/supabase-secret.yaml"
 echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
@@ -92,6 +93,7 @@ echo "  -> $BASE/supabase/templates/supabase-secret.yaml"
 # so they can mount the k8s-cluster-nfs PVC directly. Cross-namespace secret
 # reads are not possible, so seal a copy into the backups namespace too.
 echo "Sealing: supabase-credentials (backups)..."
+# shellcheck disable=SC2086
 kubectl create secret generic supabase-credentials --namespace=backups \
     $literals --dry-run=client -o yaml | seal_to "$BASE/backups/templates/supabase-credentials-secret.yaml"
 echo "  -> $BASE/backups/templates/supabase-credentials-secret.yaml"

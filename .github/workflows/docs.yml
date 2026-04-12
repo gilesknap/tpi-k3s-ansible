@@ -1,4 +1,4 @@
-name: Docs & Lint
+name: CI
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  pre-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,8 +18,8 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v2
 
-      - name: Ansible lint
-        run: just lint
+      - name: Pre-commit checks
+        run: just pre-commit
 
   docs:
     runs-on: ubuntu-latest
@@ -44,3 +44,23 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: build/html
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Shellcheck
+        run: grep -rl '^#!/.*bash' scripts/ | xargs shellcheck --severity=warning
+
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Ruff lint & format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: open-brain-mcp

@@ -19,6 +19,7 @@ async def create_pool(database_url: str) -> asyncpg.Pool:
 # capture_thought
 # ---------------------------------------------------------------------------
 
+
 async def capture_thought(
     pool: asyncpg.Pool,
     content: str,
@@ -40,6 +41,7 @@ async def capture_thought(
 # ---------------------------------------------------------------------------
 # search_thoughts
 # ---------------------------------------------------------------------------
+
 
 async def search_thoughts(
     pool: asyncpg.Pool,
@@ -93,6 +95,7 @@ async def search_thoughts(
 # list_thoughts
 # ---------------------------------------------------------------------------
 
+
 async def list_thoughts(
     pool: asyncpg.Pool,
     *,
@@ -145,6 +148,7 @@ async def list_thoughts(
 # thought_stats
 # ---------------------------------------------------------------------------
 
+
 async def thought_stats(pool: asyncpg.Pool) -> dict[str, Any]:
     """Aggregate statistics across all thoughts."""
     total = await pool.fetchval("SELECT count(*) FROM thoughts")
@@ -183,6 +187,7 @@ async def thought_stats(pool: asyncpg.Pool) -> dict[str, Any]:
 # attachment storage
 # ---------------------------------------------------------------------------
 
+
 async def download_attachment(
     thought_id: str,
     filename: str,
@@ -217,6 +222,7 @@ async def download_attachment(
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _row_to_dict(row: asyncpg.Record) -> dict[str, Any]:
     """Convert an asyncpg Record to a plain dict with JSON-safe values."""

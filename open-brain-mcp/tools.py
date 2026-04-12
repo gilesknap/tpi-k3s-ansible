@@ -8,7 +8,6 @@ from typing import Any
 
 import os
 
-import asyncpg
 from mcp.server.fastmcp import FastMCP
 
 import db
@@ -26,6 +25,7 @@ def create_mcp(pool_getter) -> FastMCP:
     """
     # Extract hostname from SERVER_URL for DNS rebinding protection.
     from urllib.parse import urlparse
+
     host = urlparse(SERVER_URL).hostname or "localhost"
 
     mcp = FastMCP(
@@ -82,13 +82,18 @@ def create_mcp(pool_getter) -> FastMCP:
 
         try:
             content_bytes, mime_type = await db.download_attachment(
-                thought_id, filename, SUPABASE_URL, SUPABASE_SERVICE_KEY,
+                thought_id,
+                filename,
+                SUPABASE_URL,
+                SUPABASE_SERVICE_KEY,
             )
-            return json.dumps({
-                "filename": filename,
-                "mime_type": mime_type,
-                "content_base64": base64.b64encode(content_bytes).decode("ascii"),
-            })
+            return json.dumps(
+                {
+                    "filename": filename,
+                    "mime_type": mime_type,
+                    "content_base64": base64.b64encode(content_bytes).decode("ascii"),
+                }
+            )
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc)})
 
@@ -111,7 +116,12 @@ def create_mcp(pool_getter) -> FastMCP:
         """
         pool = pool_getter()
         results = await db.search_thoughts(
-            pool, topic=topic, person=person, type_=type, keyword=keyword, limit=limit,
+            pool,
+            topic=topic,
+            person=person,
+            type_=type,
+            keyword=keyword,
+            limit=limit,
         )
         return json.dumps(results)
 
@@ -134,7 +144,12 @@ def create_mcp(pool_getter) -> FastMCP:
         """
         pool = pool_getter()
         results = await db.list_thoughts(
-            pool, type_=type, topic=topic, person=person, days=days, limit=limit,
+            pool,
+            type_=type,
+            topic=topic,
+            person=person,
+            days=days,
+            limit=limit,
         )
         return json.dumps(results)
 

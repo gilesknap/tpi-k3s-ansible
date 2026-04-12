@@ -52,23 +52,28 @@ _auth_codes: dict[str, dict] = {}
 # Route handlers
 # ---------------------------------------------------------------------------
 
+
 async def well_known_metadata(request: Request) -> JSONResponse:
     """RFC 8414 OAuth Authorization Server Metadata."""
-    return JSONResponse({
-        "issuer": SERVER_URL,
-        "authorization_endpoint": f"{SERVER_URL}/authorize",
-        "token_endpoint": f"{SERVER_URL}/token",
-        "response_types_supported": ["code"],
-        "code_challenge_methods_supported": ["S256"],
-    })
+    return JSONResponse(
+        {
+            "issuer": SERVER_URL,
+            "authorization_endpoint": f"{SERVER_URL}/authorize",
+            "token_endpoint": f"{SERVER_URL}/token",
+            "response_types_supported": ["code"],
+            "code_challenge_methods_supported": ["S256"],
+        }
+    )
 
 
 async def well_known_protected_resource(request: Request) -> JSONResponse:
     """RFC 9728 OAuth Protected Resource Metadata."""
-    return JSONResponse({
-        "resource": f"{SERVER_URL}/mcp",
-        "authorization_servers": [SERVER_URL],
-    })
+    return JSONResponse(
+        {
+            "resource": f"{SERVER_URL}/mcp",
+            "authorization_servers": [SERVER_URL],
+        }
+    )
 
 
 async def authorize(request: Request) -> Response:
@@ -82,13 +87,19 @@ async def authorize(request: Request) -> Response:
 
     if not all([client_id, redirect_uri, state, code_challenge]):
         return JSONResponse(
-            {"error": "invalid_request", "error_description": "Missing required parameters"},
+            {
+                "error": "invalid_request",
+                "error_description": "Missing required parameters",
+            },
             status_code=400,
         )
 
     if code_challenge_method and code_challenge_method != "S256":
         return JSONResponse(
-            {"error": "invalid_request", "error_description": "Only S256 code_challenge_method is supported"},
+            {
+                "error": "invalid_request",
+                "error_description": "Only S256 code_challenge_method is supported",
+            },
             status_code=400,
         )
 
@@ -102,12 +113,14 @@ async def authorize(request: Request) -> Response:
         "code_challenge": code_challenge,
     }
 
-    github_params = urlencode({
-        "client_id": GITHUB_CLIENT_ID,
-        "redirect_uri": f"{SERVER_URL}/callback",
-        "state": github_state,
-        "scope": "read:user",
-    })
+    github_params = urlencode(
+        {
+            "client_id": GITHUB_CLIENT_ID,
+            "redirect_uri": f"{SERVER_URL}/callback",
+            "state": github_state,
+            "scope": "read:user",
+        }
+    )
     return RedirectResponse(f"https://github.com/login/oauth/authorize?{github_params}")
 
 
@@ -151,7 +164,10 @@ async def callback(request: Request) -> Response:
 
     username = user_data.get("login", "")
     if username not in GITHUB_ALLOWED_USERS:
-        return JSONResponse({"error": "access_denied", "error_description": "User not in allowlist"}, status_code=403)
+        return JSONResponse(
+            {"error": "access_denied", "error_description": "User not in allowlist"},
+            status_code=403,
+        )
 
     # Issue a short-lived authorization code.
     auth_code = secrets.token_urlsafe(48)
@@ -175,23 +191,41 @@ async def token(request: Request) -> JSONResponse:
 
     if not code or not code_verifier:
         return JSONResponse(
-            {"error": "invalid_request", "error_description": "Missing code or code_verifier"},
+            {
+                "error": "invalid_request",
+                "error_description": "Missing code or code_verifier",
+            },
             status_code=400,
         )
 
     entry = _auth_codes.pop(str(code), None)
     if entry is None:
-        return JSONResponse({"error": "invalid_grant", "error_description": "Unknown or already-used code"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+                "error_description": "Unknown or already-used code",
+            },
+            status_code=400,
+        )
 
     if time.time() > entry["expires_at"]:
-        return JSONResponse({"error": "invalid_grant", "error_description": "Authorization code expired"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+                "error_description": "Authorization code expired",
+            },
+            status_code=400,
+        )
 
     # Verify PKCE: S256 → base64url(sha256(code_verifier)) must equal code_challenge.
     digest = hashlib.sha256(str(code_verifier).encode("ascii")).digest()
     computed_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
     if computed_challenge != entry["code_challenge"]:
-        return JSONResponse({"error": "invalid_grant", "error_description": "PKCE verification failed"}, status_code=400)
+        return JSONResponse(
+            {"error": "invalid_grant", "error_description": "PKCE verification failed"},
+            status_code=400,
+        )
 
     now = time.time()
     access_token = jwt.encode(
@@ -204,11 +238,13 @@ async def token(request: Request) -> JSONResponse:
         algorithm="HS256",
     )
 
-    return JSONResponse({
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": BEARER_TOKEN_TTL,
-    })
+    return JSONResponse(
+        {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": BEARER_TOKEN_TTL,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
