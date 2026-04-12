@@ -22,7 +22,7 @@ pinned to a specific node — with **daily and weekly CronJob backups to
 NFS** on a NAS. This keeps operations simple (no replicated CSI driver)
 while still surviving cluster rebuilds and giving off-cluster
 point-in-time restore. See the
-[**Interactive Architecture Showcase**](https://gilesknap.github.io/tpi-k3s-ansible/architecture.html)
+[**Interactive Architecture Showcase**](https://gilesknap.github.io/tpi-k3s-ansible/_static/architecture.html)
 for a visual tour, the [architecture explanation](https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html)
 for the layered model, and the
 [services reference](https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html)
