@@ -450,6 +450,59 @@ database never touches NFS. See
 context and {doc}`/explanations/decisions/0012-drop-longhorn` for the
 current architecture.
 
+### Supabase clients CrashLoop with "password authentication failed" after rebuild
+
+**Symptom:** After a cluster rebuild with preserved local-nvme volumes,
+`supabase-auth`, `supabase-rest`, `supabase-storage`, `supabase-realtime`,
+and `open-brain-mcp` all CrashLoop with `password authentication failed
+for user "supabase_admin"`.
+
+**Cause:** Postgres init scripts only run when `PG_VERSION` is absent from
+PGDATA. On a preserved volume they are skipped, so service roles keep the
+old passwords. If `SUPABASE_PASSWORD` was not set in `.env` before the
+rebuild, `generate-secrets` rolled a fresh random password that does not
+match what Postgres has.
+
+**Prevention:** Run `just export-external-creds` before decommission. This
+extracts `SUPABASE_PASSWORD` and `SUPABASE_JWT_SECRET` into `.env` so the
+rebuild reuses the existing values.
+
+**Fix (if prevention was missed):**
+
+```bash
+# 1) Read the new password from the live secret
+NEW_PW=$(kubectl get secret -n supabase supabase-credentials \
+  -o jsonpath='{.data.password}' | base64 -d)
+
+# 2) ALTER all service roles to match (must use supabase_admin, not postgres)
+#    Must use -h 127.0.0.1 (trust auth) not local socket (scram)
+kubectl exec -i -n supabase supabase-supabase-db-0 -c supabase-db -- \
+  psql -U supabase_admin -h 127.0.0.1 <<SQL
+ALTER USER supabase_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_auth_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_storage_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_functions_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_realtime_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_replication_admin WITH PASSWORD '$NEW_PW';
+ALTER USER supabase_read_only_user WITH PASSWORD '$NEW_PW';
+ALTER USER authenticator WITH PASSWORD '$NEW_PW';
+ALTER USER pgbouncer WITH PASSWORD '$NEW_PW';
+ALTER USER dashboard_user WITH PASSWORD '$NEW_PW';
+ALTER USER postgres WITH PASSWORD '$NEW_PW';
+SQL
+
+# 3) Restart the crashing clients
+kubectl rollout restart -n supabase \
+  deploy/supabase-supabase-auth deploy/supabase-supabase-rest \
+  deploy/supabase-supabase-storage deploy/supabase-supabase-realtime
+kubectl rollout restart -n open-brain-mcp deploy/open-brain-mcp
+```
+
+:::{important}
+`kubectl exec` needs `-i` for the heredoc to reach psql. Without it the
+ALTER statements silently do nothing.
+:::
+
 ### Kong OOMKilled
 
 **Symptom:** Supabase Kong pod restarts repeatedly with `OOMKilled`.

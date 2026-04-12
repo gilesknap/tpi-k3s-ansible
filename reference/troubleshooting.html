@@ -812,6 +812,54 @@ database never touches NFS. See
 context and <a class="reference internal" href="../explanations/decisions/0012-drop-longhorn.html"><span class="doc">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></a> for the
 current architecture.</p>
 </section>
+<section id="supabase-clients-crashloop-with-password-authentication-failed-after-rebuild">
+<h3>Supabase clients CrashLoop with “password authentication failed” after rebuild<a class="headerlink" href="#supabase-clients-crashloop-with-password-authentication-failed-after-rebuild" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> After a cluster rebuild with preserved local-nvme volumes,
+<code class="docutils literal notranslate"><span class="pre">supabase-auth</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-rest</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-storage</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-realtime</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">open-brain-mcp</span></code> all CrashLoop with <code class="docutils literal notranslate"><span class="pre">password</span> <span class="pre">authentication</span> <span class="pre">failed</span> <span class="pre">for</span> <span class="pre">user</span> <span class="pre">&quot;supabase_admin&quot;</span></code>.</p>
+<p><strong>Cause:</strong> Postgres init scripts only run when <code class="docutils literal notranslate"><span class="pre">PG_VERSION</span></code> is absent from
+PGDATA. On a preserved volume they are skipped, so service roles keep the
+old passwords. If <code class="docutils literal notranslate"><span class="pre">SUPABASE_PASSWORD</span></code> was not set in <code class="docutils literal notranslate"><span class="pre">.env</span></code> before the
+rebuild, <code class="docutils literal notranslate"><span class="pre">generate-secrets</span></code> rolled a fresh random password that does not
+match what Postgres has.</p>
+<p><strong>Prevention:</strong> Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code> before decommission. This
+extracts <code class="docutils literal notranslate"><span class="pre">SUPABASE_PASSWORD</span></code> and <code class="docutils literal notranslate"><span class="pre">SUPABASE_JWT_SECRET</span></code> into <code class="docutils literal notranslate"><span class="pre">.env</span></code> so the
+rebuild reuses the existing values.</p>
+<p><strong>Fix (if prevention was missed):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1) Read the new password from the live secret</span>
+<span class="nv">NEW_PW</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-credentials<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.password}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="k">)</span>
+
+<span class="c1"># 2) ALTER all service roles to match (must use supabase_admin, not postgres)</span>
+<span class="c1">#    Must use -h 127.0.0.1 (trust auth) not local socket (scram)</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-i<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>-c<span class="w"> </span>supabase-db<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>supabase_admin<span class="w"> </span>-h<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="s">&lt;&lt;SQL</span>
+<span class="s">ALTER USER supabase_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_auth_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_storage_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_functions_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_realtime_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_replication_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER supabase_read_only_user WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER authenticator WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER pgbouncer WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER dashboard_user WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">ALTER USER postgres WITH PASSWORD &#39;$NEW_PW&#39;;</span>
+<span class="s">SQL</span>
+
+<span class="c1"># 3) Restart the crashing clients</span>
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>deploy/supabase-supabase-auth<span class="w"> </span>deploy/supabase-supabase-rest<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>deploy/supabase-supabase-storage<span class="w"> </span>deploy/supabase-supabase-realtime
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>-n<span class="w"> </span>open-brain-mcp<span class="w"> </span>deploy/open-brain-mcp
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span></code> needs <code class="docutils literal notranslate"><span class="pre">-i</span></code> for the heredoc to reach psql. Without it the
+ALTER statements silently do nothing.</p>
+</div>
+</section>
 <section id="kong-oomkilled">
 <h3>Kong OOMKilled<a class="headerlink" href="#kong-oomkilled" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> Supabase Kong pod restarts repeatedly with <code class="docutils literal notranslate"><span class="pre">OOMKilled</span></code>.</p>
@@ -1024,6 +1072,7 @@ tpi<span class="w"> </span>info
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase">Supabase</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#postgres-fails-on-nfs-storage">Postgres fails on NFS storage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase-clients-crashloop-with-password-authentication-failed-after-rebuild">Supabase clients CrashLoop with “password authentication failed” after rebuild</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kong-oomkilled">Kong OOMKilled</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-not-updating-after-configmap-change">Edge Function not updating after ConfigMap change</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-returns-404">Edge Function returns 404</a></li>
