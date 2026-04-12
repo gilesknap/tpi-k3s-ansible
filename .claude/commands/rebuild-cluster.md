@@ -78,7 +78,18 @@ branch itself is the base branch for the rebuild:
    so that merging the PR delivers both the code fix and the new sealed
    secrets in one go.
 
-### 1b. Collect external credentials
+### 1b. Back up the wildcard TLS certificate
+
+Save the existing wildcard certificate so it can be restored after
+rebuild, avoiding a Let's Encrypt re-issue (which may hit rate limits):
+
+```bash
+kubectl get secret wildcard-tls -n cert-manager -o yaml > /tmp/wildcard-tls-backup.yaml
+```
+
+If the secret does not exist (first-ever build), skip this step.
+
+### 1c. Collect external credentials
 
 Export the 8 external credentials that cannot be generated. Run this
 while the cluster is still up:
@@ -159,7 +170,7 @@ ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir
 ## Phase 3: Rebuild (single playbook run)
 
 With `GENERATE_SECRETS=true` and the external credential env vars from
-Phase 1b, a single playbook run handles everything: K3s install, ArgoCD
+Phase 1c, a single playbook run handles everything: K3s install, ArgoCD
 setup, secret generation, sealing, git commit/push, and admin password.
 
 Run it in the background with a progress Monitor — this is the
@@ -231,7 +242,32 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4b. Restart Dex and secret-dependent pods
+### 4b. Restore the wildcard TLS certificate
+
+If `/tmp/wildcard-tls-backup.yaml` exists (saved in Phase 1b), restore
+it to avoid a Let's Encrypt re-issue:
+
+```bash
+# Strip cluster-specific metadata so it can be applied to the new cluster
+kubectl apply -f - <<'APPLY_EOF'
+$(cat /tmp/wildcard-tls-backup.yaml \
+  | grep -v '^\s*uid:' \
+  | grep -v '^\s*resourceVersion:' \
+  | grep -v '^\s*creationTimestamp:' \
+  | sed '/^  managedFields:/,/^[^ ]/{ /^[^ ]/!d; /^  managedFields:/d }')
+APPLY_EOF
+```
+
+Verify the certificate shows as Ready:
+```bash
+kubectl get certificates -n cert-manager
+```
+
+If the restore fails or the backup file does not exist, cert-manager
+will request a new certificate automatically — this is fine unless
+rate-limited.
+
+### 4c. Restart Dex and secret-dependent pods
 
 Dex and any pods that load secrets via `env.valueFrom.secretKeyRef` need
 a restart to pick up the newly sealed secrets. Pods started before the
@@ -243,7 +279,7 @@ just restart-dex
 kubectl rollout restart statefulset open-webui -n open-webui
 ```
 
-### 4c. GPU node setup
+### 4d. GPU node setup
 
 No manual step needed. The `--tags servers` in Phase 3 installs the
 NVIDIA container runtime before ArgoCD deploys the device-plugin
@@ -298,7 +334,7 @@ read the last few notifications to identify which check is failing,
 then consult the troubleshooting steps below.
 
 Do not proceed until all apps are Healthy — including
-`nvidia-device-plugin` and `llamacpp` (if stuck, see Phase 4c).
+`nvidia-device-plugin` and `llamacpp` (if stuck, see Phase 4d).
 
 If any SealedSecrets show `False` with "no key could decrypt":
 1. ArgoCD may have synced old sealed secrets from the wrong branch.
@@ -312,7 +348,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
 
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
-- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4c)
+- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
@@ -404,7 +440,7 @@ after they have tested the cluster manually.
 ### 8d. Clean up
 
 ```bash
-rm -rf /tmp/cluster-secrets/ /tmp/decommission.log /tmp/rebuild.log /tmp/argocd-sync.log
+rm -rf /tmp/cluster-secrets/ /tmp/decommission.log /tmp/rebuild.log /tmp/argocd-sync.log /tmp/wildcard-tls-backup.yaml
 ```
 
 ### 8e. If this rebuild was testing a PR branch
