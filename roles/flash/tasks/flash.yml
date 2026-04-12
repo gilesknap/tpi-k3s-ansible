@@ -6,17 +6,17 @@
 
 - name: Select The Image To Flash For Rk1
   ansible.builtin.set_fact:
-    image: "{{ flash_image_info.rk1 }}"
-  when: node.type == 'rk1'
+    flash_image: "{{ flash_image_info.rk1 }}"
+  when: flash_node.type == 'rk1'
 
 - name: Select The Image To Flash For Rpi4 Compute Module
   ansible.builtin.set_fact:
-    image: "{{ flash_image_info.pi4 }}"
-  when: node.type == 'pi4'
+    flash_image: "{{ flash_image_info.pi4 }}"
+  when: flash_node.type == 'pi4'
 
 - name: Check for existing image file
-  ansible.builtin.raw: mkdir -p {{ tpi_images_path }} && test -f {{ image.osf_remote }}
-  register: os_file_stat
+  ansible.builtin.raw: mkdir -p {{ tpi_images_path }} && test -f {{ flash_image.osf_remote }}
+  register: flash_os_file_stat
   ignore_errors: true
   changed_when: false
 
@@ -27,39 +27,42 @@
     state: directory
     mode: "0755"
 
-- name: Get OS image for {{ node.type }}
+- name: Get OS image for {{ flash_node.type }}
   delegate_to: localhost
   ansible.builtin.get_url:
-    url: "{{ image.url }}"
-    dest: "{{ image.os_file }}"
+    url: "{{ flash_image.url }}"
+    dest: "{{ flash_image.os_file }}"
     mode: "0644"
-  register: os_file
-  when: os_file_stat.rc | default(0) != 0
+  register: flash_os_file
+  when: flash_os_file_stat.rc | default(0) != 0
 
-- name: Scp image to BMC # noqa no-changed-when
+- name: Scp image to BMC
   delegate_to: localhost
   ansible.builtin.command: |-
-    scp {{ image.os_file }}
-    {{ tpi_user }}@{{ inventory_hostname }}:{{ image.osf_remote }}
-  when: os_file_stat.rc | default(0) != 0
+    scp {{ flash_image.os_file }}
+    {{ tpi_user }}@{{ inventory_hostname }}:{{ flash_image.osf_remote }}
+  changed_when: true
+  when: flash_os_file_stat.rc | default(0) != 0
 
 # this guarantees the state of the node and tpi flash will automatically turn in on
-- name: Turn off {{ node_name }} # noqa no-changed-when
-  ansible.builtin.raw: tpi power off -n {{ node.slot_num }}
+- name: Turn off {{ node_name }}
+  ansible.builtin.raw: tpi power off -n {{ flash_node.slot_num }}
+  changed_when: true
 
-- name: Wait for {{ node_name }} to fully power down before flashing
+- name: Wait for node to fully power down before flashing {{ node_name }}
   ansible.builtin.pause:
     seconds: 10
 
-- name: Flash image to {{ node_name }} # noqa no-changed-when
+- name: Flash image to {{ node_name }}
   # async+poll prints a status line every 15s so you can see it isn't hung.
   # Note: async is incompatible with retries/until; those are removed here.
   # If tpi flash fails with a USB enumeration error, power-cycle the BMC and re-run.
   ansible.builtin.raw: >-
-    tpi power off -n {{ node.slot_num }} &&
+    tpi power off -n {{ flash_node.slot_num }} &&
     sleep 15 &&
-    tpi flash -n {{ node.slot_num }} --image-path {{ image.osf_remote }} --sha256 {{ image.sha }}
+    tpi flash -n {{ flash_node.slot_num }} --image-path {{ flash_image.osf_remote }} --sha256 {{ flash_image.sha }}
   register: flash_results
+  changed_when: true
   failed_when: flash_results.rc != 0 or 'Error occured' in (flash_results.stdout | default(''))
   async: 600
   poll: 15

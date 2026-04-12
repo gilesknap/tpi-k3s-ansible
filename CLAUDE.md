@@ -32,6 +32,9 @@
   open-webui→node04, supabase-db/storage/minio→nuc2. Each local PV in
   `additions/local-storage/` has `spec.nodeAffinity` matching its pod;
   a new workload needs its own PV + node choice, not a shared pool.
+- **Run `just check` before pushing** — it runs `ansible-lint` and
+  `sphinx-build` in parallel. All warnings must be resolved, not
+  suppressed. Do not add `# noqa` overrides or `warn_list` entries.
 
 ## Testing Rebuild-Affecting Changes
 
@@ -56,7 +59,7 @@ workflow, including cherry-picking the reseal commit back.
 
 - Ansible: 2-space indent, sentence-case task names, idempotent tasks
 - Kubernetes: `templates/` = ArgoCD Application CRDs; `additions/` = plain YAML or Helm values
-- Lint: `ansible-lint` (suppress with `# noqa <rule>`)
+- Lint: `ansible-lint` — zero warnings required (see Hard Rules)
 - Docs: `python -m sphinx docs docs/_build`
 - `.gitleaks.toml` allowlists `*-secret.yaml` (singular). Files named
   `*-secrets.yaml` (plural) will be blocked by pre-commit — see

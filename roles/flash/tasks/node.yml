@@ -7,29 +7,31 @@
   block:
     - name: Increment the retry count
       ansible.builtin.set_fact:
-        retry_count: "{{ retry_count | default(0) | int + 1 }}"
+        flash_retry_count: "{{ flash_retry_count | default(0) | int + 1 }}"
 
     - name: Fetch Node Variables for {{ node_name }}
       ansible.builtin.set_fact:
-        node: "{{ hostvars[node_name] }}"
+        flash_node: "{{ hostvars[node_name] }}"
 
     - name: Check if the node is contactable {{ node_name }}
       ansible.builtin.include_tasks: node_status.yml
 
     - name: Flash images {{ node_name }}
       ansible.builtin.include_tasks: flash.yml
-      when: not node_status or flash_force | bool
+      when: not flash_node_status or flash_force | bool
 
     - name: Bootstrap node to enable further ansible provisioning {{ node_name }}
       ansible.builtin.include_tasks: bootstrap.yml
       # if the node is already contactable then no need to do initial boot cloud init
-      when: not node_status or flash_force | bool
+      when: not flash_node_status or flash_force | bool
 
   rescue:
-    - ansible.builtin.fail: # noqa name
+    - name: Fail if maximum retries reached for {{ node_name }}
+      ansible.builtin.fail:
         msg: Maximum retries of Process TP node reached for {{ node_name }}
       # turing off retries for now - not helpful for debugging
       # and this sequence very reliable anyway
-      when: retry_count | int >= 0
+      when: flash_retry_count | int >= 0
 
-    - ansible.builtin.include_tasks: node.yml # noqa name
+    - name: Retry processing node {{ node_name }}
+      ansible.builtin.include_tasks: node.yml

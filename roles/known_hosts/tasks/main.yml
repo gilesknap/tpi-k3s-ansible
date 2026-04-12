@@ -8,22 +8,22 @@
 - name: Get node ip address with dig for {{ inventory_hostname }}
   delegate_to: localhost
   ansible.builtin.command: dig +short {{ inventory_hostname }}{{ local_domain }}
-  register: node_ip
+  register: known_hosts_node_ip
   changed_when: false
 
-- name: Remove old known_host entries for {{ node_ip.stdout }}
+- name: Remove old known_host entries for {{ known_hosts_node_ip.stdout }}
   delegate_to: localhost
   ansible.builtin.known_hosts:
     name: "{{ item }}"
     state: absent
-  loop: "{{ node_ip.stdout_lines }}"
+  loop: "{{ known_hosts_node_ip.stdout_lines }}"
   changed_when: false # because this is clean-up on localhost only
 
 - name: Get ssh public keys of node {{ inventory_hostname }}
   delegate_to: localhost
   ansible.builtin.command:
     cmd: "ssh-keyscan {{ inventory_hostname }}"
-  register: new_node_ssh_keys
+  register: known_hosts_new_node_ssh_keys
   changed_when: false
   failed_when: false
 
@@ -33,6 +33,6 @@
     name: "{{ inventory_hostname }}"
     key: "{{ item }}"
     state: present
-  loop: "{{ new_node_ssh_keys.stdout_lines }}"
-  when: new_node_ssh_keys.rc == 0 and not item.startswith('#')
+  loop: "{{ known_hosts_new_node_ssh_keys.stdout_lines }}"
+  when: known_hosts_new_node_ssh_keys.rc == 0 and not item.startswith('#')
   register: known_hosts_update

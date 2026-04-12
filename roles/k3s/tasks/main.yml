@@ -1,7 +1,7 @@
 # install K3s on each node
 
 # When running with --limit <worker>, the control plane may not have had its
-# facts gathered in this play. Collect them via delegation so control_plane_ip
+# facts gathered in this play. Collect them via delegation so k3s_control_plane_ip
 # is always available regardless of the --limit value.
 - name: Gather facts from control plane if not already collected
   ansible.builtin.setup:
@@ -13,12 +13,12 @@
 # determine if this node is the control plane
 - name: Check if control plane
   ansible.builtin.set_fact:
-    is_control_plane: "{{ control_plane == inventory_hostname }}"
-    control_plane_ip: "{{ hostvars[control_plane]['ansible_facts']['default_ipv4']['address'] }}"
+    k3s_is_control_plane: "{{ control_plane == inventory_hostname }}"
+    k3s_control_plane_ip: "{{ hostvars[control_plane]['ansible_facts']['default_ipv4']['address'] }}"
 
 - name: Output control plane status
   ansible.builtin.debug:
-    var: is_control_plane
+    var: k3s_is_control_plane
 
 - name: Get k3s script
   ansible.builtin.get_url:
@@ -28,22 +28,22 @@
 
 - name: Execute control plane tasks
   ansible.builtin.include_tasks: control.yml
-  when: is_control_plane
+  when: k3s_is_control_plane
 
 - name: Configure kubectl for the execution environment
   ansible.builtin.include_tasks: kubeconfig.yml
 
 - name: Execute worker node tasks
   ansible.builtin.include_tasks: worker.yml
-  when: not is_control_plane
+  when: not k3s_is_control_plane
 
 - name: Wait for all kube-system pods become created
   ansible.builtin.command:
     kubectl get pod -n kube-system --output jsonpath='{.items[*].metadata.name}'
   delegate_to: localhost
   run_once: true
-  register: control_plane_pods_created
-  until: item in control_plane_pods_created.stdout
+  register: k3s_control_plane_pods_created
+  until: item in k3s_control_plane_pods_created.stdout
   retries: 6
   delay: 10
   loop:
@@ -57,5 +57,5 @@
     kubectl wait -n kube-system pods --all --for condition=Ready --timeout=100s
   delegate_to: localhost
   run_once: true
-  register: control_plane_pods_ready
+  register: k3s_control_plane_pods_ready
   changed_when: false

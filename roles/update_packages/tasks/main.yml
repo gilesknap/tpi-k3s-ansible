@@ -11,12 +11,12 @@
   ansible.builtin.stat:
     path: /var/run/reboot-required
     get_checksum: false
-  register: reboot_required_file
+  register: update_packages_reboot_required_file
 
 - name: Reboot the server (if required)
   ansible.builtin.reboot:
   when:
-    - reboot_required_file.stat.exists
+    - update_packages_reboot_required_file.stat.exists
     - not (workstation | default(false))
 
 - name: Warn that workstation node requires a manual reboot
@@ -25,7 +25,7 @@
       WARNING: {{ inventory_hostname }} needs a reboot but is marked as a
       workstation. Reboot it manually when convenient.
   when:
-    - reboot_required_file.stat.exists
+    - update_packages_reboot_required_file.stat.exists
     - workstation | default(false)
 
 - name: Remove dependencies that are no longer required
@@ -70,20 +70,34 @@
   when: nvidia_gpu_node | default(false)
   notify: Reboot node
 
-- name: Add NVIDIA container toolkit GPG key
-  ansible.builtin.shell:
-    cmd: >
-      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey
-      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+- name: Download NVIDIA container toolkit GPG key
+  ansible.builtin.get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /tmp/nvidia-container-toolkit-gpgkey
+    mode: "0644"
+  when: nvidia_gpu_node | default(false)
+
+- name: Dearmor NVIDIA container toolkit GPG key
+  ansible.builtin.command:
+    cmd: gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg /tmp/nvidia-container-toolkit-gpgkey
     creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
   when: nvidia_gpu_node | default(false)
 
-- name: Add NVIDIA container toolkit apt repository
+- name: Download NVIDIA container toolkit apt repository list
+  ansible.builtin.get_url:
+    url: https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list
+    dest: /tmp/nvidia-container-toolkit.list
+    mode: "0644"
+  when: nvidia_gpu_node | default(false)
+
+- name: Add NVIDIA container toolkit apt repository with signed-by
   ansible.builtin.shell:
-    cmd: >
-      curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list
-      | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g'
-      | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    cmd: >-
+      set -o pipefail &&
+      sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g'
+      /tmp/nvidia-container-toolkit.list
+      > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    executable: /bin/bash
     creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
   when: nvidia_gpu_node | default(false)
 
