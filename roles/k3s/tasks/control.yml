@@ -26,11 +26,9 @@
       INSTALL_K3S_EXEC="server"
       /usr/local/bin/k3s-install.sh
     creates: /var/lib/rancher/k3s/server/node-token
-  when: is_control_plane
+  when: k3s_is_control_plane
   register: k3s_installed
 
 - name: Set the k3s_install_occurred fact
-  ansible.builtin.set_fact: # noqa no-handler
-    k3s_install_occurred: true
-  when: k3s_installed.changed
-  changed_when: false
+  ansible.builtin.set_fact:
+    k3s_install_occurred: "{{ k3s_installed is changed }}"

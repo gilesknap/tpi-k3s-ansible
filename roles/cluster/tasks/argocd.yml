@@ -30,15 +30,15 @@
   ansible.builtin.command:
     cmd: scripts/derive-argocd-client-secret
     chdir: "{{ playbook_dir }}"
-  register: _dex_secret_cmd
+  register: cluster_dex_secret_cmd
   changed_when: false
   retries: 30
   delay: 2
-  until: _dex_secret_cmd.rc == 0
+  until: cluster_dex_secret_cmd.rc == 0
 
 - name: Set Dex client secret fact
   ansible.builtin.set_fact:
-    _argocd_dex_client_secret: "{{ _dex_secret_cmd.stdout }}"
+    cluster_argocd_dex_client_secret: "{{ cluster_dex_secret_cmd.stdout }}"
 
 - name: Upgrade ArgoCD Helm release with full configuration
   kubernetes.core.helm:
@@ -59,7 +59,7 @@
             name: Dex
             issuer: https://argocd.{{ cluster_domain }}/api/dex
             clientID: argo-cd
-            clientSecret: {{ _argocd_dex_client_secret }}
+            clientSecret: {{ cluster_argocd_dex_client_secret }}
             allowedAudiences:
               - argo-cd
               - argocd-monitor
@@ -81,7 +81,7 @@
                 name: Argo CD
                 redirectURIs:
                   - https://argocd.{{ cluster_domain }}/auth/callback
-                secret: {{ _argocd_dex_client_secret }}
+                secret: {{ cluster_argocd_dex_client_secret }}
                 trustedPeers:
                   - argocd-monitor
               - id: argocd-monitor
@@ -145,19 +145,13 @@
             {% for email in admin_emails %}
             g, {{ email }}, role:admin
             {% endfor %}
-  register: argocd_helm_upgrade
+  register: cluster_argocd_helm_upgrade
+  notify:
+    - Restart ArgoCD application controller
+    - Restart Dex server
 
-- name: Rollout restart ArgoCD if config changed # noqa no-handler
-  ansible.builtin.command: >
-    kubectl rollout restart -n argo-cd statefulset argocd-application-controller
-  when: argocd_helm_upgrade.changed
-  changed_when: true
-
-- name: Rollout restart Dex server if config changed # noqa no-handler
-  ansible.builtin.command: >
-    kubectl rollout restart -n argo-cd deployment argocd-dex-server
-  when: argocd_helm_upgrade.changed
-  changed_when: true
+- name: Flush handlers to restart ArgoCD before continuing
+  ansible.builtin.meta: flush_handlers
 
 - name: Add an ArgoCD Project for the cluster
   kubernetes.core.k8s:
@@ -264,13 +258,13 @@
 - name: Check for ArgoCD Dex sealed secret file
   ansible.builtin.stat:
     path: "{{ playbook_dir }}/kubernetes-services/additions/argocd/argocd-dex-secret.yaml"
-  register: dex_secret_file
+  register: cluster_dex_secret_file
 
 - name: Apply ArgoCD Dex sealed secret
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('file', playbook_dir ~ '/kubernetes-services/additions/argocd/argocd-dex-secret.yaml') | from_yaml }}"
-  when: dex_secret_file.stat.exists
+  when: cluster_dex_secret_file.stat.exists
 
 # ArgoCD requires this label for $secret:key resolution in dex.config.
 # SealedSecrets may not propagate it, so ensure it after the secret exists.

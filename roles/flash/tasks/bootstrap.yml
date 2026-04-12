@@ -6,26 +6,26 @@
 
 # this guarantees the state of the node and msd will automatically turn in on
 - name: Turn Off Node {{ node_name }}
-  ansible.builtin.raw: tpi power off -n {{ node.slot_num }}
+  ansible.builtin.raw: tpi power off -n {{ flash_node.slot_num }}
   changed_when: true
 
 - name: Switch Node Slot To Disk Mode {{ node_name }}
-  ansible.builtin.raw: tpi advanced msd -n {{ node.slot_num }}
+  ansible.builtin.raw: tpi advanced msd -n {{ flash_node.slot_num }}
   changed_when: true
 
 - name: Wait for block device to appear {{ node_name }}
   ansible.builtin.raw: ls /dev/sd*2
   changed_when: false
-  register: block_device
+  register: flash_block_device
   retries: 5
   delay: 1
 
 - name: Extract Block Device Partition From Raw Output {{ node_name }}
   ansible.builtin.set_fact:
-    partition: "{{ block_device.stdout_lines[0] | regex_search('(/dev/sd[a-z]?2)', '\\1') | first }}"
+    flash_partition: "{{ flash_block_device.stdout_lines[0] | regex_search('(/dev/sd[a-z]?2)', '\\1') | first }}"
 
 - name: Mount Block Device Into BMC Filesystem {{ node_name }}
-  ansible.builtin.raw: mkdir -p /mnt/node && mount {{ partition }} /mnt/node
+  ansible.builtin.raw: mkdir -p /mnt/node && mount {{ flash_partition }} /mnt/node
   changed_when: true
 
 - name: Render Cloud.cfg File {{ node_name }}
@@ -40,12 +40,12 @@
   ansible.builtin.command: |-
     scp /tmp/cloud.cfg
     {{ tpi_user }}@{{ inventory_hostname }}:/mnt/node/etc/cloud/cloud.cfg
-  register: node_modifications
+  register: flash_node_modifications
   changed_when: true
 
 - name: Report Modifications Made To Node Filesystem {{ node_name }}
   ansible.builtin.debug:
-    var: node_modifications.stdout_lines
+    var: flash_node_modifications.stdout_lines
 
 - name: Delete Cloud Init Cache To Force First Boot Configuration {{ node_name }}
   ansible.builtin.raw: rm -rf /mnt/node/var/lib/cloud
@@ -56,7 +56,7 @@
   changed_when: true
 
 - name: Reboot Node In Slot {{ node_name.slot_num }}
-  ansible.builtin.raw: tpi advanced normal -n {{ node.slot_num }}
+  ansible.builtin.raw: tpi advanced normal -n {{ flash_node.slot_num }}
   changed_when: true
 
 # wait until the node is ready to accept ssh connections

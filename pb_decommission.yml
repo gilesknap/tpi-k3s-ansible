@@ -89,7 +89,7 @@
         - { kind: StatefulSet, name: alertmanager-grafana-prometheus-kube-pr-alertmanager }
         - { kind: StatefulSet, name: grafana-prometheus }
         - { kind: StatefulSet, name: prometheus-grafana-prometheus-kube-pr-prometheus }
-      ignore_errors: true  # noqa ignore-errors
+      failed_when: false
 
     - name: Scale down open-webui
       kubernetes.core.k8s_scale:
@@ -98,7 +98,7 @@
         name: open-webui
         namespace: open-webui
         replicas: 0
-      ignore_errors: true  # noqa ignore-errors
+      failed_when: false
 
     - name: Scale down supabase workloads
       kubernetes.core.k8s_scale:
@@ -118,7 +118,7 @@
         - { kind: Deployment, name: supabase-supabase-storage }
         - { kind: Deployment, name: supabase-supabase-studio }
         - { kind: StatefulSet, name: supabase-supabase-db }
-      ignore_errors: true  # noqa ignore-errors
+      failed_when: false
 
     - name: Wait for pods to terminate
       ansible.builtin.pause:
@@ -141,7 +141,7 @@
         - { ns: supabase, name: supabase-minio }
         - { ns: supabase, name: supabase-snippets }
         - { ns: supabase, name: supabase-storage }
-      ignore_errors: true  # noqa ignore-errors
+      failed_when: false
 
 # ---------------------------------------------------------------------------
 # Play 3: Remove ArgoCD and remaining namespaces
@@ -175,7 +175,7 @@
         kind: Namespace
         name: argo-cd
         state: absent
-      ignore_errors: true  # noqa ignore-errors
+      failed_when: false
 
     - name: Wait for argo-cd namespace to terminate
       ansible.builtin.command:

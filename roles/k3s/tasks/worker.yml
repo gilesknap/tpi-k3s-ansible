@@ -21,7 +21,7 @@
 
 - name: Check if this node is already in the cluster
   ansible.builtin.set_fact:
-    in_cluster: |
+    k3s_in_cluster: |
       {{ k3s_nodes.stdout is search(inventory_hostname + " *Ready") }}
 
 - name: Remove k3s worker if k3s_force=true or the node is not in the cluster
@@ -29,7 +29,7 @@
     cmd: k3s-agent-uninstall.sh
     removes: /usr/local/bin/k3s-agent-uninstall.sh
   # uninstall if the node has been deleted from the cluster or force is true
-  when: k3s_force or not in_cluster
+  when: k3s_force or not k3s_in_cluster
 
 - name: Remove the node from the cluster if it is not ready
   ansible.builtin.command:
@@ -42,26 +42,26 @@
   ansible.builtin.command:
     cmd: cat /var/lib/rancher/k3s/server/node-token
   delegate_to: "{{ control_plane }}"
-  register: node_token
+  register: k3s_node_token
   changed_when: false
 
 - name: Install k3s worker node version {{ k3s_version | default('latest') }}
-  ansible.builtin.shell: # noqa command-instead-of-shell
-    cmd: >
-      INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
-      K3S_URL="https://{{ control_plane_ip }}:6443"
-      K3S_TOKEN="{{ node_token.stdout }}"
-      {% if node_ip is defined or flannel_iface is defined %}INSTALL_K3S_EXEC="{% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}{% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}"{% endif %}
-      /usr/local/bin/k3s-install.sh
+  ansible.builtin.command:
+    cmd: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version | default('') }}"
+    K3S_URL: "https://{{ k3s_control_plane_ip }}:6443"
+    K3S_TOKEN: "{{ k3s_node_token.stdout }}"
+    INSTALL_K3S_EXEC: >-
+      {% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}
+      {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
   register: k3s_installed
   changed_when: true
-  when: k3s_force or not in_cluster
+  when: k3s_force or not k3s_in_cluster
 
 - name: Set the k3s_install_occurred fact
-  ansible.builtin.set_fact: # noqa no-handler
-    k3s_install_occurred: true
-  when: k3s_installed.changed
-  changed_when: false
+  ansible.builtin.set_fact:
+    k3s_install_occurred: "{{ k3s_installed is changed }}"
 
 - name: Label RK1 nodes with node-type=rk1 (for RKLLama DaemonSet nodeSelector)
   ansible.builtin.command:

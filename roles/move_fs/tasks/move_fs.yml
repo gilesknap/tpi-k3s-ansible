@@ -1,6 +1,6 @@
 - name: Determine the current root device for the node
   ansible.builtin.set_fact:
-    curr_root_dev: "{{ ansible_facts['mounts'] | json_query('[?mount == `/`].device') | first }}"
+    move_fs_curr_root_dev: "{{ ansible_facts['mounts'] | json_query('[?mount == `/`].device') | first }}"
 
 # ubuntu-rockchip-install copies the OS to the target device and updates
 # extlinux.conf on the eMMC to point root= at the NVME partition UUID.
@@ -11,19 +11,21 @@
 # with extlinux.conf pointing root= back to eMMC, fully restoring the node.
 # The previous comment claiming flash was broken was incorrect.
 
-- name: Move the root partition for the node to {{ root_dev }}
-  when: not curr_root_dev.startswith(root_dev)
+- name: Move the root partition for the node to {{ move_fs_root_dev }}
+  when: not move_fs_curr_root_dev.startswith(move_fs_root_dev)
   become: true
   block:
     - name: Update ubuntu-rockchip-settings
       ansible.builtin.apt:
         name: ubuntu-rockchip-settings
-        state: latest
+        state: present
+        update_cache: true
       become: true
 
     - name: Execute ubuntu-rockchip-install
-      ansible.builtin.shell: |
-        yes | ubuntu-rockchip-install {{ root_dev }}
+      ansible.builtin.shell:
+        cmd: set -o pipefail && yes | ubuntu-rockchip-install {{ move_fs_root_dev }}
+        executable: /bin/bash
       become: true
       changed_when: true
 

@@ -1,6 +1,6 @@
 - name: Set helm facts
   ansible.builtin.set_fact:
-    user_home: "{{ ansible_facts['env']['HOME'] }}"
+    tools_user_home: "{{ ansible_facts['env']['HOME'] }}"
 
 - name: Get helm version 3.20.0 amd binary
   ansible.builtin.get_url:
@@ -37,20 +37,20 @@
 - name: Check if helm-diff plugin is functional
   ansible.builtin.command:
     cmd: helm diff version
-  register: helm_diff_check
+  register: tools_helm_diff_check
   failed_when: false
   changed_when: false
 
 - name: Remove broken helm-diff plugin directory if present
   ansible.builtin.file:
-    path: "{{ user_home }}/.local/share/helm/plugins/helm-diff"
+    path: "{{ tools_user_home }}/.local/share/helm/plugins/helm-diff"
     state: absent
-  when: helm_diff_check.rc != 0
+  when: tools_helm_diff_check.rc != 0
 
 - name: Install helm plugins
   ansible.builtin.command:
     cmd: helm plugin install https://github.com/databus23/helm-diff
-    creates: "{{ user_home }}/.local/share/helm/plugins/helm-diff"
+    creates: "{{ tools_user_home }}/.local/share/helm/plugins/helm-diff"
 
 - name: Command line completion for helm
   ansible.builtin.shell:

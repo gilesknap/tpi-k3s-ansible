@@ -42,10 +42,10 @@
     kind: Service
     namespace: ingress-nginx
     name: ingress-ingress-nginx-controller
-  register: ingress_svc
+  register: cluster_ingress_svc
   retries: 60
   delay: 5
-  until: ingress_svc.resources | length > 0
+  until: cluster_ingress_svc.resources | length > 0
 
 - name: Create CoreDNS split-horizon override for cluster domain
   kubernetes.core.k8s:
@@ -60,20 +60,18 @@
         cluster-domain.server: |
           argocd.{{ cluster_domain }}:53 {
             hosts {
-              {{ ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
+              {{ cluster_ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
             }
           }
-  register: coredns_override
+  register: cluster_coredns_override
+  notify: Restart ArgoCD server
 
 # CoreDNS reloads the Corefile every 15s via the `reload` directive, but
 # argocd-server has already cached the old Cloudflare-resolved address in
 # its HTTP client connection pool. Restart it so subsequent OIDC token
 # exchanges resolve the new in-cluster IP.
-- name: Rollout restart argocd-server to flush DNS cache # noqa no-handler
-  ansible.builtin.command: >
-    kubectl rollout restart -n argo-cd deployment argocd-server
-  when: coredns_override.changed
-  changed_when: true
+- name: Flush handlers to restart ArgoCD server before continuing
+  ansible.builtin.meta: flush_handlers
 
 # kube-prometheus-stack's webhook TLS secret is normally created by a Helm
 # hook job, but ArgoCD prunes hook jobs so the secret never appears.
