@@ -138,7 +138,13 @@ Cloudflare will round-robin across them:
 
 Replace the IPs with the LAN addresses of your worker nodes (e.g.
 `192.168.1.82`, `.83`, `.84`). Services to add: `argocd`, `grafana`,
-`headlamp`, `oauth2`, `open-webui`, `rkllama`.
+`headlamp`, `home-lan`, `oauth2`, `open-webui`, `rkllama`.
+
+:::{note}
+`home-lan` backs the landing page's LAN-detection probe. The page
+JavaScript fetches `https://home-lan.<domain>/healthz` — it only
+resolves when the browser is on the LAN, enabling LAN-only UI elements.
+:::
 
 These resolve to private RFC-1918 addresses — only reachable from your LAN.
 For a single-node cluster, one A record per service is sufficient.
