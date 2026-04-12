@@ -34,6 +34,14 @@ explanations/security-hardening
 explanations/open-brain-clients
 ```
 
+## Claude Code
+
+```{toctree}
+:maxdepth: 1
+
+explanations/claude-code-capability
+```
+
 ## Decisions
 
 ```{toctree}
