@@ -78,15 +78,12 @@
   gather_facts: false
   tasks:
     - name: Scale down monitoring workloads
-      kubernetes.core.k8s:
+      kubernetes.core.k8s_scale:
         api_version: apps/v1
         kind: "{{ item.kind }}"
         name: "{{ item.name }}"
         namespace: monitoring
-        state: present
-        resource_definition:
-          spec:
-            replicas: 0
+        replicas: 0
       loop:
         - { kind: Deployment, name: grafana-prometheus-kube-pr-operator }
         - { kind: StatefulSet, name: alertmanager-grafana-prometheus-kube-pr-alertmanager }
@@ -95,27 +92,21 @@
       ignore_errors: true  # noqa ignore-errors
 
     - name: Scale down open-webui
-      kubernetes.core.k8s:
+      kubernetes.core.k8s_scale:
         api_version: apps/v1
         kind: StatefulSet
         name: open-webui
         namespace: open-webui
-        state: present
-        resource_definition:
-          spec:
-            replicas: 0
+        replicas: 0
       ignore_errors: true  # noqa ignore-errors
 
     - name: Scale down supabase workloads
-      kubernetes.core.k8s:
+      kubernetes.core.k8s_scale:
         api_version: apps/v1
         kind: "{{ item.kind }}"
         name: "{{ item.name }}"
         namespace: supabase
-        state: present
-        resource_definition:
-          spec:
-            replicas: 0
+        replicas: 0
       loop:
         - { kind: Deployment, name: supabase-supabase-auth }
         - { kind: Deployment, name: supabase-supabase-functions }
