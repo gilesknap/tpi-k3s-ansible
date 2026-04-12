@@ -61,10 +61,9 @@ Current SealedSecrets:
 ### Admin access
 
 Admin email addresses are configured in `admin_emails` in
-`kubernetes-services/values.yaml`. Viewer access is controlled by
-`viewer_emails`. These lists drive role assignment across Grafana,
-Open WebUI, and the oauth2-proxy email allowlist. See
-{doc}`authentication` for details.
+`kubernetes-services/values.yaml`. All other authenticated users
+(those who pass Cloudflare Access and Dex login) receive viewer/
+read-only roles by default. See {doc}`authentication` for details.
 
 ## Devcontainer credential isolation
 

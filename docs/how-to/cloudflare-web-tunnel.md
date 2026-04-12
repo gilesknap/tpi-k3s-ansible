@@ -198,7 +198,7 @@ create separate applications for each subdomain. The SSH application from
 |---|---|
 | Policy name | `Allowed Users` |
 | Action | `Allow` |
-| Include rule | Emails — add the same addresses as your `admin_emails` and `viewer_emails` lists |
+| Include rule | Emails — add addresses for everyone who should have access (admins and viewers) |
 
 4. Click **Save application**.
 
