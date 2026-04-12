@@ -176,7 +176,7 @@ Image pinned to `0.9.2`.
 
 Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
 Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
-emails in `admin_emails` get Admin role, those in `viewer_emails` get Viewer. Uses
+emails in `admin_emails` get Admin role, all other authenticated users get Viewer. Uses
 static `local-nvme` PVs pinned by node affinity (Grafana → node03 30Gi,
 Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
 500m/512Mi limit.
@@ -292,8 +292,8 @@ default and survives k3s-agent restarts.
 ### Open WebUI
 
 ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
-(OIDC) with GitHub — emails in `admin_emails` get admin role, those in `viewer_emails` get
-user role. Password login is disabled. Connects to both:
+(OIDC) with GitHub — emails in `admin_emails` get admin role, all other authenticated
+users get user role. Password login is disabled. Connects to both:
 
 - **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
 - **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`

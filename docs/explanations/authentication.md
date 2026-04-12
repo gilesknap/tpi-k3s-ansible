@@ -40,9 +40,9 @@ GitHub directly).
 
 **Layer 3 — App RBAC** maps the authenticated identity to a role inside
 the application. Emails in the `admin_emails` list in `values.yaml`
-receive admin privileges; everyone else gets a read-only or viewer role.
-A separate `viewer_emails` list identifies users who can authenticate via
-Dex OIDC but receive only read-only access.
+receive admin privileges; all other authenticated users get a read-only
+or viewer role. Entry is gated by Cloudflare Access (email-based OTP),
+so there is no separate viewer list in the repo.
 
 ## Ingress architecture
 
@@ -374,17 +374,20 @@ Cloudflare Access (email allowlist) before reaching the cluster.
 
 ## Managing access
 
-Access is controlled by two email lists in `kubernetes-services/values.yaml`:
+Access is controlled at two layers:
+
+- **Cloudflare Access** — email-based OTP gate managed in the Cloudflare
+  Zero Trust dashboard. This decides who can reach the cluster at all.
+- **`admin_emails`** in `kubernetes-services/values.yaml` — grants admin
+  privileges. Everyone else who passes Cloudflare Access and authenticates
+  via Dex/GitHub gets a viewer/read-only role by default.
 
 ```yaml
 admin_emails:
   - alice@example.com     # full admin access everywhere
-
-viewer_emails:
-  - carol@example.com     # read-only access to Dex-authenticated services
 ```
 
-**Admin emails** are consumed in six places:
+**Admin emails** are consumed in four places:
 
 | Template / Config | Effect |
 |-------------------|--------|
@@ -392,11 +395,10 @@ viewer_emails:
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
 | `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — admin emails get admin role |
 | `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |
-| Cloudflare Access (manual) | Access policy should include both lists |
 
-**Viewer emails** authenticate via Dex OIDC and receive read-only roles:
-ArgoCD `role:readonly`, Grafana `Viewer`, Open WebUI `user`. They
-cannot access oauth2-proxy-gated services (Headlamp, Supabase Studio).
+All other authenticated users receive read-only roles: ArgoCD
+`role:readonly`, Grafana `Viewer`, Open WebUI `user`. They cannot
+access oauth2-proxy-gated services (Headlamp, Supabase Studio).
 
 :::{important}
 `admin_emails` must be kept in sync in two places:

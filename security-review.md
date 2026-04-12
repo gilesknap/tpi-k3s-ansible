@@ -7,11 +7,12 @@
 
 The project demonstrates strong fundamentals — zero hardcoded secrets,
 SealedSecrets throughout, pre-commit gitleaks enforcement, and proper OIDC
-integration. A two-tier access model (`admin_emails` / `viewer_emails`) has
-been implemented, giving admin users full access and viewer users read-only
-roles across Dex-authenticated services. Services without app-level RBAC
-(Headlamp, Longhorn, Supabase Studio) are restricted to admin-only via
-oauth2-proxy.
+integration. Admin users (listed in `admin_emails`) get full access;
+all other authenticated users get read-only roles. Entry is gated by
+Cloudflare Access (email OTP). Services without app-level RBAC
+(Headlamp, Supabase Studio) are restricted to admin-only via
+oauth2-proxy. *(Note: `viewer_emails` was removed 2026-04-11 —
+viewer access is now implicit for any authenticated non-admin.)*
 
 Remaining issues centre on missing network segmentation, mutable container
 image tags, and OAuth configuration gaps.
@@ -25,7 +26,7 @@ image tags, and OAuth configuration gaps.
 
 | Fix | Commit | Details |
 |-----|--------|---------|
-| Split `oauth2_emails` into `admin_emails` + `viewer_emails` | `6ede8e9` | Two-tier access: admins get full access everywhere, viewers get read-only on Dex-authenticated services (ArgoCD, Grafana, Open WebUI). oauth2-proxy restricted to admin emails only. |
+| Split `oauth2_emails` into `admin_emails` + `viewer_emails` | `6ede8e9` | Two-tier access: admins get full access everywhere, viewers get read-only on Dex-authenticated services (ArgoCD, Grafana, Open WebUI). oauth2-proxy restricted to admin emails only. *(Note: `viewer_emails` later removed 2026-04-11 — viewer role is now the default for any authenticated non-admin; entry gated by Cloudflare Access.)* |
 | Template ArgoCD RBAC from `admin_emails` variable | `6ede8e9` | `argocd-rbac-cm.yml` now iterates `admin_emails` from `group_vars/all.yml` instead of hardcoding a single email. All admin emails get `role:admin`; everyone else defaults to `role:readonly`. |
 | Headlamp access restricted to admin-only | `44c44ec` | Headlamp stays behind oauth2-proxy (now restricted to `admin_emails`), giving 3 auth layers before cluster-admin: Cloudflare Access + oauth2-proxy + token login. Downgraded from CRITICAL to LOW. |
 | Longhorn and Supabase Studio restricted to admin-only | `6ede8e9` | oauth2-proxy email allowlist now uses `admin_emails` only. Viewer users cannot access these admin tools. |
@@ -138,7 +139,7 @@ used on the internal cluster network.
 | LOW | OAuth rate limiting absent on `/authorize`, `/callback`, `/token` | `open-brain-mcp/oauth.py` | Add application-level throttling or ingress `limit-rps` |
 | LOW | State parameter passed through without format validation | `open-brain-mcp/oauth.py:166` | Add length/format check |
 | INFO | Dex client secrets stored in SealedSecret | `additions/argocd/argocd-dex-secret.yaml` | Compliant |
-| INFO | Two-tier email RBAC (`admin_emails`/`viewer_emails`) restricts access | `values.yaml:46-60` | Good practice — implemented |
+| INFO | Admin email RBAC (`admin_emails`) restricts access; viewer is the default for authenticated non-admins | `values.yaml` | Good practice — implemented (`viewer_emails` removed 2026-04-11) |
 | INFO | open-brain-mcp PKCE S256 implementation correct per RFC 7636 | `open-brain-mcp/oauth.py:189-194` | Compliant |
 | INFO | Each service has its own Dex client (blast radius isolation) | `additions/argocd/argocd-cm.yml:33-48` | Good practice |
 
@@ -203,8 +204,8 @@ Two email lists in `kubernetes-services/values.yaml` control access:
 
 - **`admin_emails`** — full access everywhere (also in `group_vars/all.yml`
   for Ansible-rendered ArgoCD RBAC)
-- **`viewer_emails`** — read-only access to Dex-authenticated services;
-  blocked from oauth2-proxy-gated services
+- **Viewer role** — the default for any authenticated non-admin; no
+  separate list in the repo (entry gated by Cloudflare Access)
 
 Services use two parallel auth paths:
 
@@ -245,11 +246,11 @@ Services use two parallel auth paths:
 
 ### Resolved
 
-- ~~**Decouple admin emails from auth allowlist**~~ — Done. Split
-  `oauth2_emails` into `admin_emails` + `viewer_emails`. Viewer users get
-  read-only access to Dex-authenticated services; admin-only services
-  (Headlamp, Longhorn, Supabase Studio) are gated by oauth2-proxy restricted
-  to `admin_emails`.
+- ~~**Decouple admin emails from auth allowlist**~~ — Done. `admin_emails`
+  grants admin access; all other authenticated users get viewer/read-only
+  roles. Admin-only services (Headlamp, Supabase Studio) are gated by
+  oauth2-proxy restricted to `admin_emails`. *(`viewer_emails` removed
+  2026-04-11 — entry now gated by Cloudflare Access.)*
 
 - ~~**Replace cluster-admin dashboard binding**~~ — Downgraded. Headlamp's
   cluster-admin SA is acceptable because it's behind three auth layers
