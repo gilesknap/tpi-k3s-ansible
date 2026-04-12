@@ -84,3 +84,5 @@ commits on a new branch, then opening a pull request.
   auto-resolving.
 - Never force-push or modify the original branch.
 - If a `-squash` branch already exists, ask the user before overwriting.
+- When merging a PR created by this command, use `gh pr merge --merge`
+  (not `--squash`) to preserve the curated commit structure.
