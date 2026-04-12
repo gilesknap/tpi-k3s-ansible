@@ -1,0 +1,842 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Lessons learned using Claude Code for infrastructure &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/claude-code-capability';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Decision Records" href="decisions.html" />
+    <link rel="prev" title="Open Brain Client Options" href="open-brain-clients.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitops-flow.html">GitOps Flow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="kubernetes-services.html">Kubernetes Services Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ansible-roles.html">Ansible Roles in Detail</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="networking.html">Networking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="authentication.html">Authentication Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network-policies.html">Network Policies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="security.html">Security Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="security-hardening.html">Security Hardening</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="open-brain-clients.html">Open Brain Client Options</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="decisions.html">Decision Records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../explanations.html" class="nav-link">Explanations</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Lessons learned using Claude Code for infrastructure</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="lessons-learned-using-claude-code-for-infrastructure">
+<h1>Lessons learned using Claude Code for infrastructure<a class="headerlink" href="#lessons-learned-using-claude-code-for-infrastructure" title="Link to this heading">#</a></h1>
+<p>This page analyses the architectural choices and working practices that allow
+an LLM agent (Claude Code) to operate this K3s cluster project with minimal
+human supervision — including autonomous multi-hour rebuilds. The goal is to
+extract transferable techniques for other infrastructure projects.</p>
+<section id="what-makes-this-project-complex">
+<h2>What makes this project complex<a class="headerlink" href="#what-makes-this-project-complex" title="Link to this heading">#</a></h2>
+<p>This is not a toy cluster. The complexity comes from several dimensions
+stacking on top of each other:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Dimension</p></th>
+<th class="head"><p>Detail</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Hardware</strong></p></td>
+<td><p>Heterogeneous: 4× RK1 ARM SoCs on a Turing Pi board, plus x86 nodes (NUC, workstation) with different roles and taints</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Services</strong></p></td>
+<td><p>20 ArgoCD-managed applications — cert-manager, ingress-nginx, Grafana, Prometheus, Supabase, Open Brain, and more</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Provisioning layers</strong></p></td>
+<td><p>Ansible (OS + K3s) → Helm (ArgoCD root app) → ArgoCD (everything else) — three layers, each with its own failure modes</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Stateful data</strong></p></td>
+<td><p>Postgres databases, Grafana dashboards, Prometheus metrics, chat history — all must survive cluster rebuilds</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Secret management</strong></p></td>
+<td><p>Vault-derived secrets, SealedSecrets, OAuth client credentials, cookie secrets — each with different rotation rules</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Auth stack</strong></p></td>
+<td><p>GitHub OAuth → oauth2-proxy → Dex → per-service OIDC — a four-hop chain where any link can break silently</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>An agent that can operate this system safely is doing something non-trivial.
+The rest of this page explains what makes it possible.</p>
+</section>
+<section id="the-enablement-pattern">
+<h2>The enablement pattern<a class="headerlink" href="#the-enablement-pattern" title="Link to this heading">#</a></h2>
+<section id="guardrails-before-capabilities">
+<h3>Guardrails before capabilities<a class="headerlink" href="#guardrails-before-capabilities" title="Link to this heading">#</a></h3>
+<p>The project’s <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> file (68 lines) establishes hard boundaries before
+granting any capabilities. The most important rules:</p>
+<ul class="simple">
+<li><p><strong>Never mutate the live cluster</strong> — no <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">apply/patch/delete</span></code> on
+ArgoCD-managed resources. All fixes go through the CD pipeline.</p></li>
+<li><p><strong>Never commit to main</strong> — work in branches, merge when verified.</p></li>
+<li><p><strong>Local PV data paths are sacred</strong> — the decommission playbook preserves
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code> and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> by default.</p></li>
+</ul>
+<p>These are not suggestions. They are structural constraints that make entire
+categories of mistakes impossible. The devcontainer reinforces this
+structurally: host SSH agent forwarding is explicitly disabled
+(<code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK:</span> <span class="pre">&quot;&quot;</span></code>), preventing prompt-injection attacks from accessing
+host SSH keys. Git credential helpers are set to <code class="docutils literal notranslate"><span class="pre">none</span></code>. Credentials are
+scoped per-repository via named Docker volumes.</p>
+</section>
+<section id="encoded-operational-knowledge">
+<h3>Encoded operational knowledge<a class="headerlink" href="#encoded-operational-knowledge" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory contains <strong>1,506 lines</strong> across 14 files — more
+configuration surface than many of the services it manages:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Type</p></th>
+<th class="head"><p>Count</p></th>
+<th class="head"><p>Total lines</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Commands</p></td>
+<td><p>6</p></td>
+<td><p>1,106</p></td>
+<td><p>Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash, memo)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Skills</p></td>
+<td><p>4</p></td>
+<td><p>355</p></td>
+<td><p>On-demand domain knowledge (ansible, sealed-secrets, oauth, cloudflare)</p></td>
+</tr>
+<tr class="row-even"><td><p>Settings</p></td>
+<td><p>2</p></td>
+<td><p>45</p></td>
+<td><p>Permission model and hooks</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The largest single file is <code class="docutils literal notranslate"><span class="pre">rebuild-cluster.md</span></code> at 375 lines — an 8-phase
+runbook encoding knowledge from real incidents: WaitForFirstConsumer PV
+binding, Prometheus webhook bootstrap races, OAuth cookie collisions across
+namespaces, and the precise order of Dex restarts after a reseal.</p>
+<p>This knowledge would otherwise live in a human operator’s head. Encoding it
+in machine-readable runbooks means the agent performs rebuilds the same way
+every time, without forgetting steps.</p>
+</section>
+<section id="configuration-concentration">
+<h3>Configuration concentration<a class="headerlink" href="#configuration-concentration" title="Link to this heading">#</a></h3>
+<p>The entire cluster’s configuration lives in two files totalling <strong>135 lines</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (59 lines) — cluster-level variables: node names,
+IP addresses, domain, storage paths</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (76 lines) — service toggles and
+version pins</p></li>
+</ul>
+<p>Four boolean flags control which optional services are deployed. When Claude
+needs to enable or disable a service, there is exactly one place to look.
+This concentration is deliberate: a small change surface means fewer places
+for an agent to make mistakes, and fewer files to read before understanding
+the system state.</p>
+</section>
+<section id="self-healing-architecture">
+<h3>Self-healing architecture<a class="headerlink" href="#self-healing-architecture" title="Link to this heading">#</a></h3>
+<p>GitOps via ArgoCD provides a critical safety net: the cluster continuously
+reconciles toward the desired state declared in git. If Claude makes a
+mistake in a manifest, the fix is another commit — not manual kubectl
+surgery. If a deployment drifts, ArgoCD corrects it automatically.</p>
+<p>Ansible is similarly idempotent. Running the playbook twice produces the
+same result. This means Claude can re-run provisioning without fear of
+compounding errors.</p>
+<p>The combination creates a system where mistakes are recoverable by default.
+Push a fix, wait for sync. The blast radius of any single error is bounded
+by the git diff.</p>
+</section>
+<section id="incremental-workflow">
+<h3>Incremental workflow<a class="headerlink" href="#incremental-workflow" title="Link to this heading">#</a></h3>
+<p>Every change follows the same cycle:</p>
+<ol class="arabic simple">
+<li><p><strong>Branch</strong> — never commit to main</p></li>
+<li><p><strong>Plan</strong> — use plan mode to align on approach before writing code</p></li>
+<li><p><strong>Implement</strong> — make changes, run lint, build docs</p></li>
+<li><p><strong>Test</strong> — for rebuild-affecting changes, run <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> on the
+branch</p></li>
+<li><p><strong>Squash</strong> — use <code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code> to clean up history into targeted commits</p></li>
+<li><p><strong>Merge</strong> — merge the PR, preserving the curated commit structure</p></li>
+</ol>
+<p>This workflow gives the human operator a review gate at every stage. The
+agent proposes; the human approves. Trust is built incrementally, not
+granted wholesale.</p>
+</section>
+</section>
+<section id="working-practices-the-human-side">
+<h2>Working practices: the human side<a class="headerlink" href="#working-practices-the-human-side" title="Link to this heading">#</a></h2>
+<p>The repo structure enables Claude, but operational habits determine whether
+the collaboration is effective. These practices are not evident from the
+code alone.</p>
+<section id="context-hygiene">
+<h3>Context hygiene<a class="headerlink" href="#context-hygiene" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Start each major change with a clean context (<code class="docutils literal notranslate"><span class="pre">/clear</span></code>)</p></li>
+<li><p>Use plan mode first to align on approach, then exit and execute</p></li>
+<li><p>The <strong>plan-clean-execute cycle</strong>: plan in one context, <code class="docutils literal notranslate"><span class="pre">/clear</span></code>, execute
+in fresh context with the plan file as the guide — avoids stale
+assumptions accumulating</p></li>
+<li><p>Always <a class="reference external" href="https://github.com/gilesknap/tpi-k3s-ansible/blob/main/.claude/commands/memo.md"><code class="docutils literal notranslate"><span class="pre">/memo</span></code></a> before <code class="docutils literal notranslate"><span class="pre">/clear</span></code>. This custom
+command reviews the current conversation and automatically promotes what
+was learned into the right permanent home: foot-guns and constraints go
+to CLAUDE.md, procedural knowledge goes to skills, troubleshooting
+patterns go to repo docs, and transient state goes to memory. It then
+trims anything that has been promoted. The effect is a knowledge ratchet:
+nothing useful evaporates between sessions, and the system gets smarter
+with every <code class="docutils literal notranslate"><span class="pre">/clear</span></code>.</p></li>
+</ul>
+</section>
+<section id="incremental-trust-building">
+<h3>Incremental trust building<a class="headerlink" href="#incremental-trust-building" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Start with small, reversible changes; graduate to autonomous rebuilds</p></li>
+<li><p>Each successful PR expands the boundary of what Claude is trusted to do</p></li>
+<li><p>Feedback loops: corrections become feedback memories and CLAUDE.md rules,
+preventing the same mistake twice. Running <code class="docutils literal notranslate"><span class="pre">/memo</span></code> at the end of a
+session encodes these corrections automatically, so the next session
+starts with the lessons already in place</p></li>
+</ul>
+</section>
+<section id="collaborate-first-then-execute-from-the-plan">
+<h3>Collaborate first, then execute from the plan<a class="headerlink" href="#collaborate-first-then-execute-from-the-plan" title="Link to this heading">#</a></h3>
+<p>Avoid jumping straight to imperative instructions like “change X to Y” —
+these put the LLM on rails and bypass its ability to reason about
+alternatives. Instead, discuss the problem in plan mode, reach consensus
+on the approach, and let the resulting plan file bound the scope naturally.
+Execution requests then reference the agreed plan rather than prescribing
+steps, and Claude has the context to make good judgement calls along the
+way.</p>
+</section>
+<section id="adversarial-planning">
+<h3>Adversarial planning<a class="headerlink" href="#adversarial-planning" title="Link to this heading">#</a></h3>
+<p>Use plan mode as a genuine two-way review gate, not a rubber stamp. The
+human challenges scope creep and wrong assumptions; Claude challenges
+feasibility and suggests alternatives. The Longhorn migration started not
+as “drop Longhorn” but as a planning session where the operator asked how
+to achieve data retention across rebuilds and proposed several options —
+Claude evaluated trade-offs and the decision to use local PVs emerged from
+the discussion. Catching a bad assumption in planning costs one exchange;
+catching it mid-implementation costs unwinding work.</p>
+</section>
+<section id="document-complexity-as-you-encounter-it">
+<h3>Document complexity as you encounter it<a class="headerlink" href="#document-complexity-as-you-encounter-it" title="Link to this heading">#</a></h3>
+<p>When a task reveals non-obvious behaviour — a bootstrap race condition, a
+secret derivation quirk, a Helm values interaction — document it in the
+repo docs immediately, not later. This serves both humans and future Claude
+contexts: the next session that touches that area gets the explanation
+loaded automatically rather than having to rediscover it from scratch.</p>
+</section>
+<section id="curate-claude-as-a-first-class-project-artifact">
+<h3>Curate <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> as a first-class project artifact<a class="headerlink" href="#curate-claude-as-a-first-class-project-artifact" title="Link to this heading">#</a></h3>
+<p>Treat the <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory — commands, skills, settings, CLAUDE.md —
+as production code, not throwaway config. Periodically review it: are
+skills still accurate after an architecture change? Do commands reflect
+current procedures? Has a hard rule become obsolete? <code class="docutils literal notranslate"><span class="pre">/memo</span></code> keeps things
+up to date incrementally, but conscious review catches drift that
+incremental updates miss.</p>
+</section>
+<section id="skills-as-institutional-memory">
+<h3>Skills as institutional memory<a class="headerlink" href="#skills-as-institutional-memory" title="Link to this heading">#</a></h3>
+<p>Skills encode earned knowledge from real incidents — the sealed-secrets
+skill traces to three distinct production traps. <code class="docutils literal notranslate"><span class="pre">/memo</span></code> updates them
+automatically, so each session’s lessons are available to the next.</p>
+</section>
+<section id="structural-safety-over-behavioural-safety">
+<h3>Structural safety over behavioural safety<a class="headerlink" href="#structural-safety-over-behavioural-safety" title="Link to this heading">#</a></h3>
+<p>The devcontainer’s SSH agent isolation and credential scoping mean Claude
+literally cannot perform certain dangerous actions even if its reasoning
+goes wrong. This is more reliable than rules that say “don’t do X” — the
+capability is removed, not just discouraged. Invest in making bad actions
+impossible rather than just forbidden.</p>
+</section>
+</section>
+<section id="techniques-for-other-projects">
+<h2>Techniques for other projects<a class="headerlink" href="#techniques-for-other-projects" title="Link to this heading">#</a></h2>
+<p>These are concrete, actionable steps drawn from the patterns above.</p>
+<ol class="arabic simple">
+<li><p><strong>Write CLAUDE.md rules for your invariants.</strong> Every project has things
+that must never happen. Write them down as hard rules, not guidelines.
+“Never run migrations in production” is a rule. “Be careful with
+migrations” is a wish.</p></li>
+<li><p><strong>Concentrate configuration.</strong> The fewer files an agent needs to read to
+understand system state, the fewer mistakes it will make. Two files
+totalling 135 lines is better than 20 files totalling 2,000 lines, even
+if the latter is more “modular.”</p></li>
+<li><p><strong>Use GitOps or equivalent reconciliation.</strong> If mistakes are fixed by
+pushing a commit rather than running manual commands, the blast radius is
+bounded and recovery is mechanical. An agent operating on a system
+without reconciliation can cause damage that requires expert manual
+intervention.</p></li>
+<li><p><strong>Encode operational knowledge as runbooks.</strong> Complex multi-step
+procedures (rebuilds, migrations, incident response) should be
+machine-readable command files, not wiki pages. A 375-line runbook that
+an agent follows precisely is more reliable than a human following a
+checklist from memory.</p></li>
+<li><p><strong>Isolate credentials structurally.</strong> Don’t rely on rules saying “don’t
+use the host SSH key.” Disable the host SSH agent in the container
+configuration. Don’t rely on “don’t commit secrets.” Use pre-commit
+hooks that block them. Structural isolation survives reasoning failures.</p></li>
+<li><p><strong>Build trust incrementally.</strong> Start with read-only tasks, graduate to
+reversible changes, then to supervised destructive operations. Each
+successful iteration earns more autonomy. Don’t grant full access on
+day one.</p></li>
+<li><p><strong>Make CLAUDE.md a living document.</strong> Update rules when the system
+changes. The Longhorn-to-local-PV migration added two new rules in the
+same PR as the cutover. Stale rules are worse than no rules — they
+teach the agent to ignore constraints.</p></li>
+<li><p><strong>Use plan mode as a genuine gate.</strong> Require plan-mode review for
+non-trivial changes. Challenge assumptions, push back on scope creep,
+and verify that the agent understands the constraints before it starts
+writing code.</p></li>
+<li><p><strong>Invest in devcontainer toolchain pinning.</strong> A reproducible environment
+means the agent’s local behaviour matches what will happen in CI and
+production. Version-pinned tools, cached dependencies, and pre-installed
+hooks eliminate an entire class of “works on my machine” failures.</p></li>
+<li><p><strong>Graduate learnings into durable storage.</strong> When something goes wrong,
+don’t just fix it — encode the fix as a skill, CLAUDE.md rule, or
+memory. The <code class="docutils literal notranslate"><span class="pre">/memo</span></code> command automates this. The cost of encoding is
+minutes; the cost of re-discovering the same issue is hours. This is
+the knowledge ratchet: each session leaves the system smarter than it
+found it.</p></li>
+<li><p><strong>Reuse project-agnostic commands.</strong> Two commands in this repo’s
+<code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> directory — <code class="docutils literal notranslate"><span class="pre">/memo</span></code> and <code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code> — are not
+specific to K3s or Ansible. Copy them into your own project to get the
+same workflow benefits without writing them from scratch.</p></li>
+</ol>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="open-brain-clients.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Open Brain Client Options</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="decisions.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Decision Records</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-makes-this-project-complex">What makes this project complex</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-enablement-pattern">The enablement pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#guardrails-before-capabilities">Guardrails before capabilities</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#encoded-operational-knowledge">Encoded operational knowledge</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-concentration">Configuration concentration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-healing-architecture">Self-healing architecture</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#incremental-workflow">Incremental workflow</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#working-practices-the-human-side">Working practices: the human side</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#context-hygiene">Context hygiene</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#incremental-trust-building">Incremental trust building</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#collaborate-first-then-execute-from-the-plan">Collaborate first, then execute from the plan</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adversarial-planning">Adversarial planning</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#document-complexity-as-you-encounter-it">Document complexity as you encounter it</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#curate-claude-as-a-first-class-project-artifact">Curate <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> as a first-class project artifact</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#skills-as-institutional-memory">Skills as institutional memory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#structural-safety-over-behavioural-safety">Structural safety over behavioural safety</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#techniques-for-other-projects">Techniques for other projects</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/claude-code-capability.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/explanations/claude-code-capability.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
