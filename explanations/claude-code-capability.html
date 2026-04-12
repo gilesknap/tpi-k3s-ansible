@@ -588,6 +588,25 @@ nothing useful evaporates between sessions, and the system gets smarter
 with every <code class="docutils literal notranslate"><span class="pre">/clear</span></code>.</p></li>
 </ul>
 </section>
+<section id="keep-long-running-command-output-out-of-context">
+<h3>Keep long-running command output out of context<a class="headerlink" href="#keep-long-running-command-output-out-of-context" title="Link to this heading">#</a></h3>
+<p>Long-running commands like <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code> can produce thousands of
+lines of output. When this streams directly into the conversation context,
+it crowds out important earlier decisions and makes it harder for the agent
+to reason about what happened. The fix is a two-tool pattern:</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">run_in_background</span></code></strong> executes the command and captures all output to a
+log file — nothing enters the conversation until a completion notification.</p></li>
+<li><p>A parallel <strong><code class="docutils literal notranslate"><span class="pre">Monitor</span></code></strong> tails the log through a tight filter
+(e.g. <code class="docutils literal notranslate"><span class="pre">grep</span> <span class="pre">--line-buffered</span> <span class="pre">-E</span> <span class="pre">'^(PLAY</span> <span class="pre">\[|fatal:|PLAY</span> <span class="pre">RECAP)'</span></code> for
+Ansible), surfacing only progress markers and failures in real time.</p></li>
+</ul>
+<p>The result: the conversation reads as a clean narrative of phase
+transitions and errors, while the full log is available via targeted file
+reads when needed. This is a context-clarity technique, not just a
+token-saving one — cleaner context means better reasoning and fewer lost
+decisions during multi-hour operations.</p>
+</section>
 <section id="incremental-trust-building">
 <h3>Incremental trust building<a class="headerlink" href="#incremental-trust-building" title="Link to this heading">#</a></h3>
 <ul class="simple">
@@ -704,6 +723,14 @@ found it.</p></li>
 <code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> directory — <code class="docutils literal notranslate"><span class="pre">/memo</span></code> and <code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code> — are not
 specific to K3s or Ansible. Copy them into your own project to get the
 same workflow benefits without writing them from scratch.</p></li>
+<li><p><strong>Keep long-running output out of context.</strong> Commands like
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code> or <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">install</span></code> can produce thousands of lines.
+Run them in the background with output captured to a file, and attach
+a Monitor with a tight filter that surfaces only progress markers and
+errors. The agent sees a clean narrative instead of a wall of noise,
+and can read the full log on demand when something fails. This is a
+clarity technique — the agent reasons better when its context contains
+decisions and outcomes rather than raw command output.</p></li>
 </ol>
 </section>
 </section>
@@ -766,6 +793,7 @@ same workflow benefits without writing them from scratch.</p></li>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#working-practices-the-human-side">Working practices: the human side</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#context-hygiene">Context hygiene</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-long-running-command-output-out-of-context">Keep long-running command output out of context</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#incremental-trust-building">Incremental trust building</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#collaborate-first-then-execute-from-the-plan">Collaborate first, then execute from the plan</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adversarial-planning">Adversarial planning</a></li>

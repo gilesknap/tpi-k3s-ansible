@@ -130,6 +130,25 @@ code alone.
   nothing useful evaporates between sessions, and the system gets smarter
   with every `/clear`.
 
+### Keep long-running command output out of context
+
+Long-running commands like `ansible-playbook` can produce thousands of
+lines of output. When this streams directly into the conversation context,
+it crowds out important earlier decisions and makes it harder for the agent
+to reason about what happened. The fix is a two-tool pattern:
+
+- **`run_in_background`** executes the command and captures all output to a
+  log file — nothing enters the conversation until a completion notification.
+- A parallel **`Monitor`** tails the log through a tight filter
+  (e.g. `grep --line-buffered -E '^(PLAY \[|fatal:|PLAY RECAP)'` for
+  Ansible), surfacing only progress markers and failures in real time.
+
+The result: the conversation reads as a clean narrative of phase
+transitions and errors, while the full log is available via targeted file
+reads when needed. This is a context-clarity technique, not just a
+token-saving one — cleaner context means better reasoning and fewer lost
+decisions during multi-hour operations.
+
 ### Incremental trust building
 
 - Start with small, reversible changes; graduate to autonomous rebuilds
@@ -253,3 +272,12 @@ These are concrete, actionable steps drawn from the patterns above.
     `.claude/commands/` directory — `/memo` and `/pr-squash` — are not
     specific to K3s or Ansible. Copy them into your own project to get the
     same workflow benefits without writing them from scratch.
+
+12. **Keep long-running output out of context.** Commands like
+    `ansible-playbook` or `helm install` can produce thousands of lines.
+    Run them in the background with output captured to a file, and attach
+    a Monitor with a tight filter that surfaces only progress markers and
+    errors. The agent sees a clean narrative instead of a wall of noise,
+    and can read the full log on demand when something fails. This is a
+    clarity technique — the agent reasons better when its context contains
+    decisions and outcomes rather than raw command output.
