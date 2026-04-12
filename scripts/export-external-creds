@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Export external credentials (GitHub OAuth, Cloudflare, Slack) from the
-# running cluster into a .env file at the repo root (gitignored).
+# Export external credentials (GitHub OAuth, Cloudflare, Slack) and
+# preservable secrets (Supabase DB password + JWT) from the running
+# cluster into a .env file at the repo root (gitignored).
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
@@ -15,6 +16,8 @@ OAUTH2_PROXY_CLIENT_SECRET=$(get_key oauth2-proxy-credentials oauth2-proxy clien
 OPEN_BRAIN_GITHUB_CLIENT_ID=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_ID)
 OPEN_BRAIN_GITHUB_CLIENT_SECRET=$(get_key open-brain-mcp-secret open-brain-mcp GITHUB_CLIENT_SECRET)
 SLACK_WEBHOOK_URL=$(get_key_opt alertmanager-slack-secret monitoring webhook-url)
+SUPABASE_PASSWORD=$(get_key supabase-credentials supabase password)
+SUPABASE_JWT_SECRET=$(get_key supabase-credentials supabase secret)
 EOF
 echo "Wrote .env (gitignored)"
 echo "Source with: set -a && source .env && set +a"

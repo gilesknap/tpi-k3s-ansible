@@ -95,8 +95,11 @@ Phase 3:
 set -a && source .env && set +a
 ```
 
-Everything else (admin passwords, cookie secrets, Supabase JWTs, Dex
-client secrets) is generated fresh.
+Everything else (admin passwords, cookie secrets, Dex client secrets)
+is generated fresh. The Supabase DB password and JWT secret are also
+extracted — when the `.env` is sourced during rebuild, they are reused
+so that the preserved Postgres data volume keeps working without a
+password mismatch.
 
 ## Phase 2: Decommission
 
@@ -155,7 +158,9 @@ The playbook automatically:
 2. Configures NVIDIA container runtime on GPU nodes (`--tags servers`)
 3. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
 4. Waits for the sealed-secrets controller (up to 300s)
-5. Generates all secrets fresh (random tokens, Supabase JWTs, etc.)
+5. Generates secrets (random tokens, Dex client secrets, etc.) —
+   reuses `SUPABASE_PASSWORD` and `SUPABASE_JWT_SECRET` from `.env`
+   when set, so preserved data volumes keep working
 6. Seals them with `kubeseal` using the new cluster's keys
 7. Sets the admin password (generated or from `ADMIN_PASSWORD` env var)
 8. Commits and pushes the sealed secret files
