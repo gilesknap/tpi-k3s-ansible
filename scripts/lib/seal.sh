@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Shared helpers for kubeseal-based scripts. Source from a bash script:
 #   . "$(dirname "$0")/lib/seal.sh"
 
