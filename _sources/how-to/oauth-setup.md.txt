@@ -102,10 +102,6 @@ Edit `kubernetes-services/values.yaml` and set the email lists:
 # Full admin access to all services
 admin_emails:
   - alice@example.com
-
-# Read-only access to Dex-authenticated services
-viewer_emails:
-  - carol@example.com
 ```
 
 Also add `admin_emails` to `group_vars/all.yml` (required for
@@ -240,7 +236,7 @@ Services protected by oauth2-proxy (admin-only):
 For services exposed via the Cloudflare tunnel, add a second
 authentication layer using Cloudflare Access at zero cluster overhead.
 Configure an Access Application in the Cloudflare Zero Trust dashboard
-with an email allowlist matching both `admin_emails` and `viewer_emails`. See
+with an email allowlist covering everyone who should have access. See
 {doc}`cloudflare-ssh-tunnel` for how Access Applications work.
 
 ## Troubleshooting

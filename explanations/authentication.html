@@ -888,9 +888,9 @@ connector) or oauth2-proxy (a lightweight reverse-proxy that redirects to
 GitHub directly).</p>
 <p><strong>Layer 3 — App RBAC</strong> maps the authenticated identity to a role inside
 the application. Emails in the <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> list in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>
-receive admin privileges; everyone else gets a read-only or viewer role.
-A separate <code class="docutils literal notranslate"><span class="pre">viewer_emails</span></code> list identifies users who can authenticate via
-Dex OIDC but receive only read-only access.</p>
+receive admin privileges; all other authenticated users get a read-only
+or viewer role. Entry is gated by Cloudflare Access (email-based OTP),
+so there is no separate viewer list in the repo.</p>
 </section>
 <section id="ingress-architecture">
 <h2>Ingress architecture<a class="headerlink" href="#ingress-architecture" title="Link to this heading">#</a></h2>
@@ -1247,15 +1247,19 @@ Cloudflare Access (email allowlist) before reaching the cluster.</p>
 </section>
 <section id="managing-access">
 <h2>Managing access<a class="headerlink" href="#managing-access" title="Link to this heading">#</a></h2>
-<p>Access is controlled by two email lists in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<p>Access is controlled at two layers:</p>
+<ul class="simple">
+<li><p><strong>Cloudflare Access</strong> — email-based OTP gate managed in the Cloudflare
+Zero Trust dashboard. This decides who can reach the cluster at all.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code></strong> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — grants admin
+privileges. Everyone else who passes Cloudflare Access and authenticates
+via Dex/GitHub gets a viewer/read-only role by default.</p></li>
+</ul>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">admin_emails</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alice@example.com</span><span class="w">     </span><span class="c1"># full admin access everywhere</span>
-
-<span class="nt">viewer_emails</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">carol@example.com</span><span class="w">     </span><span class="c1"># read-only access to Dex-authenticated services</span>
 </pre></div>
 </div>
-<p><strong>Admin emails</strong> are consumed in six places:</p>
+<p><strong>Admin emails</strong> are consumed in four places:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Template / Config</p></th>
@@ -1275,15 +1279,12 @@ Cloudflare Access (email allowlist) before reaching the cluster.</p>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">g,</span> <span class="pre">&lt;email&gt;,</span> <span class="pre">role:admin</span></code> — admin emails get ArgoCD admin</p></td>
 </tr>
-<tr class="row-even"><td><p>Cloudflare Access (manual)</p></td>
-<td><p>Access policy should include both lists</p></td>
-</tr>
 </tbody>
 </table>
 </div>
-<p><strong>Viewer emails</strong> authenticate via Dex OIDC and receive read-only roles:
-ArgoCD <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, Grafana <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>, Open WebUI <code class="docutils literal notranslate"><span class="pre">user</span></code>. They
-cannot access oauth2-proxy-gated services (Headlamp, Supabase Studio).</p>
+<p>All other authenticated users receive read-only roles: ArgoCD
+<code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, Grafana <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>, Open WebUI <code class="docutils literal notranslate"><span class="pre">user</span></code>. They cannot
+access oauth2-proxy-gated services (Headlamp, Supabase Studio).</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> must be kept in sync in two places:</p>

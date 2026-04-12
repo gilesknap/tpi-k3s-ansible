@@ -85,7 +85,6 @@ ansible-playbook pb_all.yml \
 | `enable_oauth2_proxy` | `false` | Enable OAuth2 proxy authentication on protected services. Set `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
 | `enable_cloudflare_tunnel` | `false` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. Set `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
 | `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
-| `viewer_emails` | *(list of emails)* | GitHub-linked email addresses with read-only access to Dex-authenticated services |
 | `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
 | `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
 | `llamacpp.nfs.server` | *(your NFS server IP)* | NFS server for llama.cpp model storage |
