@@ -48,6 +48,8 @@ workflow, including cherry-picking the reseal commit back.
 - ArgoCD app templates: `kubernetes-services/templates/`
 - Extra manifests: `kubernetes-services/additions/` (incl. `ingress/` sub-chart)
 - SSH to nodes: `ssh ansible@<node>` (not root)
+- ArgoCD namespace: `argo-cd` (hyphenated, not `argocd`)
+- kubectl works in the devcontainer — never SSH to nodes for kubectl
 
 ## Conventions
 
