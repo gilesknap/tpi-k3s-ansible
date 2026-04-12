@@ -78,7 +78,18 @@ branch itself is the base branch for the rebuild:
    so that merging the PR delivers both the code fix and the new sealed
    secrets in one go.
 
-### 1b. Collect external credentials
+### 1b. Back up the wildcard TLS certificate
+
+Save the existing wildcard certificate so it can be restored after
+rebuild, avoiding a Let's Encrypt re-issue (which may hit rate limits):
+
+```bash
+kubectl get secret wildcard-tls -n cert-manager -o yaml > /tmp/wildcard-tls-backup.yaml
+```
+
+If the secret does not exist (first-ever build), skip this step.
+
+### 1c. Collect external credentials
 
 Export the 8 external credentials that cannot be generated. Run this
 while the cluster is still up:
@@ -102,11 +113,28 @@ password mismatch.
 
 ## Phase 2: Decommission
 
-Run the decommission playbook:
+Run the decommission playbook in the background with a progress Monitor:
 
-```bash
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml
-```
+1. Start the playbook with `Bash run_in_background`:
+
+   ```bash
+   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml 2>&1 | tee /tmp/decommission.log
+   ```
+
+2. Simultaneously start a `Monitor` (persistent: false, timeout: 600000ms,
+   description: "Phase 2 decommission progress") that tails the log with a
+   tight filter — play headers, failures, and recap summaries only:
+
+   ```bash
+   while [ ! -f /tmp/decommission.log ]; do sleep 0.2; done
+   tail -f /tmp/decommission.log | grep --line-buffered -E \
+     '^(PLAY \[|TASK \[.*\] \*{3,}|fatal:|failed:|FAILED|PLAY RECAP|ok=.*failed=)'
+   ```
+
+3. When the background command completes, check the exit code:
+   - **Exit 0**: decommission succeeded — proceed to "Verify decommission".
+   - **Non-zero or `fatal:`/`FAILED` in Monitor stream**: Read
+     `/tmp/decommission.log` (last ~100 lines) to diagnose. Fix and re-run.
 
 The playbook handles:
 1. Stopping ArgoCD reconciliation (orphan cascade + finalizer stripping)
@@ -142,15 +170,36 @@ ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir
 ## Phase 3: Rebuild (single playbook run)
 
 With `GENERATE_SECRETS=true` and the external credential env vars from
-Phase 1b, a single playbook run handles everything: K3s install, ArgoCD
+Phase 1c, a single playbook run handles everything: K3s install, ArgoCD
 setup, secret generation, sealing, git commit/push, and admin password.
 
-```bash
-GENERATE_SECRETS=true \
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
-ansible-playbook pb_all.yml --tags k3s,servers,cluster \
-  --extra-vars repo_branch=<branch-name>
-```
+Run it in the background with a progress Monitor — this is the
+longest-running command (~10-20 minutes) and the biggest context saving:
+
+1. Start the playbook with `Bash run_in_background`:
+
+   ```bash
+   GENERATE_SECRETS=true \
+   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
+   ansible-playbook pb_all.yml --tags k3s,servers,cluster \
+     --extra-vars repo_branch=<branch-name> 2>&1 | tee /tmp/rebuild.log
+   ```
+
+2. Simultaneously start a `Monitor` (persistent: false, timeout: 1800000ms,
+   description: "Phase 3 rebuild progress") with the same filter as Phase 2:
+
+   ```bash
+   while [ ! -f /tmp/rebuild.log ]; do sleep 0.2; done
+   tail -f /tmp/rebuild.log | grep --line-buffered -E \
+     '^(PLAY \[|TASK \[.*\] \*{3,}|fatal:|failed:|FAILED|PLAY RECAP|ok=.*failed=)'
+   ```
+
+3. When the background command completes:
+   - **Exit 0**: rebuild succeeded. Grep the log for the admin password:
+     `grep -A1 'admin.password' /tmp/rebuild.log || cat /tmp/cluster-secrets/admin-password.txt`
+     Then proceed to "Verify rebuild".
+   - **Non-zero or `fatal:`/`FAILED` in Monitor stream**: Read
+     `/tmp/rebuild.log` (last ~150 lines) to diagnose.
 
 The playbook automatically:
 1. Installs K3s on all nodes (labels GPU nodes with `nvidia.com/gpu.present`)
@@ -172,18 +221,20 @@ The admin password is printed in the output and saved to
 
 ```bash
 kubectl get nodes  # 6 nodes Ready
-kubectl get apps -n argo-cd  # 18 apps syncing
+kubectl get apps -n argo-cd  # all apps syncing
 ```
 
 ## Phase 4: Post-rebuild
 
 ### 4a. Force sync and verify secrets
 
+Run the sync in the background (no Monitor needed — output is small):
+
 ```bash
-just argocd-sync
+just argocd-sync 2>&1 | tee /tmp/argocd-sync.log
 ```
 
-Wait 60 seconds, then verify all 10 SealedSecrets show `True`:
+Wait 60 seconds after it completes, then verify all SealedSecrets show `True`:
 ```bash
 kubectl get sealedsecrets -A --no-headers
 ```
@@ -191,7 +242,32 @@ kubectl get sealedsecrets -A --no-headers
 If any show `False` with "no key could decrypt", ArgoCD hasn't synced
 the new sealed secrets yet. Run `just argocd-sync` again.
 
-### 4b. Restart Dex and secret-dependent pods
+### 4b. Restore the wildcard TLS certificate
+
+If `/tmp/wildcard-tls-backup.yaml` exists (saved in Phase 1b), restore
+it to avoid a Let's Encrypt re-issue:
+
+```bash
+# Strip cluster-specific metadata so it can be applied to the new cluster
+kubectl apply -f - <<'APPLY_EOF'
+$(cat /tmp/wildcard-tls-backup.yaml \
+  | grep -v '^\s*uid:' \
+  | grep -v '^\s*resourceVersion:' \
+  | grep -v '^\s*creationTimestamp:' \
+  | sed '/^  managedFields:/,/^[^ ]/{ /^[^ ]/!d; /^  managedFields:/d }')
+APPLY_EOF
+```
+
+Verify the certificate shows as Ready:
+```bash
+kubectl get certificates -n cert-manager
+```
+
+If the restore fails or the backup file does not exist, cert-manager
+will request a new certificate automatically — this is fine unless
+rate-limited.
+
+### 4c. Restart Dex and secret-dependent pods
 
 Dex and any pods that load secrets via `env.valueFrom.secretKeyRef` need
 a restart to pick up the newly sealed secrets. Pods started before the
@@ -203,7 +279,7 @@ just restart-dex
 kubectl rollout restart statefulset open-webui -n open-webui
 ```
 
-### 4c. GPU node setup
+### 4d. GPU node setup
 
 No manual step needed. The `--tags servers` in Phase 3 installs the
 NVIDIA container runtime before ArgoCD deploys the device-plugin
@@ -221,11 +297,44 @@ just gpu-setup
 
 ### 5a. ArgoCD apps
 
-Run `just status` repeatedly (with 60-second waits) until **all** of
-these pass. Do not proceed until every app is Healthy:
-- [ ] All nodes Ready
-- [ ] **All 18** ArgoCD apps Synced/Healthy (including `nvidia-device-plugin` and `llamacpp` — if they are not Healthy, see Phase 4c)
-- [ ] All 10 SealedSecrets show `True` (`kubectl get sealedsecrets -A --no-headers`)
+Start a `Monitor` (persistent: false, timeout: 1800000ms,
+description: "Phase 5a cluster health polling") that polls every 60
+seconds and emits one terse summary line per cycle. Thresholds are
+derived dynamically — healthy must equal total for each category:
+
+```bash
+while true; do
+  nodes_total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+  nodes_ready=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
+  apps_total=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | wc -l)
+  apps_healthy=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Healthy' || true)
+  apps_synced=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Synced' || true)
+  ss_total=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)
+  ss_ok=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | grep -c 'True' || true)
+  failing=$(kubectl get pods -A --no-headers 2>/dev/null | grep -v Running | grep -v Completed | wc -l)
+  echo "nodes=${nodes_ready}/${nodes_total} apps=${apps_healthy}H/${apps_synced}S/${apps_total} ss=${ss_ok}/${ss_total} failing_pods=${failing}"
+  if [ "$nodes_ready" -eq "$nodes_total" ] && [ "$nodes_total" -gt 0 ] \
+     && [ "$apps_healthy" -eq "$apps_total" ] && [ "$apps_total" -gt 0 ] \
+     && [ "$apps_synced" -eq "$apps_total" ] \
+     && [ "$ss_ok" -eq "$ss_total" ] && [ "$ss_total" -gt 0 ] \
+     && [ "$failing" -eq 0 ]; then
+    echo "ALL HEALTHY"
+    exit 0
+  fi
+  sleep 60
+done
+```
+
+Each cycle produces one line like:
+`nodes=6/6 apps=20H/20S/20 ss=12/12 failing_pods=0`
+
+When the Monitor emits "ALL HEALTHY", proceed to Phase 5b.
+If health does not converge within 30 minutes (Monitor times out),
+read the last few notifications to identify which check is failing,
+then consult the troubleshooting steps below.
+
+Do not proceed until all apps are Healthy — including
+`nvidia-device-plugin` and `llamacpp` (if stuck, see Phase 4d).
 
 If any SealedSecrets show `False` with "no key could decrypt":
 1. ArgoCD may have synced old sealed secrets from the wrong branch.
@@ -239,7 +348,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
 
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
-- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4c)
+- [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
@@ -331,7 +440,7 @@ after they have tested the cluster manually.
 ### 8d. Clean up
 
 ```bash
-rm -rf /tmp/cluster-secrets/
+rm -rf /tmp/cluster-secrets/ /tmp/decommission.log /tmp/rebuild.log /tmp/argocd-sync.log /tmp/wildcard-tls-backup.yaml
 ```
 
 ### 8e. If this rebuild was testing a PR branch
