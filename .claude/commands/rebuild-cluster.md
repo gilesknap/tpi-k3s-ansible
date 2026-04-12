@@ -26,8 +26,8 @@ as well. Use only for a deliberate fresh start; after this, Supabase
 re-runs its init migrations and Grafana/Prometheus/Open WebUI come up
 empty.
 
-**Ask the user to confirm their preservation preference before
-proceeding.**
+**Default: preserve.** Only pass `-e wipe_local_data=true` if the user
+explicitly requests a clean-slate wipe in the prompt arguments.
 
 ### One-time NAS prerequisite
 
@@ -70,9 +70,8 @@ not exist on the remote (`unable to resolve '<branch>' to a commit SHA`).
 A common invocation is "rebuild on this branch to test PR #N". The PR
 branch itself is the base branch for the rebuild:
 
-1. Ask the user to `just switch-branch <pr-branch>` first so the live
-   cluster is pointing at the PR state. (They should have a draft PR
-   open already.)
+1. Run `just switch-branch <pr-branch>` so the live cluster is pointing
+   at the PR state before decommissioning.
 2. Use the PR branch as `<base-branch>` in the commands above.
 3. Note that this is a PR-testing rebuild — **Phase 8 has extra steps**
    (cherry-picking fixes and the reseal commit back onto the PR branch)
