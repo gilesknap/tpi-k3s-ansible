@@ -121,7 +121,7 @@ code alone.
 - The **plan-clean-execute cycle**: plan in one context, `/clear`, execute
   in fresh context with the plan file as the guide — avoids stale
   assumptions accumulating
-- Always [`/memo`](../../.claude/commands/memo.md) before `/clear`. This custom
+- Always [`/memo`](https://github.com/gilesknap/tpi-k3s-ansible/blob/main/.claude/commands/memo.md) before `/clear`. This custom
   command reviews the current conversation and automatically promotes what
   was learned into the right permanent home: foot-guns and constraints go
   to CLAUDE.md, procedural knowledge goes to skills, troubleshooting
