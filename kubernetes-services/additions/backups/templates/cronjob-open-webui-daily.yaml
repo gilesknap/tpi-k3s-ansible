@@ -13,9 +13,9 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          # Open WebUI's local PV is pinned to node04.
+          # Pinned to the node hosting the open-webui local PV.
           nodeSelector:
-            kubernetes.io/hostname: node04
+            kubernetes.io/hostname: {{ .Values.local_storage.open_webui.node }}
           containers:
             - name: sqlite-backup
               image: alpine:3.23
@@ -42,7 +42,7 @@ spec:
           volumes:
             - name: data
               hostPath:
-                path: /var/lib/k8s-data/open-webui
+                path: {{ .Values.local_storage.open_webui.path }}
                 type: Directory
             - name: nfs
               persistentVolumeClaim:
