@@ -44,6 +44,18 @@ stays healthy. Before merging such a PR, suggest validating it with
 `/rebuild-cluster` on the PR branch — the command handles the PR-test
 workflow, including cherry-picking the reseal commit back.
 
+## Verify subagent negative findings before acting
+
+When a subagent (Explore, audit) reports a **negative** finding — "X is
+never written", "Y doesn't exist", "tag Z is missing" — grep-verify it
+before deleting or rewriting the matching guidance. Indirect call chains
+(justfile → script → playbook → role) are easy to miss, and acting on
+a false negative can regress load-bearing docs or skills. Positive
+findings grounded in cited file contents are cheap to trust; negatives
+require the subagent to have searched exhaustively, which often they
+haven't. Skip verification only for purely additive fixes where being
+wrong is cheap.
+
 ## Key Paths
 
 - Playbook: `pb_all.yml` (not `site.yml`); decommission: `pb_decommission.yml`
