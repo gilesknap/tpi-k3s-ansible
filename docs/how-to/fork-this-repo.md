@@ -12,7 +12,7 @@ all three before your first deploy:
 
 | File | Owns |
 |---|---|
-| `inventory/hosts.yml` | Your hardware: hostnames, IPs, BMC addresses, per-node flags (slot, type, root device, GPU, workstation). |
+| `hosts.yml` | Your hardware: hostnames, IPs, BMC addresses, per-node flags (slot, type, root device, GPU, workstation). |
 | `group_vars/all.yml` | Ansible-side: cluster domain, admin emails, repo URL/branch, host data directories. |
 | `kubernetes-services/values.yaml` | ArgoCD/Helm-side: NFS server, local PV layout, OAuth, supabase release name, image repositories. |
 
@@ -33,7 +33,7 @@ Fork `gilesknap/tpi-k3s-ansible` on GitHub, then clone your fork.
 
 ### 2. Edit the inventory
 
-`inventory/hosts.yml` lists every node and BMC. Replace hostnames,
+`hosts.yml` lists every node and BMC. Replace hostnames,
 IPs, MAC addresses, and BMC URLs with your own.
 
 Per-node variables that matter:
@@ -175,7 +175,7 @@ different. Edit the HTML directly to match your LAN.
 
 ## What's NOT templated (by design)
 
-- `inventory/hosts.yml` — hardware topology varies too much between
+- `hosts.yml` — hardware topology varies too much between
   forks to template. Group names (`<bmc>_nodes`) are load-bearing
   for the flash role, and per-node flags (`root_dev`,
   `nvidia_gpu_node`, `workstation`) are specific to the physical
