@@ -7,6 +7,7 @@ Task-oriented recipes for common operations and configuration changes.
 ```{toctree}
 :maxdepth: 1
 
+how-to/fork-this-repo
 how-to/bootstrap-cluster
 how-to/accessing-services
 how-to/cloudflare-tunnel
