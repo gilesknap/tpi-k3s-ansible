@@ -57,3 +57,59 @@ nvidia_gpu_node: false
 # This is for direct installs before ArgoCD is used to manage the cluster.
 cluster_install_list:
   - argocd # the remaining services are all managed by argocd at present
+
+# Host directories that back the local-nvme PVs. Created by the
+# k8s_data_dirs role on each app's target node. Paths live outside
+# /var/lib/rancher on purpose: pb_decommission.yml wipes
+# /var/lib/rancher to reset k3s, but these directories are preserved
+# so PVC data survives a cluster rebuild.
+#
+# SYNC: each entry's `node` and `path` MUST match the corresponding
+# entry in `local_storage` in kubernetes-services/values.yaml. The two
+# files are intentionally separate (Ansible vs Helm), but the
+# node/path pair is the contract between them — if they drift, the
+# PV's nodeAffinity will point at a directory that doesn't exist.
+#
+# UID/GID notes: grafana (472) and prometheus (1000/2000) come from
+# the live cluster's effective securityContext. supabase-db,
+# supabase-storage and open-webui have nil securityContext so the
+# image's default UID applies — 0777/root is a safe fallback. minio
+# uses fsGroup 65532 so 65532:65532 keeps the init container's chown
+# a no-op.
+k8s_data_dirs:
+  - name: supabase-db
+    node: nuc2
+    path: /home/k8s-data/supabase-db
+    owner: root
+    group: root
+    mode: "0777"
+  - name: supabase-storage
+    node: nuc2
+    path: /home/k8s-data/supabase-storage
+    owner: root
+    group: root
+    mode: "0777"
+  - name: supabase-minio
+    node: nuc2
+    path: /home/k8s-data/supabase-minio
+    owner: "65532"
+    group: "65532"
+    mode: "0755"
+  - name: prometheus
+    node: node02
+    path: /var/lib/k8s-data/prometheus
+    owner: "1000"
+    group: "2000"
+    mode: "0755"
+  - name: grafana
+    node: node03
+    path: /var/lib/k8s-data/grafana
+    owner: "472"
+    group: "472"
+    mode: "0755"
+  - name: open-webui
+    node: node04
+    path: /var/lib/k8s-data/open-webui
+    owner: root
+    group: root
+    mode: "0777"

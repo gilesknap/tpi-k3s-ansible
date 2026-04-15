@@ -1,72 +1,20 @@
 # Create the host directories that back the local-nvme PVs defined in
-# kubernetes-services/additions/local-storage. Each app has one PV pinned
-# to one specific node, so we create each directory only on its target
-# node using inventory_hostname guards.
+# kubernetes-services/additions/local-storage. Each entry of
+# k8s_data_dirs (group_vars/all.yml) is created only on its target
+# node via inventory_hostname guard.
 #
 # Paths live outside /var/lib/rancher on purpose: pb_decommission.yml
 # wipes /var/lib/rancher to reset k3s, but these directories are
 # preserved so PVC data survives a cluster rebuild.
-#
-# UIDs: grafana (472) and prometheus (1000/2000) are set from the live
-# cluster's effective securityContext. supabase-db, supabase-storage and
-# open-webui have nil securityContext on the live cluster, so the
-# container image's default UID applies — we use 0777/root as a safe
-# fallback rather than guess. Tighten post-rebuild if a security review
-# asks for it.
-#
-# supabase-minio uses fsGroup 65532, so ownership of 65532:65532 lets
-# the init container's fsGroup chown be a no-op.
 
-- name: Create supabase-db data dir on nuc2
+- name: Create k8s data directory for {{ item.name }}
   ansible.builtin.file:
-    path: /home/k8s-data/supabase-db
+    path: "{{ item.path }}"
     state: directory
-    owner: root
-    group: root
-    mode: "0777"
-  when: inventory_hostname == 'nuc2'
-
-- name: Create supabase-storage data dir on nuc2
-  ansible.builtin.file:
-    path: /home/k8s-data/supabase-storage
-    state: directory
-    owner: root
-    group: root
-    mode: "0777"
-  when: inventory_hostname == 'nuc2'
-
-- name: Create supabase-minio data dir on nuc2
-  ansible.builtin.file:
-    path: /home/k8s-data/supabase-minio
-    state: directory
-    owner: "65532"
-    group: "65532"
-    mode: "0755"
-  when: inventory_hostname == 'nuc2'
-
-- name: Create prometheus data dir on node02
-  ansible.builtin.file:
-    path: /var/lib/k8s-data/prometheus
-    state: directory
-    owner: "1000"
-    group: "2000"
-    mode: "0755"
-  when: inventory_hostname == 'node02'
-
-- name: Create grafana data dir on node03
-  ansible.builtin.file:
-    path: /var/lib/k8s-data/grafana
-    state: directory
-    owner: "472"
-    group: "472"
-    mode: "0755"
-  when: inventory_hostname == 'node03'
-
-- name: Create open-webui data dir on node04
-  ansible.builtin.file:
-    path: /var/lib/k8s-data/open-webui
-    state: directory
-    owner: root
-    group: root
-    mode: "0777"
-  when: inventory_hostname == 'node04'
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  when: inventory_hostname == item.node
+  loop: "{{ k8s_data_dirs }}"
+  loop_control:
+    label: "{{ item.name }}"

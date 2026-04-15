@@ -1,0 +1,29 @@
+# Defaults for standalone `helm template` rendering. In-cluster ArgoCD
+# overrides these via the parent chart's valuesObject (see
+# kubernetes-services/templates/backups.yaml). Keep `local_storage` and
+# `supabase_release_name` in sync with the values used by the rest of
+# the cluster (kubernetes-services/values.yaml).
+nfs:
+  server: 192.168.1.3
+  cluster_share_path: /bigdisk/k8s-cluster
+# Helm release name for the upstream supabase chart. The chart prefixes
+# every Service/Secret with this name, so the in-cluster Postgres
+# service is `<release>-supabase-db`. Change here if the release is
+# renamed in the supabase ArgoCD Application.
+supabase_release_name: supabase
+# Mirror of local_storage from kubernetes-services/values.yaml. Each
+# CronJob picks the host node and data path for its source from this
+# map (matching the PV defined in additions/local-storage).
+local_storage:
+  grafana:
+    node: node03
+    path: /var/lib/k8s-data/grafana
+  open_webui:
+    node: node04
+    path: /var/lib/k8s-data/open-webui
+  supabase_storage:
+    node: nuc2
+    path: /home/k8s-data/supabase-storage
+  supabase_minio:
+    node: nuc2
+    path: /home/k8s-data/supabase-minio

@@ -13,9 +13,9 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          # Grafana's local PV is pinned to node03.
+          # Pinned to the node hosting the grafana local PV.
           nodeSelector:
-            kubernetes.io/hostname: node03
+            kubernetes.io/hostname: {{ .Values.local_storage.grafana.node }}
           containers:
             - name: sqlite-backup
               image: alpine:3.23
@@ -45,7 +45,7 @@ spec:
           volumes:
             - name: data
               hostPath:
-                path: /var/lib/k8s-data/grafana
+                path: {{ .Values.local_storage.grafana.path }}
                 type: Directory
             - name: nfs
               persistentVolumeClaim:

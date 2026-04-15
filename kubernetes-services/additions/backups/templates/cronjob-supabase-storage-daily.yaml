@@ -14,9 +14,9 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          # Must run on nuc2 — supabase-storage's local PV lives there.
+          # Pinned to the node hosting supabase-storage's local PV.
           nodeSelector:
-            kubernetes.io/hostname: nuc2
+            kubernetes.io/hostname: {{ .Values.local_storage.supabase_storage.node }}
           containers:
             - name: tar
               image: alpine:3.23
@@ -41,7 +41,7 @@ spec:
           volumes:
             - name: data
               hostPath:
-                path: /home/k8s-data/supabase-storage
+                path: {{ .Values.local_storage.supabase_storage.path }}
                 type: Directory
             - name: nfs
               persistentVolumeClaim:
