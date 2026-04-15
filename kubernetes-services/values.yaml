@@ -99,9 +99,13 @@ nfs:
 # PV, pre-bound via claimRef to the chart-generated PVC of the workload
 # that uses it. Edit `node` and `path` here to retarget data placement
 # when forking; keep `claim_namespace`/`claim_name` matching the
-# workload chart's PVC naming convention. The matching directories must
-# exist on the target nodes — see `k8s_data_dirs` in
-# group_vars/all.yml (Ansible creates them).
+# workload chart's PVC naming convention.
+#
+# SYNC: the `node` and `path` for each entry MUST match the
+# corresponding entry in `k8s_data_dirs` in group_vars/all.yml — that's
+# the Ansible loop that actually creates the host directory backing
+# this PV. If the two drift, the PV's nodeAffinity will point at a
+# directory that doesn't exist and the PVC will hang Pending.
 local_storage:
   grafana:
     node: node03
