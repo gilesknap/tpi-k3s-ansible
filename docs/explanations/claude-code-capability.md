@@ -71,7 +71,7 @@ Almost every cluster-level choice lives in two files totalling **135 lines**:
 - `kubernetes-services/values.yaml` (76 lines) — service toggles and
   version pins
 
-A third file, `inventory/hosts.yml`, owns the hardware topology
+A third file, `hosts.yml`, owns the hardware topology
 (hostnames, IPs, per-node flags). It is deliberately not templated
 through the other two — hardware varies too much between forks. But
 it is still a small, single place to look when the agent needs to

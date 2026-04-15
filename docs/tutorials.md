@@ -40,8 +40,22 @@ their own host. This is called out in `CLAUDE.md` as a hard rule.
 
 With that mental model in place, pick your install path:
 
+- **{doc}`tutorials/ai-guided-setup`** — let Claude Code run the whole setup
+  interactively. Fastest path if you have Claude Code installed.
+- **{doc}`tutorials/getting-started-tpi`** — manual walkthrough for Turing Pi
+  v2.5 boards (flashes the compute modules from the BMC).
+- **{doc}`tutorials/getting-started-generic`** — manual walkthrough for any
+  modern Linux servers already running an OS.
+
+Each tutorial covers fork-and-clone, inventory, config, and running the
+playbook. For the full list of every file a fork needs to touch, see
+{doc}`how-to/fork-this-repo` — it is the canonical reference for
+personalising the repo and is linked from each tutorial at the relevant
+steps.
+
 ```{toctree}
 :maxdepth: 1
+:hidden:
 
 tutorials/ai-guided-setup
 tutorials/getting-started-tpi

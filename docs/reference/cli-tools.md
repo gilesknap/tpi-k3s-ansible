@@ -39,7 +39,7 @@ kubeseal --format yaml < secret.yaml > sealed-secret.yaml
 kubeseal --fetch-cert > pub-cert.pem
 ```
 
-See [](../how-to/manage-sealed-secrets.md) for the full workflow.
+See {doc}`/how-to/manage-sealed-secrets` for the full workflow.
 
 ## Port-forward scripts
 
