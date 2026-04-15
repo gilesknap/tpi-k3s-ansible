@@ -325,7 +325,8 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+<ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Fork This Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
 <li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
@@ -335,6 +336,7 @@
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
@@ -342,6 +344,7 @@
 <li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
@@ -351,6 +354,7 @@
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
@@ -420,9 +424,10 @@
 files, push to your own fork, and the playbook + ArgoCD will deploy a
 clone of the cluster against your hardware. This guide walks through
 every file you need to touch.</p>
-<section id="the-two-file-model">
-<h2>The two-file model<a class="headerlink" href="#the-two-file-model" title="Link to this heading">#</a></h2>
-<p>The bulk of cluster-specific configuration lives in just two files:</p>
+<section id="the-three-files-you-must-edit">
+<h2>The three files you must edit<a class="headerlink" href="#the-three-files-you-must-edit" title="Link to this heading">#</a></h2>
+<p>Cluster-specific configuration lives in three files. Expect to edit
+all three before your first deploy:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>File</p></th>
@@ -430,18 +435,25 @@ every file you need to touch.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code></p></td>
+<td><p>Your hardware: hostnames, IPs, BMC addresses, per-node flags (slot, type, root device, GPU, workstation).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
 <td><p>Ansible-side: cluster domain, admin emails, repo URL/branch, host data directories.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
 <td><p>ArgoCD/Helm-side: NFS server, local PV layout, OAuth, supabase release name, image repositories.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>A third file, <code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code>, owns the node inventory itself —
-hostnames, IPs, BMC addresses. Fork this directly to match your
-hardware (it is <strong>not</strong> templated through values.yaml on purpose).</p>
+<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> is deliberately <strong>not</strong> templated through the other two —
+every fork’s hardware is different, and the flash/known_hosts roles
+rely on group-name conventions (<code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code>) that don’t survive
+templating cleanly. Edit it directly. The node names you choose there
+are referenced from the other two files, so pick them first.</p>
+<p>See <a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory Reference</span></a> for the full list of per-node
+variables and group naming rules.</p>
 </section>
 <section id="step-by-step-fork">
 <h2>Step-by-step fork<a class="headerlink" href="#step-by-step-fork" title="Link to this heading">#</a></h2>
@@ -449,8 +461,33 @@ hardware (it is <strong>not</strong> templated through values.yaml on purpose).<
 <h3>1. Fork on GitHub and clone<a class="headerlink" href="#fork-on-github-and-clone" title="Link to this heading">#</a></h3>
 <p>Fork <code class="docutils literal notranslate"><span class="pre">gilesknap/tpi-k3s-ansible</span></code> on GitHub, then clone your fork.</p>
 </section>
+<section id="edit-the-inventory">
+<h3>2. Edit the inventory<a class="headerlink" href="#edit-the-inventory" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code> lists every node and BMC. Replace hostnames,
+IPs, MAC addresses, and BMC URLs with your own.</p>
+<p>Per-node variables that matter:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">slot_num</span></code> / <code class="docutils literal notranslate"><span class="pre">type</span></code> — for Turing Pi nodes, the physical slot and
+compute module type (<code class="docutils literal notranslate"><span class="pre">pi4</span></code> / <code class="docutils literal notranslate"><span class="pre">rk1</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code> — set to migrate the OS to NVMe; omit for servers
+already on their target disk.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> — enables the NVIDIA driver and container
+toolkit on that node. Required for llama.cpp CUDA.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code> — applies a <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> taint. Useful for
+machines that reboot unexpectedly (only tolerating workloads land
+there).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code> / <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> — required on multi-homed nodes.</p></li>
+</ul>
+<p>Turing Pi node groups <strong>must</strong> be named <code class="docutils literal notranslate"><span class="pre">&lt;bmc_hostname&gt;_nodes</span></code> — the
+flash role uses this convention to discover which nodes belong to
+which BMC. Full reference: <a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory Reference</span></a>.</p>
+<p>The host names you choose here (<code class="docutils literal notranslate"><span class="pre">node01</span></code>, <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, etc.) are
+referenced from <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — pick them before the next two
+steps and keep them consistent across all three files.</p>
+</section>
 <section id="point-the-cluster-at-your-fork">
-<h3>2. Point the cluster at your fork<a class="headerlink" href="#point-the-cluster-at-your-fork" title="Link to this heading">#</a></h3>
+<h3>3. Point the cluster at your fork<a class="headerlink" href="#point-the-cluster-at-your-fork" title="Link to this heading">#</a></h3>
 <p>In <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/&lt;your-user&gt;/&lt;your-fork&gt;.git</span>
 <span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
@@ -458,6 +495,7 @@ hardware (it is <strong>not</strong> templated through values.yaml on purpose).<
 <span class="nt">domain_email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-email&gt;</span><span class="w">  </span><span class="c1"># for letsencrypt</span>
 <span class="nt">admin_emails</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-email&gt;</span>
+<span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-control-plane-node&gt;</span><span class="w">  </span><span class="c1"># must match a host in hosts.yml</span>
 </pre></div>
 </div>
 <p>In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, mirror the admin emails:</p>
@@ -465,13 +503,6 @@ hardware (it is <strong>not</strong> templated through values.yaml on purpose).<
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-email&gt;</span>
 </pre></div>
 </div>
-</section>
-<section id="edit-the-inventory">
-<h3>3. Edit the inventory<a class="headerlink" href="#edit-the-inventory" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code> lists every node and BMC. Replace hostnames,
-IPs, MAC addresses, and BMC URLs with your own. The host names you
-choose here (<code class="docutils literal notranslate"><span class="pre">node01</span></code>, <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, etc.) are referenced in the
-storage maps below — keep them consistent.</p>
 </section>
 <section id="map-storage-to-your-nodes">
 <h3>4. Map storage to your nodes<a class="headerlink" href="#map-storage-to-your-nodes" title="Link to this heading">#</a></h3>
@@ -563,7 +594,11 @@ different. Edit the HTML directly to match your LAN.</p>
 <section id="what-s-not-templated-by-design">
 <h2>What’s NOT templated (by design)<a class="headerlink" href="#what-s-not-templated-by-design" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code> — fork-specific inventory, edit directly.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code> — hardware topology varies too much between
+forks to template. Group names (<code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code>) are load-bearing
+for the flash role, and per-node flags (<code class="docutils literal notranslate"><span class="pre">root_dev</span></code>,
+<code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code>) are specific to the physical
+machines. Edit it directly.</p></li>
 <li><p>Sealed secrets — bound to the cluster controller key, must be
 re-sealed per cluster.</p></li>
 <li><p>Home page LAN service links — too varied per fork to design a
@@ -628,11 +663,11 @@ helm<span class="w"> </span>template<span class="w"> </span>kubernetes-services
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-two-file-model">The two-file model</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-three-files-you-must-edit">The three files you must edit</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-by-step-fork">Step-by-step fork</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fork-on-github-and-clone">1. Fork on GitHub and clone</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#point-the-cluster-at-your-fork">2. Point the cluster at your fork</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edit-the-inventory">3. Edit the inventory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edit-the-inventory">2. Edit the inventory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#point-the-cluster-at-your-fork">3. Point the cluster at your fork</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#map-storage-to-your-nodes">4. Map storage to your nodes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-share-for-backups-and-large-models">5. NFS share for backups and large models</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pin-rkllama-and-open-brain-mcp">6. Pin rkllama and open-brain-mcp</a></li>

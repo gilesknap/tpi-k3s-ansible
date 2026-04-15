@@ -325,12 +325,14 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gitops-flow.html">GitOps Flow</a></li>
 <li class="toctree-l1"><a class="reference internal" href="kubernetes-services.html">Kubernetes Services Structure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ansible-roles.html">Ansible Roles in Detail</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Networking &amp; Security</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="networking.html">Networking</a></li>
 <li class="toctree-l1"><a class="reference internal" href="authentication.html">Authentication Architecture</a></li>
@@ -338,12 +340,15 @@
 <li class="toctree-l1"><a class="reference internal" href="security.html">Security Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="security-hardening.html">Security Hardening</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Open Brain</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="open-brain-clients.html">Open Brain Client Options</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Lessons learned using Claude Code for infrastructure</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="decisions.html">Decision Records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
@@ -522,13 +527,18 @@ every time, without forgetting steps.</p>
 </section>
 <section id="configuration-concentration">
 <h3>Configuration concentration<a class="headerlink" href="#configuration-concentration" title="Link to this heading">#</a></h3>
-<p>The entire cluster’s configuration lives in two files totalling <strong>135 lines</strong>:</p>
+<p>Almost every cluster-level choice lives in two files totalling <strong>135 lines</strong>:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (59 lines) — cluster-level variables: node names,
-IP addresses, domain, storage paths</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (59 lines) — cluster domain, admin emails, repo URL,
+storage paths</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (76 lines) — service toggles and
 version pins</p></li>
 </ul>
+<p>A third file, <code class="docutils literal notranslate"><span class="pre">inventory/hosts.yml</span></code>, owns the hardware topology
+(hostnames, IPs, per-node flags). It is deliberately not templated
+through the other two — hardware varies too much between forks. But
+it is still a small, single place to look when the agent needs to
+know which physical node runs what.</p>
 <p>Four boolean flags control which optional services are deployed. When Claude
 needs to enable or disable a service, there is exactly one place to look.
 This concentration is deliberate: a small change surface means fewer places
@@ -680,9 +690,9 @@ that must never happen. Write them down as hard rules, not guidelines.
 “Never run migrations in production” is a rule. “Be careful with
 migrations” is a wish.</p></li>
 <li><p><strong>Concentrate configuration.</strong> The fewer files an agent needs to read to
-understand system state, the fewer mistakes it will make. Two files
-totalling 135 lines is better than 20 files totalling 2,000 lines, even
-if the latter is more “modular.”</p></li>
+understand system state, the fewer mistakes it will make. Two config
+files plus an inventory file totalling 135 lines is better than 20
+files totalling 2,000 lines, even if the latter is more “modular.”</p></li>
 <li><p><strong>Use GitOps or equivalent reconciliation.</strong> If mistakes are fixed by
 pushing a commit rather than running manual commands, the blast radius is
 bounded and recovery is mechanical. An agent operating on a system
