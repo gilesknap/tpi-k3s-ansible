@@ -142,6 +142,14 @@ Leave it `false` until you have completed the {doc}`/how-to/oauth-setup` guide �
 otherwise services like Grafana will return errors because the
 OAuth proxy is not yet deployed.
 :::
+
+:::{seealso}
+The fields above are the minimum needed to deploy. For the full set of
+fork-edit knobs — per-node flags (`nvidia_gpu_node`, `workstation`,
+`flannel_iface`), local-storage node mapping, service toggles
+(`enable_cloudflare_tunnel`, `enable_supabase`, …), and rkllama/open-brain
+pinning — see {doc}`/how-to/fork-this-repo`.
+:::
 <!-- end:configure-cluster -->
 
 <!-- begin:verify-cluster -->

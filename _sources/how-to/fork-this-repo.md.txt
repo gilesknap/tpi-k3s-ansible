@@ -5,6 +5,16 @@ files, push to your own fork, and the playbook + ArgoCD will deploy a
 clone of the cluster against your hardware. This guide walks through
 every file you need to touch.
 
+:::{tip}
+This is a **reference** to every fork-edit knob — read it alongside
+whichever tutorial you picked
+({doc}`/tutorials/getting-started-tpi`,
+{doc}`/tutorials/getting-started-generic`, or
+{doc}`/tutorials/ai-guided-setup`). The tutorials walk the happy-path
+minimum; this guide covers the full set of options (storage mapping,
+per-node flags, service toggles, rkllama pinning, re-sealing).
+:::
+
 ## The three files you must edit
 
 Cluster-specific configuration lives in three files. Expect to edit
@@ -29,7 +39,10 @@ variables and group naming rules.
 
 ### 1. Fork on GitHub and clone
 
-Fork `gilesknap/tpi-k3s-ansible` on GitHub, then clone your fork.
+Follow Step 1 of {doc}`/tutorials/getting-started-tpi` or
+{doc}`/tutorials/getting-started-generic` to fork, clone, and generate
+the Ansible SSH keypair, then return here for the full configuration
+walkthrough.
 
 ### 2. Edit the inventory
 
@@ -194,4 +207,8 @@ just check
 helm template kubernetes-services
 ```
 
-Both should pass cleanly. Then proceed with {doc}`bootstrap-cluster`.
+Both should pass cleanly. Then run the playbook per your tutorial
+({doc}`/tutorials/getting-started-tpi` or
+{doc}`/tutorials/getting-started-generic`) and verify nodes/apps as
+described in its final step. Once the cluster is up, proceed with
+{doc}`bootstrap-cluster`.
