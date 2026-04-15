@@ -56,15 +56,10 @@ repository files that attempt to misuse Claude's tool access):
 ## CLAUDE.md
 
 The `CLAUDE.md` file at the repo root provides project-specific guidance to AI
-agents. It covers:
-
-- GitOps workflow (fix in the repo, not the cluster)
-- Ansible conventions (update roles, not ad-hoc commands)
-- Project structure and service directory layout
-- Ingress sub-chart toggles
-- OAuth2 architecture
-- Dual `repo_branch` synchronisation
-- Inventory conventions and playbook tags
+agents. It captures the hard rules (never mutate the live cluster, never commit
+to `main`, protected data paths), conventions, key file paths, and pointers to
+on-demand skills. Read it directly for the current set — it changes as the
+project evolves.
 
 ## Workflow
 

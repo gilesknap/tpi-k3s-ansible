@@ -65,6 +65,7 @@ When using `--limit` with the `flash` tag, always include the Turing Pi BMC host
 |----------|---------|
 | `pb_all.yml` | Main playbook — runs all stages |
 | `pb_add_nodes.yml` | Bootstrap Ansible access on new nodes in `extra_nodes` |
+| `pb_decommission.yml` | Remove a node from the cluster (preserves `/home/k8s-data` and `/var/lib/k8s-data` by default; pass `-e wipe_local_data=true` to also remove the on-disk PV data) |
 
 ## Ad-hoc commands
 
