@@ -1,0 +1,55 @@
+# Defaults for standalone `helm template` rendering. In-cluster ArgoCD
+# overrides these via the parent chart's valuesObject (see
+# kubernetes-services/templates/local-storage.yaml). Keep in sync with
+# local_storage in kubernetes-services/values.yaml.
+local_storage:
+  grafana:
+    node: node03
+    path: /var/lib/k8s-data/grafana
+    capacity: 30Gi
+    claim_namespace: monitoring
+    # Grafana is deployed as a StatefulSet (persistence.type=sts) by the
+    # kube-prometheus-stack chart. The PVC name is derived from the STS
+    # volumeClaimTemplate: <vct-name>-<sts-name>-<ordinal>
+    # vct-name = "storage", sts-name = "grafana-prometheus", ordinal = 0.
+    claim_name: storage-grafana-prometheus-0
+  prometheus:
+    node: node02
+    path: /var/lib/k8s-data/prometheus
+    capacity: 40Gi
+    claim_namespace: monitoring
+    # Prometheus Operator generates this PVC name from the StatefulSet
+    # volumeClaimTemplate. The template name itself is derived from the
+    # StatefulSet name, which itself is prefixed with "prometheus-" by the
+    # operator. The resulting PVC name has the prometheus release name
+    # appearing twice (chart name + STS name). Do not "simplify" — this
+    # exact string must match what the operator creates, or the PVC will
+    # not bind to this PV.
+    claim_name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0
+  open_webui:
+    node: node04
+    path: /var/lib/k8s-data/open-webui
+    capacity: 5Gi
+    claim_namespace: open-webui
+    claim_name: open-webui
+  supabase_db:
+    node: nuc2
+    path: /home/k8s-data/supabase-db
+    capacity: 50Gi
+    claim_namespace: supabase
+    # Pre-bind to the chart-generated PVC. The supabase chart does not
+    # pass `selector` through to its PVCs, so claimRef is the only
+    # reliable way to glue a static PV to a chart-owned PVC.
+    claim_name: supabase-db
+  supabase_storage:
+    node: nuc2
+    path: /home/k8s-data/supabase-storage
+    capacity: 50Gi
+    claim_namespace: supabase
+    claim_name: supabase-storage
+  supabase_minio:
+    node: nuc2
+    path: /home/k8s-data/supabase-minio
+    capacity: 50Gi
+    claim_namespace: supabase
+    claim_name: supabase-minio

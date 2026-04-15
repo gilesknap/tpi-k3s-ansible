@@ -74,3 +74,53 @@ enable_open_brain_mcp: true
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
+# Local-storage PV map — node-pinned hostPath PVs that survive cluster
+# rebuild (data lives outside /var/lib/rancher). Each entry becomes one
+# PV, pre-bound via claimRef to the chart-generated PVC of the workload
+# that uses it. Edit `node` and `path` here to retarget data placement
+# when forking; keep `claim_namespace`/`claim_name` matching the
+# workload chart's PVC naming convention. The matching directories must
+# exist on the target nodes — see `k8s_data_dirs` in
+# group_vars/all.yml (Ansible creates them).
+local_storage:
+  grafana:
+    node: node03
+    path: /var/lib/k8s-data/grafana
+    capacity: 30Gi
+    claim_namespace: monitoring
+    # Grafana StatefulSet PVC (kube-prometheus-stack):
+    # <vct-name>-<sts-name>-<ordinal> = storage-grafana-prometheus-0.
+    claim_name: storage-grafana-prometheus-0
+  prometheus:
+    node: node02
+    path: /var/lib/k8s-data/prometheus
+    capacity: 40Gi
+    claim_namespace: monitoring
+    # Prometheus Operator-generated PVC name; the release name appears
+    # twice (chart name + STS name). Do not "simplify" — it must match
+    # what the operator creates verbatim.
+    claim_name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0
+  open_webui:
+    node: node04
+    path: /var/lib/k8s-data/open-webui
+    capacity: 5Gi
+    claim_namespace: open-webui
+    claim_name: open-webui
+  supabase_db:
+    node: nuc2
+    path: /home/k8s-data/supabase-db
+    capacity: 50Gi
+    claim_namespace: supabase
+    claim_name: supabase-db
+  supabase_storage:
+    node: nuc2
+    path: /home/k8s-data/supabase-storage
+    capacity: 50Gi
+    claim_namespace: supabase
+    claim_name: supabase-storage
+  supabase_minio:
+    node: nuc2
+    path: /home/k8s-data/supabase-minio
+    capacity: 50Gi
+    claim_namespace: supabase
+    claim_name: supabase-minio
