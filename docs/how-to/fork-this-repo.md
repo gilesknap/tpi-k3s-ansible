@@ -5,18 +5,25 @@ files, push to your own fork, and the playbook + ArgoCD will deploy a
 clone of the cluster against your hardware. This guide walks through
 every file you need to touch.
 
-## The two-file model
+## The three files you must edit
 
-The bulk of cluster-specific configuration lives in just two files:
+Cluster-specific configuration lives in three files. Expect to edit
+all three before your first deploy:
 
 | File | Owns |
 |---|---|
+| `inventory/hosts.yml` | Your hardware: hostnames, IPs, BMC addresses, per-node flags (slot, type, root device, GPU, workstation). |
 | `group_vars/all.yml` | Ansible-side: cluster domain, admin emails, repo URL/branch, host data directories. |
 | `kubernetes-services/values.yaml` | ArgoCD/Helm-side: NFS server, local PV layout, OAuth, supabase release name, image repositories. |
 
-A third file, `inventory/hosts.yml`, owns the node inventory itself —
-hostnames, IPs, BMC addresses. Fork this directly to match your
-hardware (it is **not** templated through values.yaml on purpose).
+`hosts.yml` is deliberately **not** templated through the other two —
+every fork's hardware is different, and the flash/known_hosts roles
+rely on group-name conventions (`<bmc>_nodes`) that don't survive
+templating cleanly. Edit it directly. The node names you choose there
+are referenced from the other two files, so pick them first.
+
+See {doc}`/reference/inventory` for the full list of per-node
+variables and group naming rules.
 
 ## Step-by-step fork
 
@@ -24,7 +31,34 @@ hardware (it is **not** templated through values.yaml on purpose).
 
 Fork `gilesknap/tpi-k3s-ansible` on GitHub, then clone your fork.
 
-### 2. Point the cluster at your fork
+### 2. Edit the inventory
+
+`inventory/hosts.yml` lists every node and BMC. Replace hostnames,
+IPs, MAC addresses, and BMC URLs with your own.
+
+Per-node variables that matter:
+
+- `slot_num` / `type` — for Turing Pi nodes, the physical slot and
+  compute module type (`pi4` / `rk1`).
+- `root_dev` — set to migrate the OS to NVMe; omit for servers
+  already on their target disk.
+- `nvidia_gpu_node: true` — enables the NVIDIA driver and container
+  toolkit on that node. Required for llama.cpp CUDA.
+- `workstation: true` — applies a `NoSchedule` taint. Useful for
+  machines that reboot unexpectedly (only tolerating workloads land
+  there).
+- `node_ip` / `flannel_iface` — required on multi-homed nodes.
+
+Turing Pi node groups **must** be named `<bmc_hostname>_nodes` — the
+flash role uses this convention to discover which nodes belong to
+which BMC. Full reference: {doc}`/reference/inventory`.
+
+The host names you choose here (`node01`, `node02`, `nuc2`, etc.) are
+referenced from `group_vars/all.yml` and
+`kubernetes-services/values.yaml` — pick them before the next two
+steps and keep them consistent across all three files.
+
+### 3. Point the cluster at your fork
 
 In `group_vars/all.yml`:
 
@@ -35,6 +69,7 @@ cluster_domain: <your-domain>
 domain_email: <your-email>  # for letsencrypt
 admin_emails:
   - <your-email>
+control_plane: <your-control-plane-node>  # must match a host in hosts.yml
 ```
 
 In `kubernetes-services/values.yaml`, mirror the admin emails:
@@ -43,13 +78,6 @@ In `kubernetes-services/values.yaml`, mirror the admin emails:
 admin_emails:
   - <your-email>
 ```
-
-### 3. Edit the inventory
-
-`inventory/hosts.yml` lists every node and BMC. Replace hostnames,
-IPs, MAC addresses, and BMC URLs with your own. The host names you
-choose here (`node01`, `node02`, `nuc2`, etc.) are referenced in the
-storage maps below — keep them consistent.
 
 ### 4. Map storage to your nodes
 
@@ -147,7 +175,11 @@ different. Edit the HTML directly to match your LAN.
 
 ## What's NOT templated (by design)
 
-- `inventory/hosts.yml` — fork-specific inventory, edit directly.
+- `inventory/hosts.yml` — hardware topology varies too much between
+  forks to template. Group names (`<bmc>_nodes`) are load-bearing
+  for the flash role, and per-node flags (`root_dev`,
+  `nvidia_gpu_node`, `workstation`) are specific to the physical
+  machines. Edit it directly.
 - Sealed secrets — bound to the cluster controller key, must be
   re-sealed per cluster.
 - Home page LAN service links — too varied per fork to design a

@@ -64,12 +64,18 @@ every time, without forgetting steps.
 
 ### Configuration concentration
 
-The entire cluster's configuration lives in two files totalling **135 lines**:
+Almost every cluster-level choice lives in two files totalling **135 lines**:
 
-- `group_vars/all.yml` (59 lines) — cluster-level variables: node names,
-  IP addresses, domain, storage paths
+- `group_vars/all.yml` (59 lines) — cluster domain, admin emails, repo URL,
+  storage paths
 - `kubernetes-services/values.yaml` (76 lines) — service toggles and
   version pins
+
+A third file, `inventory/hosts.yml`, owns the hardware topology
+(hostnames, IPs, per-node flags). It is deliberately not templated
+through the other two — hardware varies too much between forks. But
+it is still a small, single place to look when the agent needs to
+know which physical node runs what.
 
 Four boolean flags control which optional services are deployed. When Claude
 needs to enable or disable a service, there is exactly one place to look.
@@ -220,9 +226,9 @@ These are concrete, actionable steps drawn from the patterns above.
    migrations" is a wish.
 
 2. **Concentrate configuration.** The fewer files an agent needs to read to
-   understand system state, the fewer mistakes it will make. Two files
-   totalling 135 lines is better than 20 files totalling 2,000 lines, even
-   if the latter is more "modular."
+   understand system state, the fewer mistakes it will make. Two config
+   files plus an inventory file totalling 135 lines is better than 20
+   files totalling 2,000 lines, even if the latter is more "modular."
 
 3. **Use GitOps or equivalent reconciliation.** If mistakes are fixed by
    pushing a commit rather than running manual commands, the blast radius is

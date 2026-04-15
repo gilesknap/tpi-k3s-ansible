@@ -2,10 +2,9 @@
 
 Task-oriented recipes for common operations and configuration changes.
 
-## Setup
-
 ```{toctree}
 :maxdepth: 1
+:caption: Setup
 
 how-to/fork-this-repo
 how-to/bootstrap-cluster
@@ -17,10 +16,9 @@ how-to/oauth-setup
 how-to/nas-setup
 ```
 
-## Optional Features
-
 ```{toctree}
 :maxdepth: 1
+:caption: Optional Features
 
 how-to/rkllama-models
 how-to/llamacpp-models
@@ -29,10 +27,9 @@ how-to/claude-ai-mcp
 how-to/add-remove-services
 ```
 
-## Operations & Maintenance
-
 ```{toctree}
 :maxdepth: 1
+:caption: Operations & Maintenance
 
 how-to/monitoring
 how-to/backup-restore
@@ -43,10 +40,9 @@ how-to/reflash-rebuild
 how-to/alternative-storage
 ```
 
-## Developer Workflow
-
 ```{toctree}
 :maxdepth: 1
+:caption: Developer Workflow
 
 how-to/work-in-branches
 how-to/claude-code

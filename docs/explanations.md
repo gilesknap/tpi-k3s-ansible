@@ -3,10 +3,9 @@
 Background knowledge covering architecture, design decisions, and how the
 system works.
 
-## Architecture
-
 ```{toctree}
 :maxdepth: 1
+:caption: Architecture
 
 explanations/architecture
 explanations/gitops-flow
@@ -14,10 +13,9 @@ explanations/kubernetes-services
 explanations/ansible-roles
 ```
 
-## Networking & Security
-
 ```{toctree}
 :maxdepth: 1
+:caption: Networking & Security
 
 explanations/networking
 explanations/authentication
@@ -26,26 +24,23 @@ explanations/security
 explanations/security-hardening
 ```
 
-## Open Brain
-
 ```{toctree}
 :maxdepth: 1
+:caption: Open Brain
 
 explanations/open-brain-clients
 ```
 
-## Claude Code
-
 ```{toctree}
 :maxdepth: 1
+:caption: Claude Code
 
 explanations/claude-code-capability
 ```
 
-## Decisions
-
 ```{toctree}
 :maxdepth: 1
+:caption: Decisions
 
 explanations/decisions
 ```
