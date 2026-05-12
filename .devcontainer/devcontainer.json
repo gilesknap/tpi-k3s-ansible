@@ -82,10 +82,6 @@
 		"ANSIBLE_VAULT_PASSWORD_FILE": "/etc/ansible/.vault_password.txt",
 		"ZSHRC": "/bash-config/zshrc",
 		"BIN_DIR": "/root/bin",
-		// Disable host SSH agent forwarding to prevent prompt injection from
-		// accessing host SSH keys (e.g. GitHub keys). A container-local agent
-		// is started by postCreateCommand; unlock the ansible key with ssh-add.
-		"SSH_AUTH_SOCK": "",
 		// Put things that allow it in the persistent cache
 		"PRE_COMMIT_HOME": "/cache/pre-commit",
 		"UV_CACHE_DIR": "/cache/uv",
@@ -97,7 +93,7 @@
 	// For rootless leave the filesystem owned by root
 	"updateRemoteUserUID": false,
 	// One time global setup commands inside the container
-	"postCreateCommand": "uv venv --clear && uv sync && pre-commit install --install-hooks && bash .devcontainer/postCreate.sh ${devcontainerId} && ansible-playbook pb_all.yml --tags tools",
+	"postCreateCommand": ".devcontainer/postCreate.sh",
 	"postStartCommand": ".devcontainer/postStart.sh",
 	// Mount the parent of the project folder so we can access peer projects
 	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind"
