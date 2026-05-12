@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
-# First-time devcontainer setup: check SSH keys, authenticate gh, start agent.
+# First-time devcontainer setup: verify the forwarded SSH agent and
+# authenticate gh CLI.
+#
+# SSH keys and known_hosts are handled by VS Code Dev Containers — it forwards
+# the host SSH agent via SSH_AUTH_SOCK and copies host ~/.ssh/known_hosts into
+# the container on attach.
 set -euo pipefail
-# Check for private keys in ~/.ssh
-keys=$(find ~/.ssh -maxdepth 1 -type f -exec head -1 {} \; 2>/dev/null | grep -c "PRIVATE KEY" || true)
-if [ "$keys" -eq 0 ]; then
-    echo "No SSH private keys found in ~/.ssh"
-    echo "Copy your ansible keypair into the container, e.g.:"
-    echo "  podman cp ~/.ssh/my_ansible_key <container>:/root/.ssh/"
-    echo "  podman cp ~/.ssh/my_ansible_key.pub <container>:/root/.ssh/"
-    echo ""
-    echo "The ~/.ssh volume persists across container rebuilds."
-    echo "Re-run 'just setup' after copying keys."
+
+echo "=== SSH agent (forwarded from host by VS Code) ==="
+if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+    echo "SSH_AUTH_SOCK is not set. VS Code Dev Containers forwards the host"
+    echo "agent only if one is running when the container is launched. Start"
+    echo "ssh-agent on the host (or unlock your KDE/GNOME keyring), add your"
+    echo "ansible key with 'ssh-add', then reopen the container."
     exit 1
 fi
+if ! ssh-add -l >/dev/null 2>&1; then
+    echo "Host ssh-agent is reachable but has no keys loaded."
+    echo "On the host: ssh-add ~/.ssh/<your-ansible-key>"
+    exit 1
+fi
+ssh-add -l
+
+echo ""
 echo "=== GitHub CLI authentication ==="
 just gh-auth
+
 echo ""
-echo "=== SSH agent ==="
-just ssh-agent
-echo ""
-echo "Setup complete. Run 'just claude' to start Claude Code."
+echo "Setup complete. Run 'claude' to start Claude Code."

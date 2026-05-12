@@ -26,8 +26,11 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 
 ## Operational patterns
 
-- **All ansible commands need `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"`**
-  (start with `just ssh-agent`).
+- **Ansible reaches nodes via the host SSH agent**, forwarded into the
+  devcontainer by VS Code Dev Containers (`SSH_AUTH_SOCK` is set
+  automatically). Make sure your ansible key is loaded into the host
+  agent before opening the container; the sandbox running Claude
+  cannot see it, but ordinary devcontainer terminals can.
 - **Commits need `uv run`** — pre-commit hooks live in the uv venv.
 - **Adding a node**: run `/add-node`.
 - **Full bootstrap**: run `/bootstrap-cluster`.

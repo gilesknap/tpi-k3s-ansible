@@ -16,18 +16,18 @@ The devcontainer applies several layers of protection against prompt injection
 attacks (malicious instructions hidden in GitHub issues, web content, or
 repository files that attempt to misuse Claude's tool access):
 
-**SSH agent isolation:**
-: `SSH_AUTH_SOCK=""` in `remoteEnv` disables host SSH agent forwarding,
-  preventing access to host SSH keys (e.g. GitHub keys with broad repository
-  access). A container-local SSH agent is started by `postCreateCommand`.
-  After container start, unlock the ansible key with:
-
-  ```bash
-  ssh-add /root/.ssh/giles_ansible
-  ```
+**Sandbox-enforced isolation from host credentials:**
+: Claude runs inside a bwrap sandbox (see `.devcontainer/claude-sandbox/`)
+  that uses `--clearenv` and a strict-under-`/root` tmpfs overlay. Only an
+  explicit allowlist of dotfiles is bind-mounted back into the sandbox —
+  `.ssh` is deliberately excluded, and `SSH_AUTH_SOCK` is not re-exported.
+  So even though VS Code forwards the host SSH agent to the devcontainer
+  (for use in your own terminals), Claude cannot reach it. The same boundary
+  applies to `~/.netrc`, `~/.Xauthority`, `/etc/shadow`, and the rest of
+  `$HOME`'s contents.
 
 **Git credential helper blanking:**
-: `postCreateCommand` runs `git config --global credential.helper ''`, which
+: `postStartCommand` runs `git config --global credential.helper ''`, which
   overrides any credential helper injected by VS Code's Dev Containers
   extension. Remote pushes require an explicit fine-grained PAT via
   `gh auth login` + `gh auth setup-git`.
@@ -63,8 +63,11 @@ project evolves.
 
 ## Workflow
 
-1. Open the repo in the devcontainer (tools are installed automatically)
-2. Unlock the ansible SSH key: `ssh-add /root/.ssh/giles_ansible`
+1. On the host, make sure your ansible key is loaded into a running
+   `ssh-agent` before opening the container. VS Code will forward
+   `SSH_AUTH_SOCK` and copy `~/.ssh/known_hosts` into the devcontainer
+   automatically.
+2. Open the repo in the devcontainer (tools are installed automatically)
 3. Set up GitHub CLI auth: `gh auth login` (use a fine-grained PAT)
 4. Launch Claude Code from the VS Code extension or CLI
 5. The agent reads `CLAUDE.md` and `.claude/settings.json` on startup

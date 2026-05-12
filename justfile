@@ -2,21 +2,11 @@
 # dev/CI — devcontainer setup, linting, docs
 ################################################################################
 
-# First-time devcontainer setup: copy SSH keys, authenticate gh, start agent
+# First-time devcontainer setup: authenticate gh.
+# (SSH keys + known_hosts come from the host via VS Code Dev Containers —
+#  agent socket is forwarded and known_hosts is copied on attach.)
 setup:
     scripts/setup
-
-# Start ssh-agent and add all private keys from ~/.ssh (prompts for passphrases)
-ssh-agent:
-    scripts/ssh-agent
-
-# Authenticate gh CLI with a GitHub PAT (token not stored in shell history)
-gh-auth:
-    scripts/gh-auth
-
-# Start Claude Code in sandbox mode (uses container-local SSH agent only)
-claude:
-    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome
 
 # Run all checks before committing (lint + docs in parallel)
 check:

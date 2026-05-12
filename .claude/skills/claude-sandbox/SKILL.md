@@ -1,6 +1,6 @@
 ---
 name: claude-sandbox
-description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, or auto-edit JSONC devcontainer.json.
+description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, host-only SSH state (VS Code forwards agent + known_hosts, sandbox `--clearenv` strips both), Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, re-introduce an in-container ssh-agent or `/root/.ssh` volume, or auto-edit JSONC devcontainer.json.
 ---
 
 # claude-sandbox
@@ -56,7 +56,46 @@ not repo-scoped credentials. Don't conflate the two.
 If a future request says "stop re-pasting the PAT" — surface this
 tradeoff before implementing the shortcut.
 
-## Invariant 3 — bwrap on Ubuntu 24.04 GitHub runners needs three workarounds
+## Invariant 3 — host SSH state stays on the host
+
+SSH keys, `~/.ssh/known_hosts`, and the running `ssh-agent` all live on the
+host. VS Code Dev Containers auto-forwards `SSH_AUTH_SOCK` and copies the
+host's `~/.ssh/known_hosts` into the container on attach (observed since
+~2020, devcontainers/cli#474 — undocumented but stable). Ansible inside the
+outer devcontainer uses both transparently — `ansible-playbook` commands
+do **not** need a `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"` prefix.
+
+Claude inside the bwrap sandbox sees neither: `--clearenv` drops the
+forwarded socket, and the strict-under-`/root` tmpfs overlay masks
+`/root/.ssh` (it's deliberately not in the bind-back allowlist alongside
+`.claude`, `.cache`, `.config/gh`, `.config/glab-cli`, `.local/share/uv`).
+That asymmetry is the whole point — your terminals get the host agent,
+prompt-injection in Claude can't.
+
+**Refuse as regressions:**
+- An `iac2-ssh`-style Docker volume mounted at `/root/.ssh` to "persist
+  keys across rebuilds". The volume predated the sandbox (added 2024-12-23,
+  PR-era commit `4b9861d`; sandbox arrived March 2026) and was removed in
+  PR for `add-claude-sandbox`. Re-adding it adds a key-storage path that
+  collides with VS Code's automatic forwarding and re-creates the
+  "scp host key into container" ceremony.
+- An in-container ssh-agent helper (`scripts/ssh-agent`, `just ssh-agent`
+  recipe, `/tmp/ssh-agent.sock` socket, `SSH_AUTH_SOCK="/tmp/..."` prefix
+  on ansible commands). All deleted in the same PR. The host agent
+  forwarded by VS Code is the only agent now.
+- Adding `.ssh` to the bwrap shadow's `for rel in ...` bind-back loop. The
+  sandbox MUST stay blind to host SSH state.
+
+**Acceptable swap:** if a future Anthropic-shipped Claude flag needs a key
+inside the sandbox (e.g. for `claude` itself to authenticate somewhere),
+add a Claude-scoped key path, not a re-bind of `~/.ssh`.
+
+Workflow consequence: bare `ssh node01` from the host uses your local
+username (`giles@node01`) — must be `ssh ansible@node01`. Ansible's
+`ansible_user: ansible` handles this for delegated tasks; only matters
+for interactive ssh.
+
+## Invariant 4 — bwrap on Ubuntu 24.04 GitHub runners needs three workarounds
 
 `ubuntu-latest` ships configured in ways that break bwrap. The
 failure modes cascade in this order:

@@ -70,10 +70,13 @@ read-only roles by default. See {doc}`authentication` for details.
 The devcontainer is hardened to limit the blast radius of AI-assisted
 development (Claude Code) and prompt injection attacks:
 
-- **SSH agent forwarding is disabled** (`SSH_AUTH_SOCK=""`). A container-local
-  agent is started instead; only the ansible key is unlocked manually after
-  container start. Host GitHub SSH keys are never accessible.
-- **Git credential helpers are blanked** on container creation. VS Code's
+- **Claude runs in a bwrap sandbox** that strips `SSH_AUTH_SOCK` and masks
+  `/root/.ssh` even though VS Code forwards the host SSH agent into the
+  devcontainer for use in your own terminals. The sandbox uses `--clearenv`
+  plus a strict-under-`/root` tmpfs overlay with an explicit allowlist of
+  dotfiles bound back; `.ssh` is deliberately not on that list, so host
+  GitHub keys are never reachable from a prompt-injection vector.
+- **Git credential helpers are blanked** on container start. VS Code's
   auto-injected OAuth helper is overridden, so remote pushes require an
   explicit fine-grained PAT via `gh auth login`.
 - **GitHub CLI credentials are per-repo**. A dedicated Docker volume
