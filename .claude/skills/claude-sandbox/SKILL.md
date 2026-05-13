@@ -267,6 +267,34 @@ no bind. It was Claude Code's startup write registering the browser
 extension. Fix: `--no-chrome` injection in the shadow, check 03
 stayed strict.
 
+## Diagnostic discipline — `Anthropic.claude-code` VS Code extension races postCreate
+
+`link_terminal_config` symlinks `/root/.claude` → `/user-terminal-config/.claude`
+only when `[ -e "$HOME/.claude" ]` is false. If anything pre-creates
+`/root/.claude` during postCreate, the guard bails and credentials
+(`.claude/.credentials.json`) end up in the container-local overlay
+instead of the persistent shared dir → login prompt on every rebuild.
+`/root/.claude.json` keeps persisting via the base image's per-file
+bind, masking the problem; only the credentials dir is lost.
+
+The known racer is the `Anthropic.claude-code` VS Code extension
+listed in `devcontainer.json`. VS Code installs extensions in
+parallel with postCreate, and the extension's activate path writes
+into `~/.claude/{cache,ide,...}` before our install.sh reaches
+`link_terminal_config`. Removed from `devcontainer.json` 2026-05-13.
+
+**Diagnose with**: `mount | grep /root/.claude`. A bind mount =
+persistence working. Overlay only = ephemeral, login won't survive
+rebuild. Cross-check: compare `stat -c %w` (birth time) on
+`/root/.claude` vs the shadow at `/usr/local/bin/claude` — if
+`.claude` is born after the shadow but before `install_claude_binary`
+finishes, a racer beat `link_terminal_config`.
+
+**Refuse as a regression:** re-adding `Anthropic.claude-code` to
+the extensions list. The sandboxed `claude` CLI is the supported
+entry point here; the in-IDE extension is redundant *and* breaks
+credential persistence.
+
 ## Where things live
 
 | Concern                       | File                                                |
