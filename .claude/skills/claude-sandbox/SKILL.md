@@ -1,6 +1,6 @@
 ---
 name: claude-sandbox
-description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, host-only SSH state (VS Code forwards agent + known_hosts, sandbox `--clearenv` strips both), Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, re-introduce an in-container ssh-agent or `/root/.ssh` volume, or auto-edit JSONC devcontainer.json.
+description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, the homelab-scoped cluster reach (admin kubeconfig + Claude-only ansible key bound in; user's personal SSH agent + ~/.ssh stay masked), Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, forward the host SSH agent into the sandbox, restore `iac2-ssh`-style host-key volumes, or auto-edit JSONC devcontainer.json.
 ---
 
 # claude-sandbox
@@ -56,44 +56,69 @@ not repo-scoped credentials. Don't conflate the two.
 If a future request says "stop re-pasting the PAT" — surface this
 tradeoff before implementing the shortcut.
 
-## Invariant 3 — host SSH state stays on the host
+## Invariant 3 — personal SSH agent stays on the host; cluster reach is Claude-scoped
 
-SSH keys, `~/.ssh/known_hosts`, and the running `ssh-agent` all live on the
-host. VS Code Dev Containers auto-forwards `SSH_AUTH_SOCK` and copies the
-host's `~/.ssh/known_hosts` into the container on attach (observed since
-~2020, devcontainers/cli#474 — undocumented but stable). Ansible inside the
-outer devcontainer uses both transparently — `ansible-playbook` commands
-do **not** need a `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"` prefix.
+The host's ssh-agent holds keys with multi-org admin reach (GitHub
+orgs, etc). VS Code Dev Containers auto-forwards `SSH_AUTH_SOCK` and
+copies `~/.ssh/known_hosts` into the outer container on attach
+(observed since ~2020, devcontainers/cli#474 — undocumented but
+stable). Ansible inside the outer devcontainer uses both
+transparently.
 
-Claude inside the bwrap sandbox sees neither: `--clearenv` drops the
-forwarded socket, and the strict-under-`/root` tmpfs overlay masks
-`/root/.ssh` (it's deliberately not in the bind-back allowlist alongside
-`.claude`, `.cache`, `.config/gh`, `.config/glab-cli`, `.local/share/uv`).
-That asymmetry is the whole point — your terminals get the host agent,
-prompt-injection in Claude can't.
+The sandbox **must not** forward the host agent — sharing a keyring
+shares every key in it. Personal SSH keys never reach the sandbox.
+
+**What IS bound into the sandbox** (deliberate, homelab-scoped reach
+into the cluster — accepted blast radius, not a leak):
+
+| Path                       | Source                                | Why                                                  |
+|----------------------------|---------------------------------------|------------------------------------------------------|
+| `~/.kube`                  | `iac2-kube` podman volume             | k3s admin kubeconfig — full cluster reach.           |
+| `~/.config/claude-ssh`     | `iac2-claude-ssh` podman volume       | Dedicated ed25519 keypair just for Claude → ansible. |
+| `~/bin`                    | `iac2-bin` podman volume              | Ansible-installed CLI tools (kubectl, helm, etc).    |
+| `~/.ssh/known_hosts`       | File bind only                        | Cluster node fingerprints, non-sensitive.            |
+
+Plus `ANSIBLE_SSH_PRIVATE_KEY_FILE` is `--setenv`'d at the key path
+so `ansible-playbook` inside the sandbox authenticates with the
+Claude-scoped key automatically.
+
+The Claude-scoped key is **separate** from the user's personal keys
+and only authorised on the `ansible` user of cluster nodes. Revoke
+with `just claude-ssh-bootstrap revoke` — touches only the
+`claude-sandbox`-commented `authorized_keys` line, not the user's
+own ansible key.
 
 **Refuse as regressions:**
-- An `iac2-ssh`-style Docker volume mounted at `/root/.ssh` to "persist
-  keys across rebuilds". The volume predated the sandbox (added 2024-12-23,
-  PR-era commit `4b9861d`; sandbox arrived March 2026) and was removed in
-  PR for `add-claude-sandbox`. Re-adding it adds a key-storage path that
-  collides with VS Code's automatic forwarding and re-creates the
-  "scp host key into container" ceremony.
-- An in-container ssh-agent helper (`scripts/ssh-agent`, `just ssh-agent`
-  recipe, `/tmp/ssh-agent.sock` socket, `SSH_AUTH_SOCK="/tmp/..."` prefix
-  on ansible commands). All deleted in the same PR. The host agent
-  forwarded by VS Code is the only agent now.
-- Adding `.ssh` to the bwrap shadow's `for rel in ...` bind-back loop. The
-  sandbox MUST stay blind to host SSH state.
+- Forwarding `SSH_AUTH_SOCK` into the sandbox (i.e. `--bind`'ing
+  the socket path or `--setenv SSH_AUTH_SOCK`). This is the
+  load-bearing reason personal keys don't leak — adding it gives
+  prompt-injection access to every key the host agent holds,
+  including the GitHub-org-admin ones.
+- An `iac2-ssh`-style Docker volume mounted at `/root/.ssh`. The
+  Claude-scoped key lives at `~/.config/claude-ssh/`, scoped to
+  the `ansible` user role only; `~/.ssh` is for the user's
+  personal keys and must stay off the sandbox bind-back list.
+- Adding the bare `.ssh` directory to the bind-back loop. Only the
+  `known_hosts` *file* is bound — not the directory. A directory
+  bind would expose any private key the user later drops in.
+- The deleted in-container ssh-agent helpers (`scripts/ssh-agent`,
+  `just ssh-agent` recipe, `/tmp/ssh-agent.sock` socket,
+  `SSH_AUTH_SOCK="/tmp/..."` prefix). The Claude-scoped key works
+  by file path, no agent needed.
 
-**Acceptable swap:** if a future Anthropic-shipped Claude flag needs a key
-inside the sandbox (e.g. for `claude` itself to authenticate somewhere),
-add a Claude-scoped key path, not a re-bind of `~/.ssh`.
+**Why this differs from Invariant 2 (PATs):** PATs are
+container-scoped and re-pasted per rebuild because their blast
+radius (multi-repo GitHub access) is large *and* the user doesn't
+want it persisted. Cluster-admin is a *bigger* blast radius, but
+the user has explicitly accepted it: this is an experimental
+homelab, capability inside the sandbox is the point, and the
+Claude-scoped ansible key isolates the *one* class of credential
+(GitHub-org-admin SSH keys) the user does want to keep out.
 
-Workflow consequence: bare `ssh node01` from the host uses your local
-username (`giles@node01`) — must be `ssh ansible@node01`. Ansible's
-`ansible_user: ansible` handles this for delegated tasks; only matters
-for interactive ssh.
+Workflow consequence: bare `ssh node01` from the host uses your
+local username (`giles@node01`) — must be `ssh ansible@node01`.
+Ansible's `ansible_user: ansible` handles this for delegated
+tasks; only matters for interactive ssh.
 
 ## Invariant 4 — bwrap on Ubuntu 24.04 GitHub runners needs three workarounds
 
