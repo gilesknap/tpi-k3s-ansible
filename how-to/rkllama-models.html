@@ -534,23 +534,36 @@ plain-text progress that the WebUI cannot parse. Use <code class="docutils liter
 </section>
 <section id="pull-a-model-directly-via-kubectl">
 <h2>Pull a model directly via kubectl<a class="headerlink" href="#pull-a-model-directly-via-kubectl" title="Link to this heading">#</a></h2>
-<p>If you prefer to skip the interactive tool, use <code class="docutils literal notranslate"><span class="pre">rkllama</span> <span class="pre">pull</span></code> directly in the pod:</p>
+<p>If you prefer to skip the interactive tool, exec into the pod. The
+binary is actually <code class="docutils literal notranslate"><span class="pre">rkllama_client</span></code> (under <code class="docutils literal notranslate"><span class="pre">/opt/venv/bin</span></code>) — the bare
+<code class="docutils literal notranslate"><span class="pre">rkllama</span></code> name is not on <code class="docutils literal notranslate"><span class="pre">$PATH</span></code>.</p>
+<p>Interactive mode prompts for each part:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>rkllama<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>rkllama<span class="w"> </span>pull
+<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>/opt/venv/bin/rkllama_client<span class="w"> </span>pull
 </pre></div>
 </div>
-<p>Enter the repo ID and filename when prompted:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Repo</span> <span class="n">ID</span><span class="p">:</span> <span class="n">ahz</span><span class="o">-</span><span class="n">r3v</span><span class="o">/</span><span class="n">DeepSeek</span><span class="o">-</span><span class="n">R1</span><span class="o">-</span><span class="n">Distill</span><span class="o">-</span><span class="n">Qwen</span><span class="o">-</span><span class="mi">7</span><span class="n">B</span><span class="o">-</span><span class="n">rk3588</span><span class="o">-</span><span class="n">rkllm</span><span class="o">-</span><span class="mf">1.1.4</span>
 <span class="n">File</span><span class="p">:</span>    <span class="n">DeepSeek</span><span class="o">-</span><span class="n">R1</span><span class="o">-</span><span class="n">Distill</span><span class="o">-</span><span class="n">Qwen</span><span class="o">-</span><span class="mi">7</span><span class="n">B_W8A8_RK3588_o1</span><span class="o">.</span><span class="n">rkllm</span>
+<span class="n">Custom</span> <span class="n">Model</span> <span class="n">Name</span><span class="p">:</span> <span class="n">deepseek</span><span class="o">-</span><span class="mi">7</span><span class="n">b</span>
 </pre></div>
 </div>
-<p>Or pass them as a single argument:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<p>Or pass everything as a <strong>single 4-part argument</strong> — <code class="docutils literal notranslate"><span class="pre">owner/repo/file.rkllm/custom-name</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>rkllama<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>rkllama<span class="w"> </span>pull<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>ahz-r3v/DeepSeek-R1-Distill-Qwen-7B-rk3588-rkllm-1.1.4/DeepSeek-R1-Distill-Qwen-7B_W8A8_RK3588_o1.rkllm
+<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>/opt/venv/bin/rkllama_client<span class="w"> </span>pull<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>ahz-r3v/DeepSeek-R1-Distill-Qwen-7B-rk3588-rkllm-1.1.4/DeepSeek-R1-Distill-Qwen-7B_W8A8_RK3588_o1.rkllm/deepseek-7b
 </pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The fourth segment (custom name) is <strong>mandatory</strong> for non-interactive
+use. The client does <code class="docutils literal notranslate"><span class="pre">rsplit('/',</span> <span class="pre">1)</span></code> to peel off the model name, so if
+you only supply three segments the actual filename gets stripped off
+and only <code class="docutils literal notranslate"><span class="pre">owner/repo</span></code> is sent to the server — which fails with
+<code class="docutils literal notranslate"><span class="pre">Error:</span> <span class="pre">Invalid</span> <span class="pre">path</span> <span class="pre">'owner/repo'</span></code>. The client prints “Download
+complete” at the end regardless of success, so the failure is easy to
+miss. Always verify with <code class="docutils literal notranslate"><span class="pre">rkllama_client</span> <span class="pre">list</span></code> afterwards.</p>
 </div>
 </section>
 <section id="list-and-delete-models">
@@ -558,15 +571,20 @@ plain-text progress that the WebUI cannot parse. Use <code class="docutils liter
 <p><strong>List installed models:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>rkllama<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>rkllama<span class="w"> </span>list
+<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>/opt/venv/bin/rkllama_client<span class="w"> </span>list
 </pre></div>
 </div>
-<p><strong>Delete a model</strong> (use the short name shown by <code class="docutils literal notranslate"><span class="pre">list</span></code>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>rkllama<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>rkllama<span class="w"> </span>rm<span class="w"> </span>deepseek-r1-distill-qwen-7b
+<p><strong>Delete a model.</strong> The <code class="docutils literal notranslate"><span class="pre">rkllama_client</span> <span class="pre">rm</span></code> command expects the
+original <code class="docutils literal notranslate"><span class="pre">&lt;file&gt;.rkllm</span></code> filename, not the short name from <code class="docutils literal notranslate"><span class="pre">list</span></code>, which
+is awkward when you have to remember the full quantisation suffix.
+Easier: just remove the model directory on the NFS-backed PV:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">POD</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>rkllama<span class="w"> </span>-o<span class="w"> </span>name<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>rkllama<span class="w"> </span><span class="nv">$POD</span><span class="w"> </span>-c<span class="w"> </span>rkllama<span class="w"> </span>--<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/opt/rkllama/models/&lt;short-name&gt;
 </pre></div>
 </div>
+<p>The <code class="docutils literal notranslate"><span class="pre">cuda/</span></code> subdirectory under <code class="docutils literal notranslate"><span class="pre">/opt/rkllama/models/</span></code> holds the
+<strong>llamacpp</strong> GGUF models on the same NFS share — do not delete it
+when wiping rkllama models.</p>
 </section>
 <section id="memory-limits">
 <h2>Memory limits<a class="headerlink" href="#memory-limits" title="Link to this heading">#</a></h2>
