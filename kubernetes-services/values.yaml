@@ -15,14 +15,14 @@ rkllama:
   # of your RK1 nodes when forking; default matches this cluster's
   # node04 (32GB RAM).
   node: node04
-  # Container image — defaults to upstream so a fresh clone deploys a
-  # known-working baseline. The in-tree overlay (rkllama-overlay/) is
-  # built and published by .github/workflows/rkllama-overlay.yml; flip
-  # `repository`/`tag` to `ghcr.io/<owner>/rkllama-overlay` + the
-  # published `sha-<short>` to pick up the cluster patches.
+  # Container image — points at the in-tree overlay so the cluster
+  # picks up the patches in rkllama-overlay/patches/ (clearer error
+  # message, automatic NPU eviction). `:beta` is the moving tag for
+  # non-main builds; after merge to main, repin to a `sha-<short>` if
+  # you want immutability across overlay changes.
   image:
-    repository: ghcr.io/notpunchnox/rkllama
-    tag: main
+    repository: ghcr.io/gilesknap/rkllama-overlay
+    tag: beta
 # llama.cpp CUDA server configuration.
 # Uses a separate NFS subdirectory from rkllama — the two backends use
 # incompatible model formats (GGUF for CUDA vs RKLLM for ARM NPU) so

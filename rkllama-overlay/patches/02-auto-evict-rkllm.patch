@@ -1,0 +1,19 @@
+--- a/src/rkllama/api/worker.py
++++ b/src/rkllama/api/worker.py
+@@ -722,6 +722,16 @@
+         if model_name not in self.workers.keys():
+ 
+             if is_rkllm_model(model_name):
++                # RK3588 NPU fits one RKLLM model at a time — evict any
++                # incumbent RKLLM worker before allocating a domain id,
++                # otherwise rkllm_init fails with "failed to malloc npu
++                # memory" even though system RAM is free.
++                resident_rkllm = [m for m in self.workers if is_rkllm_model(m)]
++                for rkllm_name in resident_rkllm:
++                    logger.info(f"NPU contention: evicting {rkllm_name} before loading {model_name}")
++                    self.stop_worker(rkllm_name)
++                    time.sleep(1)
++
+                 # Get the available domain id for the RKLLM process
+                 base_domain_id = self.get_available_base_domain_id(reverse_order=True)
+             else:
