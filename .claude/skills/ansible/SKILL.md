@@ -99,6 +99,41 @@ number of Longhorn-capable nodes (i.e. excluding ws03). Going too high
 leaves volumes permanently Degraded; going too low under-replicates on
 adds. Update after any `/add-node` run.
 
+## BMC power operations
+
+When a node is `NotReady` and SSH times out, `ansible -m reboot` and the
+graceful procedures in `docs/how-to/node-operations.md` cannot help —
+both the kubelet and `sshd` on the node are gone. Power-cycle via the
+Turing Pi BMC instead.
+
+The BMC is reachable as `{{ tpi_user }}@turingpi` (default `root@turingpi`,
+defined in `group_vars/all.yml`). Each slot maps to a node via
+`slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
+`nuc2` and `ws03` are not on the BMC.
+
+```bash
+# What the BMC thinks of all four slots
+ssh root@turingpi 'tpi power status'
+
+# Power-cycle a single node (off → wait → on) — the form used by roles/flash
+ssh root@turingpi 'tpi power off -n 4 && sleep 15 && tpi power on -n 4'
+```
+
+Notes:
+- Don't try `kubectl drain` first — the node is unreachable, so the
+  drain will just hang. Just power-cycle and let workloads reschedule
+  (or come back, for DaemonSets pinned to that node like `rkllama`).
+- Hard power-cycle is unclean for in-flight writes. If the node hosts
+  live local-PV data (see CLAUDE.md "Local PV data paths are sacred":
+  Prometheus on node02, Grafana on node03, Open-WebUI on node04),
+  expect fsck on boot — check pod logs once the node returns.
+- For the Claude sandbox specifically: the BMC SSH key isn't reachable
+  from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`
+  and the BMC host key isn't in the sandbox's `known_hosts`). The `!`
+  prompt prefix runs inside the same sandbox, so it doesn't help — ask
+  the user to run `ssh root@turingpi 'tpi power ...'` from a regular
+  devcontainer terminal or the host shell.
+
 ## Foot-guns
 
 - **`known_hosts` task must run `serial: 1`** — parallel writes cause
