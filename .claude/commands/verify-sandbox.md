@@ -57,19 +57,29 @@ grep -q '^NoNewPrivs:[[:space:]]*1$' /proc/self/status
 `$HOME` (typically `/root`) is a tmpfs with only `.claude`,
 `.claude.json` (Claude Code's account state), and (optionally)
 `.cache` bound back in, plus a `.config` intermediate tmpfs that holds
-the `gh` / `glab-cli` credential binds. Claude Code itself writes
-`.local/{bin,share,state}/claude` and a `.local/share/applications`
-`.desktop` URL handler into the tmpfs on first launch, so `.local` is
-also expected (contents live in the tmpfs, not bound from the host).
-The defence-in-depth file masks (checks 14–15) also bind `/dev/null`
-over `.netrc`, `.Xauthority`, and `.ICEauthority` — so those names
-are expected to appear too, as size-zero entries (which checks 14–15
-verify; `.ICEauthority` is masked without a dedicated check because
-it shares the X11 cookie attack surface). Anything else under `$HOME`,
-or anything besides `gh` / `glab-cli` under `$HOME/.config`, means the
-strict-under-/root inversion regressed. `.gitconfig` is no longer
-masked — it doesn't normally appear under the tmpfs `$HOME`, but the
-allow-list still permits the name in case a tool drops one.
+the `gh` / `glab-cli` / `claude-ssh` credential binds. Claude Code
+itself writes `.local/{bin,share,state}/claude` and a
+`.local/share/applications` `.desktop` URL handler into the tmpfs on
+first launch, so `.local` is also expected (contents live in the
+tmpfs, not bound from the host). The defence-in-depth file masks
+(checks 14–15) also bind `/dev/null` over `.netrc`, `.Xauthority`,
+and `.ICEauthority` — so those names are expected to appear too, as
+size-zero entries (which checks 14–15 verify; `.ICEauthority` is
+masked without a dedicated check because it shares the X11 cookie
+attack surface).
+
+Three further allowlisted entries reach the cluster from the
+sandbox (Invariant 3 in the claude-sandbox skill records why this
+is deliberate, homelab-scoped, and not a regression):
+`.kube` (admin kubeconfig), `bin` (ansible-installed CLI tools),
+`.ssh` (file-bind of `known_hosts` only, no directory bind so no
+private key can leak in).
+
+Anything else under `$HOME`, or anything besides `gh` / `glab-cli` /
+`claude-ssh` under `$HOME/.config`, means the strict-under-/root
+inversion regressed. `.gitconfig` is no longer masked — it doesn't
+normally appear under the tmpfs `$HOME`, but the allow-list still
+permits the name in case a tool drops one.
 
 Claude Code, left to its own devices, would drop a Chrome native-
 messaging-host manifest (`com.anthropic.claude_code_browser_extension.
@@ -89,7 +99,7 @@ regressed.
 # .config intermediate tmpfs for the selectively-exposed gh/glab
 # binds, the .local tree Claude Code writes into the tmpfs at
 # runtime, and the four masked dotfiles intentionally bound to /dev/null.
-extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority' || true)"
+extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority|\.kube|\.ssh|bin' || true)"
 [ -z "$extras" ] || exit 1
 # When .config is present (bwrap intermediate for the credential
 # binds), assert it contains only the trusted subdirs — anything else
@@ -97,8 +107,16 @@ extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache
 # or the shadow's --no-chrome injection regressed (browser dirs from
 # Claude Code's Chrome native-messaging-host self-registration).
 if [ -d "$HOME/.config" ]; then
-    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli' || true)"
+    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli|claude-ssh' || true)"
     [ -z "$config_extras" ]
+fi
+# When .ssh is present, only the file-bind of known_hosts is allowed.
+# A directory bind of ~/.ssh would expose any private key the user
+# later drops in — Invariant 3 in the claude-sandbox skill refuses
+# this. A regression would surface as extra files here.
+if [ -d "$HOME/.ssh" ]; then
+    ssh_extras="$(ls -A "$HOME/.ssh" 2>/dev/null | grep -vxE 'known_hosts' || true)"
+    [ -z "$ssh_extras" ]
 fi
 ```
 

@@ -92,13 +92,21 @@ bwrap_argv_build() {
     # Single bind-back list. --bind on a missing source would abort
     # bwrap, so each entry is gated on existence. Directories use
     # `-d`, files use `-f`; both flavours map source→dest identically.
+    # The last three (.kube, .config/claude-ssh, bin) are this repo's
+    # deliberate, homelab-scoped reach into the cluster — admin
+    # kubeconfig, a Claude-only ansible SSH key, and the ansible-
+    # installed CLI tools (kubectl, helm, kubeseal, argocd). The user's
+    # personal SSH agent and ~/.ssh stay masked; only a Claude-scoped
+    # key reaches the sandbox. See README-CLAUDE.md / claude-sandbox
+    # skill Invariant 3 for the rationale.
     local rel
-    for rel in .claude .cache .config/gh .config/glab-cli .local/share/uv; do
+    for rel in .claude .cache .config/gh .config/glab-cli .local/share/uv \
+               .kube .config/claude-ssh bin; do
         if [ -d "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
         fi
     done
-    for rel in .claude.json .local/bin/uv .local/bin/uvx; do
+    for rel in .claude.json .local/bin/uv .local/bin/uvx .ssh/known_hosts; do
         if [ -f "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
         fi
@@ -157,6 +165,12 @@ bwrap_argv_build() {
     argv+=( --setenv IS_SANDBOX "1" )
     argv+=( --setenv GIT_CONFIG_GLOBAL "$gitconfig_path" )
     argv+=( --setenv GIT_CONFIG_SYSTEM "/dev/null" )
+    # Point ansible at the Claude-scoped key when present. No host SSH
+    # agent is forwarded — sandboxed ansible authenticates with this
+    # key only, so the user's personal keys never reach the sandbox.
+    if [ -f "$home/.config/claude-ssh/id_ed25519" ]; then
+        argv+=( --setenv ANSIBLE_SSH_PRIVATE_KEY_FILE "$home/.config/claude-ssh/id_ed25519" )
+    fi
     local pass_through_var
     for pass_through_var in TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY; do
         if [ -n "${!pass_through_var:-}" ]; then
