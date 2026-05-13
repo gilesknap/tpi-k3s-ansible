@@ -102,6 +102,28 @@ create-prometheus-admission-secret:
 promote target=invocation_directory():
     bash .devcontainer/claude-sandbox/promote.sh {{ target }}
 
+# Generate (if absent) and deploy Claude's ansible-account SSH key to all
+# cluster nodes. `revoke` removes it. The keypair lives in the iac2-claude-ssh
+# podman volume so it persists across container rebuilds. Run this from the
+# outer devcontainer — needs the host SSH agent to reach the nodes the first
+# time. After deploy, the sandbox can ansible-playbook with this key.
+claude-ssh-bootstrap action="deploy":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    keydir=/root/.config/claude-ssh
+    keyfile="$keydir/id_ed25519"
+    case "{{ action }}" in
+        deploy) state=present ;;
+        revoke) state=absent ;;
+        *) echo "Usage: just claude-ssh-bootstrap [deploy|revoke]" >&2; exit 1 ;;
+    esac
+    if [ ! -f "$keyfile" ]; then
+        mkdir -p "$keydir"
+        chmod 700 "$keydir"
+        ssh-keygen -t ed25519 -f "$keyfile" -N "" -C "claude-sandbox@$(hostname)"
+    fi
+    ansible-playbook pb_all.yml --tags claude_key -e "claude_pubkey_state=$state"
+
 # Authenticate gh CLI with a GitHub PAT (token not stored in shell history).
 gh-auth:
     #!/usr/bin/env bash
