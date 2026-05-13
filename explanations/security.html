@@ -542,10 +542,13 @@ read-only roles by default. See <a class="reference internal" href="authenticati
 <p>The devcontainer is hardened to limit the blast radius of AI-assisted
 development (Claude Code) and prompt injection attacks:</p>
 <ul class="simple">
-<li><p><strong>SSH agent forwarding is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK=&quot;&quot;</span></code>). A container-local
-agent is started instead; only the ansible key is unlocked manually after
-container start. Host GitHub SSH keys are never accessible.</p></li>
-<li><p><strong>Git credential helpers are blanked</strong> on container creation. VS Code’s
+<li><p><strong>Claude runs in a bwrap sandbox</strong> that strips <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> and masks
+<code class="docutils literal notranslate"><span class="pre">/root/.ssh</span></code> even though VS Code forwards the host SSH agent into the
+devcontainer for use in your own terminals. The sandbox uses <code class="docutils literal notranslate"><span class="pre">--clearenv</span></code>
+plus a strict-under-<code class="docutils literal notranslate"><span class="pre">/root</span></code> tmpfs overlay with an explicit allowlist of
+dotfiles bound back; <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> is deliberately not on that list, so host
+GitHub keys are never reachable from a prompt-injection vector.</p></li>
+<li><p><strong>Git credential helpers are blanked</strong> on container start. VS Code’s
 auto-injected OAuth helper is overridden, so remote pushes require an
 explicit fine-grained PAT via <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code>.</p></li>
 <li><p><strong>GitHub CLI credentials are per-repo</strong>. A dedicated Docker volume

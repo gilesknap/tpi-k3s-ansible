@@ -460,6 +460,41 @@ ansible<span class="w"> </span>node03<span class="w"> </span>-m<span class="w"> 
 </pre></div>
 </div>
 </section>
+<section id="hard-power-cycle-a-turing-pi-node-via-the-bmc">
+<h2>Hard power-cycle a Turing Pi node via the BMC<a class="headerlink" href="#hard-power-cycle-a-turing-pi-node-via-the-bmc" title="Link to this heading">#</a></h2>
+<p>Use this when a Turing Pi node is <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> and SSH times out — the
+graceful <code class="docutils literal notranslate"><span class="pre">ansible</span> <span class="pre">-m</span> <span class="pre">reboot</span></code> above needs a working kubelet and <code class="docutils literal notranslate"><span class="pre">sshd</span></code>
+on the target, so it cannot recover an unreachable node.</p>
+<p>The BMC is reachable as <code class="docutils literal notranslate"><span class="pre">root&#64;turingpi</span></code>. Each slot maps to a node via
+<code class="docutils literal notranslate"><span class="pre">slot_num</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: node01→1, node02→2, node03→3, node04→4.
+<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> are not on the BMC — power them with their own
+buttons.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Inspect what the BMC thinks of all four slots</span>
+ssh<span class="w"> </span>root@turingpi<span class="w"> </span><span class="s1">&#39;tpi power status&#39;</span>
+
+<span class="c1"># Power-cycle a single node (off → wait → on)</span>
+ssh<span class="w"> </span>root@turingpi<span class="w"> </span><span class="s1">&#39;tpi power off -n 4 &amp;&amp; sleep 15 &amp;&amp; tpi power on -n 4&#39;</span>
+
+<span class="c1"># Wait for it to rejoin the cluster</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-w
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>A hard power-cycle is an unclean shutdown for any in-flight writes. If
+the node carries live local-PV data (Prometheus on node02, Grafana on
+node03, Open-WebUI on node04 — see the “Local PV data paths are sacred”
+rule in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>), expect fsck on boot and check the affected pods’
+logs once the node returns.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Don’t <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">drain</span></code> first — the node is already unreachable, so the
+drain will hang waiting for pods that can’t be contacted. Just
+power-cycle and let workloads reschedule (or come back, for DaemonSets
+pinned to the node, like <code class="docutils literal notranslate"><span class="pre">rkllama</span></code> on node04).</p>
+</div>
+</section>
 <section id="drain-a-node-for-maintenance">
 <h2>Drain a node for maintenance<a class="headerlink" href="#drain-a-node-for-maintenance" title="Link to this heading">#</a></h2>
 <p>Before taking a node offline for hardware maintenance:</p>
@@ -601,6 +636,7 @@ ansible<span class="w"> </span>all_nodes<span class="w"> </span>-m<span class="w
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shutdown-all-nodes">Shutdown all nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reboot-all-nodes">Reboot all nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shutdown-or-reboot-a-single-node">Shutdown or reboot a single node</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hard-power-cycle-a-turing-pi-node-via-the-bmc">Hard power-cycle a Turing Pi node via the BMC</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drain-a-node-for-maintenance">Drain a node for maintenance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-extra-non-turing-pi-nodes">Add extra (non-Turing Pi) nodes</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-add-to-inventory">Step 1: Add to inventory</a></li>

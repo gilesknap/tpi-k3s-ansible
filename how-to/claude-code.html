@@ -434,16 +434,17 @@ permission model and credential isolation described below are always active.</p>
 <p>The devcontainer applies several layers of protection against prompt injection
 attacks (malicious instructions hidden in GitHub issues, web content, or
 repository files that attempt to misuse Claude’s tool access):</p>
-<p><strong>SSH agent isolation:</strong>
-: <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK=&quot;&quot;</span></code> in <code class="docutils literal notranslate"><span class="pre">remoteEnv</span></code> disables host SSH agent forwarding,
-preventing access to host SSH keys (e.g. GitHub keys with broad repository
-access). A container-local SSH agent is started by <code class="docutils literal notranslate"><span class="pre">postCreateCommand</span></code>.
-After container start, unlock the ansible key with:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>/root/.ssh/giles_ansible
-</pre></div>
-</div>
+<p><strong>Sandbox-enforced isolation from host credentials:</strong>
+: Claude runs inside a bwrap sandbox (see <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox/</span></code>)
+that uses <code class="docutils literal notranslate"><span class="pre">--clearenv</span></code> and a strict-under-<code class="docutils literal notranslate"><span class="pre">/root</span></code> tmpfs overlay. Only an
+explicit allowlist of dotfiles is bind-mounted back into the sandbox —
+<code class="docutils literal notranslate"><span class="pre">.ssh</span></code> is deliberately excluded, and <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> is not re-exported.
+So even though VS Code forwards the host SSH agent to the devcontainer
+(for use in your own terminals), Claude cannot reach it. The same boundary
+applies to <code class="docutils literal notranslate"><span class="pre">~/.netrc</span></code>, <code class="docutils literal notranslate"><span class="pre">~/.Xauthority</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/shadow</span></code>, and the rest of
+<code class="docutils literal notranslate"><span class="pre">$HOME</span></code>’s contents.</p>
 <p><strong>Git credential helper blanking:</strong>
-: <code class="docutils literal notranslate"><span class="pre">postCreateCommand</span></code> runs <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">config</span> <span class="pre">--global</span> <span class="pre">credential.helper</span> <span class="pre">''</span></code>, which
+: <code class="docutils literal notranslate"><span class="pre">postStartCommand</span></code> runs <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">config</span> <span class="pre">--global</span> <span class="pre">credential.helper</span> <span class="pre">''</span></code>, which
 overrides any credential helper injected by VS Code’s Dev Containers
 extension. Remote pushes require an explicit fine-grained PAT via
 <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code> + <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">setup-git</span></code>.</p>
@@ -476,8 +477,11 @@ project evolves.</p>
 <section id="workflow">
 <h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
+<li><p>On the host, make sure your ansible key is loaded into a running
+<code class="docutils literal notranslate"><span class="pre">ssh-agent</span></code> before opening the container. VS Code will forward
+<code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> and copy <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code> into the devcontainer
+automatically.</p></li>
 <li><p>Open the repo in the devcontainer (tools are installed automatically)</p></li>
-<li><p>Unlock the ansible SSH key: <code class="docutils literal notranslate"><span class="pre">ssh-add</span> <span class="pre">/root/.ssh/giles_ansible</span></code></p></li>
 <li><p>Set up GitHub CLI auth: <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code> (use a fine-grained PAT)</p></li>
 <li><p>Launch Claude Code from the VS Code extension or CLI</p></li>
 <li><p>The agent reads <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> and <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> on startup</p></li>

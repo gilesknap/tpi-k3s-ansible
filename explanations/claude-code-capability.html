@@ -481,10 +481,11 @@ ArgoCD-managed resources. All fixes go through the CD pipeline.</p></li>
 </ul>
 <p>These are not suggestions. They are structural constraints that make entire
 categories of mistakes impossible. The devcontainer reinforces this
-structurally: host SSH agent forwarding is explicitly disabled
-(<code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK:</span> <span class="pre">&quot;&quot;</span></code>), preventing prompt-injection attacks from accessing
-host SSH keys. Git credential helpers are set to <code class="docutils literal notranslate"><span class="pre">none</span></code>. Credentials are
-scoped per-repository via named Docker volumes.</p>
+structurally: Claude runs inside a bwrap sandbox that <code class="docutils literal notranslate"><span class="pre">--clearenv</span></code>s the
+forwarded host SSH agent and tmpfs-masks <code class="docutils literal notranslate"><span class="pre">/root/.ssh</span></code>, so a prompt
+injection cannot reach host SSH keys even though normal terminals in the
+same devcontainer can use them. Git credential helpers are blanked.
+Credentials are scoped per-repository via named Docker volumes.</p>
 </section>
 <section id="encoded-operational-knowledge">
 <h3>Encoded operational knowledge<a class="headerlink" href="#encoded-operational-knowledge" title="Link to this heading">#</a></h3>

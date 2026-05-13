@@ -37,10 +37,11 @@ granting any capabilities. The most important rules:
 
 These are not suggestions. They are structural constraints that make entire
 categories of mistakes impossible. The devcontainer reinforces this
-structurally: host SSH agent forwarding is explicitly disabled
-(`SSH_AUTH_SOCK: ""`), preventing prompt-injection attacks from accessing
-host SSH keys. Git credential helpers are set to `none`. Credentials are
-scoped per-repository via named Docker volumes.
+structurally: Claude runs inside a bwrap sandbox that `--clearenv`s the
+forwarded host SSH agent and tmpfs-masks `/root/.ssh`, so a prompt
+injection cannot reach host SSH keys even though normal terminals in the
+same devcontainer can use them. Git credential helpers are blanked.
+Credentials are scoped per-repository via named Docker volumes.
 
 ### Encoded operational knowledge
 

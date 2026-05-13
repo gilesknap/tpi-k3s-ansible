@@ -42,6 +42,43 @@ ansible node03 -a "/sbin/shutdown now" --become
 ansible node03 -m reboot --become
 ```
 
+## Hard power-cycle a Turing Pi node via the BMC
+
+Use this when a Turing Pi node is `NotReady` and SSH times out — the
+graceful `ansible -m reboot` above needs a working kubelet and `sshd`
+on the target, so it cannot recover an unreachable node.
+
+The BMC is reachable as `root@turingpi`. Each slot maps to a node via
+`slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
+`nuc2` and `ws03` are not on the BMC — power them with their own
+buttons.
+
+```bash
+# Inspect what the BMC thinks of all four slots
+ssh root@turingpi 'tpi power status'
+
+# Power-cycle a single node (off → wait → on)
+ssh root@turingpi 'tpi power off -n 4 && sleep 15 && tpi power on -n 4'
+
+# Wait for it to rejoin the cluster
+kubectl get nodes -w
+```
+
+:::{warning}
+A hard power-cycle is an unclean shutdown for any in-flight writes. If
+the node carries live local-PV data (Prometheus on node02, Grafana on
+node03, Open-WebUI on node04 — see the "Local PV data paths are sacred"
+rule in `CLAUDE.md`), expect fsck on boot and check the affected pods'
+logs once the node returns.
+:::
+
+:::{note}
+Don't `kubectl drain` first — the node is already unreachable, so the
+drain will hang waiting for pods that can't be contacted. Just
+power-cycle and let workloads reschedule (or come back, for DaemonSets
+pinned to the node, like `rkllama` on node04).
+:::
+
 ## Drain a node for maintenance
 
 Before taking a node offline for hardware maintenance:
