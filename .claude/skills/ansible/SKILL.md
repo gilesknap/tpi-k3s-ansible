@@ -170,6 +170,21 @@ Notes:
 - **`gh pr edit` fails on this repo** — classic projects warning
   causes a GraphQL error. Use
   `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...` instead.
+- **`local-nvme` PVs get stuck `Released` after ArgoCD app delete**
+  — chart-generated PVCs (StatefulSet `volumeClaimTemplates`) are
+  owned by the consuming ArgoCD app, so `argocd app delete` cascades
+  to the PVC via `resources-finalizer.argocd.argoproj.io`. The
+  static PV (`Retain` policy, pre-bound via `claimRef`) keeps the
+  **dead PVC's `uid`** in `spec.claimRef.uid`. New PVCs get fresh
+  UIDs and can't bind → pod `Pending`, scheduler reports `didn't
+  find available persistent volumes to bind`. Fix:
+  `kubectl patch pv <name> --type=json -p '[{"op":"remove","path":"/spec/claimRef/uid"},{"op":"remove","path":"/spec/claimRef/resourceVersion"}]'`.
+  (This is the rare authorised exception to the no-mutate-ArgoCD-
+  managed rule — you're clearing kube-managed runtime state, not
+  changing template intent.) Long-term fix tracked in issue #397.
+  Prefer `argocd app sync --replace` over `argocd app delete`/recreate
+  for the five `local-nvme`-backed apps: open-webui, grafana,
+  prometheus, plus the three supabase-* claims.
 
 ## Key files
 - `pb_all.yml` — main playbook
