@@ -16,37 +16,24 @@
 		8443, // dashboard
 		3000 // grafana
 	],
-	// make sure files are available for mounting
-	"initializeCommand": "touch ${localEnv:HOME}/.ansible_vault_password && mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.config/terminal-config",
-	"features": {
-		// add in eternal history and other bash features
-		"ghcr.io/diamondlightsource/devcontainer-features/bash-config:1.0.3": {}
-	},
 	"customizations": {
 		"vscode": {
 			"settings": {
 				"python.defaultInterpreterPath": "/cache/venv-for${localWorkspaceFolder}/bin/python",
-				"python.terminal.activateEnvInCurrentTerminal": false,
-				"python.terminal.activateEnvironment": false,
-				"python.terminal.shellIntegration.enabled": false,
 				"dev.containers.copyGitConfig": true,
 				"remote.autoForwardPorts": false,
 				"remote.restoreForwardedPorts": false,
 				"remote.forwardOnOpen": false,
-				"dev.containers.gitCredentialHelperConfigLocation": "none"
 			},
 			"extensions": [
 				"streetsidesoftware.code-spell-checker-cspell-bundled-dictionaries",
 				"redhat.ansible",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"tamasfe.even-better-toml",
-				"redhat.vscode-yaml",
-				"Anthropic.claude-code"
+				"redhat.vscode-yaml"
 			]
 		}
 	},
-	// TODO - at present this only works for rootless - investigate how to do rootful
-	// TODO - this will also affect the mounts
 	// For rootless we must be root account
 	"remoteUser": "root",
 	// mount in useful files and configuration folders - those updated by ansible
@@ -55,8 +42,14 @@
 		// Note - password file is not currently used
 		"source=${localEnv:HOME}/.ansible_vault_password,target=/etc/ansible/.vault_password.txt,type=bind,ro",
 		"source=iac2-bin,target=/root/bin,type=volume",
-		"source=iac2-ssh,target=/root/.ssh,type=volume",
+		// /root/.ssh is left to VS Code Dev Containers: it auto-forwards the
+		// host SSH agent via SSH_AUTH_SOCK and copies host known_hosts on
+		// attach. Claude is isolated from both by the bwrap sandbox.
 		"source=iac2-kube,target=/root/.kube,type=volume",
+		// Claude-scoped SSH keypair for ansible on cluster nodes. Separate
+		// from the user's personal keys (which never enter the sandbox).
+		// Bootstrap with `just claude-ssh-bootstrap`.
+		"source=iac2-claude-ssh,target=/root/.config/claude-ssh,type=volume",
 		// Mount in the user terminal config folder so it can be edited
 		{
 			"source": "${localEnv:HOME}/.config/terminal-config",
@@ -74,18 +67,12 @@
 			"source": "gh-auth-${localWorkspaceFolderBasename}",
 			"target": "/root/.config/gh",
 			"type": "volume"
-		},
-		// Mount in the .claude folder for claude user config access
-		"source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind"
+		}
 	],
 	"remoteEnv": {
 		"ANSIBLE_VAULT_PASSWORD_FILE": "/etc/ansible/.vault_password.txt",
 		"ZSHRC": "/bash-config/zshrc",
 		"BIN_DIR": "/root/bin",
-		// Disable host SSH agent forwarding to prevent prompt injection from
-		// accessing host SSH keys (e.g. GitHub keys). A container-local agent
-		// is started by postCreateCommand; unlock the ansible key with ssh-add.
-		"SSH_AUTH_SOCK": "",
 		// Put things that allow it in the persistent cache
 		"PRE_COMMIT_HOME": "/cache/pre-commit",
 		"UV_CACHE_DIR": "/cache/uv",
@@ -96,8 +83,10 @@
 	},
 	// For rootless leave the filesystem owned by root
 	"updateRemoteUserUID": false,
+	// make sure files are available for mounting
+	"initializeCommand": ".devcontainer/initializeCommand.sh",
 	// One time global setup commands inside the container
-	"postCreateCommand": "uv venv --clear && uv sync && pre-commit install --install-hooks && bash .devcontainer/postCreate.sh ${devcontainerId} && ansible-playbook pb_all.yml --tags tools",
+	"postCreateCommand": ".devcontainer/postCreate.sh",
 	"postStartCommand": ".devcontainer/postStart.sh",
 	// Mount the parent of the project folder so we can access peer projects
 	"workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind"

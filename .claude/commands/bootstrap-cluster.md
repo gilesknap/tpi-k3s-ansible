@@ -173,7 +173,6 @@ environment. Otherwise one is generated randomly.
 **Turing Pi (first time):**
 ```bash
 GENERATE_SECRETS=true \
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
 ansible-playbook pb_all.yml -e do_flash=true
 ```
 
@@ -182,7 +181,6 @@ ansible-playbook pb_all.yml -e do_flash=true
 ansible-playbook pb_all.yml --tags tools
 
 GENERATE_SECRETS=true \
-SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
 ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
 ```
 

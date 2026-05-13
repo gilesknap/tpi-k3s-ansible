@@ -1,55 +1,43 @@
+---
+description: Save current task state to auto-memory, then promote reusable lessons to skills and trim memory.
+---
+
 # Memo
 
-Save a snapshot of current work to persistent memory, then graduate
-reusable knowledge into the repo where others (human and AI) can find it.
+Save a snapshot of current work to persistent memory, then clean up.
 
 ## Step 1 — Save current state
 
-Write a concise summary of in-progress or recently completed work to
-the project's `MEMORY.md` file. Include:
+Write a concise summary of in-progress or recently completed work to the
+auto-memory `MEMORY.md` for this project. Include:
 
-- What was done and current status (completed, blocked, in-progress)
-- Key decisions or outcomes
+- What was done (feature, bug, refactor, area of code)
+- Current status (completed, blocked, in-progress)
+- Key decisions or outcomes worth remembering across conversations
 
-Do not duplicate information already in skills, CLAUDE.md, or repo docs.
+Do not duplicate information already in skills, CLAUDE.md, or README-CLAUDE.md.
 
-## Step 2 — Promote reusable knowledge
+## Step 2 — Promote to skills
 
-Review the memory file for items that go beyond session-specific state.
-Graduate each item to the **most appropriate permanent home**:
+Review the memory file for items that represent **reusable patterns or
+lessons** — things that would help future sessions on this project. For
+each such item:
 
-### → Repo docs (for humans and AI)
-Reference knowledge that helps anyone working with the project:
-- Troubleshooting patterns (symptoms, causes, fixes)
-- Service-specific gotchas and operational notes
-- How-to steps for non-obvious procedures
+1. Identify which skill file it belongs in (or create a new one under
+   `.claude/skills/<name>/SKILL.md`).
+2. Add it to the appropriate skill.
+3. Remove it from memory (it now lives in the skill).
 
-Place these in the existing doc structure (e.g. `docs/reference/troubleshooting.md`,
-`docs/how-to/`, relevant README files).
-
-### → CLAUDE.md (for AI specifically)
-Foot-guns and rules that prevent silent failures:
-- Commands that silently do nothing (wrong tag names, wrong file patterns)
-- Naming conventions where violations cause cryptic errors
-- Hard constraints the AI must always follow
-
-Keep CLAUDE.md concise — only add items where AI is likely to make mistakes.
-
-### → Skills (for AI procedural knowledge)
-Multi-step procedures the AI should follow when invoked:
-- Workflows with specific ordering requirements
-- Checklists for complex operations
-- Decision trees for choosing between approaches
-
-### → Remove from memory
-Once an item is promoted, remove it from memory. It now lives somewhere
-better.
+Examples of promotable items:
+- A non-obvious convention specific to this project
+- A "foot-gun" pattern worth warning future-you about
+- A reusable recipe (test invocation, deploy command, debugging trick)
 
 ## Step 3 — Trim memory
 
 Remove from memory anything that is:
-- Already captured in skills, CLAUDE.md, or repo docs
-- Too specific to a single task to be useful in future sessions
+- Already captured in skills, CLAUDE.md, or README-CLAUDE.md
+- Too specific to a single completed task to be useful again
 - Stale or superseded by later work
 
-Keep memory concise — ideally under 30 lines of genuinely transient state.
+Keep memory concise — ideally under 30 lines.

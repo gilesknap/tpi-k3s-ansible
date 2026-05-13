@@ -26,8 +26,11 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 
 ## Operational patterns
 
-- **All ansible commands need `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"`**
-  (start with `just ssh-agent`).
+- **Ansible reaches nodes via the host SSH agent**, forwarded into the
+  devcontainer by VS Code Dev Containers (`SSH_AUTH_SOCK` is set
+  automatically). Make sure your ansible key is loaded into the host
+  agent before opening the container; the sandbox running Claude
+  cannot see it, but ordinary devcontainer terminals can.
 - **Commits need `uv run`** — pre-commit hooks live in the uv venv.
 - **Adding a node**: run `/add-node`.
 - **Full bootstrap**: run `/bootstrap-cluster`.
@@ -95,6 +98,41 @@ Replica counts in `kubernetes-services/values.yaml` must match the
 number of Longhorn-capable nodes (i.e. excluding ws03). Going too high
 leaves volumes permanently Degraded; going too low under-replicates on
 adds. Update after any `/add-node` run.
+
+## BMC power operations
+
+When a node is `NotReady` and SSH times out, `ansible -m reboot` and the
+graceful procedures in `docs/how-to/node-operations.md` cannot help —
+both the kubelet and `sshd` on the node are gone. Power-cycle via the
+Turing Pi BMC instead.
+
+The BMC is reachable as `{{ tpi_user }}@turingpi` (default `root@turingpi`,
+defined in `group_vars/all.yml`). Each slot maps to a node via
+`slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
+`nuc2` and `ws03` are not on the BMC.
+
+```bash
+# What the BMC thinks of all four slots
+ssh root@turingpi 'tpi power status'
+
+# Power-cycle a single node (off → wait → on) — the form used by roles/flash
+ssh root@turingpi 'tpi power off -n 4 && sleep 15 && tpi power on -n 4'
+```
+
+Notes:
+- Don't try `kubectl drain` first — the node is unreachable, so the
+  drain will just hang. Just power-cycle and let workloads reschedule
+  (or come back, for DaemonSets pinned to that node like `rkllama`).
+- Hard power-cycle is unclean for in-flight writes. If the node hosts
+  live local-PV data (see CLAUDE.md "Local PV data paths are sacred":
+  Prometheus on node02, Grafana on node03, Open-WebUI on node04),
+  expect fsck on boot — check pod logs once the node returns.
+- For the Claude sandbox specifically: the BMC SSH key isn't reachable
+  from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`
+  and the BMC host key isn't in the sandbox's `known_hosts`). The `!`
+  prompt prefix runs inside the same sandbox, so it doesn't help — ask
+  the user to run `ssh root@turingpi 'tpi power ...'` from a regular
+  devcontainer terminal or the host shell.
 
 ## Foot-guns
 

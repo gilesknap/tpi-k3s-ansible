@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# Shadow `claude` binary. Wraps the real Claude in a bwrap sandbox so
+# every `claude` invocation on $PATH runs sandboxed.
+#
+# Self-contained: no @@PLACEHOLDERS@@, no `source $SRC_DIR/...`. The
+# bwrap argv builder is inlined as `bwrap_argv_build` below so the
+# shadow is a single file you can read top-to-bottom.
+#
+# Recursion guard: if IS_SANDBOX=1 is already set we are inside the
+# sandbox (e.g. a hook or skill spawned `claude`), so fall through to
+# the real binary directly. Internal claude-spawns-claude does not
+# double-wrap.
+
+set -euo pipefail
+
+# Real Claude lives off the user's PATH so plain `claude` always
+# resolves to /usr/local/bin/claude (this shadow). The official
+# claude.ai installer drops the binary at ~/.local/bin/claude AND
+# prepends ~/.local/bin to the user's shell rc; the installer
+# relocates it here so that rc-mutation becomes inert.
+REAL_CLAUDE="/usr/libexec/claude-sandbox/claude"
+GITCONFIG_PATH="/etc/claude-gitconfig"
+
+# Test hook: source-only mode lets tests pull `bwrap_argv_build` into
+# scope without running the launch body (nor the recursion guard, which
+# would exec the real binary inside an already-sandboxed session).
+: "${CLAUDE_SHADOW_SOURCE_ONLY:=0}"
+
+# Recursion guard: if IS_SANDBOX=1 is already set we are inside the
+# sandbox (e.g. a hook or skill spawned `claude`), so fall through to
+# the real binary directly. Inside the sandbox the real binary is
+# bind-mounted at ~/.local/bin/claude — exec that path so argv[0]
+# matches the conventional install location. --no-chrome injection
+# (see filter_chrome_args below) applies here too so a nested spawn
+# can't re-enable the browser-extension RPC channel.
+if [ "$CLAUDE_SHADOW_SOURCE_ONLY" != "1" ] && [ "${IS_SANDBOX:-}" = "1" ]; then
+    _filtered=()
+    for _a in "$@"; do
+        case "$_a" in --chrome) ;; *) _filtered+=( "$_a" ) ;; esac
+    done
+    exec "${HOME:-/root}/.local/bin/claude" --no-chrome "${_filtered[@]+"${_filtered[@]}"}"
+fi
+
+# Export so the inlined bwrap_argv_build picks up the gitconfig path.
+export CLAUDE_SANDBOX_GITCONFIG_PATH="$GITCONFIG_PATH"
+
+# BwrapArgvBuilder: pure-function emitting the bwrap argv. Deterministic
+# given (workspace, real_claude, "$@") and ($HOME,
+# $CLAUDE_SANDBOX_GITCONFIG_PATH). No I/O, no subprocesses — sourced by
+# tests/bwrap_argv.sh and called in isolation.
+#
+# Procfs is always `--ro-bind /proc /proc` (no per-launch probe). Trade-
+# off: host PIDs are enumerable from inside the sandbox (info-disclosure),
+# but credential-bearing procfs entries stay gated by YAMA
+# ptrace_scope=1. Kernel-level pidns isolation (kill/ptrace scoping)
+# remains intact via --unshare-pid.
+bwrap_argv_build() {
+    local workspace="$1"; shift
+    local real_claude="$1"; shift
+
+    local home="${HOME:-/root}"
+    local gitconfig_path="${CLAUDE_SANDBOX_GITCONFIG_PATH:-/etc/claude-gitconfig}"
+
+    local -a argv=(
+        bwrap
+        --ro-bind / /
+        # Fresh /dev (not --dev-bind) hides the host's /dev/pts so a
+        # TIOCSTI inside the sandbox can only inject into the script(1)-
+        # allocated pty the shadow wraps us in.
+        --dev /dev
+        # Unconditional ro-bind of host /proc — host PIDs visible
+        # (info-disclosure, accepted) but kernel pidns isolation intact.
+        --ro-bind /proc /proc
+        --tmpfs /tmp
+    )
+
+    # /run/{user,secrets} masks are emitted only when the host has the
+    # source dir. Bwrap can't mkdir into a read-only /run when the
+    # parent has no such subdir (typical of GHA's ubuntu-24.04 runner).
+    if [ -d /run/user ]; then
+        argv+=( --tmpfs /run/user )
+    fi
+    if [ -d /run/secrets ]; then
+        argv+=( --tmpfs /run/secrets )
+    fi
+
+    # Strict-under-/root by inversion: wipe $HOME, then bind back only
+    # what Claude legitimately needs. Anything we forgot to enumerate
+    # stays masked — the whole point of inverting.
+    argv+=( --tmpfs "$home" )
+
+    # Single bind-back list. --bind on a missing source would abort
+    # bwrap, so each entry is gated on existence. Directories use
+    # `-d`, files use `-f`; both flavours map source→dest identically.
+    local rel
+    for rel in .claude .cache .config/gh .config/glab-cli .local/share/uv; do
+        if [ -d "$home/$rel" ]; then
+            argv+=( --bind "$home/$rel" "$home/$rel" )
+        fi
+    done
+    for rel in .claude.json .local/bin/uv .local/bin/uvx; do
+        if [ -f "$home/$rel" ]; then
+            argv+=( --bind "$home/$rel" "$home/$rel" )
+        fi
+    done
+
+    # Real binary lives off-PATH on the host; expose it inside the
+    # sandbox at the conventional ~/.local/bin/claude location so
+    # Claude's self-inspection and any internal claude-spawns-claude
+    # path lookups see the path they expect. Unconditional — the
+    # shadow's loud-fail upstream catches a missing real binary.
+    argv+=( --bind "$real_claude" "$home/.local/bin/claude" )
+
+    if [ -n "$workspace" ] && [ -d "$workspace" ]; then
+        argv+=( --bind "$workspace" "$workspace" )
+    fi
+
+    # Defence-in-depth file masks. Strict-under-/root already hides the
+    # $HOME dotfiles, but masking them with /dev/null is free and
+    # survives if the strict-root bind ever regresses. /etc masks are
+    # gated on readability so non-root hosts don't trip EROFS.
+    local mask
+    for mask in "$home/.netrc" "$home/.Xauthority" "$home/.ICEauthority"; do
+        argv+=( --bind-try /dev/null "$mask" )
+    done
+    for mask in /etc/shadow /etc/gshadow /etc/sudoers; do
+        if [ -r "$mask" ]; then
+            argv+=( --bind /dev/null "$mask" )
+        fi
+    done
+
+    argv+=(
+        --cap-drop ALL
+        # --unshare-user-try is required when bwrap runs as root inside
+        # a nested container that lacks CAP_SYS_ADMIN. When bwrap runs
+        # as non-root it implicitly unshares user anyway, so this is a
+        # no-op in that path.
+        --unshare-user-try
+        --unshare-pid
+        --unshare-ipc
+        --unshare-uts
+        --unshare-cgroup-try
+        # No --new-session: setsid() severs SIGWINCH delivery. The
+        # TIOCSTI defence is delegated to the script(1) wrap around
+        # bwrap (the inner pty's input queue is unreachable from the
+        # host shell).
+        --die-with-parent
+    )
+
+    # Scrub the env by default, then re-export only what Claude needs.
+    # $HOME/.local/bin is APPENDED so system tools take precedence in
+    # PATH resolution.
+    argv+=( --clearenv )
+    local sandbox_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$home/.local/bin"
+    # python-copier-template (and similar) point $VIRTUAL_ENV at a
+    # /cache-backed venv outside the workspace. /cache is already
+    # bound RO into the sandbox so the bin/ is reachable; appending
+    # makes project CLIs (ansible-playbook, sphinx-build, pytest, …)
+    # resolve plainly. APPENDED so the /usr/local/bin/claude shadow
+    # still wins resolution. Tracking: gilesknap/claude-sandbox#27.
+    if [ -n "${VIRTUAL_ENV:-}" ] && [ -d "$VIRTUAL_ENV/bin" ]; then
+        sandbox_path="$sandbox_path:$VIRTUAL_ENV/bin"
+    fi
+    argv+=( --setenv PATH "$sandbox_path" )
+    argv+=( --setenv HOME "$home" )
+    argv+=( --setenv USER "root" )
+    argv+=( --setenv IS_SANDBOX "1" )
+    argv+=( --setenv GIT_CONFIG_GLOBAL "$gitconfig_path" )
+    argv+=( --setenv GIT_CONFIG_SYSTEM "/dev/null" )
+    local pass_through_var
+    # Locale vars + Python/uv/pre-commit env vars that point project
+    # tooling at outer caches. /cache is RO in the sandbox so reads
+    # work; cache-mutating commands (uv sync, pre-commit install) will
+    # still fail — by design until /cache RW is separately reviewed.
+    for pass_through_var in \
+        TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY \
+        VIRTUAL_ENV UV_PROJECT_ENVIRONMENT UV_CACHE_DIR UV_PYTHON_CACHE_DIR PRE_COMMIT_HOME; do
+        if [ -n "${!pass_through_var:-}" ]; then
+            argv+=( --setenv "$pass_through_var" "${!pass_through_var}" )
+        fi
+    done
+
+    # Disable the Chrome browser-extension RPC channel: strip any
+    # user-supplied --chrome so it can't override our --no-chrome
+    # injection. The browser extension's native-messaging-host bridge
+    # would let any installed Chrome extension on the host invoke
+    # tools inside this in-sandbox Claude — outside the threat model.
+    # Manifests Claude would otherwise write into ~/.config/<browser>/
+    # NativeMessagingHosts/ are gated on this flag, so check 03
+    # (strict-under-/root) catches any regression.
+    local -a user_args=()
+    local user_arg
+    for user_arg in "$@"; do
+        case "$user_arg" in
+            --chrome) ;;
+            *) user_args+=( "$user_arg" ) ;;
+        esac
+    done
+
+    # Exec via the in-sandbox conventional path so Claude's argv[0]
+    # matches what the official installer would have placed.
+    argv+=( -- "$home/.local/bin/claude" --no-chrome "${user_args[@]+"${user_args[@]}"}" )
+    printf '%s\n' "${argv[@]}"
+}
+
+# Guard: tests source this file with CLAUDE_SHADOW_SOURCE_ONLY=1 so
+# only the function definitions are pulled into scope.
+if [ "$CLAUDE_SHADOW_SOURCE_ONLY" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
+# Loud-fail when the real binary is missing — clearer than the
+# downstream errno from bwrap exec'ing a non-existent path.
+if [ ! -x "$REAL_CLAUDE" ]; then
+    echo "claude-sandbox: real Claude binary missing at $REAL_CLAUDE." >&2
+    echo "  Re-run \`./install\` from a fresh clone of claude-sandbox." >&2
+    exit 1
+fi
+
+# Pre-create the gh/glab credential dirs so the argv builder's --bind
+# succeeds the first time the user runs `claude` after install.
+mkdir -p "${HOME:-/root}/.config/gh" "${HOME:-/root}/.config/glab-cli"
+
+# Ensure ~/.claude.json exists for the bind-back. Without this, Claude
+# Code's OAuth token writes into the in-sandbox tmpfs and vanishes on
+# exit. touch is a no-op on an existing file apart from mtime.
+touch "${HOME:-/root}/.claude.json"
+
+# Refresh /etc/claude-gitconfig from the host's current git identity on
+# every launch. VS Code's dev.containers.copyGitConfig fires AFTER
+# postCreate so the install-time render can have empty user.name. By
+# the time the user types `claude`, copyGitConfig has run — re-render
+# here so the [user] block always reflects the current host identity.
+git_name=$(git config --get user.name 2>/dev/null || true)
+git_email=$(git config --get user.email 2>/dev/null || true)
+cat > "$CLAUDE_SANDBOX_GITCONFIG_PATH" <<EOF
+[user]
+    name = $git_name
+    email = $git_email
+[credential "https://github.com"]
+    helper = !gh auth git-credential
+[credential "https://gitlab.diamond.ac.uk"]
+    helper = !glab auth git-credential
+[url "https://github.com/"]
+    insteadOf = git@github.com:
+    insteadOf = ssh://git@github.com/
+[url "https://gitlab.diamond.ac.uk/"]
+    insteadOf = git@gitlab.diamond.ac.uk:
+    insteadOf = ssh://git@gitlab.diamond.ac.uk/
+[init]
+    defaultBranch = main
+[safe]
+    directory = *
+EOF
+
+mapfile -t ARGV < <(bwrap_argv_build "$PWD" "$REAL_CLAUDE" "$@")
+
+# Wrap bwrap in script(1) so the sandbox runs inside a freshly-allocated
+# pseudo-terminal. SIGWINCH propagates, job control works, and TIOCSTI
+# is defanged (an ioctl inside the sandbox lands in script's pty, which
+# script reads and writes back as bytes — not keystrokes — to the host
+# terminal).
+exec script -q -E never -c "$(printf '%q ' "${ARGV[@]}")" /dev/null

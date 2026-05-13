@@ -2,21 +2,11 @@
 # dev/CI — devcontainer setup, linting, docs
 ################################################################################
 
-# First-time devcontainer setup: copy SSH keys, authenticate gh, start agent
+# First-time devcontainer setup: authenticate gh.
+# (SSH keys + known_hosts come from the host via VS Code Dev Containers —
+#  agent socket is forwarded and known_hosts is copied on attach.)
 setup:
     scripts/setup
-
-# Start ssh-agent and add all private keys from ~/.ssh (prompts for passphrases)
-ssh-agent:
-    scripts/ssh-agent
-
-# Authenticate gh CLI with a GitHub PAT (token not stored in shell history)
-gh-auth:
-    scripts/gh-auth
-
-# Start Claude Code in sandbox mode (uses container-local SSH agent only)
-claude:
-    SSH_AUTH_SOCK="/tmp/ssh-agent.sock" IS_SANDBOX=1 claude --dangerously-skip-permissions --chrome
 
 # Run all checks before committing (lint + docs in parallel)
 check:
@@ -101,3 +91,77 @@ gpu-setup:
 # Create the Prometheus admission webhook TLS secret (required on fresh installs)
 create-prometheus-admission-secret:
     scripts/create-prometheus-admission-secret
+
+# claude-sandbox recipes. Shipped verbatim into promoted targets via
+# `just promote`, so every recipe here must be useful in both the
+# source clone and a promoted host workspace.
+
+# Seed the sandbox's curated `.claude/` (commands, skills, hooks,
+# statusline, sandbox-check hook) into a target host workspace. See
+# .devcontainer/claude-sandbox/promote.sh for the rationale.
+promote target=invocation_directory():
+    bash .devcontainer/claude-sandbox/promote.sh {{ target }}
+
+# Generate (if absent) and deploy Claude's ansible-account SSH key to all
+# cluster nodes. `revoke` removes it. The keypair lives in the iac2-claude-ssh
+# podman volume so it persists across container rebuilds. Run this from the
+# outer devcontainer — needs the host SSH agent to reach the nodes the first
+# time. After deploy, the sandbox can ansible-playbook with this key.
+claude-ssh-bootstrap action="deploy":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    keydir=/root/.config/claude-ssh
+    keyfile="$keydir/id_ed25519"
+    case "{{ action }}" in
+        deploy) state=present ;;
+        revoke) state=absent ;;
+        *) echo "Usage: just claude-ssh-bootstrap [deploy|revoke]" >&2; exit 1 ;;
+    esac
+    if [ ! -f "$keyfile" ]; then
+        mkdir -p "$keydir"
+        chmod 700 "$keydir"
+        ssh-keygen -t ed25519 -f "$keyfile" -N "" -C "claude-sandbox@$(hostname)"
+    fi
+    ansible-playbook pb_all.yml --tags claude_key -e "claude_pubkey_state=$state"
+
+# Authenticate gh CLI with a GitHub PAT (token not stored in shell history).
+gh-auth:
+    #!/usr/bin/env bash
+    cat <<'EOF'
+    Create or renew a fine-grained PAT at:
+      https://github.com/settings/personal-access-tokens
+
+    Recommended settings for a sandboxed Claude Code:
+      - Resource owner: your user (or org that owns this repo)
+      - Repository access: Only select repositories -> just this repo
+      - Expiration: short (e.g. 30 days) so a leaked token expires quickly
+      - Repository permissions (Read and Write):
+          Contents, Issues, Pull requests
+        (Metadata: Read-only is added automatically)
+      - Leave everything else unset / no access
+
+    EOF
+    read -sp "GitHub PAT: " t && echo
+    echo "$t" | gh auth login --with-token
+    unset t
+    gh auth setup-git
+    gh auth status
+
+# Authenticate glab CLI with a GitLab PAT (token not stored in shell history).
+# --git-protocol https prevents glab's SSH insteadOf rewrite.
+glab-auth hostname="gitlab.com":
+    #!/usr/bin/env bash
+    cat <<'EOF'
+    Create or renew a fine-grained PAT at:
+      https://gitlab.com/-/user_settings/personal_access_tokens
+      (or your organisation's GitLab instance equivalent)
+
+    Recommended scopes for a sandboxed Claude Code:
+      - api, read_repository, write_repository
+      - Short expiration so a leaked token expires quickly
+
+    EOF
+    read -sp "GitLab PAT for {{ hostname }}: " t && echo
+    echo "$t" | glab auth login --stdin --hostname {{ hostname }} --git-protocol https
+    unset t
+    glab auth status

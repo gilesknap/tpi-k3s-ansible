@@ -45,7 +45,8 @@ done (check with `showmount -e <nas>`), no action is needed.
   Do not ask for confirmation at each step; proceed through all phases.
 - **Use `uv run`** for all git commits (pre-commit hooks need the uv venv).
 - **Read CLAUDE.md** before starting — it has hard rules and foot-guns.
-- All Ansible commands need `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"`.
+- Ansible reaches nodes via the forwarded host SSH agent — confirm with
+  `ssh-add -l` before starting. No `SSH_AUTH_SOCK=...` prefix is needed.
 - Use `just status` throughout to check cluster health.
 
 ## Phase 1: Preparation
@@ -118,7 +119,7 @@ Run the decommission playbook in the background with a progress Monitor:
 1. Start the playbook with `Bash run_in_background`:
 
    ```bash
-   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_decommission.yml 2>&1 | tee /tmp/decommission.log
+   ansible-playbook pb_decommission.yml 2>&1 | tee /tmp/decommission.log
    ```
 
 2. Simultaneously start a `Monitor` (persistent: false, timeout: 600000ms,
@@ -180,7 +181,6 @@ longest-running command (~10-20 minutes) and the biggest context saving:
 
    ```bash
    GENERATE_SECRETS=true \
-   SSH_AUTH_SOCK="/tmp/ssh-agent.sock" \
    ansible-playbook pb_all.yml --tags k3s,servers,cluster \
      --extra-vars repo_branch=<branch-name> 2>&1 | tee /tmp/rebuild.log
    ```
@@ -476,7 +476,7 @@ Tell the user:
   is ready to merge
 - After merging, run this command to switch ArgoCD back to main:
   ```
-  SSH_AUTH_SOCK="/tmp/ssh-agent.sock" ansible-playbook pb_all.yml --tags cluster
+  ansible-playbook pb_all.yml --tags cluster
   ```
   (No `--extra-vars` needed — `group_vars/all.yml` already has `repo_branch: main`.)
 - `/tmp/cluster-secrets/` has been deleted
