@@ -151,14 +151,30 @@ bwrap_argv_build() {
     # $HOME/.local/bin is APPENDED so system tools take precedence in
     # PATH resolution.
     argv+=( --clearenv )
-    argv+=( --setenv PATH "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$home/.local/bin" )
+    local sandbox_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$home/.local/bin"
+    # python-copier-template (and similar) point $VIRTUAL_ENV at a
+    # /cache-backed venv outside the workspace. /cache is already
+    # bound RO into the sandbox so the bin/ is reachable; appending
+    # makes project CLIs (ansible-playbook, sphinx-build, pytest, …)
+    # resolve plainly. APPENDED so the /usr/local/bin/claude shadow
+    # still wins resolution. Tracking: gilesknap/claude-sandbox#27.
+    if [ -n "${VIRTUAL_ENV:-}" ] && [ -d "$VIRTUAL_ENV/bin" ]; then
+        sandbox_path="$sandbox_path:$VIRTUAL_ENV/bin"
+    fi
+    argv+=( --setenv PATH "$sandbox_path" )
     argv+=( --setenv HOME "$home" )
     argv+=( --setenv USER "root" )
     argv+=( --setenv IS_SANDBOX "1" )
     argv+=( --setenv GIT_CONFIG_GLOBAL "$gitconfig_path" )
     argv+=( --setenv GIT_CONFIG_SYSTEM "/dev/null" )
     local pass_through_var
-    for pass_through_var in TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY; do
+    # Locale vars + Python/uv/pre-commit env vars that point project
+    # tooling at outer caches. /cache is RO in the sandbox so reads
+    # work; cache-mutating commands (uv sync, pre-commit install) will
+    # still fail — by design until /cache RW is separately reviewed.
+    for pass_through_var in \
+        TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY \
+        VIRTUAL_ENV UV_PROJECT_ENVIRONMENT UV_CACHE_DIR UV_PYTHON_CACHE_DIR PRE_COMMIT_HOME; do
         if [ -n "${!pass_through_var:-}" ]; then
             argv+=( --setenv "$pass_through_var" "${!pass_through_var}" )
         fi
