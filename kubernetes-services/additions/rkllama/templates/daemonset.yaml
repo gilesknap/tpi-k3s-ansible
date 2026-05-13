@@ -41,9 +41,6 @@ spec:
             - name: rkllama
               containerPort: 8080
               protocol: TCP
-          env:
-            - name: MODELS_DIR
-              value: /root/RKLLAMA/models
           securityContext:
             privileged: true # required for /dev/rknpu NPU access
           resources:
@@ -53,8 +50,11 @@ spec:
             limits:
               memory: "28Gi" # node04 has 32GB; leave headroom for OS
           volumeMounts:
+            # Matches rkllama_server's hardcoded --models default; the
+            # upstream image flipped from /root/RKLLAMA/models to this
+            # path, which silently hid all installed .rkllm files.
             - name: models
-              mountPath: /root/RKLLAMA/models
+              mountPath: /opt/rkllama/models
             - name: rknpu
               mountPath: /dev/rknpu
           startupProbe:
