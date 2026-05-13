@@ -101,29 +101,42 @@ plain-text progress that the WebUI cannot parse. Use `rkllama-pull` instead.
 
 ## Pull a model directly via kubectl
 
-If you prefer to skip the interactive tool, use `rkllama pull` directly in the pod:
+If you prefer to skip the interactive tool, exec into the pod. The
+binary is actually `rkllama_client` (under `/opt/venv/bin`) — the bare
+`rkllama` name is not on `$PATH`.
+
+Interactive mode prompts for each part:
 
 ```bash
 kubectl exec -n rkllama -it \
   $(kubectl get pod -n rkllama -l app=rkllama -o name | head -1) \
-  -c rkllama -- rkllama pull
+  -c rkllama -- /opt/venv/bin/rkllama_client pull
 ```
-
-Enter the repo ID and filename when prompted:
 
 ```
 Repo ID: ahz-r3v/DeepSeek-R1-Distill-Qwen-7B-rk3588-rkllm-1.1.4
 File:    DeepSeek-R1-Distill-Qwen-7B_W8A8_RK3588_o1.rkllm
+Custom Model Name: deepseek-7b
 ```
 
-Or pass them as a single argument:
+Or pass everything as a **single 4-part argument** — `owner/repo/file.rkllm/custom-name`:
 
 ```bash
-kubectl exec -n rkllama -it \
+kubectl exec -n rkllama \
   $(kubectl get pod -n rkllama -l app=rkllama -o name | head -1) \
-  -c rkllama -- rkllama pull \
-  ahz-r3v/DeepSeek-R1-Distill-Qwen-7B-rk3588-rkllm-1.1.4/DeepSeek-R1-Distill-Qwen-7B_W8A8_RK3588_o1.rkllm
+  -c rkllama -- /opt/venv/bin/rkllama_client pull \
+  ahz-r3v/DeepSeek-R1-Distill-Qwen-7B-rk3588-rkllm-1.1.4/DeepSeek-R1-Distill-Qwen-7B_W8A8_RK3588_o1.rkllm/deepseek-7b
 ```
+
+:::{warning}
+The fourth segment (custom name) is **mandatory** for non-interactive
+use. The client does `rsplit('/', 1)` to peel off the model name, so if
+you only supply three segments the actual filename gets stripped off
+and only `owner/repo` is sent to the server — which fails with
+`Error: Invalid path 'owner/repo'`. The client prints "Download
+complete" at the end regardless of success, so the failure is easy to
+miss. Always verify with `rkllama_client list` afterwards.
+:::
 
 ## List and delete models
 
@@ -132,16 +145,22 @@ kubectl exec -n rkllama -it \
 ```bash
 kubectl exec -n rkllama \
   $(kubectl get pod -n rkllama -l app=rkllama -o name | head -1) \
-  -c rkllama -- rkllama list
+  -c rkllama -- /opt/venv/bin/rkllama_client list
 ```
 
-**Delete a model** (use the short name shown by `list`):
+**Delete a model.** The `rkllama_client rm` command expects the
+original `<file>.rkllm` filename, not the short name from `list`, which
+is awkward when you have to remember the full quantisation suffix.
+Easier: just remove the model directory on the NFS-backed PV:
 
 ```bash
-kubectl exec -n rkllama \
-  $(kubectl get pod -n rkllama -l app=rkllama -o name | head -1) \
-  -c rkllama -- rkllama rm deepseek-r1-distill-qwen-7b
+POD=$(kubectl get pod -n rkllama -l app=rkllama -o name | head -1)
+kubectl exec -n rkllama $POD -c rkllama -- rm -rf /opt/rkllama/models/<short-name>
 ```
+
+The `cuda/` subdirectory under `/opt/rkllama/models/` holds the
+**llamacpp** GGUF models on the same NFS share — do not delete it
+when wiping rkllama models.
 
 ## Memory limits
 
