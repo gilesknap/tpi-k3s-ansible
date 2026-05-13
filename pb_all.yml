@@ -45,3 +45,15 @@
   roles:
     - role: cluster
   tags: cluster
+
+- name: Manage Claude sandbox's pub key on the ansible account
+  hosts: all_nodes
+  gather_facts: false
+  tasks:
+    - name: Add or remove Claude pubkey from ansible user authorized_keys
+      ansible.posix.authorized_key:
+        user: "{{ ansible_account }}"
+        state: "{{ claude_pubkey_state | default('present') }}"
+        key: "{{ lookup('file', claude_ansible_pubkey_path | default('/root/.config/claude-ssh/id_ed25519.pub')) }}"
+        comment: claude-sandbox
+  tags: claude_key
