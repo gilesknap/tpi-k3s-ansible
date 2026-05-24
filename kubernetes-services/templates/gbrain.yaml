@@ -1,0 +1,42 @@
+{{- if .Values.enable_gbrain }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gbrain
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gbrain
+  project: kubernetes
+  sources:
+    - path: ./kubernetes-services/additions/gbrain
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          image:
+            repository: {{ .Values.gbrain.image_repository | quote }}
+            tag: {{ .Values.gbrain.image_tag | quote }}
+          public_url: "https://brain.{{ .Values.cluster_domain }}"
+          supabase_db_host: "{{ .Values.supabase_release_name }}-supabase-db.supabase.svc.cluster.local"
+          ollama_url: "http://ollama.ollama.svc.cluster.local:11434/v1"
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: brain
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: gbrain
+          service_port: 3131
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

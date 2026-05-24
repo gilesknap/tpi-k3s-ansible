@@ -1,7 +1,7 @@
 # repo_branch is injected by the root app's valuesObject (from
 # group_vars/all.yml). This default is only used if the root app
 # does not pass it down (e.g. during local helm template testing).
-repo_branch: cleanup/remove-open-brain-mcp-llamacpp
+repo_branch: feature/gbrain-ollama
 # NFS storage for RKLLama models — edit these to match your NFS server.
 # This is the single place to configure NFS for rkllama; ArgoCD injects
 # these values into the rkllama Helm chart at sync time.
@@ -52,8 +52,24 @@ admin_emails:
 # Admin rights are still granted explicitly via admin_emails above.
 # oauth2-proxy-gated services (Longhorn, Supabase Studio, Headlamp)
 # remain admin-only and ignore this default.
-# Supabase self-hosted stack for Open Brain AI memory.
-# Provides database, auth, PostgREST, Edge Functions, Studio, and Kong gateway.
+# gbrain personal knowledge management — MCP server with hybrid RAG.
+# Requires Supabase (Postgres + pgvector) and ollama (embeddings).
+enable_gbrain: true
+gbrain:
+  image_repository: ghcr.io/gilesknap/gbrain
+  image_tag: latest
+# Ollama LLM inference server — provides embeddings for gbrain and
+# model serving for Open WebUI. Pinned to an x86 node for CPU BLAS.
+enable_ollama: true
+ollama:
+  node: nuc2
+  image:
+    repository: ollama/ollama
+    tag: "0.9.1"
+  models:
+    - nomic-embed-text
+# Supabase self-hosted stack — provides Postgres (pgvector) for gbrain
+# and object storage (MinIO). Also hosts Studio for DB admin.
 enable_supabase: true
 supabase:
   nfs:

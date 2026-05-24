@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gbrain
+  namespace: gbrain
+  labels:
+    app: gbrain
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gbrain
+  template:
+    metadata:
+      labels:
+        app: gbrain
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: gbrain
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - serve
+            - --http
+            - --port
+            - "3131"
+            - --bind
+            - "0.0.0.0"
+            - --public-url
+            - {{ .Values.public_url | quote }}
+            - --suppress-bootstrap-token
+          envFrom:
+            - secretRef:
+                name: gbrain-secret
+          env:
+            - name: OLLAMA_BASE_URL
+              value: {{ .Values.ollama_url | quote }}
+            - name: GBRAIN_EMBEDDING_MODEL
+              value: "ollama:nomic-embed-text"
+            - name: GBRAIN_EMBEDDING_DIMENSIONS
+              value: "768"
+            - name: GBRAIN_HTTP_TRUST_PROXY
+              value: "1"
+            - name: GBRAIN_HOME
+              value: /data
+          ports:
+            - name: http
+              containerPort: 3131
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3131
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3131
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3131
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 256Mi

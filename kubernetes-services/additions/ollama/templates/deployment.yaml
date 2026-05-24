@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: {{ .Values.node | quote }}
+      containers:
+        - name: ollama
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            - name: CUDA_VISIBLE_DEVICES
+              value: ""
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: 11434
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /root/.ollama
+      initContainers:
+        - name: pull-models
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              ollama serve &
+              SERVER_PID=$!
+              until ollama list >/dev/null 2>&1; do sleep 1; done
+              {{- range .Values.models }}
+              echo "Pulling {{ . }}..."
+              ollama pull {{ . }}
+              {{- end }}
+              kill $SERVER_PID
+          env:
+            - name: CUDA_VISIBLE_DEVICES
+              value: ""
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /root/.ollama
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 2Gi
