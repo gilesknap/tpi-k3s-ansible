@@ -1,0 +1,34 @@
+{{- if .Values.enable_ollama }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ollama
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ollama
+  project: kubernetes
+  sources:
+    - path: ./kubernetes-services/additions/ollama
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          node: {{ .Values.ollama.node | quote }}
+          image:
+            repository: {{ .Values.ollama.image.repository | quote }}
+            tag: {{ .Values.ollama.image.tag | quote }}
+          models:
+            {{- range .Values.ollama.models }}
+            - {{ . | quote }}
+            {{- end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
