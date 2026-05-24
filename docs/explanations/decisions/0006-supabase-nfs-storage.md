@@ -6,15 +6,14 @@
 
 Supabase PostgreSQL needs persistent storage that survives pod restarts and
 rescheduling. An existing NAS on the LAN already serves NFS exports for LLM
-models (rkllama, llamacpp).
+models (rkllama).
 
 *Example: in the author's cluster, the NAS is at 192.168.1.3.*
 
 ## Decision
 
 Use a static NFS PersistentVolume/PersistentVolumeClaim pointing to
-`/bigdisk/OpenBrain` on the NAS, following the established rkllama/llamacpp
-pattern.
+`/bigdisk/OpenBrain` on the NAS, following the established rkllama pattern.
 
 ## Consequences
 

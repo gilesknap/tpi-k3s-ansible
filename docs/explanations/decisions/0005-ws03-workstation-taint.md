@@ -14,7 +14,7 @@ NVIDIA GPU that doubles as a K3s worker.*
 ## Decision
 
 Apply `workstation=true:NoSchedule` taint driven by `workstation: true` in
-hosts.yml. Add tolerations to GPU workloads (llamacpp) and monitoring
+hosts.yml. Add tolerations to GPU workloads and monitoring
 (grafana, prometheus, alertmanager). Other services should not tolerate the
 taint — they belong on dedicated, always-on worker nodes.
 

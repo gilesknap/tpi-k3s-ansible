@@ -21,9 +21,6 @@ how-to/nas-setup
 :caption: Optional Features
 
 how-to/rkllama-models
-how-to/llamacpp-models
-how-to/open-brain
-how-to/claude-ai-mcp
 how-to/add-remove-services
 ```
 

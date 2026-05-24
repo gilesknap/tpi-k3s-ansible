@@ -1,6 +1,6 @@
 # 10. MCP Protocol with GitHub OAuth for Claude.ai
 
-**Status:** Accepted
+**Status:** Superseded by gbrain integration (see `plans/gbrain-integration.md`)
 
 **Supersedes:** [ADR 0004 — x-brain-key Header Auth](0004-mcp-auth-brain-key.md)
 

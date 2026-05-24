@@ -113,17 +113,11 @@ rkllama:
   nfs:
     server: 192.168.1.3            # Your NFS server IP
     path: /path/to/rkllm/models    # NFS export path for rkllm models
-llamacpp:
-  nfs:
-    server: 192.168.1.3
-    path: /path/to/gguf/models
-  model:
-    file: "your-model.gguf"
 ```
 
 :::{tip}
-If you do not have an NFS server or do not plan to use the LLM features (rkllama,
-llamacpp), you can leave the NFS settings as-is. The services will deploy but remain
+If you do not have an NFS server or do not plan to use the LLM features (rkllama),
+you can leave the NFS settings as-is. The services will deploy but remain
 idle until configured.
 :::
 

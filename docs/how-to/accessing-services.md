@@ -97,23 +97,17 @@ kubectl port-forward svc/open-webui -n open-webui 8080:80
 
 Click the OAuth button to log in via GitHub (through Dex). Password login is
 disabled. Emails in the `oauth2_emails` list get admin access; others get the
-user role. Models appear in the dropdown once pulled — see {doc}`rkllama-models`
-or {doc}`llamacpp-models`.
+user role. Models appear in the dropdown once pulled — see {doc}`rkllama-models`.
 
 :::{note}
-RKLLama requires **RK1 compute modules** with the Rockchip NPU. llama.cpp requires
-an **NVIDIA GPU** node. The services will deploy on any cluster but inference needs
-the appropriate hardware.
+RKLLama requires **RK1 compute modules** with the Rockchip NPU. The service
+will deploy on any cluster but inference needs the appropriate hardware.
 :::
 
 ## Supabase Studio (Open Brain)
 
-Supabase Studio is the admin UI for the Open Brain database — browse tables,
-run SQL queries, and manage the `thoughts` schema.
-
-:::{note}
-Only available if you have enabled Open Brain — see {doc}`open-brain`.
-:::
+Supabase Studio is the admin UI for the Supabase database — browse tables,
+run SQL queries, and manage schemas.
 
 Via ingress: **https://supabase.\<domain\>** (behind oauth2-proxy)
 
@@ -125,9 +119,8 @@ kubectl port-forward svc/supabase-supabase-kong -n supabase 8000:8000
 ```
 
 Two authentication steps: first authenticate via GitHub (oauth2-proxy),
-then log in with the Supabase dashboard username and password generated
-during {doc}`open-brain` setup. Use `just supabase-creds` to retrieve the
-dashboard credentials.
+then log in with the Supabase dashboard username and password. Use
+`just supabase-creds` to retrieve the dashboard credentials.
 
 ## Echo Test Service
 

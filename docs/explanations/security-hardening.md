@@ -16,7 +16,6 @@ workloads (kernel tuning, NPU access) require privileged access.
 |----------|-------------|----------------------|-----------|--------|
 | cloudflared | Yes (65532) | Yes | No | Network-only, no special access needed |
 | echo | Yes (65534) | Yes | No | Stateless test service |
-| llamacpp | — | — | No | Drops all capabilities; needs GPU device |
 | rkllama | — | — | Yes | Requires `/dev/rknpu` NPU access |
 | rkllama (nginx) | — | — | No | Drops capabilities, adds NET_BIND_SERVICE |
 | kernel-settings | — | — | Yes | Needs sysctl and host filesystem access |

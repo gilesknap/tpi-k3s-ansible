@@ -101,4 +101,3 @@ Other guides:
 - {doc}`alternative-storage` — swap the static `local-nvme` default for
   another CSI driver (Longhorn, Rook-Ceph, …)
 - {doc}`rkllama-models` — pull LLM models for RKLLama (RK1 clusters only)
-- {doc}`llamacpp-models` — pull GGUF models for llama.cpp (NVIDIA GPU nodes)
