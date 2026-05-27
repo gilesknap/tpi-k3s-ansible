@@ -158,10 +158,6 @@ POD=$(kubectl get pod -n rkllama -l app=rkllama -o name | head -1)
 kubectl exec -n rkllama $POD -c rkllama -- rm -rf /opt/rkllama/models/<short-name>
 ```
 
-The `cuda/` subdirectory under `/opt/rkllama/models/` holds the
-**llamacpp** GGUF models on the same NFS share — do not delete it
-when wiping rkllama models.
-
 ## Memory limits
 
 The RK1 has 16 GB shared between CPU and NPU. Approximate model RAM usage:

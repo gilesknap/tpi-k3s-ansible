@@ -55,32 +55,6 @@ them in a single model dropdown.
 - An NFS share for model files (shared across LLM backends — see {doc}`/how-to/nas-setup`)
 - `/var/lib/k8s-data/open-webui` on the Open WebUI host (5Gi for chat history and user accounts)
 
-### AI memory — Claude with long-term recall
-
-Give Claude.ai and Claude Code a persistent memory via an MCP server, backed
-by Supabase (PostgreSQL + S3-compatible MinIO). Add Open WebUI if you also
-want a browser chat interface over the same backend.
-
-**Install:** Supabase (full stack), Open Brain MCP, *(optionally)* Open WebUI.
-
-**Hardware prerequisites:**
-
-- One x86/amd64 node for the full Supabase stack — 10 pods, all scheduled
-  on `amd64` (pinned to `nuc2` by default)
-- Optionally: an x86 node for Open WebUI (pinned to `node04`)
-
-**Storage prerequisites:**
-
-- `/home/k8s-data/supabase-db`, `/home/k8s-data/supabase-storage`, and
-  `/home/k8s-data/supabase-minio` on the Supabase host
-- An NFS share for PostgreSQL backups — see {doc}`/how-to/nas-setup` and
-  {doc}`/how-to/backup-restore`
-
-**Other prerequisites:**
-
-- A **third** GitHub OAuth App — Open Brain MCP uses its own OAuth client,
-  separate from the baseline Dex and oauth2-proxy apps (see {doc}`/how-to/open-brain`)
-
 ### Monitoring-only — dashboards and alerts
 
 Metrics, dashboards, and Slack/email alerting for the cluster and any
@@ -133,10 +107,8 @@ hardware and want the full experience out of the box.
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Supabase Studio |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
-| llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
-| Open Brain MCP | Helm chart (local) | — | `open-brain-mcp` | `brain.<domain>` | OAuth 2.1 (GitHub) | Standalone MCP server for AI memory |
+| Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
 | Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | oauth2-proxy (Studio) + dashboard password, x-brain-key (API) | Self-hosted backend-as-a-service platform |
 
@@ -245,38 +217,6 @@ rkllama:
 ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
 changing (see [Variables Reference](variables.md)).
 
-### llama.cpp (CUDA)
-
-OpenAI-compatible LLM inference server using
-[llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA acceleration. Runs as
-a single-replica Deployment scheduled exclusively on nodes labelled
-`nvidia.com/gpu.present=true`. Requires an NVIDIA GPU node in `extra_nodes` with
-`nvidia_gpu_node: true` in the inventory. Image pinned to `server-cuda-b8172`.
-Startup probe allows up to 10 minutes for model loading.
-
-Security context drops all capabilities while retaining GPU access.
-
-Models are stored as GGUF files on an NFS PersistentVolume (a separate subdirectory
-from RKLLama — the two formats are incompatible). Exposes an OpenAI-compatible
-`/v1` API on port 8080, consumed by Open WebUI.
-
-**NFS and model configuration** — edit `kubernetes-services/values.yaml`:
-
-```yaml
-llamacpp:
-  nfs:
-    server: 192.168.1.3          # your NFS server IP
-    path: /bigdisk/LMModels/cuda # separate from rkllama — GGUF files only
-  model:
-    file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
-    gpuLayers: 99        # offload all layers to GPU
-    contextSize: 8192
-    parallel: 4
-    memoryLimit: "24Gi"
-```
-
-See {doc}`/how-to/llamacpp-models` for how to download models to the NFS share.
-
 ### NVIDIA device plugin
 
 DaemonSet that detects NVIDIA GPUs and advertises `nvidia.com/gpu` resources to the
@@ -293,43 +233,14 @@ default and survives k3s-agent restarts.
 
 ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
 (OIDC) with GitHub — emails in `admin_emails` get admin role, all other authenticated
-users get user role. Password login is disabled. Connects to both:
+users get user role. Password login is disabled. Connects to
+**RKLLama** (Ollama-compatible API) on the RK1 NPU via `ollamaUrls`.
 
-- **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
-- **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
-
-Models from both backends appear merged in the model dropdown. Stores chat history
-and user accounts on a static `local-nvme` PV pinned to node04 (5Gi). Resource
-limits: 100m/256Mi request, 500m/1Gi limit.
-
-:::{note}
-Either backend is optional. The service works with just RKLLama (RK1 cluster),
-just llama.cpp (NVIDIA GPU node), or both simultaneously.
-:::
+Stores chat history and user accounts on a static `local-nvme` PV pinned to
+node04 (5Gi). Resource limits: 100m/256Mi request, 500m/1Gi limit.
 
 RK1 models appear after being pulled
-via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as soon
-as the GGUF file is present on the NFS share and llamacpp has loaded it
-(see {doc}`/how-to/llamacpp-models`).
-
-### Open Brain MCP
-
-Standalone MCP (Model Context Protocol) server providing persistent AI memory
-for Claude.ai and Claude Code. Authenticates via OAuth 2.1 with GitHub as
-identity provider. Connects directly to the Supabase PostgreSQL database for
-thought storage and to Supabase Storage (MinIO) for file attachments.
-
-Five tools: `capture_thought` (text-only), `search_thoughts`, `list_thoughts`,
-`thought_stats`, `get_attachment` (base64 file retrieval from MinIO).
-
-A local stdio MCP server (`open-brain-cli/`) extends this with
-`upload_attachment` and `download_attachment` for Claude Code use.
-
-**Additional manifests:** `additions/open-brain-mcp/`
-- `templates/open-brain-mcp-secret.yaml` — SealedSecret for GitHub OAuth credentials, DB URL, and JWT secret
-
-See {doc}`/how-to/open-brain` for deployment and {doc}`/how-to/claude-ai-mcp` for
-connecting Claude.ai.
+via `rkllama-pull` (see {doc}`/how-to/rkllama-models`).
 
 ### Sealed Secrets
 
@@ -351,8 +262,6 @@ oauth2-proxy.
 
 **Additional manifests:** `additions/supabase/`
 - `templates/supabase-secret.yaml` — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)
-
-See {doc}`/how-to/open-brain` for deployment.
 
 ## ArgoCD itself
 

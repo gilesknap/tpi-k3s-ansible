@@ -87,13 +87,6 @@ ansible-playbook pb_all.yml \
 | `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
 | `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
 | `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
-| `llamacpp.nfs.server` | *(your NFS server IP)* | NFS server for llama.cpp model storage |
-| `llamacpp.nfs.path` | *(your NFS export path)* | Exported NFS path for llama.cpp models (GGUF files — keep separate from rkllama) |
-| `llamacpp.model.file` | *(GGUF filename)* | Filename of the GGUF model to load at startup |
-| `llamacpp.model.gpuLayers` | `99` | Transformer layers to offload to GPU (`99` = all) |
-| `llamacpp.model.contextSize` | `8192` | KV-cache context length in tokens |
-| `llamacpp.model.parallel` | `4` | Concurrent request slots |
-| `llamacpp.model.memoryLimit` | `24Gi` | Kubernetes memory limit for the container |
 
 The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
 is tracking. Each branch must set this to match its own branch name.

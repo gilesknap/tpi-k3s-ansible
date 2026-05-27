@@ -16,7 +16,7 @@ hand-editing `/etc/exports` is dangerous because the UI overwrites it.
 
 The good news is we don't need a new export at all. Your QNAP already
 exports `/share/CACHEDEV1_DATA/bigdisk` with read-write access to the
-cluster subnet, and it is already mounted by rkllama, llamacpp, and
+cluster subnet, and it is already mounted by rkllama and
 the supabase db-dump PV.
 
 So this runbook **just creates a new subdirectory inside the existing
@@ -30,7 +30,7 @@ exact client-side vs server-side path mapping is covered under
 A single directory tree `bigdisk/k8s-cluster/` that contains **everything**
 the cluster reads or writes over NFS:
 
-- `models/` — LLM model files consumed by rkllama and llamacpp
+- `models/` — LLM model files consumed by rkllama
   (populated from the existing `bigdisk/LMModels/` tree)
 - `supabase-dumps/` — Supabase database dumps
   (populated from the existing `bigdisk/OpenBrain/` tree)
@@ -50,14 +50,14 @@ physical directory, just viewed from different sides:
 The client-side path `/bigdisk/...` works because the QNAP exports a
 separate NFSv4-pseudo entry `/share/NFSv=4/bigdisk` with `nohide` and
 its own `fsid`, which makes `bigdisk` a first-class path for NFSv4
-clients. This is how rkllama and llamacpp already mount their models.
+clients. This is how rkllama already mounts its models.
 
 ## Prerequisites
 
 - You can SSH to the QNAP as `admin` (or another account with shell
   access and rights to write under `/share/CACHEDEV1_DATA`).
 - The QNAP is reachable at `192.168.1.3` from the cluster subnet. Already
-  true — rkllama / llamacpp / supabase-db-data all currently mount from
+  true — rkllama / supabase-db-data all currently mount from
   there.
 - Enough free space on the volume to duplicate the existing `LMModels`
   tree. Check with `du -sh /share/CACHEDEV1_DATA/bigdisk/LMModels` before
@@ -172,11 +172,11 @@ path (`/usr/bin/rsync` on most QTS builds) or fall back to `cp -a`.
 
 The old paths are never touched by this runbook, so rollback is:
 
-1. Revert `kubernetes-services/values.yaml` — point `rkllama.nfs.path`,
-   `llamacpp.nfs.path` and `supabase.nfs.path` back at `/bigdisk/LMModels`,
-   `/bigdisk/LMModels/cuda` and `/bigdisk/OpenBrain` respectively.
-2. Re-sync ArgoCD. rkllama / llamacpp / supabase-db-data will re-bind to
-   the OLD paths and work exactly as before.
+1. Revert `kubernetes-services/values.yaml` — point `rkllama.nfs.path`
+   and `supabase.nfs.path` back at `/bigdisk/LMModels` and
+   `/bigdisk/OpenBrain` respectively.
+2. Re-sync ArgoCD. rkllama / supabase-db-data will re-bind to the OLD
+   paths and work exactly as before.
 3. Only once no pods are consuming the new tree, on the QNAP:
 
    ```bash

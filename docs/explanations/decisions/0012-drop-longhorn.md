@@ -27,7 +27,7 @@ Additionally, the RK1 nodes each have a 1TB NVMe sitting mostly unused
 so local high-quality storage is already paid for.
 
 The NAS (`gknas`, `192.168.1.3`) hosts existing NFS shares for LLM models
-(rkllama/llamacpp) and Supabase DB dumps, *plus unrelated personal shares*
+(rkllama) and Supabase DB dumps, *plus unrelated personal shares*
 (JellyFin library, files, etc.) that must not be touched. Any NAS change
 has to respect that trust boundary.
 
@@ -145,7 +145,7 @@ the right ownership.
   DB dumps, and backup targets — unchanged from the previous design.
 - **Manual NAS runbook must be run once** before the first rebuild on
   this plan. Documented in `docs/how-to/nas-setup.md`; the cluster
-  cannot come up without it (rkllama/llamacpp/supabase-db-data PVs
+  cannot come up without it (rkllama/supabase-db-data PVs
   would fail to mount their new paths).
 - **Supabase `db-data` NFS path changed** from `/bigdisk/OpenBrain` to
   `/bigdisk/k8s-cluster/supabase-dumps` — ADR 0006 is still accepted

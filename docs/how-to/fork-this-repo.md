@@ -130,7 +130,7 @@ unless you also rename Helm releases.
 
 ### 5. NFS share for backups and large models
 
-Backup CronJobs and the rkllama/llamacpp model stores write to an NFS
+Backup CronJobs and the rkllama model store write to an NFS
 share on your NAS. In `kubernetes-services/values.yaml`:
 
 ```yaml
@@ -146,16 +146,13 @@ rkllama:
 
 Then run the one-time NAS setup runbook in {doc}`nas-setup`.
 
-### 6. Pin rkllama and open-brain-mcp
+### 6. Pin rkllama
 
-If you use these services, set:
+If you use the RKLLama service, set:
 
 ```yaml
 rkllama:
   node: <RK1-with-32GB-RAM>
-open_brain_mcp:
-  image_repository: ghcr.io/<your-user>/open-brain-mcp
-  github_allowed_users: "<your-github-login>"
 ```
 
 ### 7. Re-seal secrets
@@ -172,8 +169,7 @@ Top-level toggles in `kubernetes-services/values.yaml`:
 ```yaml
 enable_oauth2_proxy: false   # disables OAuth gating on Longhorn/Studio/Headlamp
 enable_cloudflare_tunnel: false  # if you don't expose services to the internet
-enable_supabase: false       # disables the supabase stack and open-brain-mcp
-enable_open_brain_mcp: false # standalone disable for open-brain-mcp
+enable_supabase: false       # disables the supabase stack
 ```
 
 Whole-service Application templates can also be removed by deleting

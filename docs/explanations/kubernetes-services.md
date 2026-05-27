@@ -19,7 +19,6 @@ kubernetes-services/
 │   ├── grafana.yaml
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
-│   ├── llamacpp.yaml
 │   ├── local-storage.yaml
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
@@ -34,7 +33,6 @@ kubernetes-services/
     ├── dashboard/          # RBAC for Headlamp
     ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
-    ├── llamacpp/           # NFS volume + GPU config
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service

@@ -454,7 +454,7 @@ current architecture.
 
 **Symptom:** After a cluster rebuild with preserved local-nvme volumes,
 `supabase-auth`, `supabase-rest`, `supabase-storage`, `supabase-realtime`,
-and `open-brain-mcp` all CrashLoop with `password authentication failed
+all CrashLoop with `password authentication failed
 for user "supabase_admin"`.
 
 **Cause:** Postgres init scripts only run when `PG_VERSION` is absent from
@@ -495,7 +495,6 @@ SQL
 kubectl rollout restart -n supabase \
   deploy/supabase-supabase-auth deploy/supabase-supabase-rest \
   deploy/supabase-supabase-storage deploy/supabase-supabase-realtime
-kubectl rollout restart -n open-brain-mcp deploy/open-brain-mcp
 ```
 
 :::{important}

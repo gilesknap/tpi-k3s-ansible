@@ -63,7 +63,6 @@ would be:
 | `ingress-nginx` | all service namespaces | service ports | External access |
 | `monitoring` (Prometheus) | all namespaces | metrics ports | Scraping |
 | `open-webui` | `rkllama` | 8080 | LLM API |
-| `open-webui` | `llamacpp` | 8080 | LLM API |
 | `cert-manager` | external | 443 | ACME DNS-01 |
 | `cloudflared` | `ingress-nginx` | 80/443 | Tunnel traffic |
 | `argo-cd` | all namespaces | various | GitOps sync |
