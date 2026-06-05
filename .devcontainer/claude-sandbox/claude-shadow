@@ -114,7 +114,14 @@ bwrap_argv_build() {
         forge_rels=()
     fi
     local rel
-    for rel in .claude .cache "${forge_rels[@]+"${forge_rels[@]}"}"; do
+    # Downstream patch (tpi-k3s-ansible only — do NOT upstream): restore
+    # cluster-reach binds dropped by upstream 1d0ad7d. ~/.kube is the
+    # admin kubeconfig, ~/.config/claude-ssh is the Claude-scoped ansible
+    # key, ~/bin is the iac2-bin volume holding kubectl/helm/kubeseal/
+    # argocd (with dangling /usr/local/bin/* symlinks pointing here).
+    # Originally added in 7c549f6 "feat: bind cluster-reach paths".
+    for rel in .claude .cache "${forge_rels[@]+"${forge_rels[@]}"}" \
+               .kube .config/claude-ssh bin; do
         if [ -d "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
         fi
@@ -133,7 +140,10 @@ bwrap_argv_build() {
         argv+=( --tmpfs "$home/.local/share/applications" )
         argv+=( --tmpfs "$home/.local/share/claude" )
     fi
-    for rel in .claude.json .local/bin/uv .local/bin/uvx; do
+    # Downstream patch: .ssh/known_hosts bound so ansible doesn't trip
+    # strict-host-key on cluster nodes (paired with the .kube/bin binds
+    # above; originally added in 7c549f6).
+    for rel in .claude.json .local/bin/uv .local/bin/uvx .ssh/known_hosts; do
         if [ -f "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
         fi
@@ -208,6 +218,12 @@ bwrap_argv_build() {
     argv+=( --setenv IS_SANDBOX "1" )
     argv+=( --setenv GIT_CONFIG_GLOBAL "$gitconfig_path" )
     argv+=( --setenv GIT_CONFIG_SYSTEM "/dev/null" )
+    # Downstream patch: point ansible at the Claude-scoped key when
+    # present. No host ssh-agent is forwarded — sandboxed ansible
+    # authenticates with this key only (originally added in 7c549f6).
+    if [ -f "$home/.config/claude-ssh/id_ed25519" ]; then
+        argv+=( --setenv ANSIBLE_SSH_PRIVATE_KEY_FILE "$home/.config/claude-ssh/id_ed25519" )
+    fi
     local pass_through_var
     for pass_through_var in \
         TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY \

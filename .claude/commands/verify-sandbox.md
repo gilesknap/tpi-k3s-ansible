@@ -94,16 +94,29 @@ regressed.
 # .config intermediate tmpfs for the selectively-exposed gh/glab
 # binds, the .local tree Claude Code writes into the tmpfs at
 # runtime, and the four masked dotfiles intentionally bound to /dev/null.
-extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority' || true)"
+# Downstream patch (tpi-k3s-ansible only): allowlist extended with
+# .kube, .ssh, and bin — the cluster-reach binds restored in
+# claude-shadow (kubectl/helm/kubeseal at ~/bin, admin kubeconfig at
+# ~/.kube, known_hosts at ~/.ssh). Originally added in 7c549f6, dropped
+# by upstream 1d0ad7d, re-added here only for this homelab repo.
+extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority|\.kube|\.ssh|bin' || true)"
 [ -z "$extras" ] || exit 1
 # When .config is present (bwrap intermediate for the credential
 # binds), assert it contains only the trusted subdirs — anything else
 # means either a sibling ~/.config tool (VS Code, etc.) leaked through
 # or the shadow's --no-chrome injection regressed (browser dirs from
 # Claude Code's Chrome native-messaging-host self-registration).
+# Downstream patch: claude-ssh permitted (Claude-scoped ansible key).
 if [ -d "$HOME/.config" ]; then
-    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli' || true)"
+    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli|claude-ssh' || true)"
     [ -z "$config_extras" ]
+fi
+# Downstream patch: .ssh must contain only known_hosts (the only file
+# bind from claude-shadow). Anything else means a full ~/.ssh dir bind
+# regressed and host private keys may have leaked in.
+if [ -d "$HOME/.ssh" ]; then
+    ssh_extras="$(ls -A "$HOME/.ssh" 2>/dev/null | grep -vxE 'known_hosts' || true)"
+    [ -z "$ssh_extras" ]
 fi
 ```
 
