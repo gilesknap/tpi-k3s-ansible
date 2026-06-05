@@ -8,11 +8,11 @@ thoth repo's CI; this overlay only ships the cluster-specific
 {doc}`SealedSecret <manage-sealed-secrets>` and the ArgoCD `Application`.
 
 :::{note}
-The chart is amd64-only and pins to a single node via `nodeSelector`
-(default `nuc2`) because the embedded Hindsight Postgres data lives on a
-`ReadWriteOnce` `local-path` PVC. Retarget by editing the `nodeSelector` in
-`kubernetes-services/templates/thoth.yaml` if your amd64 node is named
-differently.
+The chart is amd64-only (defaults to `nodeSelector: kubernetes.io/arch: amd64`)
+because the published image is single-arch. The embedded Hindsight Postgres
+data lives on a `ReadWriteOnce` `local-path` PVC, so the pod sticks to
+whichever amd64 node it first schedules on. Cordon or taint the other amd64
+nodes if you want to pin it explicitly.
 :::
 
 ## Prerequisites
