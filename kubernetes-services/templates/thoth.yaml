@@ -1,0 +1,60 @@
+{{- if .Values.enable_thoth }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: thoth
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: thoth
+  project: kubernetes
+  sources:
+    # Source 1: the published OCI chart from the thoth repo
+    - repoURL: oci://ghcr.io/gilesknap/charts
+      chart: thoth
+      targetRevision: {{ .Values.thoth.chart_version | quote }}
+      helm:
+        valuesObject:
+          image:
+            repository: ghcr.io/gilesknap/thoth
+            tag: {{ .Values.thoth.image_tag | quote }}
+          secretName: thoth-env
+          nodeSelector:
+            kubernetes.io/hostname: nuc2
+          storage:
+            vault:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 5Gi
+            thothHome:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 1Gi
+            pg0:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 5Gi
+          ingress:
+            enabled: true
+            className: nginx
+            host: "thoth.{{ .Values.cluster_domain }}"
+            tls:
+              enabled: true
+              secretName: thoth-tls
+          config:
+            THOTH_MCP_ALLOWED_HOSTS: "thoth.{{ .Values.cluster_domain }}"
+            THOTH_MCP_ALLOWED_ORIGINS: "https://thoth.{{ .Values.cluster_domain }}"
+    # Source 2: the SealedSecret carrier (chart does not template the Secret)
+    - path: ./kubernetes-services/additions/thoth
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
