@@ -5,8 +5,15 @@
 # Belt-and-suspenders against the "user invoked Claude via a non-shadow
 # path" bypass — the bwrap launcher sets IS_SANDBOX=1, so an unset
 # value means we are not in the sandbox.
+#
+# Skip the gate on Claude Code Web (CLAUDE_CODE_REMOTE=true). The
+# hosted runtime is already sandboxed by Anthropic, and the local
+# positive assertions below (GIT_CONFIG_GLOBAL=/etc/claude-gitconfig,
+# GIT_CONFIG_SYSTEM=/dev/null) only hold inside our bwrap shadow.
 
 fail() { echo "BLOCKED: $1" >&2; exit 2; }
+
+[ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && exit 0
 
 [ "${IS_SANDBOX:-}" = "1" ] || \
     fail "IS_SANDBOX unset — Claude was launched outside the bwrap shadow. Run via /usr/local/bin/claude."

@@ -60,6 +60,19 @@ export INSTALL_WORKSPACE
 # shellcheck source=./install.sh
 . "$SCRIPT_DIR/install.sh"
 
+# install_if_absent: place src at dst only when dst is absent.
+# Used for user-editable config files that survive re-promote intact.
+install_if_absent() {
+    local src="$1" dst="$2"
+    if [ ! -f "$src" ]; then
+        echo "claude-sandbox: cannot find $src" >&2
+        exit 1
+    fi
+    [ -f "$dst" ] && return 0
+    mkdir -p "$(dirname "$dst")"
+    install -m 0644 "$src" "$dst"
+}
+
 # copy_tree: install_file every regular file under $1 to the same
 # relative path under $2. install_file's `cmp -s` short-circuit makes
 # re-runs no-ops; mode 0755 matches what install.sh already uses for
@@ -129,6 +142,12 @@ Paste (or chain into your existing postCreateCommand):
     "postCreateCommand": "$pc_cmd"
 
 (One-time edit. If you've already wired it, ignore this.)
+
+Optional — add to remoteEnv to disable gh/glab token binds (Claude
+won't be able to push; useful for read/edit-only sessions):
+
+    // "CLAUDE_SANDBOX_NO_FORGE": "1"
+
 EOF
 }
 
@@ -156,6 +175,9 @@ install_file "$SCRIPT_DIR/promote.sh"    "$TARGET/.devcontainer/claude-sandbox/p
 # this file is a verbatim copy. install_file overwrites on diff —
 # if the target already has a justfile, promote will replace it.
 install_file "$REPO_ROOT/justfile" "$TARGET/justfile"
+# Config file — install_if_absent so user edits survive re-promote.
+install_if_absent "$REPO_ROOT/.devcontainer/claude-sandbox.conf" \
+                  "$TARGET/.devcontainer/claude-sandbox.conf"
 
 # Layer 3: devcontainer wiring — write/append postCreate.sh (a shell
 # script we own; trivial to edit), then print the JSON snippet for the

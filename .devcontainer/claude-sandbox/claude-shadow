@@ -20,6 +20,11 @@ set -euo pipefail
 # relocates it here so that rc-mutation becomes inert.
 REAL_CLAUDE="/usr/libexec/claude-sandbox/claude"
 GITCONFIG_PATH="/etc/claude-gitconfig"
+# Host-global config, placed by install.sh from the clone's
+# .devcontainer/claude-sandbox.conf and re-stamped on every rebuild.
+# Read from /etc (not the workspace) so a compromised session can't edit
+# it to widen the next launch's binds — see parse_config below.
+CONFIG_PATH="/etc/claude-sandbox.conf"
 
 # Test hook: source-only mode lets tests pull `bwrap_argv_build` into
 # scope without running the launch body (nor the recursion guard, which
@@ -46,7 +51,8 @@ export CLAUDE_SANDBOX_GITCONFIG_PATH="$GITCONFIG_PATH"
 
 # BwrapArgvBuilder: pure-function emitting the bwrap argv. Deterministic
 # given (workspace, real_claude, "$@") and ($HOME,
-# $CLAUDE_SANDBOX_GITCONFIG_PATH). No I/O, no subprocesses — sourced by
+# $CLAUDE_SANDBOX_GITCONFIG_PATH, $CLAUDE_SANDBOX_NO_FORGE,
+# $CLAUDE_SANDBOX_ALLOW_WRITE). No I/O, no subprocesses — sourced by
 # tests/bwrap_argv.sh and called in isolation.
 #
 # Procfs is always `--ro-bind /proc /proc` (no per-launch probe). Trade-
@@ -92,12 +98,41 @@ bwrap_argv_build() {
     # Single bind-back list. --bind on a missing source would abort
     # bwrap, so each entry is gated on existence. Directories use
     # `-d`, files use `-f`; both flavours map source→dest identically.
+    #
+    # Split-by-XDG-category: $HOME/.config stays strict-allowlist
+    # (credentials live here — gh/glab tokens, gcloud OAuth, etc.) so
+    # forward-compat masking of new credentialed tools still applies.
+    # $HOME/.local/share (XDG data) and $HOME/.cache are bulk-bound:
+    # plugin/state directories for helm, krew/kubectl, uv-managed
+    # Python, etc. just work without per-tool allowlist additions.
+    # Bets on XDG discipline — a tool that drops creds under
+    # ~/.local/share/<tool>/ instead of ~/.config/<tool>/ would leak.
+    # gh/glab token dirs are skipped when CLAUDE_SANDBOX_NO_FORGE=1 — the
+    # operator has declared this session should not push to any forge.
+    local -a forge_rels=( .config/gh .config/glab-cli )
+    if [ "${CLAUDE_SANDBOX_NO_FORGE:-}" = "1" ]; then
+        forge_rels=()
+    fi
     local rel
-    for rel in .claude .cache .config/gh .config/glab-cli .local/share/uv; do
+    for rel in .claude .cache "${forge_rels[@]+"${forge_rels[@]}"}"; do
         if [ -d "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
         fi
     done
+    # $HOME/.local/share bulk-bound for host XDG data dirs (helm
+    # plugins, krew, uv Python, etc.). Two sub-dirs need to stay
+    # ephemeral via tmpfs overlays:
+    #   applications/  Claude Code writes a .desktop URL handler
+    #                  here; binding the host's dir would register
+    #                  our in-sandbox claude as a host URL handler.
+    #   claude/        Claude Code's versioned binary cache,
+    #                  ephemeral by design and would collide with
+    #                  the host's claude install.
+    if [ -d "$home/.local/share" ]; then
+        argv+=( --bind "$home/.local/share" "$home/.local/share" )
+        argv+=( --tmpfs "$home/.local/share/applications" )
+        argv+=( --tmpfs "$home/.local/share/claude" )
+    fi
     for rel in .claude.json .local/bin/uv .local/bin/uvx; do
         if [ -f "$home/$rel" ]; then
             argv+=( --bind "$home/$rel" "$home/$rel" )
@@ -113,6 +148,14 @@ bwrap_argv_build() {
 
     if [ -n "$workspace" ] && [ -d "$workspace" ]; then
         argv+=( --bind "$workspace" "$workspace" )
+    fi
+    if [ -n "${CLAUDE_SANDBOX_ALLOW_WRITE:-}" ]; then
+        while IFS= read -r extra_path; do
+            [ -z "$extra_path" ] && continue
+            if [ -d "$extra_path" ] || [ -f "$extra_path" ]; then
+                argv+=( --bind "$extra_path" "$extra_path" )
+            fi
+        done <<< "$CLAUDE_SANDBOX_ALLOW_WRITE"
     fi
 
     # Defence-in-depth file masks. Strict-under-/root already hides the
@@ -152,12 +195,10 @@ bwrap_argv_build() {
     # PATH resolution.
     argv+=( --clearenv )
     local sandbox_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$home/.local/bin"
-    # python-copier-template (and similar) point $VIRTUAL_ENV at a
-    # /cache-backed venv outside the workspace. /cache is already
-    # bound RO into the sandbox so the bin/ is reachable; appending
-    # makes project CLIs (ansible-playbook, sphinx-build, pytest, …)
-    # resolve plainly. APPENDED so the /usr/local/bin/claude shadow
-    # still wins resolution. Tracking: gilesknap/claude-sandbox#27.
+    # Outer devcontainers (notably python-copier-template) point
+    # $VIRTUAL_ENV at a /cache-backed venv; /cache is reachable via
+    # --ro-bind / /, so the bin/ is visible. APPENDED so the
+    # /usr/local/bin/claude shadow still wins resolution (Invariant 1).
     if [ -n "${VIRTUAL_ENV:-}" ] && [ -d "$VIRTUAL_ENV/bin" ]; then
         sandbox_path="$sandbox_path:$VIRTUAL_ENV/bin"
     fi
@@ -168,13 +209,10 @@ bwrap_argv_build() {
     argv+=( --setenv GIT_CONFIG_GLOBAL "$gitconfig_path" )
     argv+=( --setenv GIT_CONFIG_SYSTEM "/dev/null" )
     local pass_through_var
-    # Locale vars + Python/uv/pre-commit env vars that point project
-    # tooling at outer caches. /cache is RO in the sandbox so reads
-    # work; cache-mutating commands (uv sync, pre-commit install) will
-    # still fail — by design until /cache RW is separately reviewed.
     for pass_through_var in \
         TERM LANG LC_ALL LC_CTYPE LC_MESSAGES LC_TIME LC_COLLATE LC_NUMERIC LC_MONETARY \
-        VIRTUAL_ENV UV_PROJECT_ENVIRONMENT UV_CACHE_DIR UV_PYTHON_CACHE_DIR PRE_COMMIT_HOME; do
+        VIRTUAL_ENV UV_PROJECT_ENVIRONMENT UV_CACHE_DIR UV_PYTHON_CACHE_DIR PRE_COMMIT_HOME \
+        CLAUDE_SANDBOX_WORKSPACE_ROOT; do
         if [ -n "${!pass_through_var:-}" ]; then
             argv+=( --setenv "$pass_through_var" "${!pass_through_var}" )
         fi
@@ -203,6 +241,68 @@ bwrap_argv_build() {
     printf '%s\n' "${argv[@]}"
 }
 
+# resolve_workspace_root: pure function picking the rw bind-mount root.
+# Priority:
+#   1. CLAUDE_SANDBOX_WORKSPACE_ROOT — explicit override. Set to /workspaces
+#      in your devcontainer remoteEnv to restore the old broad bind and make
+#      sibling projects writable. Set to any absolute path for a custom root.
+#   2. Default: $PWD. Only the current project directory is writable.
+# Stdout: resolved path. No I/O, no subprocesses — sourced by tests.
+resolve_workspace_root() {
+    local pwd_in="$1"
+    if [ -n "${CLAUDE_SANDBOX_WORKSPACE_ROOT:-}" ]; then
+        printf '%s\n' "$CLAUDE_SANDBOX_WORKSPACE_ROOT"
+    else
+        printf '%s\n' "$pwd_in"
+    fi
+}
+
+# parse_config: read the host-global /etc/claude-sandbox.conf and apply
+# recognised keys. Format: "key = value" or bare "key" for boolean
+# flags; # comments and blank lines are ignored.
+# Env vars already set take precedence — the config supplies defaults.
+# The conf lives at /etc (placed by install.sh), NOT inside the rw-bound
+# workspace, so a compromised session cannot rewrite it to widen the
+# next launch's binds. Takes the path as $1 so tests can point it at a
+# fixture.
+parse_config() {
+    local conf="$1"
+    [ -f "$conf" ] || return 0
+    local line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [ -z "$line" ] && continue
+        if [[ "$line" == *=* ]]; then
+            key="${line%%=*}"
+            key="${key%"${key##*[![:space:]]}"}"
+            value="${line#*=}"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+        else
+            key="$line"
+            value=""
+        fi
+        case "$key" in
+            workspace-root)
+                [ -n "$value" ] && : "${CLAUDE_SANDBOX_WORKSPACE_ROOT:=$value}"
+                export CLAUDE_SANDBOX_WORKSPACE_ROOT
+                ;;
+            no-forge)
+                : "${CLAUDE_SANDBOX_NO_FORGE:=1}"
+                export CLAUDE_SANDBOX_NO_FORGE
+                ;;
+            allow-write)
+                [ -z "$value" ] && continue
+                CLAUDE_SANDBOX_ALLOW_WRITE="${CLAUDE_SANDBOX_ALLOW_WRITE:+${CLAUDE_SANDBOX_ALLOW_WRITE}
+}${value}"
+                export CLAUDE_SANDBOX_ALLOW_WRITE
+                ;;
+        esac
+    done < "$conf"
+}
+
 # Guard: tests source this file with CLAUDE_SHADOW_SOURCE_ONLY=1 so
 # only the function definitions are pulled into scope.
 if [ "$CLAUDE_SHADOW_SOURCE_ONLY" = "1" ]; then
@@ -217,9 +317,12 @@ if [ ! -x "$REAL_CLAUDE" ]; then
     exit 1
 fi
 
-# Pre-create the gh/glab credential dirs so the argv builder's --bind
-# succeeds the first time the user runs `claude` after install.
-mkdir -p "${HOME:-/root}/.config/gh" "${HOME:-/root}/.config/glab-cli"
+# Pre-create forge credential dirs so the argv builder's --bind succeeds
+# on first run. Skipped when CLAUDE_SANDBOX_NO_FORGE=1 since those binds
+# are omitted anyway.
+if [ "${CLAUDE_SANDBOX_NO_FORGE:-}" != "1" ]; then
+    mkdir -p "${HOME:-/root}/.config/gh" "${HOME:-/root}/.config/glab-cli"
+fi
 
 # Ensure ~/.claude.json exists for the bind-back. Without this, Claude
 # Code's OAuth token writes into the in-sandbox tmpfs and vanishes on
@@ -233,14 +336,21 @@ touch "${HOME:-/root}/.claude.json"
 # here so the [user] block always reflects the current host identity.
 git_name=$(git config --get user.name 2>/dev/null || true)
 git_email=$(git config --get user.email 2>/dev/null || true)
-cat > "$CLAUDE_SANDBOX_GITCONFIG_PATH" <<EOF
+{
+    cat <<EOF
 [user]
     name = $git_name
     email = $git_email
+EOF
+    if [ "${CLAUDE_SANDBOX_NO_FORGE:-}" != "1" ]; then
+        cat <<'EOF'
 [credential "https://github.com"]
     helper = !gh auth git-credential
 [credential "https://gitlab.diamond.ac.uk"]
     helper = !glab auth git-credential
+EOF
+    fi
+    cat <<'EOF'
 [url "https://github.com/"]
     insteadOf = git@github.com:
     insteadOf = ssh://git@github.com/
@@ -252,8 +362,11 @@ cat > "$CLAUDE_SANDBOX_GITCONFIG_PATH" <<EOF
 [safe]
     directory = *
 EOF
+} > "$CLAUDE_SANDBOX_GITCONFIG_PATH"
 
-mapfile -t ARGV < <(bwrap_argv_build "$PWD" "$REAL_CLAUDE" "$@")
+parse_config "$CONFIG_PATH"
+WORKSPACE_ROOT="$(resolve_workspace_root "$PWD")"
+mapfile -t ARGV < <(bwrap_argv_build "$WORKSPACE_ROOT" "$REAL_CLAUDE" "$@")
 
 # Wrap bwrap in script(1) so the sandbox runs inside a freshly-allocated
 # pseudo-terminal. SIGWINCH propagates, job control works, and TIOCSTI
