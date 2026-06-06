@@ -1,6 +1,6 @@
 ---
 name: claude-sandbox
-description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, host-only SSH state (VS Code forwards agent + known_hosts, sandbox `--clearenv` strips both), Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, re-introduce an in-container ssh-agent or `/root/.ssh` volume, or auto-edit JSONC devcontainer.json.
+description: Architecture decisions and historical reversals for this repo's bwrap-based Claude sandbox. Covers real claude off PATH, container-scoped PATs, Ubuntu-24.04 CI bwrap workarounds, dogfood ≈ guest, the `just promote` three-layer model (no JSONC editing), and two walked-back paths (Python orchestration; embedding in python-copier-template). Surface before edits to `.devcontainer/claude-sandbox/{claude-shadow,install.sh,promote.sh}`, `install`, `tests/`, `.github/workflows/ci.yml`, or `.claude/commands/verify-sandbox.md`; or before any suggestion to re-introduce Python tooling, embed in python-copier-template, persist gh/glab PATs across containers, or auto-edit JSONC devcontainer.json.
 ---
 
 # claude-sandbox
@@ -56,46 +56,7 @@ not repo-scoped credentials. Don't conflate the two.
 If a future request says "stop re-pasting the PAT" — surface this
 tradeoff before implementing the shortcut.
 
-## Invariant 3 — host SSH state stays on the host
-
-SSH keys, `~/.ssh/known_hosts`, and the running `ssh-agent` all live on the
-host. VS Code Dev Containers auto-forwards `SSH_AUTH_SOCK` and copies the
-host's `~/.ssh/known_hosts` into the container on attach (observed since
-~2020, devcontainers/cli#474 — undocumented but stable). Ansible inside the
-outer devcontainer uses both transparently — `ansible-playbook` commands
-do **not** need a `SSH_AUTH_SOCK="/tmp/ssh-agent.sock"` prefix.
-
-Claude inside the bwrap sandbox sees neither: `--clearenv` drops the
-forwarded socket, and the strict-under-`/root` tmpfs overlay masks
-`/root/.ssh` (it's deliberately not in the bind-back allowlist alongside
-`.claude`, `.cache`, `.config/gh`, `.config/glab-cli`, `.local/share/uv`).
-That asymmetry is the whole point — your terminals get the host agent,
-prompt-injection in Claude can't.
-
-**Refuse as regressions:**
-- An `iac2-ssh`-style Docker volume mounted at `/root/.ssh` to "persist
-  keys across rebuilds". The volume predated the sandbox (added 2024-12-23,
-  PR-era commit `4b9861d`; sandbox arrived March 2026) and was removed in
-  PR for `add-claude-sandbox`. Re-adding it adds a key-storage path that
-  collides with VS Code's automatic forwarding and re-creates the
-  "scp host key into container" ceremony.
-- An in-container ssh-agent helper (`scripts/ssh-agent`, `just ssh-agent`
-  recipe, `/tmp/ssh-agent.sock` socket, `SSH_AUTH_SOCK="/tmp/..."` prefix
-  on ansible commands). All deleted in the same PR. The host agent
-  forwarded by VS Code is the only agent now.
-- Adding `.ssh` to the bwrap shadow's `for rel in ...` bind-back loop. The
-  sandbox MUST stay blind to host SSH state.
-
-**Acceptable swap:** if a future Anthropic-shipped Claude flag needs a key
-inside the sandbox (e.g. for `claude` itself to authenticate somewhere),
-add a Claude-scoped key path, not a re-bind of `~/.ssh`.
-
-Workflow consequence: bare `ssh node01` from the host uses your local
-username (`giles@node01`) — must be `ssh ansible@node01`. Ansible's
-`ansible_user: ansible` handles this for delegated tasks; only matters
-for interactive ssh.
-
-## Invariant 4 — bwrap on Ubuntu 24.04 GitHub runners needs three workarounds
+## Invariant 3 — bwrap on Ubuntu 24.04 GitHub runners needs three workarounds
 
 `ubuntu-latest` ships configured in ways that break bwrap. The
 failure modes cascade in this order:
@@ -177,6 +138,35 @@ overwrite-on-diff.
 `[ "${BASH_SOURCE[0]}" = "$0" ] && main "$@"` so `promote.sh` can
 `source install.sh` to reuse `install_file` + `wire_settings_*`
 without re-running `main`. Don't remove the guard.
+
+## Considered alternative — postCreate references shared clone (declined)
+
+A natural-sounding refinement: drop layer 2 of promote (the
+install-machinery copy) and have the target's `postCreate.sh` invoke
+`install.sh` directly from the canonical clone, e.g.
+`bash /user-terminal-config/claude-sandbox/.devcontainer/claude-sandbox/install.sh`.
+Drift auto-resolves on `git pull` of the canonical clone; audit
+surface stays single-tracked. (Variant: do this from bashrc — even
+weaker, since `install.sh` does root-level work, see invariant 1.)
+
+Declined because it sacrifices two properties promote-by-copy
+deliberately optimises for:
+
+- **Self-sufficiency.** `git clone <target> && ./install` works in
+  any devcontainer. Reference-by-path requires the shared clone on
+  every host — breaks CI runners, clean VMs, collaborators with
+  different layouts.
+- **Frozen audit surface.** Promote-by-copy means "what ran is what's
+  at this SHA in this repo." Reference-by-path means what runs
+  depends on whichever HEAD the shared clone happens to be at. Drift
+  you can see beats drift you can't.
+
+If a future request says "just point postCreate at the shared clone",
+surface this tradeoff before agreeing. Acceptable compromise if
+explicitly asked: an *opt-in* recipe (e.g. `just
+wire-postcreate-shared`) alongside today's frozen-copy default. Do
+**not** "retain both mechanisms and keep them synced" — that's the
+synchronisation debt Reversal 2 walked away from.
 
 ## Historical reversals — raise before re-treading
 
@@ -267,33 +257,43 @@ no bind. It was Claude Code's startup write registering the browser
 extension. Fix: `--no-chrome` injection in the shadow, check 03
 stayed strict.
 
-## Diagnostic discipline — `Anthropic.claude-code` VS Code extension races postCreate
+## Invariant 4 — config is host-global at `/etc`, never read from the workspace
 
-`link_terminal_config` symlinks `/root/.claude` → `/user-terminal-config/.claude`
-only when `[ -e "$HOME/.claude" ]` is false. If anything pre-creates
-`/root/.claude` during postCreate, the guard bails and credentials
-(`.claude/.credentials.json`) end up in the container-local overlay
-instead of the persistent shared dir → login prompt on every rebuild.
-`/root/.claude.json` keeps persisting via the base image's per-file
-bind, masking the problem; only the credentials dir is lost.
+`claude-shadow` reads its config from `/etc/claude-sandbox.conf`
+(`CONFIG_PATH`), placed by `install.sh`'s `install_conf` from the clone's
+`.devcontainer/claude-sandbox.conf` and re-stamped on every rebuild via
+postCreate. It is NOT read from `$PWD/.devcontainer/claude-sandbox.conf`
+anymore (that call site moved in PR for the global-conf change).
 
-The known racer is the `Anthropic.claude-code` VS Code extension
-listed in `devcontainer.json`. VS Code installs extensions in
-parallel with postCreate, and the extension's activate path writes
-into `~/.claude/{cache,ide,...}` before our install.sh reaches
-`link_terminal_config`. Removed from `devcontainer.json` 2026-05-13.
+Two reasons, one load-bearing for the threat model:
 
-**Diagnose with**: `mount | grep /root/.claude`. A bind mount =
-persistence working. Overlay only = ephemeral, login won't survive
-rebuild. Cross-check: compare `stat -c %w` (birth time) on
-`/root/.claude` vs the shadow at `/usr/local/bin/claude` — if
-`.claude` is born after the shadow but before `install_claude_binary`
-finishes, a racer beat `link_terminal_config`.
+- **Security (the real reason).** `$PWD` is the workspace, bound rw into
+  the sandbox. A per-workspace conf is attacker-writable from inside the
+  jail: a compromised session could write `allow-write = /` (or
+  `workspace-root = /`) and the next launch would `--bind` it rw, a
+  cross-session breakout. `/etc` is not in the rw bind set.
+- **Ergonomics.** One global conf means `allow-write = /cache` (uv) and
+  friends apply to `claude` in every workspace with nothing added to
+  individual repos. Edit the clone conf + re-run `./install` (a rebuild
+  does it via postCreate) to apply.
 
-**Refuse as a regression:** re-adding `Anthropic.claude-code` to
-the extensions list. The sandboxed `claude` CLI is the supported
-entry point here; the in-IDE extension is redundant *and* breaks
-credential persistence.
+`parse_config` still takes the path as `$1` (tests pass a fixture); only
+the launch-time call site is pinned to `CONFIG_PATH`. Env vars
+(`CLAUDE_SANDBOX_*`) still override per session. `just promote` still
+ships a starter conf into a promoted target's `.devcontainer/`, whose own
+`install.sh` reads it into `/etc` (keeps promoted hosts self-sufficient).
+
+**Refuse as regressions:**
+- Any change that reads the conf from `$PWD`, the workspace, or any
+  sandbox-rw path. The conf source must stay outside the jail's rw set.
+- "Make allow-write per-repo again so projects can opt in" reopens the
+  cross-session bind-escalation vector. Per-session env vars are the
+  supported override; the global conf is the only file.
+- verify-sandbox check 18 guards that the installed shadow reads `/etc`
+  and has no `$PWD/.devcontainer` read. `tests/bwrap_argv.sh` scenario 8b
+  guards that `$VIRTUAL_ENV/bin` is appended (not prepended) to PATH, and
+  the harness unsets the runner's `VIRTUAL_ENV`/`UV_*` so the suite is
+  deterministic inside an activated venv. Keep all three.
 
 ## Where things live
 

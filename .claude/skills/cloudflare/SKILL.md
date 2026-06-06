@@ -36,6 +36,14 @@ Services exposed via tunnel: grafana, headlamp, open-webui, oauth2-proxy, argocd
 - **Cloudflare Access uses Google identity** — not GitHub. If you see a
   Google OTP prompt, that's Cloudflare Access. The GitHub auth prompt comes
   from oauth2-proxy (after traffic reaches the ingress).
+- **MCP / non-browser hosts need an Access bypass** — services that
+  speak their own OAuth (open-brain-mcp, thoth's MCP endpoint) or use a
+  shared-key API (`supabase-api.gkcluster.org`) cannot solve Google
+  SSO. Add a Cloudflare Access Application of type **Bypass** for that
+  hostname. **Policy order matters**: the bypass must evaluate
+  *before* the wildcard `*.gkcluster.org` Access app, otherwise the
+  wildcard wins and challenges every request. Confirm order in the
+  dashboard after adding. Reference precedent: `brain.gkcluster.org`.
 
 ## Key Files
 - `kubernetes-services/values.yaml` — cloudflared toggle and config

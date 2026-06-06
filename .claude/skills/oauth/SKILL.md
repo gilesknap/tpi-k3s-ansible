@@ -15,6 +15,37 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 - Reusable ingress sub-chart at `kubernetes-services/additions/ingress/` supports `oauth2_proxy` annotation mode
 - Services behind OAuth get ingress annotations pointing to the oauth2-proxy auth endpoint
 
+## MCP servers need a different auth model — do NOT try to reuse oauth2-proxy
+
+Non-browser MCP clients (claude.ai's connector, Claude Code
+`--transport http`) **cannot** authenticate through this cluster's
+standard pattern. Two reasons:
+
+1. **Cloudflare Access** challenges with Google SSO — solvable only in
+   a browser.
+2. **oauth2-proxy** is cookie-based forward-auth — it's not an OAuth
+   2.1 authorization server, so MCP clients can't run a token flow
+   against it.
+
+The established pattern for MCP servers in this cluster (open-brain-mcp
+historically; thoth going forward) is:
+
+- The MCP server **embeds** an OAuth 2.1 authorization server
+  (RFCs 8414 + 9728 + 7591 DCR + 7636 PKCE) and issues its own JWTs
+  with GitHub as the upstream IdP.
+- The MCP hostname (`brain.gkcluster.org`, `thoth.gkcluster.org`)
+  needs a Cloudflare Access **bypass** policy so the in-pod OAuth
+  flow isn't shadowed by Google SSO. See `/cloudflare` skill.
+- The MCP server's 401 response on `/mcp` **must** include
+  `WWW-Authenticate: Bearer resource_metadata="<host>/.well-known/oauth-protected-resource"`
+  — without this header, MCP clients silently fail to discover the
+  auth server and just give up.
+- Single-replica MCP pods can keep PKCE state and DCR `client_id`s
+  in-memory; clients re-register transparently on pod restart.
+- Reference implementation: `gilesknap/open-brain-mcp/oauth.py`
+  (provider-agnostic). When standing up the next MCP service, port
+  the structure rather than reinventing.
+
 ## Gotchas
 - Chrome caching can cause stale redirects/blank pages after auth changes — fix with `chrome://settings/reset`
 - SealedSecrets for oauth2-proxy credentials must match name+namespace exactly (encryption is bound)

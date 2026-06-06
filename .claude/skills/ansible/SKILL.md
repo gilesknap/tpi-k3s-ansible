@@ -92,6 +92,11 @@ reboot unexpectedly. This has three consequences you must design for:
   so they can scrape workstation metrics, but must have a `nodeAffinity`
   rule **excluding** ws03. Otherwise their Longhorn PVCs get provisioned
   on ws03 and fail to attach.
+- **amd64-only workloads land on nuc2 by default.** ws03 and nuc2 are the
+  only amd64 nodes; ws03's taint means a chart with
+  `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any
+  explicit hostname selector. Useful for charts whose schema forbids
+  `kubernetes.io/hostname` overrides (e.g. thoth).
 
 ### Longhorn replica count vs node count
 Replica counts in `kubernetes-services/values.yaml` must match the

@@ -1,0 +1,78 @@
+{{- if .Values.enable_thoth }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: thoth
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: thoth
+  project: kubernetes
+  sources:
+    # Source 1: the published OCI chart from the thoth repo
+    - repoURL: ghcr.io/gilesknap/charts
+      chart: thoth
+      targetRevision: {{ .Values.thoth.chart_version | quote }}
+      helm:
+        valuesObject:
+          image:
+            repository: ghcr.io/gilesknap/thoth
+            tag: {{ .Values.thoth.image_tag | quote }}
+          secretName: thoth-env
+          storage:
+            vault:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 5Gi
+            thothHome:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 1Gi
+            pg0:
+              storageClassName: local-path
+              accessMode: ReadWriteOnce
+              size: 5Gi
+          ingress:
+            enabled: true
+            className: nginx
+            host: "thoth.{{ .Values.cluster_domain }}"
+            annotations:
+              # cloudflared forwards plain HTTP to ingress-nginx; with a tls
+              # block but no override, nginx defaults ssl-redirect=true and
+              # answers 308 -> https, looping the request back through the
+              # tunnel and breaking the /.well-known/oauth-* discovery the MCP
+              # OAuth flow depends on. Disabling the redirect matches every
+              # other externally-tunnelled ingress in this repo. Requires
+              # chart >= 0.8.0-beta.2 (ingress.annotations schema fix,
+              # gilesknap/thoth#162).
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+            tls:
+              enabled: true
+              secretName: thoth-tls
+          config:
+            mcpAllowedHosts: "thoth.{{ .Values.cluster_domain }}"
+            mcpAllowedOrigins: "https://thoth.{{ .Values.cluster_domain }}"
+            # MCP OAuth 2.1 (non-secret config; client secret + JWT signing
+            # secret live in the sealed thoth-env Secret). OAuth stays off
+            # until githubOauthClientId is filled — see docs/how-to/thoth.md.
+            githubOauthClientId: Ov23li89FzPFwlGWroYd
+            oauthServerUrl: "https://thoth.{{ .Values.cluster_domain }}"
+            allowedGithubUsers: "gilesknap,DiamondRC,coretl,garethnisbet"
+            # HTTPS remote of the PKM vault repo the new chart (>= 0.8.0-beta.3)
+            # clones/pushes to. Non-secret URL; clone/push auth comes from
+            # GITHUB_PKM_VAULT_TOKEN in the sealed thoth-env Secret.
+            vaultRepoUrl: "https://github.com/gilesknap/pkm-vault-demo.git"
+    # Source 2: the SealedSecret carrier (chart does not template the Secret)
+    - path: ./kubernetes-services/additions/thoth
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
