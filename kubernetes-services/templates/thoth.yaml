@@ -39,6 +39,16 @@ spec:
             enabled: true
             className: nginx
             host: "thoth.{{ .Values.cluster_domain }}"
+            annotations:
+              # cloudflared forwards plain HTTP to ingress-nginx; with a tls
+              # block but no override, nginx defaults ssl-redirect=true and
+              # answers 308 -> https, looping the request back through the
+              # tunnel and breaking the /.well-known/oauth-* discovery the MCP
+              # OAuth flow depends on. Disabling the redirect matches every
+              # other externally-tunnelled ingress in this repo. Requires
+              # chart >= 0.8.0-beta.2 (ingress.annotations schema fix,
+              # gilesknap/thoth#162).
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
             tls:
               enabled: true
               secretName: thoth-tls
