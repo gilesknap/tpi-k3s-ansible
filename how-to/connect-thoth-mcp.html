@@ -1,0 +1,738 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Connect Claude Code &amp; Claude.ai to thoth over OAuth &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/connect-thoth-mcp';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Add or Remove Services" href="add-remove-services.html" />
+    <link rel="prev" title="thoth (Slack PKM + Hindsight)" href="thoth.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="thoth.html">thoth (Slack PKM + Hindsight)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Connect Claude Code &amp; Claude.ai to thoth over OAuth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Connect Claude Code &amp; Claude.ai to thoth over OAuth</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="connect-claude-code-claude-ai-to-thoth-over-oauth">
+<h1>Connect Claude Code &amp; Claude.ai to thoth over OAuth<a class="headerlink" href="#connect-claude-code-claude-ai-to-thoth-over-oauth" title="Link to this heading">#</a></h1>
+<p>This guide is the <strong>client side</strong> of <a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a>: once the MCP server is
+deployed with OAuth 2.1 wired up, this is how you point Claude Code and
+Claude.ai at it so thoth’s <code class="docutils literal notranslate"><span class="pre">pkm_*</span></code> tools appear in your sessions.</p>
+<p>thoth’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> endpoint speaks the
+<a class="reference external" href="https://modelcontextprotocol.io/">MCP protocol</a> (JSON-RPC over Streamable
+HTTP) and authenticates each user with <strong>OAuth 2.1 + PKCE</strong>, using GitHub as
+the identity provider. thoth is its own authorization server — there is no
+separate login page and no API key to paste. You authorize once via GitHub
+in a browser, the client stores the resulting token, and subsequent requests
+carry it as <code class="docutils literal notranslate"><span class="pre">Authorization:</span> <span class="pre">Bearer</span> <span class="pre">&lt;JWT&gt;</span></code>.</p>
+<section id="how-the-flow-works">
+<h2>How the flow works<a class="headerlink" href="#how-the-flow-works" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Claude</span> <span class="n">Code</span> <span class="o">/</span> <span class="n">Claude</span><span class="o">.</span><span class="n">ai</span>
+  <span class="o">|</span>  <span class="mf">1.</span> <span class="n">GET</span> <span class="o">/.</span><span class="n">well</span><span class="o">-</span><span class="n">known</span><span class="o">/</span><span class="n">oauth</span><span class="o">-</span><span class="n">protected</span><span class="o">-</span><span class="n">resource</span>   <span class="p">(</span><span class="n">discovery</span><span class="p">)</span>
+  <span class="o">|</span>  <span class="mf">2.</span> <span class="n">dynamic</span> <span class="n">client</span> <span class="n">registration</span> <span class="p">(</span><span class="n">RFC</span> <span class="mi">7591</span><span class="p">)</span>
+  <span class="o">|</span>  <span class="mf">3.</span> <span class="n">browser</span> <span class="o">-&gt;</span> <span class="o">/</span><span class="n">authorize</span> <span class="o">-&gt;</span> <span class="n">GitHub</span> <span class="n">consent</span> <span class="o">-&gt;</span> <span class="o">/</span><span class="n">callback</span>
+  <span class="o">|</span>  <span class="mf">4.</span> <span class="o">/</span><span class="n">token</span>  <span class="o">-&gt;</span>  <span class="n">JWT</span>
+  <span class="o">|</span>  <span class="n">then</span><span class="p">:</span> <span class="n">every</span> <span class="o">/</span><span class="n">mcp</span> <span class="n">call</span> <span class="n">carries</span> <span class="n">Authorization</span><span class="p">:</span> <span class="n">Bearer</span> <span class="o">&lt;</span><span class="n">JWT</span><span class="o">&gt;</span>
+  <span class="n">v</span>
+<span class="n">Cloudflare</span> <span class="n">Edge</span> <span class="p">(</span><span class="n">bypass</span> <span class="n">Access</span> <span class="n">app</span> <span class="k">for</span> <span class="n">thoth</span><span class="o">.&lt;</span><span class="n">cluster_domain</span><span class="o">&gt;</span><span class="p">)</span>
+  <span class="n">v</span>
+<span class="n">cloudflared</span> <span class="o">-&gt;</span> <span class="n">ingress</span><span class="o">-</span><span class="n">nginx</span>
+  <span class="n">v</span>
+<span class="n">thoth</span> <span class="n">MCP</span> <span class="n">server</span>  <span class="o">-&gt;</span>  <span class="n">Hindsight</span> <span class="n">semantic</span> <span class="n">index</span>
+</pre></div>
+</div>
+<p>The Cloudflare Access <strong>bypass</strong> application is what makes this work from
+outside the LAN: the wildcard <code class="docutils literal notranslate"><span class="pre">*.&lt;cluster_domain&gt;</span></code> Access policy enforces
+browser SSO, which a non-browser MCP client cannot solve. The bypass leaves
+authentication entirely to thoth’s own OAuth flow. Only GitHub usernames
+listed in thoth’s <code class="docutils literal notranslate"><span class="pre">allowedGithubUsers</span></code> config are admitted.</p>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>thoth deployed with OAuth enabled — both <code class="docutils literal notranslate"><span class="pre">githubOauthClientId</span></code> and
+<code class="docutils literal notranslate"><span class="pre">oauthServerUrl</span></code> set, and the <code class="docutils literal notranslate"><span class="pre">thoth-env</span></code> Secret carrying
+<code class="docutils literal notranslate"><span class="pre">GITHUB_OAUTH_CLIENT_SECRET</span></code> + <code class="docutils literal notranslate"><span class="pre">THOTH_JWT_SIGNING_SECRET</span></code>. See
+<a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> steps 1–4.</p></li>
+<li><p>A Cloudflare Tunnel route and an Access <strong>bypass</strong> application for
+<code class="docutils literal notranslate"><span class="pre">thoth.&lt;cluster_domain&gt;</span></code> that evaluates <em>before</em> the wildcard policy
+(<a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> step 4, <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
+<li><p>Your GitHub username present in thoth’s <code class="docutils literal notranslate"><span class="pre">allowedGithubUsers</span></code>.</p></li>
+</ul>
+</section>
+<section id="pre-flight-confirm-oauth-discovery-works">
+<h2>1 – Pre-flight: confirm OAuth discovery works<a class="headerlink" href="#pre-flight-confirm-oauth-discovery-works" title="Link to this heading">#</a></h2>
+<p>Before touching any client, prove the server advertises OAuth correctly from
+<strong>outside the LAN</strong> (run this from your laptop on a different network, or a
+phone hotspot — not from the devcontainer, which may reach the service by a
+different path). Both metadata endpoints must return <code class="docutils literal notranslate"><span class="pre">200</span></code> with content type
+<code class="docutils literal notranslate"><span class="pre">application/json</span></code>. This loop prints the status and content type for each,
+and pretty-prints the body <strong>only if it is JSON</strong> — so an HTML login page
+shows up as plain text instead of a cryptic <code class="docutils literal notranslate"><span class="pre">jq</span></code> parse error:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">DOMAIN</span><span class="o">=</span>thoth.&lt;cluster_domain&gt;
+<span class="k">for</span><span class="w"> </span>ep<span class="w"> </span><span class="k">in</span><span class="w"> </span>oauth-protected-resource<span class="w"> </span>oauth-authorization-server<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;\n== %s ==\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ep</span><span class="s2">&quot;</span>
+<span class="w">  </span>curl<span class="w"> </span>-sS<span class="w"> </span><span class="s2">&quot;https://</span><span class="nv">$DOMAIN</span><span class="s2">/.well-known/</span><span class="nv">$ep</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">       </span>-o<span class="w"> </span>/tmp/thoth-disc<span class="w"> </span>-w<span class="w"> </span><span class="s1">&#39;HTTP %{http_code}  %{content_type}\n&#39;</span>
+<span class="w">  </span>jq<span class="w"> </span>.<span class="w"> </span>/tmp/thoth-disc<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;  (not JSON — first bytes:)&#39;</span><span class="p">;</span><span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span><span class="m">200</span><span class="w"> </span>/tmp/thoth-disc<span class="p">;</span><span class="w"> </span>echo<span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<span class="k">done</span>
+rm<span class="w"> </span>-f<span class="w"> </span>/tmp/thoth-disc
+</pre></div>
+</div>
+<p>Pass condition: <code class="docutils literal notranslate"><span class="pre">HTTP</span> <span class="pre">200</span>&#160; <span class="pre">application/json</span></code> for both, and the
+<code class="docutils literal notranslate"><span class="pre">oauth-protected-resource</span></code> document’s <code class="docutils literal notranslate"><span class="pre">resource</span></code> field points at
+<code class="docutils literal notranslate"><span class="pre">https://thoth.&lt;cluster_domain&gt;/mcp</span></code>.</p>
+<p>If instead you get <strong><code class="docutils literal notranslate"><span class="pre">text/html</span></code></strong> (often with a <code class="docutils literal notranslate"><span class="pre">200</span></code> or <code class="docutils literal notranslate"><span class="pre">302</span></code> — it is the
+Cloudflare Access login page) or a <strong><code class="docutils literal notranslate"><span class="pre">403</span></code></strong>, the request never reached
+thoth’s OAuth endpoint. Either the Access <strong>bypass</strong> application is missing
+or ordered <em>after</em> the wildcard <code class="docutils literal notranslate"><span class="pre">*.&lt;cluster_domain&gt;</span></code> policy, or thoth is not
+deployed (so the hostname falls through to a 404/Access page). Fix that
+first (<a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> step 4) — every client below depends on these two
+endpoints returning JSON.</p>
+</section>
+<section id="connect-claude-code">
+<h2>2 – Connect Claude Code<a class="headerlink" href="#connect-claude-code" title="Link to this heading">#</a></h2>
+<p>Register the server once with the HTTP transport:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>thoth<span class="w"> </span>https://thoth.&lt;cluster_domain&gt;/mcp
+</pre></div>
+</div>
+<p>The first time a Claude Code session connects, it opens a browser for the
+GitHub OAuth consent screen. Approve it (with a GitHub account that is in
+<code class="docutils literal notranslate"><span class="pre">allowedGithubUsers</span></code>) and the token is cached for future sessions. Then:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">/</span><span class="n">mcp</span>
+</pre></div>
+</div>
+<p>in a session lists thoth’s <code class="docutils literal notranslate"><span class="pre">pkm_*</span></code> tools. If you ever need to re-authorize
+(for example after rotating the JWT signing secret), remove and re-add:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>claude<span class="w"> </span>mcp<span class="w"> </span>remove<span class="w"> </span>thoth
+claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>thoth<span class="w"> </span>https://thoth.&lt;cluster_domain&gt;/mcp
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The devcontainer in this repo runs Claude Code inside a bwrap sandbox with no
+browser. Register and authorize thoth from a Claude Code instance running on
+your <strong>host</strong> (or any machine with a browser), not from inside the
+devcontainer. See <a class="reference internal" href="claude-code.html"><span class="doc">Using Claude Code</span></a>.</p>
+</div>
+</section>
+<section id="connect-claude-ai">
+<h2>3 – Connect Claude.ai<a class="headerlink" href="#connect-claude-ai" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Open <a class="reference external" href="https://claude.ai/">claude.ai</a> and go to a <strong>Project</strong> (or create
+one).</p></li>
+<li><p>Open <strong>Project settings &gt; Integrations</strong> (or <strong>Connectors</strong>, depending on
+the current UI).</p></li>
+<li><p>Click <strong>Add integration</strong> / <strong>Add custom integration</strong>.</p></li>
+<li><p>Enter the <strong>URL</strong>: <code class="docutils literal notranslate"><span class="pre">https://thoth.&lt;cluster_domain&gt;/mcp</span></code></p></li>
+</ol>
+<p>Claude.ai initiates the OAuth flow automatically — you are redirected to
+GitHub to authorize. No API key or custom header is needed. After consent,
+thoth’s <code class="docutils literal notranslate"><span class="pre">pkm_*</span></code> tools appear in the project’s tool list.</p>
+</section>
+<section id="verify">
+<h2>4 – Verify<a class="headerlink" href="#verify" title="Link to this heading">#</a></h2>
+<p>In a fresh conversation (a Project conversation in Claude.ai, or any Claude
+Code session):</p>
+<ol class="arabic simple">
+<li><p>Ask Claude to list its available tools — the <code class="docutils literal notranslate"><span class="pre">pkm_*</span></code> tools should appear.</p></li>
+<li><p>Ask it to run a read-only <code class="docutils literal notranslate"><span class="pre">pkm_*</span></code> tool (e.g. a search/stats tool) and
+confirm it returns a result rather than an auth error.</p></li>
+<li><p>Capture something and confirm it lands in your PKM vault repo.</p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="discovery-endpoint-returns-an-html-login-page-or-403">
+<h3>Discovery endpoint returns an HTML login page or 403<a class="headerlink" href="#discovery-endpoint-returns-an-html-login-page-or-403" title="Link to this heading">#</a></h3>
+<p>The Cloudflare Access bypass for <code class="docutils literal notranslate"><span class="pre">thoth.&lt;cluster_domain&gt;</span></code> is missing or is
+ordered <em>after</em> the wildcard <code class="docutils literal notranslate"><span class="pre">*.&lt;cluster_domain&gt;</span></code> policy, so the wildcard
+intercepts the request. Add the bypass application and confirm its order in
+the Zero Trust dashboard (<a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> step 4).</p>
+</section>
+<section id="browser-never-opens-oauth-consent-loops">
+<h3>Browser never opens / OAuth consent loops<a class="headerlink" href="#browser-never-opens-oauth-consent-loops" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Confirm the GitHub OAuth App’s <strong>Authorization callback URL</strong> is exactly
+<code class="docutils literal notranslate"><span class="pre">https://thoth.&lt;cluster_domain&gt;/callback</span></code> (no trailing slash).</p></li>
+<li><p>Check the MCP server logs for OAuth errors:
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">thoth</span> <span class="pre">deploy/thoth-mcp</span></code>.</p></li>
+<li><p>Verify <code class="docutils literal notranslate"><span class="pre">githubOauthClientId</span></code> / <code class="docutils literal notranslate"><span class="pre">oauthServerUrl</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/thoth.yaml</span></code> and the sealed
+<code class="docutils literal notranslate"><span class="pre">GITHUB_OAUTH_CLIENT_SECRET</span></code> match the GitHub OAuth App.</p></li>
+</ul>
+</section>
+<section id="not-authorized-after-a-successful-github-consent">
+<h3>“403 / not authorized” after a successful GitHub consent<a class="headerlink" href="#not-authorized-after-a-successful-github-consent" title="Link to this heading">#</a></h3>
+<p>OAuth succeeded but your GitHub username is not in thoth’s
+<code class="docutils literal notranslate"><span class="pre">allowedGithubUsers</span></code>. Add it to the <code class="docutils literal notranslate"><span class="pre">config.allowedGithubUsers</span></code>
+comma-separated list in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/thoth.yaml</span></code>, commit,
+push, and let ArgoCD sync.</p>
+</section>
+<section id="tools-vanished-after-a-thoth-restart">
+<h3>Tools vanished after a thoth restart<a class="headerlink" href="#tools-vanished-after-a-thoth-restart" title="Link to this heading">#</a></h3>
+<p>thoth registers MCP clients dynamically (RFC 7591) and keeps client state
+<strong>in memory</strong>, so a pod restart invalidates previously issued tokens.
+Clients normally re-register transparently on their next connect; if not,
+remove and re-add the connector (Claude Code) or disconnect/reconnect the
+integration (Claude.ai) to trigger a fresh OAuth flow.</p>
+</section>
+<section id="unauthorized-401-on-tool-calls">
+<h3>“Unauthorized” / 401 on tool calls<a class="headerlink" href="#unauthorized-401-on-tool-calls" title="Link to this heading">#</a></h3>
+<p>The JWT has likely expired. Disconnect and reconnect (Claude.ai) or
+<code class="docutils literal notranslate"><span class="pre">claude</span> <span class="pre">mcp</span> <span class="pre">remove</span> <span class="pre">thoth</span></code> then re-add (Claude Code) to mint a fresh token.</p>
+</section>
+</section>
+<section id="falling-back-to-the-bearer-token">
+<h2>Falling back to the bearer token<a class="headerlink" href="#falling-back-to-the-bearer-token" title="Link to this heading">#</a></h2>
+<p>OAuth is the path for interactive MCP clients. For in-cluster scripts, the
+reindex job, and <code class="docutils literal notranslate"><span class="pre">curl</span></code> smoke tests, thoth also accepts a shared bearer key
+(<code class="docutils literal notranslate"><span class="pre">THOTH_MCP_API_KEYS</span></code>) in <strong>dual mode</strong> alongside OAuth — see the bearer-token
+smoke test in <a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> step 5. Interactive clients (Claude Code,
+Claude.ai) should always use OAuth, not the shared key.</p>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="thoth.html"><span class="doc">thoth (Slack PKM + Hindsight)</span></a> — Deploy the thoth MCP server and wire up OAuth (server side)</p></li>
+<li><p><a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a> — Expose services and configure Access bypass</p></li>
+<li><p><a class="reference internal" href="claude-code.html"><span class="doc">Using Claude Code</span></a> — Using Claude Code in this repo</p></li>
+<li><p><a class="reference external" href="https://modelcontextprotocol.io/">MCP Protocol specification</a></p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="thoth.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">thoth (Slack PKM + Hindsight)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="add-remove-services.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Add or Remove Services</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-flow-works">How the flow works</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-flight-confirm-oauth-discovery-works">1 – Pre-flight: confirm OAuth discovery works</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-claude-code">2 – Connect Claude Code</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-claude-ai">3 – Connect Claude.ai</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify">4 – Verify</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#discovery-endpoint-returns-an-html-login-page-or-403">Discovery endpoint returns an HTML login page or 403</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-never-opens-oauth-consent-loops">Browser never opens / OAuth consent loops</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#not-authorized-after-a-successful-github-consent">“403 / not authorized” after a successful GitHub consent</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools-vanished-after-a-thoth-restart">Tools vanished after a thoth restart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unauthorized-401-on-tool-calls">“Unauthorized” / 401 on tool calls</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#falling-back-to-the-bearer-token">Falling back to the bearer token</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See also</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/connect-thoth-mcp.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/connect-thoth-mcp.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
