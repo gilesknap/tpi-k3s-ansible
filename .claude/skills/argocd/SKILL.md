@@ -26,6 +26,27 @@ Don't `kubectl edit` the root Application. The sanctioned path:
    ```
 4. Reset `repo_branch: main` when done.
 
+### Don't push an unpublished chart pin while ArgoCD watches that branch
+
+While `repo_branch` points at a PR/dev branch for a smoke test, ArgoCD
+syncs from the *pushed* tip of that branch. So bumping an OCI chart pin
+(e.g. `chart_version`/`image_tag` in `kubernetes-services/values.yaml`)
+to a tag that isn't on the registry yet and **pushing** it makes ArgoCD
+fail the next sync with the `ComparisonError: ... 403/404` from the OCI
+trap below — the chart genuinely doesn't exist at that version.
+
+When prepping a version bump ahead of the upstream release: keep the
+edit out of the pushed branch — park it (a `.parked.md` diff under
+`_plans/`, or just leave `values.yaml` untouched and stage the bump
+later). Verify the tag is live before applying:
+
+```
+helm pull oci://ghcr.io/<org>/charts/<chart> --version <ver>   # 200 = safe to pin
+```
+
+Doc edits that merely *mention* the new version are fine to commit early
+(they don't deploy); only the `values.yaml` pin is load-bearing.
+
 ## OCI Helm charts — `oci://` prefix is a trap
 
 For an OCI-hosted Helm chart (e.g. `ghcr.io/<org>/charts/<chart>`):
@@ -65,6 +86,36 @@ kubectl -n argo-cd delete pod argocd-application-controller-0
 
 It's a StatefulSet, recreates cleanly within seconds. Allowed under
 the hard rules — pod lifecycle, not config drift.
+
+## ConfigMap-only changes don't roll the pod (envFrom + no checksum)
+
+If a workload consumes a chart-rendered ConfigMap/Secret via `envFrom`
+(or env `valueFrom`), changing **only** the ConfigMap *data* does **not**
+restart the pod. Env vars are injected at pod start, and unless the
+chart's Deployment pod template carries a `checksum/config` (and
+`checksum/secret`) annotation, the Deployment spec is unchanged — so
+ArgoCD shows the app **Synced/Healthy while the running pod keeps the
+stale values**. Easy to miss: the ConfigMap in the cluster is correct,
+but the config is not actually enforced.
+
+Diagnose by comparing the ConfigMap to what the pod actually has:
+
+```
+kubectl get cm -n <ns> <cm> -o jsonpath='{.data.<KEY>}'      # new value
+kubectl exec -n <ns> <pod> -- printenv <KEY>                  # stale value
+```
+
+Enforce it by restarting the pod (the Deployment recreates it identically
+— pods aren't ArgoCD-tracked, so this is **no git drift** and allowed
+under the hard rules, same as the app-controller bounce above):
+
+```
+kubectl delete pod -n <ns> <pod>
+```
+
+The real fix is upstream: the chart should add
+`checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}`
+to the pod template so data changes roll the workload automatically.
 
 ## Spotting which validator is failing
 
