@@ -38,6 +38,10 @@ land on that node. The existing pinning — `prometheus→node02`,
 not an accident, and new RWO `local-nvme` workloads need to pick
 their own host. This is called out in `CLAUDE.md` as a hard rule.
 
+Already have a cluster (or access to someone else's) and just want to *use*
+the thoth PKM? Skip the install paths and go straight to
+{doc}`tutorials/use-thoth`.
+
 With that mental model in place, pick your install path:
 
 - **{doc}`tutorials/ai-guided-setup`** — let Claude Code run the whole setup
@@ -61,4 +65,5 @@ tutorials/ai-guided-setup
 tutorials/getting-started-tpi
 tutorials/getting-started-generic
 tutorials/common-setup
+tutorials/use-thoth
 ```
