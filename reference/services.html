@@ -558,11 +558,11 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-even"><td><p>Headlamp</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp/headlamp</span></code></p></td>
-<td><p>0.41.0</p></td>
+<td><p>0.43.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
 <td><p>OAuth + Token</p></td>
-<td><p>Kubernetes dashboard</p></td>
+<td><p>Kubernetes dashboard (with Argo CD plugin)</p></td>
 </tr>
 <tr class="row-odd"><td><p>ingress-nginx</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx/ingress-nginx</span></code></p></td>
@@ -702,6 +702,23 @@ paste a ServiceAccount token generated with
 The Helm chart creates a ClusterRoleBinding granting <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> to
 the default ServiceAccount. Resource limits: 50m/128Mi request,
 200m/256Mi limit.</p>
+<p><strong>Argo CD plugin.</strong> The
+<a class="reference external" href="https://github.com/headlamp-k8s/plugins/tree/main/argocd">Argo CD plugin</a>
+from the Headlamp project adds an Argo CD sidebar section listing
+Applications with their project, source repo, revision, sync status and
+health, plus buttons to sync or refresh an Application. It drives the
+Kubernetes API rather than the Argo CD REST API, so it needs no Argo CD
+credentials — read and patch rights on <code class="docutils literal notranslate"><span class="pre">applications.argoproj.io</span></code> are
+enough, which the chart’s <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBinding already
+covers. No extra RBAC manifests are required.</p>
+<p>The plugin is not on ArtifactHub yet, so the chart’s <code class="docutils literal notranslate"><span class="pre">pluginsManager</span></code>
+sidecar (which only accepts ArtifactHub URLs) cannot install it. Instead
+<code class="docutils literal notranslate"><span class="pre">templates/dashboard.yaml</span></code> sets <code class="docutils literal notranslate"><span class="pre">config.pluginsDir</span></code> and adds an
+initContainer that downloads the GitHub release tarball, verifies its
+SHA-256, and unpacks it into an emptyDir shared with the Headlamp
+container. Set <code class="docutils literal notranslate"><span class="pre">headlamp.argocd_plugin.enabled</span></code> to <code class="docutils literal notranslate"><span class="pre">false</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> to drop the plugin; bump
+<code class="docutils literal notranslate"><span class="pre">version</span></code> and <code class="docutils literal notranslate"><span class="pre">sha256</span></code> together to upgrade it.</p>
 </section>
 <section id="ingress-nginx">
 <h3>ingress-nginx<a class="headerlink" href="#ingress-nginx" title="Link to this heading">#</a></h3>
