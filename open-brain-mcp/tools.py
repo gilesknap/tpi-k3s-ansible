@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from typing import Any
 
-import os
-
-from mcp.server.fastmcp import FastMCP
-
 import db
+from mcp.server.fastmcp import FastMCP
 
 SERVER_URL = os.environ.get("SERVER_URL", "http://localhost:8000")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")

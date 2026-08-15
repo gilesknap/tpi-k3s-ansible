@@ -6,8 +6,8 @@ to authenticated users whose GitHub username is on the allowlist.
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import os
 import secrets
 import time
