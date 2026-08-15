@@ -73,20 +73,25 @@ repository files that attempt to misuse Claude's tool access):
   to only the repositories needed, rather than a broad OAuth token. The volume
   isolation means each project gets its own credential scope.
 
-## Permission tiers
+## Permissions
 
-`.claude/settings.json` defines three permission tiers:
+This repo ships **no committed permission policy**. What is checked in under
+`.claude/` is the agent toolkit only — the workspace commands in
+`.claude/commands/` and the on-demand skills in `.claude/skills/`. Tool
+approvals are per-developer and accumulate in `.claude/settings.local.json`,
+which is gitignored, so your allowlist is yours and never lands in a PR.
 
-**Allow** — runs without confirmation:
-: File operations (Read, Edit, Write), bash commands, web search/fetch.
+Containment comes from two other places instead:
 
-**Prompt** — asks for confirmation each time:
-: Force push (`git push --force`), hard reset (`git reset --hard`), and
-  network escape vectors (`ssh`, `scp`, `rsync`, `sftp`, `wget --post*`,
-  `telnet`, `mail`, `sendmail`).
+**The sandbox**
+: The bwrap jail and its fail-closed egress filter (see above). This is the
+  hard boundary — it holds whatever a session has approved, because it is
+  enforced outside the agent rather than by it.
 
-**Deny** — blocked entirely:
-: Nothing is denied by default. Move commands here if you want to hard-block them.
+**`CLAUDE.md`**
+: The hard rules — never mutate the live cluster, never commit to `main`,
+  protected data paths. These are conventions the agent follows, not
+  enforcement, so treat them as guidance rather than a guarantee.
 
 ## CLAUDE.md
 
@@ -106,12 +111,17 @@ project evolves.
 3. Set up GitHub CLI auth: `claude-sandbox gh-auth` (use a fine-grained PAT),
    or `just setup` to check the SSH agent at the same time
 4. Launch Claude Code from the VS Code extension or CLI
-5. The agent reads `CLAUDE.md` and `.claude/settings.json` on startup
-6. Safe read-only commands run automatically; infrastructure changes prompt
-   for approval
+5. The agent reads `CLAUDE.md` and the `.claude/` toolkit on startup
+6. Approve tools as they are requested; the answers persist in
+   `.claude/settings.local.json` for subsequent sessions
 
 ## Customising permissions
 
-Edit `.claude/settings.json` to adjust. Move entries between `allow`, `prompt`,
-and `deny` lists as needed. Patterns use glob syntax — `Bash(kubectl get *)`
-matches any `kubectl get` command.
+Edit `.claude/settings.local.json` to adjust your own approvals — move entries
+between the `allow`, `ask`, and `deny` lists under `permissions`. Patterns use
+glob syntax, so `Bash(kubectl get *)` matches any `kubectl get` command.
+
+To impose a policy on everyone working in the repo rather than just yourself,
+put the same `permissions` block in a committed `.claude/settings.json`. Both
+files are merged with your user-global `~/.claude/settings.json`, with the
+more specific file winning.
