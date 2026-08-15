@@ -3,12 +3,33 @@
 This project includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 configuration for AI-assisted development with safe autonomy guardrails.
 
-## Devcontainer-only enforcement
+## Sandbox installation
 
-A `UserPromptSubmit` hook in `.claude/settings.json` blocks Claude Code from
-running outside the devcontainer. The hook checks for the `$REMOTE_CONTAINERS`
-environment variable and exits with an error if it is not set. This ensures the
-permission model and credential isolation described below are always active.
+The sandbox is [claude-sandbox](https://github.com/DiamondLightSource/claude-sandbox),
+installed from its upstream release by `.devcontainer/postCreate.sh` — no
+sandbox code is vendored into this repo. The installer picks the newest
+release tag, so a devcontainer rebuild also brings the sandbox up to date;
+`claude-sandbox version` reports what is installed and `claude-sandbox update`
+upgrades between rebuilds.
+
+The installer places a shadow `claude` on `$PATH` that wraps the real binary
+in `bwrap`, plus a global integrity guard (installed to `/etc`, so a session
+cannot edit it away) that fails closed if Claude is ever launched unwrapped.
+Run `claude-sandbox verify` for the live PASS/FAIL battery.
+
+Two pieces of wiring are this repo's, because an installer cannot supply them:
+
+`--device=/dev/net/tun` in `devcontainer.json`'s `runArgs`
+: Required by the fail-closed network egress jail. Without it, `claude`
+  refuses to launch.
+
+`.devcontainer/claude-sandbox.conf`
+: Copied to `/etc/claude-sandbox.conf` by `postCreate.sh` after the install.
+  It widens the writable bind to `/workspaces` (peer projects) plus `/cache`,
+  and lists each cluster host as an `allow-ip` — the egress jail blackholes
+  RFC1918 by default, so ansible, `ssh` and `kubectl` would otherwise fail
+  from inside the sandbox. Keep the list in step with `hosts.yml`, and
+  re-apply with `just sandbox-conf` after a `claude-sandbox update`.
 
 ## Credential isolation
 
@@ -17,8 +38,8 @@ attacks (malicious instructions hidden in GitHub issues, web content, or
 repository files that attempt to misuse Claude's tool access):
 
 **Sandbox-enforced isolation from host credentials:**
-: Claude runs inside a bwrap sandbox (see `.devcontainer/claude-sandbox/`)
-  that uses `--clearenv` and a strict-under-`/root` tmpfs overlay. Only an
+: Claude runs inside a bwrap sandbox that uses `--clearenv` and a
+  strict-under-`/root` tmpfs overlay. Only an
   explicit allowlist of dotfiles is bind-mounted back into the sandbox —
   `.ssh` is deliberately excluded, and `SSH_AUTH_SOCK` is not re-exported.
   So even though VS Code forwards the host SSH agent to the devcontainer
@@ -68,7 +89,8 @@ project evolves.
    `SSH_AUTH_SOCK` and copy `~/.ssh/known_hosts` into the devcontainer
    automatically.
 2. Open the repo in the devcontainer (tools are installed automatically)
-3. Set up GitHub CLI auth: `gh auth login` (use a fine-grained PAT)
+3. Set up GitHub CLI auth: `claude-sandbox gh-auth` (use a fine-grained PAT),
+   or `just setup` to check the SSH agent at the same time
 4. Launch Claude Code from the VS Code extension or CLI
 5. The agent reads `CLAUDE.md` and `.claude/settings.json` on startup
 6. Safe read-only commands run automatically; infrastructure changes prompt

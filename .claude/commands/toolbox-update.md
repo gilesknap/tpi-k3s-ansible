@@ -2,7 +2,7 @@
 description: Rescan BOTH ~/.claude and the current workspace .claude and refresh the hardcoded list inside /toolbox.
 ---
 
-Refresh the hardcoded listing inside `~/.claude/commands/toolbox.md` (and the workspace `./.claude/commands/toolbox.md` if present) so it matches the current state of disk. claude-sandbox's adapted `toolbox` enumerates BOTH locations — Claude actually loads from both, so the listing must reflect both.
+Refresh the hardcoded listing inside `~/.claude/commands/toolbox.md` (and the workspace `./.claude/commands/toolbox.md` if present) so it matches the current state of disk. `toolbox` enumerates BOTH locations — Claude actually loads from both, so the listing must reflect both.
 
 ## Steps
 

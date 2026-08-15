@@ -8,7 +8,11 @@
 	// enable ping to test connectivity
 	"runArgs": [
 		"--net=host",
-		"--security-opt=label=disable"
+		"--security-opt=label=disable",
+		// Required by claude-sandbox's egress jail, which runs Claude in its
+		// own netns and blackholes the LAN. Fail-closed: without the device
+		// `claude` refuses to launch.
+		"--device=/dev/net/tun"
 	],
 	// reserve some ports for port forwarding with kubectl - because when auto
 	// port forward goes wrong things get nasty
