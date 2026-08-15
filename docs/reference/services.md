@@ -128,7 +128,7 @@ hardware and want the full experience out of the box.
 | cloudflared | Plain manifests | 2026.3.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
 | Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.41.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard |
+| Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Supabase Studio |
@@ -192,6 +192,25 @@ paste a ServiceAccount token generated with
 The Helm chart creates a ClusterRoleBinding granting `cluster-admin` to
 the default ServiceAccount. Resource limits: 50m/128Mi request,
 200m/256Mi limit.
+
+**Argo CD plugin.** The
+[Argo CD plugin](https://github.com/headlamp-k8s/plugins/tree/main/argocd)
+from the Headlamp project adds an Argo CD sidebar section listing
+Applications with their project, source repo, revision, sync status and
+health, plus buttons to sync or refresh an Application. It drives the
+Kubernetes API rather than the Argo CD REST API, so it needs no Argo CD
+credentials — read and patch rights on `applications.argoproj.io` are
+enough, which the chart's `cluster-admin` ClusterRoleBinding already
+covers. No extra RBAC manifests are required.
+
+The plugin is not on ArtifactHub yet, so the chart's `pluginsManager`
+sidecar (which only accepts ArtifactHub URLs) cannot install it. Instead
+`templates/dashboard.yaml` sets `config.pluginsDir` and adds an
+initContainer that downloads the GitHub release tarball, verifies its
+SHA-256, and unpacks it into an emptyDir shared with the Headlamp
+container. Set `headlamp.argocd_plugin.enabled` to `false` in
+`kubernetes-services/values.yaml` to drop the plugin; bump
+`version` and `sha256` together to upgrade it.
 
 ### ingress-nginx
 

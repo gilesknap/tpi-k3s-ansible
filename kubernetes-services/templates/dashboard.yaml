@@ -25,6 +25,48 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
+{{- if .Values.headlamp.argocd_plugin.enabled }}
+          # Argo CD plugin (github.com/headlamp-k8s/plugins/tree/main/argocd).
+          # Headlamp loads every subdirectory of pluginsDir at startup, so an
+          # initContainer unpacks the release tarball into a shared emptyDir
+          # before the main container runs. The chart's `pluginsManager`
+          # sidecar is not usable here: it shells out to `pluginctl`, which
+          # only accepts ArtifactHub URLs, and this plugin is not yet
+          # published there. Version and checksum live in values.yaml.
+          config:
+            pluginsDir: /headlamp/plugins
+          initContainers:
+            - name: install-argocd-plugin
+              image: alpine:3.23
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  version={{ .Values.headlamp.argocd_plugin.version }}
+                  tarball=headlamp-k8s-argocd-$version.tar.gz
+                  wget -q -O "/tmp/$tarball" \
+                    "https://github.com/headlamp-k8s/plugins/releases/download/argocd-$version/$tarball"
+                  echo "{{ .Values.headlamp.argocd_plugin.sha256 }}  /tmp/$tarball" | sha256sum -c -
+                  rm -rf /headlamp/plugins/argocd
+                  tar -xzf "/tmp/$tarball" -C /headlamp/plugins
+                  ls -l /headlamp/plugins/argocd
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: plugins
+                  mountPath: /headlamp/plugins
+          volumes:
+            - name: plugins
+              emptyDir: {}
+          volumeMounts:
+            - name: plugins
+              mountPath: /headlamp/plugins
+{{- end }}
 
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}

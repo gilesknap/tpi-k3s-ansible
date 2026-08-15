@@ -42,6 +42,30 @@ llamacpp:
     contextSize: 8192 # reduce for large models that leave little VRAM for KV cache
     parallel: 2 # reduce for large models; 33B Q5 leaves ~200MB for KV cache
     memoryLimit: "20Gi"
+# Headlamp — the Kubernetes web UI (kubernetes-sigs).
+# The Argo CD plugin adds an "Argo CD" sidebar section listing
+# Applications with sync/health status, plus sync and refresh actions.
+# It talks to the Kubernetes API (not the Argo CD REST API), so it needs
+# no Argo CD credentials — the chart's ClusterRoleBinding already gives
+# the headlamp ServiceAccount enough rights to read and patch
+# `applications.argoproj.io`.
+#
+# The plugin is not published on ArtifactHub yet, so the chart's
+# `pluginsManager` sidecar (which only accepts ArtifactHub URLs) cannot
+# install it. Instead an initContainer unpacks the GitHub release
+# tarball into the plugins directory before Headlamp starts — see
+# templates/dashboard.yaml.
+#
+# To upgrade: pick a newer `argocd-<version>` tag from
+# https://github.com/headlamp-k8s/plugins/releases and update BOTH
+# `version` and `sha256` (the checksum of
+# headlamp-k8s-argocd-<version>.tar.gz). A mismatched checksum fails the
+# initContainer, so the pod will not start with an unverified plugin.
+headlamp:
+  argocd_plugin:
+    enabled: true
+    version: 0.1.0-alpha
+    sha256: 52eec016c40e1abe2c9a797391de0119c94f10c22005f9638389027604e8c39b
 # OAuth2 authentication gateway.
 # Set to true AFTER completing the OAuth setup guide (docs/how-to/oauth-setup).
 # When false, services are accessible without OAuth authentication.
