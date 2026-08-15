@@ -67,6 +67,36 @@ exclude `cuda/`.
 - Approx W8A8 RAM: 3B ≈ 4 GB, 7B ≈ 9 GB, 8B ≈ 10 GB, 14B ≈ 15 GB
   (tight). Anything larger than ~14 B will not fit a single RK1.
 
+## Only one big model fits in the NPU at a time
+
+The RK3588 NPU has its own addressable memory ceiling separate from
+the 32 GB system RAM. Two W8A8 7B models cannot coexist — the second
+load fails with:
+
+```
+E RKNN: failed to malloc npu memory, size: 4059037696, flags: 0x2
+E rkllm: rkllm_init failed
+```
+
+But the rkllama HTTP error returned to the client is the unhelpfully
+generic *"Failed to load model X: Unexpected Error … Check the file
+.rkllm is not corrupted, properties in Modelfile … and resources
+available in the server"*. The "corrupted file" wording is misleading
+— check `kubectl logs` for `failed to malloc npu memory` first.
+
+Compounding the trap: `keep_alive` defaults to **30 minutes**. So a
+single chat request via Open-WebUI keeps that model resident for half
+an hour, blocking every other model load until it expires. To switch
+models on demand, explicitly unload first:
+
+```bash
+kubectl exec -n rkllama $POD -c rkllama -- \
+  /opt/venv/bin/rkllama_client unload <currently-loaded-model>
+```
+
+`rkllama_client ps` shows what's currently resident and when it
+expires.
+
 ## Recommended quant settings
 
 For a 32 GB node with no other competing workloads:

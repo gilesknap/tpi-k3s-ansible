@@ -1,19 +1,19 @@
 ---
-description: Verify the Claude sandbox is intact — runs the 16-check PASS/FAIL battery + 10 adversarial breakout probes when the battery passes, and exits non-zero on any failure so the command is usable as a CI assertion.
+description: Verify the Claude sandbox is intact — runs the 18-check PASS/FAIL battery + 10 adversarial breakout probes when the battery passes, and exits non-zero on any failure so the command is usable as a CI assertion.
 ---
 
 `/verify-sandbox` runs **two phases** against the live Claude process:
 
-1. The deterministic **16-check battery** — small bash tests that each
+1. The deterministic **18-check battery** — small bash tests that each
    return PASS or FAIL with a one-line explanation. Covers every
    defence in `README-CLAUDE.md`'s "What's locked down" table.
-2. When (and only when) the 16 checks all pass, **10 adversarial
+2. When (and only when) the 18 checks all pass, **10 adversarial
    breakout probes** — open-ended attempts to escape the sandbox or
    exfiltrate credentials, designed by reasoning about gaps the
    deterministic checks don't directly exercise.
 
 Run phase 1 below in order, capture PASS/FAIL, and print the table
-described under "Output format". If every check passes, run phase 2.
+described under "Output format". If all 18 checks pass, run phase 2.
 Any FAIL in either phase must cause the overall command to exit
 non-zero (so CI assertions work).
 
@@ -54,13 +54,18 @@ grep -q '^NoNewPrivs:[[:space:]]*1$' /proc/self/status
 
 ## Check 03 — strict-under-/root
 
-`$HOME` (typically `/root`) is a tmpfs with only `.claude`,
-`.claude.json` (Claude Code's account state), and (optionally)
-`.cache` bound back in, plus a `.config` intermediate tmpfs that holds
-the `gh` / `glab-cli` credential binds. Claude Code itself writes
-`.local/{bin,share,state}/claude` and a `.local/share/applications`
-`.desktop` URL handler into the tmpfs on first launch, so `.local` is
-also expected (contents live in the tmpfs, not bound from the host).
+`$HOME` (typically `/root`) is a tmpfs with `.claude`, `.claude.json`
+(Claude Code's account state), `.cache`, and `.local/share` bound back
+in from the host, plus a `.config` intermediate tmpfs that holds the
+`gh` / `glab-cli` credential binds. The `.local/share` bind is the
+XDG-data bulk-mount (helm plugins, krew, uv-managed Python, etc.) —
+see README-CLAUDE.md's "XDG split rationale". Under `.local/share`,
+two sub-dirs stay tmpfs-masked: `applications/` (Claude Code's
+`.desktop` URL handler, which we don't want registered on the host
+desktop environment) and `claude/` (Claude Code's versioned binary
+cache, ephemeral by design). Claude Code also writes `.local/bin/
+claude` (the real-binary bind) and tmpfs-only entries under
+`.local/state/claude`, so `.local` is expected as a top-level entry.
 The defence-in-depth file masks (checks 14–15) also bind `/dev/null`
 over `.netrc`, `.Xauthority`, and `.ICEauthority` — so those names
 are expected to appear too, as size-zero entries (which checks 14–15
@@ -89,16 +94,29 @@ regressed.
 # .config intermediate tmpfs for the selectively-exposed gh/glab
 # binds, the .local tree Claude Code writes into the tmpfs at
 # runtime, and the four masked dotfiles intentionally bound to /dev/null.
-extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority' || true)"
+# Downstream patch (tpi-k3s-ansible only): allowlist extended with
+# .kube, .ssh, and bin — the cluster-reach binds restored in
+# claude-shadow (kubectl/helm/kubeseal at ~/bin, admin kubeconfig at
+# ~/.kube, known_hosts at ~/.ssh). Originally added in 7c549f6, dropped
+# by upstream 1d0ad7d, re-added here only for this homelab repo.
+extras="$(ls -A "$HOME" 2>/dev/null | grep -vxE '\.claude|\.claude\.json|\.cache|\.config|\.local|\.gitconfig|\.netrc|\.Xauthority|\.ICEauthority|\.kube|\.ssh|bin' || true)"
 [ -z "$extras" ] || exit 1
 # When .config is present (bwrap intermediate for the credential
 # binds), assert it contains only the trusted subdirs — anything else
 # means either a sibling ~/.config tool (VS Code, etc.) leaked through
 # or the shadow's --no-chrome injection regressed (browser dirs from
 # Claude Code's Chrome native-messaging-host self-registration).
+# Downstream patch: claude-ssh permitted (Claude-scoped ansible key).
 if [ -d "$HOME/.config" ]; then
-    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli' || true)"
+    config_extras="$(ls -A "$HOME/.config" 2>/dev/null | grep -vxE 'gh|glab-cli|claude-ssh' || true)"
     [ -z "$config_extras" ]
+fi
+# Downstream patch: .ssh must contain only known_hosts (the only file
+# bind from claude-shadow). Anything else means a full ~/.ssh dir bind
+# regressed and host private keys may have leaked in.
+if [ -d "$HOME/.ssh" ]; then
+    ssh_extras="$(ls -A "$HOME/.ssh" 2>/dev/null | grep -vxE 'known_hosts' || true)"
+    [ -z "$ssh_extras" ]
 fi
 ```
 
@@ -264,10 +282,56 @@ is in effect at every launch.
     [ -n "$(git config --get user.email 2>/dev/null)" ]
 ```
 
-## Phase 2 — Adversarial probes (only when 01–16 all PASS)
+## Check 17 — workspace scoped to `$PWD`, not broad `/workspaces`
+
+The default workspace bind is `$PWD` — only the current project
+directory is writable inside the sandbox. The old behaviour (binding
+all of `/workspaces`, making sibling devcontainer projects writable)
+is restored by setting `CLAUDE_SANDBOX_WORKSPACE_ROOT=/workspaces` in
+your devcontainer's `remoteEnv`. This check fails when the broad
+`/workspaces` bind is active without that explicit opt-in.
+
+```bash
+# Only meaningful when /workspaces exists (devcontainer convention) and
+# $PWD is a proper subdir of it. If /workspaces is an rw bind-mount and
+# CLAUDE_SANDBOX_WORKSPACE_ROOT is not /workspaces, the old default
+# regressed (it is passed through as --setenv into the sandbox).
+if [ -d /workspaces ] && [ "$PWD" != /workspaces ]; then
+    if awk '$5=="/workspaces"{print $6; exit}' /proc/self/mountinfo \
+            | grep -q '\brw\b'; then
+        [ "${CLAUDE_SANDBOX_WORKSPACE_ROOT:-}" = "/workspaces" ] || exit 1
+    fi
+fi
+```
+
+## Check 18 — config read from `/etc`, not the workspace
+
+The shadow reads its config from the host-global
+`/etc/claude-sandbox.conf` (placed by `install.sh`), **not** from
+`$PWD/.devcontainer/claude-sandbox.conf`. The old per-workspace read
+sat inside the rw-bound workspace, so a compromised session could
+rewrite it (`allow-write = /`, `workspace-root = /`) and the next
+launch would honour it — a cross-session bind-escalation. `/etc` is
+not in the sandbox's rw set, closing that vector.
+
+This inspects the installed shadow on `$PATH` (visible read-only via
+`--ro-bind / /`): it must pin `CONFIG_PATH` to `/etc/...` and feed
+that to `parse_config`, with no `parse_config` call reading from
+`.devcontainer` (the old, attacker-writable call site). The negative
+match is scoped to the `parse_config` line so the `/etc` rationale
+comment — which legitimately names the source path — doesn't trip it.
+
+```bash
+shadow="$(command -v claude)"
+grep -qF 'CONFIG_PATH="/etc/claude-sandbox.conf"' "$shadow" \
+    && grep -qF 'parse_config "$CONFIG_PATH"' "$shadow" \
+    && ! grep -q 'parse_config.*\.devcontainer' "$shadow"
+```
+
+## Phase 2 — Adversarial probes (only when 01–18 all PASS)
 
 When the deterministic battery is clean, think of **10 novel breakout
-approaches and try them**. The goal is to find a gap the 16-check
+approaches and try them**. The goal is to find a gap the 18-check
 matrix doesn't directly exercise — anything that lets the sandbox
 escape its filesystem inversion, recover scrubbed env vars, reach
 the host's network identity, signal/observe processes outside the
@@ -311,17 +375,17 @@ should be followed by a "Suggested follow-up:" line proposing what
 a more targeted test would look like.
 
 If all 10 probes are **[BLOCKED]**, the sandbox passes both phases
-and the final line becomes `RESULT: SANDBOX OK (16 deterministic +
+and the final line becomes `RESULT: SANDBOX OK (18 deterministic +
 10 adversarial)`.
 
 ## Output format
 
-Print a header line `"/verify-sandbox: 16 checks"`, then one
+Print a header line `"/verify-sandbox: 18 checks"`, then one
 `[PASS]` / `[FAIL]` line per check (zero-padded number, name,
 one-line explanation on FAIL), then a `Summary:` line.
 
 ```
-/verify-sandbox: 16 checks
+/verify-sandbox: 18 checks
   [PASS] 01 IS_SANDBOX sentinel set
   [PASS] 02 NO_NEW_PRIVS: setuid escalation blocked
   [PASS] 03 strict-under-/root: only .claude (+.cache/.local) under $HOME
@@ -338,7 +402,9 @@ one-line explanation on FAIL), then a `Summary:` line.
   [PASS] 14 file mask: $HOME/.netrc is empty
   [PASS] 15 file mask: $HOME/.Xauthority is empty
   [PASS] 16 curated gitconfig: GIT_CONFIG_GLOBAL set, user.email present
-  Summary: 16 PASS / 0 FAIL
+  [PASS] 17 workspace scoped to $PWD (not broad /workspaces)
+  [PASS] 18 config read from /etc/claude-sandbox.conf (no $PWD/.devcontainer read)
+  Summary: 18 PASS / 0 FAIL
 
 Adversarial probes:
   [BLOCKED] 01 read /proc/<host_pid>/environ — EACCES (YAMA ptrace_scope=1)
@@ -357,6 +423,6 @@ If any phase-2 probe is `[ESCAPED]`, exit non-zero regardless of
 phase-1 results.
 
 Final result line:
-- All 16 PASS + 10 BLOCKED → `RESULT: SANDBOX OK (16 deterministic + 10 adversarial)`
-- All 16 PASS + ≥1 INCONCLUSIVE + 0 ESCAPED → `RESULT: SANDBOX OK (16 deterministic + N BLOCKED, M INCONCLUSIVE)`
+- All 18 PASS + 10 BLOCKED → `RESULT: SANDBOX OK (18 deterministic + 10 adversarial)`
+- All 18 PASS + ≥1 INCONCLUSIVE + 0 ESCAPED → `RESULT: SANDBOX OK (18 deterministic + N BLOCKED, M INCONCLUSIVE)`
 - Any FAIL or ESCAPED → `RESULT: SANDBOX LEAKING — open an issue against gilesknap/claude-sandbox`

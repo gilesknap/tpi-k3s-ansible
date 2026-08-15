@@ -5,15 +5,14 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 
+import db
 import jwt
+from oauth import oauth_routes
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-import db
-from oauth import oauth_routes
 from tools import create_mcp
 
 MCP_JWT_SECRET = os.environ.get("MCP_JWT_SECRET", "")

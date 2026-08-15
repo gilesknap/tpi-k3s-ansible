@@ -1,0 +1,11 @@
+--- a/src/rkllama/server/server.py
++++ b/src/rkllama/server/server.py
+@@ -159,7 +159,7 @@
+     model_loaded = variables.worker_manager_rkllm.add_worker(model_name, rkllm_model_path, model_dir, options=request_options, loaded_by=loaded_by)
+ 
+     if not model_loaded:
+-        return None, f"Unexpected Error loading the model {model_name} into memory. Check the file .rkllm is not corrupted, properties in Modelfile (like Context Length allowed by the model) and resources available in the server"
++        return None, f"Failed to load model {model_name}. The RK3588 NPU may already be holding another model (it fits one large model at a time). Check `rkllama_client ps` and unload with `rkllama_client unload <name>`. If no other model is loaded, verify the .rkllm file integrity and Modelfile `NUM_CTX`."
+     else:
+         return None, None
+ 

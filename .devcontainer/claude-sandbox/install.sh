@@ -122,6 +122,25 @@ ensure_cred_dirs() {
     touch "$HOME/.claude.json"
 }
 
+# install_conf: place the clone's claude-sandbox.conf at the host-global
+# /etc/claude-sandbox.conf the shadow reads at launch. Re-run on every
+# rebuild (via postCreate) so the /etc copy tracks the clone's conf.
+# Unlike install_file this is skip-if-absent: a promoted target that
+# carries no conf, or a clone without one, simply gets no global config
+# (parse_config then no-ops). Mode 0644 — it's data, not an executable.
+# cmp -s short-circuits so a re-run with unchanged content is a no-op.
+install_conf() {
+    local src dst
+    src="$REPO_ROOT/.devcontainer/claude-sandbox.conf"
+    dst="$(prefixed /etc/claude-sandbox.conf)"
+    [ -f "$src" ] || return 0
+    mkdir -p "$(dirname "$dst")"
+    if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
+        return 0
+    fi
+    install -m 0644 "$src" "$dst"
+}
+
 # link_terminal_config: when /user-terminal-config is mounted (the
 # convention used by terminal-config-style devcontainers), symlink
 # ~/.claude and ~/.claude.json into it so Claude's settings and OAuth
@@ -246,12 +265,14 @@ main() {
                  "$WORKSPACE/.claude/hooks/sandbox-check.sh"
     install_file "$REPO_ROOT/.claude/statusline-command.sh" \
                  "$WORKSPACE/.claude/statusline-command.sh"
+    install_conf
     wire_settings_hook
     wire_settings_statusline
 
     echo "claude-sandbox: install complete."
     echo "  shadow:      $(prefixed /usr/local/bin/claude)"
     echo "  real claude: $(prefixed /usr/libexec/claude-sandbox/claude)"
+    echo "  config:      $(prefixed /etc/claude-sandbox.conf)"
     echo "  workspace:   $WORKSPACE"
     echo "  run \`/verify-sandbox\` inside Claude for the live battery."
 }
