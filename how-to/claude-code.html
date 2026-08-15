@@ -424,12 +424,54 @@
 <h1>Using Claude Code<a class="headerlink" href="#using-claude-code" title="Link to this heading">#</a></h1>
 <p>This project includes <a class="reference external" href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>
 configuration for AI-assisted development with safe autonomy guardrails.</p>
-<section id="devcontainer-only-enforcement">
-<h2>Devcontainer-only enforcement<a class="headerlink" href="#devcontainer-only-enforcement" title="Link to this heading">#</a></h2>
-<p>A <code class="docutils literal notranslate"><span class="pre">UserPromptSubmit</span></code> hook in <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> blocks Claude Code from
-running outside the devcontainer. The hook checks for the <code class="docutils literal notranslate"><span class="pre">$REMOTE_CONTAINERS</span></code>
-environment variable and exits with an error if it is not set. This ensures the
-permission model and credential isolation described below are always active.</p>
+<section id="sandbox-installation">
+<h2>Sandbox installation<a class="headerlink" href="#sandbox-installation" title="Link to this heading">#</a></h2>
+<p>The sandbox is <a class="reference external" href="https://github.com/DiamondLightSource/claude-sandbox">claude-sandbox</a>,
+installed from its upstream release by <code class="docutils literal notranslate"><span class="pre">.devcontainer/postCreate.sh</span></code> — no
+sandbox code is vendored into this repo. The installer picks the newest
+release tag, so a devcontainer rebuild also brings the sandbox up to date;
+<code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">version</span></code> reports what is installed and <code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">update</span></code>
+upgrades between rebuilds.</p>
+<p>The installer places a shadow <code class="docutils literal notranslate"><span class="pre">claude</span></code> on <code class="docutils literal notranslate"><span class="pre">$PATH</span></code> that wraps the real binary
+in <code class="docutils literal notranslate"><span class="pre">bwrap</span></code>, plus a global integrity guard (installed to <code class="docutils literal notranslate"><span class="pre">/etc</span></code>, so a session
+cannot edit it away) that fails closed if Claude is ever launched unwrapped.
+Run <code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">verify</span></code> for the live PASS/FAIL battery.</p>
+<p>Two pieces of wiring are this repo’s, because an installer cannot supply them:</p>
+<p><code class="docutils literal notranslate"><span class="pre">--device=/dev/net/tun</span></code> in <code class="docutils literal notranslate"><span class="pre">devcontainer.json</span></code>’s <code class="docutils literal notranslate"><span class="pre">runArgs</span></code>
+: Required by the fail-closed network egress jail. Without it, <code class="docutils literal notranslate"><span class="pre">claude</span></code>
+refuses to launch.</p>
+<p><code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>
+: Copied to <code class="docutils literal notranslate"><span class="pre">/etc/claude-sandbox.conf</span></code> by <code class="docutils literal notranslate"><span class="pre">postCreate.sh</span></code> after the install.
+It widens the writable bind to <code class="docutils literal notranslate"><span class="pre">/workspaces</span></code> (peer projects) plus <code class="docutils literal notranslate"><span class="pre">/cache</span></code>,
+and lists each cluster host as an <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> — the egress jail blackholes
+RFC1918 by default, so ansible, <code class="docutils literal notranslate"><span class="pre">ssh</span></code> and <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> would otherwise fail
+from inside the sandbox. Keep the list in step with <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, and
+re-apply with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">sandbox-conf</span></code> after a <code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">update</span></code>.</p>
+<p>It also binds back the three <code class="docutils literal notranslate"><span class="pre">/root</span></code> paths this repo’s tooling lives in.
+The sandbox wipes <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> to a tmpfs and restores only its own allowlist,
+which does not include them:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Path</p></th>
+<th class="head"><p>Why</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/root/bin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bin_dir</span></code> — where the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role installs <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd</span></code>. The <code class="docutils literal notranslate"><span class="pre">/usr/local/bin</span></code> entries are symlinks into it, so without the bind they dangle and the CLIs are “not found” despite appearing to exist</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/root/.kube</span></code></p></td>
+<td><p>The kubeconfig, so a visible <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> has a cluster to talk to</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/root/.config/claude-ssh</span></code></p></td>
+<td><p>Claude’s own ansible-account key from <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code>; <code class="docutils literal notranslate"><span class="pre">$HOME/.config</span></code> is a strict allowlist upstream (<code class="docutils literal notranslate"><span class="pre">gh</span></code> + <code class="docutils literal notranslate"><span class="pre">glab</span></code> only)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Symptom when these are missing: <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> reports <code class="docutils literal notranslate"><span class="pre">command</span> <span class="pre">not</span> <span class="pre">found</span></code>
+inside the sandbox while resolving fine in an ordinary devcontainer
+terminal.</p>
 </section>
 <section id="credential-isolation">
 <h2>Credential isolation<a class="headerlink" href="#credential-isolation" title="Link to this heading">#</a></h2>
@@ -437,8 +479,8 @@ permission model and credential isolation described below are always active.</p>
 attacks (malicious instructions hidden in GitHub issues, web content, or
 repository files that attempt to misuse Claude’s tool access):</p>
 <p><strong>Sandbox-enforced isolation from host credentials:</strong>
-: Claude runs inside a bwrap sandbox (see <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox/</span></code>)
-that uses <code class="docutils literal notranslate"><span class="pre">--clearenv</span></code> and a strict-under-<code class="docutils literal notranslate"><span class="pre">/root</span></code> tmpfs overlay. Only an
+: Claude runs inside a bwrap sandbox that uses <code class="docutils literal notranslate"><span class="pre">--clearenv</span></code> and a
+strict-under-<code class="docutils literal notranslate"><span class="pre">/root</span></code> tmpfs overlay. Only an
 explicit allowlist of dotfiles is bind-mounted back into the sandbox —
 <code class="docutils literal notranslate"><span class="pre">.ssh</span></code> is deliberately excluded, and <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> is not re-exported.
 So even though VS Code forwards the host SSH agent to the devcontainer
@@ -456,17 +498,22 @@ extension. Remote pushes require an explicit fine-grained PAT via
 to only the repositories needed, rather than a broad OAuth token. The volume
 isolation means each project gets its own credential scope.</p>
 </section>
-<section id="permission-tiers">
-<h2>Permission tiers<a class="headerlink" href="#permission-tiers" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> defines three permission tiers:</p>
-<p><strong>Allow</strong> — runs without confirmation:
-: File operations (Read, Edit, Write), bash commands, web search/fetch.</p>
-<p><strong>Prompt</strong> — asks for confirmation each time:
-: Force push (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">push</span> <span class="pre">--force</span></code>), hard reset (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">reset</span> <span class="pre">--hard</span></code>), and
-network escape vectors (<code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">scp</span></code>, <code class="docutils literal notranslate"><span class="pre">rsync</span></code>, <code class="docutils literal notranslate"><span class="pre">sftp</span></code>, <code class="docutils literal notranslate"><span class="pre">wget</span> <span class="pre">--post*</span></code>,
-<code class="docutils literal notranslate"><span class="pre">telnet</span></code>, <code class="docutils literal notranslate"><span class="pre">mail</span></code>, <code class="docutils literal notranslate"><span class="pre">sendmail</span></code>).</p>
-<p><strong>Deny</strong> — blocked entirely:
-: Nothing is denied by default. Move commands here if you want to hard-block them.</p>
+<section id="permissions">
+<h2>Permissions<a class="headerlink" href="#permissions" title="Link to this heading">#</a></h2>
+<p>This repo ships <strong>no committed permission policy</strong>. What is checked in under
+<code class="docutils literal notranslate"><span class="pre">.claude/</span></code> is the agent toolkit only — the workspace commands in
+<code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> and the on-demand skills in <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>. Tool
+approvals are per-developer and accumulate in <code class="docutils literal notranslate"><span class="pre">.claude/settings.local.json</span></code>,
+which is gitignored, so your allowlist is yours and never lands in a PR.</p>
+<p>Containment comes from two other places instead:</p>
+<p><strong>The sandbox</strong>
+: The bwrap jail and its fail-closed egress filter (see above). This is the
+hard boundary — it holds whatever a session has approved, because it is
+enforced outside the agent rather than by it.</p>
+<p><strong><code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code></strong>
+: The hard rules — never mutate the live cluster, never commit to <code class="docutils literal notranslate"><span class="pre">main</span></code>,
+protected data paths. These are conventions the agent follows, not
+enforcement, so treat them as guidance rather than a guarantee.</p>
 </section>
 <section id="claude-md">
 <h2>CLAUDE.md<a class="headerlink" href="#claude-md" title="Link to this heading">#</a></h2>
@@ -484,18 +531,23 @@ project evolves.</p>
 <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> and copy <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code> into the devcontainer
 automatically.</p></li>
 <li><p>Open the repo in the devcontainer (tools are installed automatically)</p></li>
-<li><p>Set up GitHub CLI auth: <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code> (use a fine-grained PAT)</p></li>
+<li><p>Set up GitHub CLI auth: <code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">gh-auth</span></code> (use a fine-grained PAT),
+or <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">setup</span></code> to check the SSH agent at the same time</p></li>
 <li><p>Launch Claude Code from the VS Code extension or CLI</p></li>
-<li><p>The agent reads <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> and <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> on startup</p></li>
-<li><p>Safe read-only commands run automatically; infrastructure changes prompt
-for approval</p></li>
+<li><p>The agent reads <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> and the <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> toolkit on startup</p></li>
+<li><p>Approve tools as they are requested; the answers persist in
+<code class="docutils literal notranslate"><span class="pre">.claude/settings.local.json</span></code> for subsequent sessions</p></li>
 </ol>
 </section>
 <section id="customising-permissions">
 <h2>Customising permissions<a class="headerlink" href="#customising-permissions" title="Link to this heading">#</a></h2>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code> to adjust. Move entries between <code class="docutils literal notranslate"><span class="pre">allow</span></code>, <code class="docutils literal notranslate"><span class="pre">prompt</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">deny</span></code> lists as needed. Patterns use glob syntax — <code class="docutils literal notranslate"><span class="pre">Bash(kubectl</span> <span class="pre">get</span> <span class="pre">*)</span></code>
-matches any <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span></code> command.</p>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">.claude/settings.local.json</span></code> to adjust your own approvals — move entries
+between the <code class="docutils literal notranslate"><span class="pre">allow</span></code>, <code class="docutils literal notranslate"><span class="pre">ask</span></code>, and <code class="docutils literal notranslate"><span class="pre">deny</span></code> lists under <code class="docutils literal notranslate"><span class="pre">permissions</span></code>. Patterns use
+glob syntax, so <code class="docutils literal notranslate"><span class="pre">Bash(kubectl</span> <span class="pre">get</span> <span class="pre">*)</span></code> matches any <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span></code> command.</p>
+<p>To impose a policy on everyone working in the repo rather than just yourself,
+put the same <code class="docutils literal notranslate"><span class="pre">permissions</span></code> block in a committed <code class="docutils literal notranslate"><span class="pre">.claude/settings.json</span></code>. Both
+files are merged with your user-global <code class="docutils literal notranslate"><span class="pre">~/.claude/settings.json</span></code>, with the
+more specific file winning.</p>
 </section>
 </section>
 
@@ -546,9 +598,9 @@ matches any <code class="docutils literal notranslate"><span class="pre">kubectl
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#devcontainer-only-enforcement">Devcontainer-only enforcement</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sandbox-installation">Sandbox installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#credential-isolation">Credential isolation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#permission-tiers">Permission tiers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#permissions">Permissions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#claude-md">CLAUDE.md</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#workflow">Workflow</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#customising-permissions">Customising permissions</a></li>
