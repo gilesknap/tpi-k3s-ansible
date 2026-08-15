@@ -31,6 +31,20 @@ Two pieces of wiring are this repo's, because an installer cannot supply them:
   from inside the sandbox. Keep the list in step with `hosts.yml`, and
   re-apply with `just sandbox-conf` after a `claude-sandbox update`.
 
+  It also binds back the three `/root` paths this repo's tooling lives in.
+  The sandbox wipes `$HOME` to a tmpfs and restores only its own allowlist,
+  which does not include them:
+
+  | Path | Why |
+  | --- | --- |
+  | `/root/bin` | `bin_dir` — where the `tools` role installs `kubectl`, `helm`, `kubeseal`, `argocd`. The `/usr/local/bin` entries are symlinks into it, so without the bind they dangle and the CLIs are "not found" despite appearing to exist |
+  | `/root/.kube` | The kubeconfig, so a visible `kubectl` has a cluster to talk to |
+  | `/root/.config/claude-ssh` | Claude's own ansible-account key from `just claude-ssh-bootstrap`; `$HOME/.config` is a strict allowlist upstream (`gh` + `glab` only) |
+
+  Symptom when these are missing: `kubectl` reports `command not found`
+  inside the sandbox while resolving fine in an ordinary devcontainer
+  terminal.
+
 ## Credential isolation
 
 The devcontainer applies several layers of protection against prompt injection

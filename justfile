@@ -92,13 +92,23 @@ gpu-setup:
 create-prometheus-admission-secret:
     scripts/create-prometheus-admission-secret
 
-# claude-sandbox recipes. The sandbox itself is installed from its
-# upstream release by .devcontainer/postCreate.sh — `claude-sandbox
-# gh-auth|glab-auth|update|verify|version` are on PATH after that.
+# claude-sandbox recipes. The sandbox is installed from its upstream
+# release by .devcontainer/postCreate.sh, which puts the `claude-sandbox`
+# helper CLI on PATH: gh-auth, glab-auth, update, verify, version.
+#
+# Anything that helper covers must NOT be re-wrapped here — the old
+# `gh-auth`/`glab-auth`/`promote` recipes were deleted for that reason.
+# The two below survive because no subcommand does their job: one applies
+# THIS repo's config, the other is a cluster ansible operation.
 
-# Re-apply this repo's sandbox config to /etc/claude-sandbox.conf. Needed
-# after `claude-sandbox update`, which restores the upstream defaults and
-# so drops our allow-ip entries for the cluster nodes.
+# Re-apply this repo's sandbox config to /etc/claude-sandbox.conf.
+#
+# Not redundant with any `claude-sandbox` subcommand: the upstream
+# installer (install.sh:install_conf) unconditionally stamps ITS OWN
+# .devcontainer/claude-sandbox.conf over /etc/claude-sandbox.conf, so
+# `claude-sandbox update` silently discards our allow-ip entries for the
+# cluster nodes and our allow-write binds for /root/{bin,.kube}. Run this
+# after every update, or the sandbox loses kubectl and LAN reach.
 sandbox-conf:
     install -m 0644 .devcontainer/claude-sandbox.conf /etc/claude-sandbox.conf
 
@@ -106,7 +116,9 @@ sandbox-conf:
 # cluster nodes. `revoke` removes it. The keypair lives in the iac2-claude-ssh
 # podman volume so it persists across container rebuilds. Run this from the
 # outer devcontainer — needs the host SSH agent to reach the nodes the first
-# time. After deploy, the sandbox can ansible-playbook with this key.
+# time. After deploy, the sandbox can ansible-playbook with this key, which
+# is why /root/.config/claude-ssh is an allow-write in claude-sandbox.conf.
+# This is a cluster operation, not sandbox tooling — no upstream equivalent.
 claude-ssh-bootstrap action="deploy":
     #!/usr/bin/env bash
     set -euo pipefail
