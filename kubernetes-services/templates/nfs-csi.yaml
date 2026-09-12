@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nfs-csi
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kubernetes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nfs-csi
+  source:
+    chart: csi-driver-nfs
+    repoURL: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+    targetRevision: {{ .Values.nfs_csi.chart_version | quote }}
+    helm:
+      valuesObject:
+        storageClass:
+          create: true
+          name: {{ .Values.nfs_csi.storage_class | quote }}
+          annotations:
+            storageclass.kubernetes.io/is-default-class: "true"
+          parameters:
+            server: {{ .Values.nfs_csi.server | quote }}
+            share: {{ .Values.nfs_csi.share | quote }}
+            subDir: ${pvc.metadata.namespace}/${pvc.metadata.name}-${pv.metadata.name}
+            onDelete: retain
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          mountOptions:
+            - nfsvers=4.1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
