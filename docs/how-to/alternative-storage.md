@@ -152,7 +152,7 @@ spec:
           storageClass:
             create: true
             name: nfs-csi
-            reclaimPolicy: Retain
+            reclaimPolicy: Delete
             server: 192.168.1.100       # Your NFS server IP
             share: /export/k8s          # Your NFS export path
 ```
