@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kubernetes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  sources:
+    - chart: kyverno
+      repoURL: https://kyverno.github.io/kyverno/
+      targetRevision: {{ .Values.kyverno.chart_version | quote }}
+      helm:
+        valuesObject:
+          admissionController:
+            replicas: 1
+          backgroundController:
+            enabled: false
+          cleanupController:
+            enabled: false
+          reportsController:
+            enabled: false
+    - path: ./kubernetes-services/additions/t11-mutator
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          namespace: {{ .Values.kyverno.t11_namespace | quote }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
