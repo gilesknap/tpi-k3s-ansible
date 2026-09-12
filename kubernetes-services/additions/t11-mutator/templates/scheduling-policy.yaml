@@ -24,8 +24,30 @@ spec:
         resources:
           - pods
   matchConditions:
-    - name: all-t11-pods
-      expression: "true"
+    - name: uses-amd64-only-image
+      expression: >-
+        [
+          "ghcr.io/diamondlightsource/blueapi",
+          "ghcr.io/diamondlightsource/numtracker",
+          "ghcr.io/epics-containers/epics-gateways-runtime"
+        ].exists(repo,
+          object.spec.containers.exists(container,
+            container.image == repo ||
+            container.image.startsWith(repo + ":") ||
+            container.image.startsWith(repo + "@")
+          ) ||
+          object.spec.?initContainers.orValue([]).exists(container,
+            container.image == repo ||
+            container.image.startsWith(repo + ":") ||
+            container.image.startsWith(repo + "@")
+          )
+        ) ||
+        object.spec.containers.exists(container,
+          container.image.startsWith("ghcr.io/epics-containers/ioc-")
+        ) ||
+        object.spec.?initContainers.orValue([]).exists(container,
+          container.image.startsWith("ghcr.io/epics-containers/ioc-")
+        )
   mutations:
     - patchType: JSONPatch
       jsonPatch:
@@ -43,40 +65,5 @@ spec:
               op: "add",
               path: "/spec/nodeSelector",
               value: {"kubernetes.io/arch": "amd64"}
-            }
-          ]
-    - patchType: JSONPatch
-      jsonPatch:
-        expression: |
-          object.spec.?tolerations.orValue([]).exists(t,
-            t.key == "workstation" &&
-            t.operator == "Equal" &&
-            t.value == "true" &&
-            t.effect == "NoSchedule"
-          ) ?
-          [] :
-          has(object.spec.tolerations) ?
-          [
-            JSONPatch{
-              op: "add",
-              path: "/spec/tolerations/-",
-              value: {
-                "key": "workstation",
-                "operator": "Equal",
-                "value": "true",
-                "effect": "NoSchedule"
-              }
-            }
-          ] :
-          [
-            JSONPatch{
-              op: "add",
-              path: "/spec/tolerations",
-              value: [{
-                "key": "workstation",
-                "operator": "Equal",
-                "value": "true",
-                "effect": "NoSchedule"
-              }]
             }
           ]
