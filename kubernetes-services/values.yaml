@@ -97,7 +97,7 @@ admin_emails:
 # remain admin-only and ignore this default.
 # Supabase self-hosted stack for Open Brain AI memory.
 # Provides database, auth, PostgREST, Edge Functions, Studio, and Kong gateway.
-enable_supabase: true
+enable_supabase: false
 supabase:
   nfs:
     server: 192.168.1.3
@@ -123,7 +123,7 @@ open_brain_mcp:
 # Deployed from the published OCI Helm chart in the thoth repo. The Secret
 # (thoth-env) is shipped here as a SealedSecret carrier chart; the upstream
 # chart provides Deployment/Service/Ingress.
-enable_thoth: true
+enable_thoth: false
 thoth:
   # OCI chart version published by gilesknap/thoth CI.
   chart_version: "0.8.0-beta.3"
@@ -136,6 +136,13 @@ thoth:
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
+# Dynamically provisioned RWX volumes. The NFS CSI driver creates one
+# subdirectory per PVC beneath this dedicated NAS share.
+nfs_csi:
+  chart_version: "4.13.4"
+  storage_class: nfs-rwx
+  server: 192.168.1.3
+  share: /k8s-dynamic
 # Local-storage PV map — node-pinned hostPath PVs that survive cluster
 # rebuild (data lives outside /var/lib/rancher). Each entry becomes one
 # PV, pre-bound via claimRef to the chart-generated PVC of the workload
