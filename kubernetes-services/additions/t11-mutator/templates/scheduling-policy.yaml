@@ -1,0 +1,82 @@
+apiVersion: policies.kyverno.io/v1
+kind: NamespacedMutatingPolicy
+metadata:
+  name: force-amd64-scheduling
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: IfNeeded
+  evaluation:
+    admission:
+      enabled: true
+    mutateExisting:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+  matchConditions:
+    - name: all-t11-pods
+      expression: "true"
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |
+          has(object.spec.nodeSelector) ?
+          [
+            JSONPatch{
+              op: "add",
+              path: "/spec/nodeSelector/kubernetes.io~1arch",
+              value: "amd64"
+            }
+          ] :
+          [
+            JSONPatch{
+              op: "add",
+              path: "/spec/nodeSelector",
+              value: {"kubernetes.io/arch": "amd64"}
+            }
+          ]
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |
+          object.spec.?tolerations.orValue([]).exists(t,
+            t.key == "workstation" &&
+            t.operator == "Equal" &&
+            t.value == "true" &&
+            t.effect == "NoSchedule"
+          ) ?
+          [] :
+          has(object.spec.tolerations) ?
+          [
+            JSONPatch{
+              op: "add",
+              path: "/spec/tolerations/-",
+              value: {
+                "key": "workstation",
+                "operator": "Equal",
+                "value": "true",
+                "effect": "NoSchedule"
+              }
+            }
+          ] :
+          [
+            JSONPatch{
+              op: "add",
+              path: "/spec/tolerations",
+              value: [{
+                "key": "workstation",
+                "operator": "Equal",
+                "value": "true",
+                "effect": "NoSchedule"
+              }]
+            }
+          ]
