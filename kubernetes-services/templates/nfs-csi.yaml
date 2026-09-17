@@ -26,6 +26,11 @@ spec:
             share: {{ .Values.nfs_csi.share | quote }}
             subDir: ${pvc.metadata.namespace}/${pvc.metadata.name}-${pv.metadata.name}
             onDelete: delete
+            # The driver creates each subdirectory as root 0755, so non-root
+            # Pods without an fsGroup (blueapi runs as uid 1000) cannot write.
+            # Only affects volumes provisioned after the change. Parameters are
+            # immutable: delete the StorageClass and let Argo CD recreate it.
+            mountPermissions: "0777"
           reclaimPolicy: Delete
           volumeBindingMode: Immediate
           mountOptions:
