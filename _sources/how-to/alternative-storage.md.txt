@@ -157,6 +157,12 @@ spec:
             share: /export/k8s          # Your NFS export path
 ```
 
+The driver creates each volume's subdirectory as root with mode 0755, so a
+non-root Pod without an `fsGroup` cannot write to it. This repo sets the
+StorageClass parameter `mountPermissions: "0777"` for that reason. StorageClass
+parameters are immutable: after changing them, delete the StorageClass so Argo
+CD recreates it, and recreate any PVC that needs the new setting.
+
 ### k3s built-in `local-path` only
 
 `local-path-provisioner` is already installed by k3s as the cluster default

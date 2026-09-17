@@ -570,6 +570,11 @@ by default because the cluster dropped Longhorn.</p>
 <span class="w">            </span><span class="nt">share</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/export/k8s</span><span class="w">          </span><span class="c1"># Your NFS export path</span>
 </pre></div>
 </div>
+<p>The driver creates each volume’s subdirectory as root with mode 0755, so a
+non-root Pod without an <code class="docutils literal notranslate"><span class="pre">fsGroup</span></code> cannot write to it. This repo sets the
+StorageClass parameter <code class="docutils literal notranslate"><span class="pre">mountPermissions:</span> <span class="pre">&quot;0777&quot;</span></code> for that reason. StorageClass
+parameters are immutable: after changing them, delete the StorageClass so Argo
+CD recreates it, and recreate any PVC that needs the new setting.</p>
 </section>
 <section id="k3s-built-in-local-path-only">
 <h3>k3s built-in <code class="docutils literal notranslate"><span class="pre">local-path</span></code> only<a class="headerlink" href="#k3s-built-in-local-path-only" title="Link to this heading">#</a></h3>
