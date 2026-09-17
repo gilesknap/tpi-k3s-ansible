@@ -247,6 +247,8 @@ Bootstraps ArgoCD and the entire service stack:
    (respects a `skip-health-check` annotation).
 4. **Create AppProject** — creates the `kubernetes` ArgoCD project allowing access to
    all repos, namespaces, and cluster-scoped resources.
+   Also creates the `t11-beamline` project, which lets the t11 test beamline root
+   Application live in its own namespace (listed in Argo CD's `application.namespaces`).
 5. **Create root Application** — creates `all-cluster-services` pointing at
    `kubernetes-services/` in the repository. Passes `repo_remote`, `cluster_domain`,
    and `domain_email` as Helm values.

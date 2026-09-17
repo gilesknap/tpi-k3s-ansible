@@ -13,6 +13,9 @@
       configs:
         params:
           server.insecure: "true"
+          # Also watch Applications in t11-beamline (apps-in-any-namespace);
+          # pairs with sourceNamespaces in argo-cd/t11-beamline-project.yaml
+          application.namespaces: t11-beamline
 
 # ArgoCD auto-generates a Dex `argo-cd` static client with a secret derived
 # from server.secretkey. Our dex.config re-declares this client (to add
@@ -52,6 +55,9 @@
       configs:
         params:
           server.insecure: "true"
+          # Also watch Applications in t11-beamline (apps-in-any-namespace);
+          # pairs with sourceNamespaces in argo-cd/t11-beamline-project.yaml
+          application.namespaces: t11-beamline
         cm:
           url: "https://argocd.{{ cluster_domain }}"
           admin.enabled: "false"
@@ -148,6 +154,7 @@
   register: cluster_argocd_helm_upgrade
   notify:
     - Restart ArgoCD application controller
+    - Restart ArgoCD server
     - Restart Dex server
 
 - name: Flush handlers to restart ArgoCD before continuing
@@ -157,6 +164,11 @@
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-project.yaml') }}"
+
+- name: Add an ArgoCD Project for the t11 test beamline
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'argo-cd/t11-beamline-project.yaml') }}"
 
 - name: Add an ingress for ArgoCD
   kubernetes.core.k8s:

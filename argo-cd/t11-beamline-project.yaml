@@ -1,0 +1,29 @@
+# Project for the t11 test beamline (epics-containers/t11-deployment). Its root
+# Application and child Applications live in the t11-beamline namespace rather
+# than argo-cd ("apps in any namespace"), so this project must list that
+# namespace in sourceNamespaces, and argocd-cmd-params-cm must list it in
+# application.namespaces (see roles/cluster/tasks/argocd.yml).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: t11-beamline
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: t11 test beamline (epics-containers)
+
+  # Namespaces whose Application resources may use this project
+  sourceNamespaces:
+    - t11-beamline
+
+  sourceRepos:
+    - https://github.com/epics-containers/t11-deployment
+    - https://github.com/epics-containers/t11-services
+    - https://github.com/gilesknap/t11-services
+
+  # Everything t11 creates is namespaced, so no clusterResourceWhitelist.
+  # Applications may set destination name: in-cluster; it resolves to this server.
+  destinations:
+    - namespace: t11-beamline
+      server: https://kubernetes.default.svc
