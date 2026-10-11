@@ -22,7 +22,10 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - `cluster` — ArgoCD root app + all child apps (branch switching,
   service toggles). Sanctioned path for touching ArgoCD-managed state.
 - `k3s` — K3s install/configure.
-- `known_hosts` — populate `/etc/ssh/ssh_known_hosts`.
+- `known_hosts` — refresh node host keys in `~/.ssh/known_hosts` and
+  `/etc/ssh/ssh_known_hosts` (`known_hosts_files`). The sandbox relies on
+  the `/etc` copy; it can't write `/etc`, so this tag must run from a
+  devcontainer terminal (`postCreate.sh` runs it on every rebuild).
 
 ## Operational patterns
 
@@ -133,8 +136,8 @@ Notes:
   Prometheus on node02, Grafana on node03, Open-WebUI on node04),
   expect fsck on boot — check pod logs once the node returns.
 - For the Claude sandbox specifically: the BMC SSH key isn't reachable
-  from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`
-  and the BMC host key isn't in the sandbox's `known_hosts`). The `!`
+  from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`,
+  and the Claude key is only authorised on the `ansible` account). The `!`
   prompt prefix runs inside the same sandbox, so it doesn't help — ask
   the user to run `ssh root@turingpi 'tpi power ...'` from a regular
   devcontainer terminal or the host shell.

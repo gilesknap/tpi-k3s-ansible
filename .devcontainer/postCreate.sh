@@ -10,6 +10,14 @@ uv sync && pre-commit install --install-hooks
 
 ansible-playbook pb_all.yml --tags tools
 
+# Node host keys into /etc/ssh/ssh_known_hosts (and ~/.ssh/known_hosts).
+# The Claude sandbox has no ~/.ssh, so the system-wide file — which it sees
+# read-only — is the only way its ssh/ansible can verify the nodes. /etc is
+# rebuilt with the container, so repopulate it here. Unreachable nodes must
+# not abort container creation.
+ansible-playbook pb_all.yml --tags known_hosts ||
+    echo "WARNING: known_hosts update failed; re-run: ansible-playbook pb_all.yml --tags known_hosts"
+
 # Install claude-sandbox (https://github.com/DiamondLightSource/claude-sandbox)
 # — the bwrap jail that `claude` on $PATH resolves to. No sandbox code lives
 # in this repo: `uvx` runs the latest published release's installer. It is
