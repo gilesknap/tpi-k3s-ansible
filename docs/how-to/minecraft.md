@@ -165,7 +165,9 @@ to the name and namespace it was sealed for, not to a live object.
 For cluster rebuilds, export the token as `MINECRAFT_DDNS_API_TOKEN` alongside
 the other external credentials. `scripts/export-external-creds` captures it
 from a running cluster, and `just generate-and-seal-all` re-seals it when it is
-set (and skips it when it is not).
+set (and skips it when it is not). If you rebuild without it, the committed
+`cloudflare-ddns-secret.yaml` is left sealed for the old cluster and the
+DDNS job fails until you re-seal the token as above.
 :::
 
 ## Step 5: Add the dashboard tunnel route
