@@ -13,9 +13,7 @@ Default behaviour: **local PV data is preserved.** Grafana sqlite,
 Prometheus TSDB, and Open WebUI sqlite all live on on-disk directories
 that `pb_decommission.yml` does NOT touch:
 - `/var/lib/k8s-data/{grafana,prometheus,open-webui}` (RK1s)
-- `/home/k8s-data/*` (nuc2) — currently only legacy
-  `supabase-{db,storage,minio}` data from the retired Supabase service;
-  no workload uses it, but it is still preserved
+- `/home/k8s-data/*` (nuc2) — currently unused by any workload
 
 NFS-backed data on the NAS (LLM models, nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
@@ -24,8 +22,7 @@ preserved — Ansible never touches the NAS.
 **Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
 decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`
 as well. Use only for a deliberate fresh start; after this,
-Grafana/Prometheus/Open WebUI come up empty (and the legacy Supabase
-data on nuc2 is gone).
+Grafana/Prometheus/Open WebUI come up empty.
 
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
