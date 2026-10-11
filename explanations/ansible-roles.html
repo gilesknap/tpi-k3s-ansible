@@ -997,17 +997,25 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>, <code class="docutils literal notranslate"><span class="pre">turing_pis</span></code>
 <strong>Tag:</strong> <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>
 <strong>Constraint:</strong> <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> (must not run in parallel)</p>
-<p>Updates <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code> with fresh SSH host keys for each node:</p>
+<p>Updates every file in <code class="docutils literal notranslate"><span class="pre">known_hosts_files</span></code> (<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>) with fresh
+SSH host keys for each node. By default that is both <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code> and
+the system-wide <code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code>:</p>
 <ol class="arabic simple">
 <li><p>Look up the node’s IP via <code class="docutils literal notranslate"><span class="pre">dig</span></code>.</p></li>
 <li><p>Remove old entries (by hostname and IP).</p></li>
 <li><p>Scan for current SSH host keys (<code class="docutils literal notranslate"><span class="pre">ssh-keyscan</span></code>).</p></li>
 <li><p>Add the new keys.</p></li>
+<li><p>Make <code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code> world-readable.</p></li>
 </ol>
+<p>The system-wide file is what the Claude sandbox uses: its <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> is a fresh
+tmpfs with no <code class="docutils literal notranslate"><span class="pre">~/.ssh</span></code>, but it sees the devcontainer’s <code class="docutils literal notranslate"><span class="pre">/etc</span></code> read-only. The
+devcontainer’s <code class="docutils literal notranslate"><span class="pre">postCreate.sh</span></code> runs this tag so the file is repopulated on
+every rebuild. Because the sandbox cannot write <code class="docutils literal notranslate"><span class="pre">/etc</span></code>, run the tag from a
+regular devcontainer terminal, not from inside the sandbox.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>This role must run with <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> because parallel writes to <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code>
-cause race conditions and file corruption.</p>
+<p>This role must run with <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> because parallel writes to the known_hosts
+files cause race conditions and file corruption.</p>
 </div>
 </section>
 <hr class="docutils" />

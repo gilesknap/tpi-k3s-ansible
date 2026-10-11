@@ -49,7 +49,7 @@ ansible-playbook pb_all.yml --tags known_hosts
 **Symptom:** `known_hosts` task fails with concurrent write errors.
 
 **Cause:** The `known_hosts` play must run `serial: 1`. Parallel writes to
-`~/.ssh/known_hosts` corrupt the file.
+the known_hosts files corrupt them.
 
 **Fix:** This is already handled in the playbook. If you see this error, check
 that you haven't overridden `serial` in a custom run.
