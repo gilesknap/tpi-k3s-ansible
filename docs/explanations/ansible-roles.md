@@ -105,16 +105,25 @@ Flashes Ubuntu 24.04 LTS onto Turing Pi compute modules via the BMC's `tpi` CLI.
 **Tag:** `known_hosts`
 **Constraint:** `serial: 1` (must not run in parallel)
 
-Updates `~/.ssh/known_hosts` with fresh SSH host keys for each node:
+Updates every file in `known_hosts_files` (`group_vars/all.yml`) with fresh
+SSH host keys for each node. By default that is both `~/.ssh/known_hosts` and
+the system-wide `/etc/ssh/ssh_known_hosts`:
 
 1. Look up the node's IP via `dig`.
 2. Remove old entries (by hostname and IP).
 3. Scan for current SSH host keys (`ssh-keyscan`).
 4. Add the new keys.
+5. Make `/etc/ssh/ssh_known_hosts` world-readable.
+
+The system-wide file is what the Claude sandbox uses: its `$HOME` is a fresh
+tmpfs with no `~/.ssh`, but it sees the devcontainer's `/etc` read-only. The
+devcontainer's `postCreate.sh` runs this tag so the file is repopulated on
+every rebuild. Because the sandbox cannot write `/etc`, run the tag from a
+regular devcontainer terminal, not from inside the sandbox.
 
 :::{warning}
-This role must run with `serial: 1` because parallel writes to `~/.ssh/known_hosts`
-cause race conditions and file corruption.
+This role must run with `serial: 1` because parallel writes to the known_hosts
+files cause race conditions and file corruption.
 :::
 
 ---

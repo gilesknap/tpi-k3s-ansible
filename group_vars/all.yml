@@ -30,6 +30,13 @@ do_flash: "{{ (flash_force | default(force_flash | default(false))) | bool }}"
 ################################################################################
 
 local_domain: .lan # how to address local nodes with dig
+# known_hosts files the known_hosts role keeps current. The system-wide
+# file is what the Claude sandbox reads (its $HOME is a fresh tmpfs, so it
+# has no ~/.ssh); ~/.ssh/known_hosts is kept too because a stale entry in
+# any file ssh reads causes a host-key mismatch error.
+known_hosts_files:
+  - "~/.ssh/known_hosts"
+  - /etc/ssh/ssh_known_hosts
 control_plane: node01 # the node name of the (single) control plane
 cluster_domain: gkcluster.org # the DNS name for the cluster control plane node
 domain_email: giles.knap@gilesk.gkcluster.org # the email address for letsencrypt

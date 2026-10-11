@@ -1,7 +1,7 @@
-# Update each hosts ssh keys in known_hosts file.
+# Update each host's ssh keys in every file listed in known_hosts_files.
 
 # IMPORTANT: the playbook that runs this must use serial: 1
-# to avoid race conditions with writing to the local known_hosts file.
+# to avoid race conditions with writing to the local known_hosts files.
 
 # Remove a hosts ip address from known_hosts file. Discover the ip address
 # with dig because we can't gather facts until ssh keys are updated.
@@ -14,9 +14,10 @@
 - name: Remove old known_host entries for {{ known_hosts_node_ip.stdout }}
   delegate_to: localhost
   ansible.builtin.known_hosts:
-    name: "{{ item }}"
+    path: "{{ item.1 }}"
+    name: "{{ item.0 }}"
     state: absent
-  loop: "{{ known_hosts_node_ip.stdout_lines }}"
+  loop: "{{ known_hosts_node_ip.stdout_lines | product(known_hosts_files) | list }}"
   changed_when: false # because this is clean-up on localhost only
 
 - name: Get ssh public keys of node {{ inventory_hostname }}
@@ -27,12 +28,25 @@
   changed_when: false
   failed_when: false
 
-- name: Add/update the host's public keys in known_hosts file
+- name: Add/update the host's public keys in known_hosts files
   delegate_to: localhost
   ansible.builtin.known_hosts:
+    path: "{{ item.1 }}"
     name: "{{ inventory_hostname }}"
-    key: "{{ item }}"
+    key: "{{ item.0 }}"
     state: present
-  loop: "{{ known_hosts_new_node_ssh_keys.stdout_lines }}"
-  when: known_hosts_new_node_ssh_keys.rc == 0 and not item.startswith('#')
+  loop: "{{ known_hosts_new_node_ssh_keys.stdout_lines | product(known_hosts_files) | list }}"
+  when: known_hosts_new_node_ssh_keys.rc == 0 and not item.0.startswith('#')
   register: known_hosts_update
+
+# The system-wide file must stay world-readable: ssh reads it for every
+# user, and the Claude sandbox sees it read-only through its /etc bind.
+- name: Make the system-wide known_hosts file world-readable
+  delegate_to: localhost
+  ansible.builtin.file:
+    path: /etc/ssh/ssh_known_hosts
+    state: touch
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+  when: "'/etc/ssh/ssh_known_hosts' in known_hosts_files"
