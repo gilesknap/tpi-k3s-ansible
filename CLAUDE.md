@@ -27,8 +27,6 @@
   carry Grafana/Prometheus/Open-WebUI state across rebuilds.
   Do not wipe them. `pb_decommission.yml` preserves them by default;
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
-  This includes legacy `/home/k8s-data/supabase-*` data on nuc2 left
-  by the retired Supabase service — leave it untouched.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
   existing pinning is prometheus→node02, grafana→node03,
   open-webui→node04. Each local PV in
