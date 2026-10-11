@@ -1,6 +1,6 @@
 # 7. Pin Supabase to x86 Nodes
 
-**Status:** Accepted
+**Status:** Superseded — the self-hosted Supabase stack has been removed from this repo. Kept as a historical record.
 
 ## Context
 

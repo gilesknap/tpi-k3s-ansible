@@ -96,7 +96,7 @@ reboot unexpectedly. This has three consequences you must design for:
   only amd64 nodes; ws03's taint means a chart with
   `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any
   explicit hostname selector. Useful for charts whose schema forbids
-  `kubernetes.io/hostname` overrides (e.g. thoth).
+  `kubernetes.io/hostname` overrides.
 
 ### Longhorn replica count vs node count
 Replica counts in `kubernetes-services/values.yaml` must match the
@@ -153,7 +153,7 @@ Notes:
   `kubectl delete` the old Ingress first, then re-run the playbook to
   recreate it cleanly.
 - **ArgoCD `valuesObject` overrides `values.yaml`** — for child apps
-  like `open-brain-mcp`, the image tag is set in `templates/*.yaml`
+  like `rkllama`, the image tag is set in `templates/*.yaml`
   under `valuesObject`, not in `additions/*/values.yaml`. Editing
   `values.yaml` alone has no effect — check the template first.
 - **`admin_emails` is duplicated** — must be kept in sync between
@@ -188,8 +188,8 @@ Notes:
   managed rule — you're clearing kube-managed runtime state, not
   changing template intent.) Long-term fix tracked in issue #397.
   Prefer `argocd app sync --replace` over `argocd app delete`/recreate
-  for the five `local-nvme`-backed apps: open-webui, grafana,
-  prometheus, plus the three supabase-* claims.
+  for the `local-nvme`-backed apps: open-webui, grafana and
+  prometheus.
 
 ## Key files
 - `pb_all.yml` — main playbook

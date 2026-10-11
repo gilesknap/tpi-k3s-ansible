@@ -71,30 +71,14 @@ cluster_install_list:
 # PV's nodeAffinity will point at a directory that doesn't exist.
 #
 # UID/GID notes: grafana (472) and prometheus (1000/2000) come from
-# the live cluster's effective securityContext. supabase-db,
-# supabase-storage and open-webui have nil securityContext so the
-# image's default UID applies — 0777/root is a safe fallback. minio
-# uses fsGroup 65532 so 65532:65532 keeps the init container's chown
-# a no-op.
+# the live cluster's effective securityContext. open-webui has a nil
+# securityContext so the image's default UID applies — 0777/root is a
+# safe fallback.
+#
+# Removing an entry here only stops Ansible creating the directory; it
+# never deletes existing data (e.g. legacy /home/k8s-data/supabase-* on
+# nuc2 from a retired service is left untouched).
 k8s_data_dirs:
-  - name: supabase-db
-    node: nuc2
-    path: /home/k8s-data/supabase-db
-    owner: root
-    group: root
-    mode: "0777"
-  - name: supabase-storage
-    node: nuc2
-    path: /home/k8s-data/supabase-storage
-    owner: root
-    group: root
-    mode: "0777"
-  - name: supabase-minio
-    node: nuc2
-    path: /home/k8s-data/supabase-minio
-    owner: "65532"
-    group: "65532"
-    mode: "0755"
   - name: prometheus
     node: node02
     path: /var/lib/k8s-data/prometheus

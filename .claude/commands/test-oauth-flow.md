@@ -83,7 +83,6 @@ Subsequent Dex services reuse the session.
 |---------|-----|---------------------|
 | Headlamp | `https://headlamp.<cluster_domain>` | Token login page (after OAuth gate) |
 | Longhorn | `https://longhorn.<cluster_domain>` | Page title "Longhorn" |
-| Supabase | `https://supabase.<cluster_domain>` | Page title "Supabase" |
 
 #### Step 4: OAuth flow procedure
 
@@ -132,7 +131,7 @@ For each service:
     if (b.textContent.includes('GitHub')) b.click();
   });
   ```
-- **Cloudflare Access redirect** — some services (currently Supabase)
+- **Cloudflare Access redirect** — some services may
   sit behind a Cloudflare Access app in addition to ingress oauth2-proxy.
   The non-incognito Chrome session usually has an existing
   `CF_Authorization` cookie that auto-approves. **But**: each Access app
@@ -144,7 +143,7 @@ For each service:
   `https://<cf_access_team from values.yaml>.cloudflareaccess.com/cdn-cgi/access/logout`
   before retrying. Note: the `clusterapps` Access policy requires
   interactive email-OTP sign-in with no SSO fallback — meaning after a
-  logout, Supabase cannot be fully browser-tested automatically. Stop
+  logout, such services cannot be fully browser-tested automatically. Stop
   at the OTP prompt and report.
 - **ArgoCD is usually already logged in** from the playbook run.
 - **Post-redirect login page** — the most common false-positive is when
@@ -167,7 +166,6 @@ Return a summary table:
 | ArgoCD Monitor | PASS   | Monitor page                |
 | Headlamp       | PASS   | Token login page            |
 | Longhorn       | PASS   | Dashboard loaded            |
-| Supabase       | PASS   | Studio dashboard            |
 ```
 
 Any FAIL entries must include:

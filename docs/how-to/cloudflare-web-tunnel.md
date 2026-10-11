@@ -204,7 +204,7 @@ create separate applications for each subdomain. The SSH application from
 
 ### Bypass application for API endpoints
 
-Some hostnames serve programmatic API traffic (e.g. `supabase-api`) that must
+Some hostnames serve programmatic API traffic (e.g. `api`) that must
 not be gated by browser-based email authentication. For these, create a
 **second** Access application with a bypass policy:
 
@@ -215,7 +215,7 @@ not be gated by browser-based email authentication. For these, create a
 | Field | Value |
 |---|---|
 | Application name | A descriptive name (e.g. `API passthrough`) |
-| Subdomain | The API hostname (e.g. `supabase-api`) |
+| Subdomain | The API hostname (e.g. `api`) |
 | Domain | `example.com` |
 
 3. On the **Policies** tab, add a policy:

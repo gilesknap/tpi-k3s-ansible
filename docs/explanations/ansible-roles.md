@@ -175,9 +175,6 @@ on its target node (guarded by `inventory_hostname`).
 
 | Node   | Directory                         | Owner / mode         | Consumed by |
 |--------|-----------------------------------|----------------------|-------------|
-| nuc2   | `/home/k8s-data/supabase-db`      | root / 0777          | supabase    |
-| nuc2   | `/home/k8s-data/supabase-storage` | root / 0777          | supabase    |
-| nuc2   | `/home/k8s-data/supabase-minio`   | 65532:65532 / 0755   | supabase    |
 | node02 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
 | node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
 | node04 | `/var/lib/k8s-data/open-webui`    | root / 0777          | open-webui  |

@@ -57,7 +57,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
   (DNS-01 via Cloudflare)
 - **OIDC authentication** — ArgoCD Dex with GitHub connector provides native
   OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Headlamp
-  and Supabase Studio
+  and Alertmanager
 - **Cloudflare Tunnel + Access** — optional secure public access via
   cloudflared with email-based access control
 
@@ -66,8 +66,6 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Monitoring** — Prometheus + Grafana stack
 - **Persistent storage** — static `local-nvme` PVs per host, with daily/weekly NFS backup CronJobs to a NAS
 - **Kubernetes dashboard** — Headlamp with RBAC
-- **Supabase** — self-hosted backend with PostgreSQL + pgvector, Auth, Storage
-  (MinIO-backed), and Studio UI
 - **Echo test service** — for verifying ingress, TLS, and headers
 
 ### AI / LLM
@@ -76,8 +74,6 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Local LLM inference** — NVIDIA GPU-accelerated llama.cpp on compatible
   servers (with automatic device plugin for GPU scheduling)
 - **Open WebUI** — chat interface to the above LLM backends
-- **Open Brain** — MCP server providing AI memory and semantic search for
-  Claude.ai, backed by Supabase with GitHub OAuth access control
 
 ### Developer Experience
 

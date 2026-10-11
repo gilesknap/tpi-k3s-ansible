@@ -49,11 +49,6 @@ restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd
     @echo "Restarted argocd-dex-server, argocd-server, argocd-repo-server"
 
-# Show Supabase Studio dashboard credentials
-supabase-creds:
-    @echo "User: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.username}' | base64 -d)"
-    @echo "Pass: $(kubectl get secret supabase-credentials -n supabase -o jsonpath='{.data.dashboard-password}' | base64 -d)"
-
 # Generate a 100 day Headlamp ServiceAccount token (paste into the login page after OAuth)
 headlamp-token:
     @kubectl create token headlamp -n headlamp --duration=2400h
@@ -67,7 +62,7 @@ seal-argocd-dex target:
 # bootstrap / rebuild — initial install and full teardown/rebuild
 ################################################################################
 
-# Export 8 external credentials to .env at repo root (gitignored)
+# Export 7 external credentials to .env at repo root (gitignored)
 export-external-creds:
     scripts/export-external-creds
 

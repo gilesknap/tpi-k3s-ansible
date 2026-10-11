@@ -134,7 +134,7 @@ kubectl patch app <app-name> -n argo-cd --type json \
 ### Viewer emails can access oauth2-proxy-gated services
 
 **Symptom:** Users with viewer emails can access admin-only services
-(Headlamp, Supabase Studio) — oauth2-proxy returns 202 instead of 403.
+(Headlamp, Alertmanager) — oauth2-proxy returns 202 instead of 403.
 
 **Cause:** The oauth2-proxy Helm chart generates `email_domains = ["*"]` in
 its default ConfigMap. This acts as an OR with `authenticatedEmailsFile` —
@@ -247,17 +247,17 @@ available for this claim`.
 **Check:** `kubectl get pv -l type=local-nvme` — every PV listed in
 `additions/local-storage/` should be `Bound`.
 
-**Fix:** Verify the data directory exists on the target node
-(`/home/k8s-data/<app>` on nuc2, `/var/lib/k8s-data/<app>` on the RK1
-nodes); re-run `ansible-playbook pb_all.yml --tags cluster` to let the
+**Fix:** Verify the data directory exists on the target node (the
+`node`/`path` pair in its `k8s_data_dirs` entry, e.g.
+`/var/lib/k8s-data/<app>`); re-run `ansible-playbook pb_all.yml --tags cluster` to let the
 `k8s_data_dirs` role recreate any missing directory.
 
 ### Restoring from an NFS backup
 
 The daily/weekly backup CronJobs in the `backups` namespace write
 compressed dumps to `/bigdisk/k8s-cluster/backups/` on the NAS. To find
-the latest, `ls -lt /bigdisk/k8s-cluster/backups/supabase-db/` on the
-NAS host and pick the newest `*.sql.gz`.
+the latest, `ls -lt /bigdisk/k8s-cluster/backups/<app>/` on the
+NAS host and pick the newest archive.
 
 ## Networking
 
@@ -430,168 +430,6 @@ sudo systemctl restart k3s
 ```
 
 K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
-
-## Supabase
-
-### Postgres fails on NFS storage
-
-**Symptom:** Supabase Postgres pod crashes with `chown` or permission errors.
-
-**Cause:** NFS with `root_squash` prevents the Postgres container (UID 105,
-GID 106) from changing file ownership. Unlike most Postgres images that use
-UID/GID 999, the Supabase image uses non-standard IDs.
-
-**Fix:** The Supabase database runs on a static `local-nvme` PV pinned to
-nuc2 (backed by `/home/k8s-data/supabase-db`) — plain filesystem ownership
-works correctly. NFS is used only by the backup CronJobs in the `backups`
-namespace to write compressed `pg_dump` output to the NAS; the live
-database never touches NFS. See
-{doc}`/explanations/decisions/0006-supabase-nfs-storage` for the original
-context and {doc}`/explanations/decisions/0012-drop-longhorn` for the
-current architecture.
-
-### Supabase clients CrashLoop with "password authentication failed" after rebuild
-
-**Symptom:** After a cluster rebuild with preserved local-nvme volumes,
-`supabase-auth`, `supabase-rest`, `supabase-storage`, `supabase-realtime`,
-and `open-brain-mcp` all CrashLoop with `password authentication failed
-for user "supabase_admin"`.
-
-**Cause:** Postgres init scripts only run when `PG_VERSION` is absent from
-PGDATA. On a preserved volume they are skipped, so service roles keep the
-old passwords. If `SUPABASE_PASSWORD` was not set in `.env` before the
-rebuild, `generate-secrets` rolled a fresh random password that does not
-match what Postgres has.
-
-**Prevention:** Run `just export-external-creds` before decommission. This
-extracts `SUPABASE_PASSWORD` and `SUPABASE_JWT_SECRET` into `.env` so the
-rebuild reuses the existing values.
-
-**Fix (if prevention was missed):**
-
-```bash
-# 1) Read the new password from the live secret
-NEW_PW=$(kubectl get secret -n supabase supabase-credentials \
-  -o jsonpath='{.data.password}' | base64 -d)
-
-# 2) ALTER all service roles to match (must use supabase_admin, not postgres)
-#    Must use -h 127.0.0.1 (trust auth) not local socket (scram)
-kubectl exec -i -n supabase supabase-supabase-db-0 -c supabase-db -- \
-  psql -U supabase_admin -h 127.0.0.1 <<SQL
-ALTER USER supabase_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_auth_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_storage_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_functions_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_realtime_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_replication_admin WITH PASSWORD '$NEW_PW';
-ALTER USER supabase_read_only_user WITH PASSWORD '$NEW_PW';
-ALTER USER authenticator WITH PASSWORD '$NEW_PW';
-ALTER USER pgbouncer WITH PASSWORD '$NEW_PW';
-ALTER USER dashboard_user WITH PASSWORD '$NEW_PW';
-ALTER USER postgres WITH PASSWORD '$NEW_PW';
-SQL
-
-# 3) Restart the crashing clients
-kubectl rollout restart -n supabase \
-  deploy/supabase-supabase-auth deploy/supabase-supabase-rest \
-  deploy/supabase-supabase-storage deploy/supabase-supabase-realtime
-kubectl rollout restart -n open-brain-mcp deploy/open-brain-mcp
-```
-
-:::{important}
-`kubectl exec` needs `-i` for the heredoc to reach psql. Without it the
-ALTER statements silently do nothing.
-:::
-
-### Kong OOMKilled
-
-**Symptom:** Supabase Kong pod restarts repeatedly with `OOMKilled`.
-
-**Fix:** Set Kong memory limit to at least 2Gi. Lower values (512Mi–1Gi)
-cause consistent OOM kills under normal load.
-
-### Edge Function not updating after ConfigMap change
-
-**Symptom:** Supabase Edge Function serves stale code after updating the
-ConfigMap.
-
-**Cause:** subPath ConfigMap mounts do not receive automatic updates from
-Kubernetes. The pod must be restarted to pick up changes.
-
-**Fix:** Delete the Edge Function pod to force a restart:
-
-```bash
-kubectl delete pod -n supabase -l app.kubernetes.io/name=supabase-functions
-```
-
-### Edge Function returns 404
-
-**Symptom:** Requests to the Edge Function return 404 Not Found.
-
-**Cause:** The Supabase Edge Runtime requires the `basePath` in the Hono
-application to match the function directory name (the subPath mount point).
-
-**Fix:** Ensure the `basePath` in the function code matches the directory name.
-For example, if the function is mounted at `/open-brain-mcp`, the Hono app must
-use `basePath: '/open-brain-mcp'`.
-
-## MinIO / Supabase Storage
-
-### MinIO CrashLoopBackOff — file access denied
-
-**Symptom:** MinIO pod crashes with `unable to rename /data/.minio.sys/tmp —
-file access denied, drive may be faulty`.
-
-**Cause:** The Chainguard MinIO image (`cgr.dev/chainguard/minio`) runs as
-UID 65532 (nonroot). Static `local-nvme` PVs are backed by hostPath
-directories created with root ownership, so MinIO cannot write to the
-volume.
-
-**Fix:** Add `podSecurityContext.fsGroup: 65532` to the MinIO deployment
-config in `kubernetes-services/templates/supabase.yaml`:
-
-```yaml
-deployment:
-  minio:
-    podSecurityContext:
-      fsGroup: 65532
-```
-
-### Storage bucket not found after SQL migration
-
-**Symptom:** Supabase Storage returns `404 Bucket not found` even though
-the bucket exists in `storage.buckets` table.
-
-**Cause:** SQL migrations create the bucket row in PostgreSQL but MinIO
-needs to be notified separately. Supabase Storage syncs bucket state on
-startup.
-
-**Fix:** Restart the storage pod after creating buckets via SQL:
-
-```bash
-kubectl rollout restart deployment supabase-supabase-storage -n supabase
-```
-
-Alternatively, create buckets via the Supabase Storage REST API (`POST
-/storage/v1/bucket`) which handles both PostgreSQL and MinIO in one call.
-
-### MinIO PVC created with wrong size
-
-**Symptom:** `kubectl get pvc` shows MinIO PVC at 1Gi instead of the
-configured 50Gi.
-
-**Cause:** PVC size is set at creation time. If the Helm values were
-incorrect when the PVC was first created, fixing the values won't resize
-the existing PVC.
-
-**Fix:** Delete the PVC (safe if MinIO has no data yet) and let ArgoCD
-recreate it:
-
-```bash
-kubectl delete pod -n supabase -l app.kubernetes.io/name=supabase-minio
-kubectl delete pvc supabase-minio -n supabase
-# ArgoCD recreates both with correct size
-```
 
 ## Hardware
 

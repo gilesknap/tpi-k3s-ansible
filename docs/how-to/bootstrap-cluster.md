@@ -6,7 +6,7 @@ all services. Follow these steps to finish the setup.
 :::{tip}
 **NAS prerequisite for backups.** The daily and weekly backup CronJobs write
 to an NFS export on a NAS. If you intend to run backups (recommended for any
-stateful workload — Supabase, Grafana, Prometheus, Open WebUI), set up the
+stateful workload — Grafana, Prometheus, Open WebUI), set up the
 NAS share **before** the first backup runs. See {doc}`nas-setup` — this is a
 one-time manual runbook on the NAS itself.
 :::

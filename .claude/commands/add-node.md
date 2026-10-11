@@ -29,7 +29,7 @@ Ask the user:
    - General worker (default)
    - GPU compute (for llama.cpp)
    - Additional storage node
-   - Dedicated x86 node (for Supabase migration)
+   - Dedicated x86 node (for amd64-only workloads)
 
 ## Phase 2: Update inventory
 
@@ -158,7 +158,6 @@ replicas (the default for multi-node clusters).
 If the new node enables features that weren't previously available, inform the
 user:
 
-- **First x86 node added** → Open Brain (Supabase) is now possible
 - **First GPU node added** → llama.cpp is now possible
 - **First RK1 node added** → RKLLama is now possible
 - **Third node added** → Longhorn now has full 3-replica redundancy

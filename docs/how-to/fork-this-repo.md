@@ -24,7 +24,7 @@ all three before your first deploy:
 |---|---|
 | `hosts.yml` | Your hardware: hostnames, IPs, BMC addresses, per-node flags (slot, type, root device, GPU, workstation). |
 | `group_vars/all.yml` | Ansible-side: cluster domain, admin emails, repo URL/branch, host data directories. |
-| `kubernetes-services/values.yaml` | ArgoCD/Helm-side: NFS server, local PV layout, OAuth, supabase release name, image repositories. |
+| `kubernetes-services/values.yaml` | ArgoCD/Helm-side: NFS server, local PV layout, OAuth, image repositories. |
 
 `hosts.yml` is deliberately **not** templated through the other two —
 every fork's hardware is different, and the flash/known_hosts roles
@@ -146,16 +146,13 @@ rkllama:
 
 Then run the one-time NAS setup runbook in {doc}`nas-setup`.
 
-### 6. Pin rkllama and open-brain-mcp
+### 6. Pin rkllama
 
-If you use these services, set:
+If you use rkllama, set:
 
 ```yaml
 rkllama:
   node: <RK1-with-32GB-RAM>
-open_brain_mcp:
-  image_repository: ghcr.io/<your-user>/open-brain-mcp
-  github_allowed_users: "<your-github-login>"
 ```
 
 ### 7. Re-seal secrets
@@ -170,10 +167,8 @@ re-seal every secret with your cluster's key.
 Top-level toggles in `kubernetes-services/values.yaml`:
 
 ```yaml
-enable_oauth2_proxy: false   # disables OAuth gating on Longhorn/Studio/Headlamp
+enable_oauth2_proxy: false   # disables OAuth gating on Headlamp/Alertmanager
 enable_cloudflare_tunnel: false  # if you don't expose services to the internet
-enable_supabase: false       # disables the supabase stack and open-brain-mcp
-enable_open_brain_mcp: false # standalone disable for open-brain-mcp
 ```
 
 Whole-service Application templates can also be removed by deleting

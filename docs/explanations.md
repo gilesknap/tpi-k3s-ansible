@@ -26,13 +26,6 @@ explanations/security-hardening
 
 ```{toctree}
 :maxdepth: 1
-:caption: Open Brain
-
-explanations/open-brain-clients
-```
-
-```{toctree}
-:maxdepth: 1
 :caption: Claude Code
 
 explanations/claude-code-capability

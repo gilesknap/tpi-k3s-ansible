@@ -10,9 +10,9 @@ they are the choices this repo made, and knowing *why* will save you
 from fighting the defaults later.
 
 **Static local-nvme PVs, one per stateful workload.** Each stateful
-service (Supabase DB, Grafana, Prometheus, Open WebUI, …) gets a
+service (Grafana, Prometheus, Open WebUI, …) gets a
 hand-declared `PersistentVolume` backed by a plain directory on a
-specific node — e.g. `/home/k8s-data/supabase-db` on `nuc2`. The PV
+specific node — e.g. `/var/lib/k8s-data/grafana` on `node03`. The PV
 is pre-bound to its PVC via `claimRef` and pinned to its node via
 `nodeAffinity`, so the pod *must* land there and the data *must*
 survive a rebuild. No CSI driver, no replicas, no block-storage
@@ -34,13 +34,9 @@ NFS CronJobs give you off-cluster point-in-time restore.
 **Pod-to-node pinning is deliberate.** Because each stateful PV is
 tied to one node, the corresponding Deployment/StatefulSet must also
 land on that node. The existing pinning — `prometheus→node02`,
-`grafana→node03`, `open-webui→node04`, Supabase trio `→nuc2` — is
+`grafana→node03`, `open-webui→node04` — is
 not an accident, and new RWO `local-nvme` workloads need to pick
 their own host. This is called out in `CLAUDE.md` as a hard rule.
-
-Already have a cluster (or access to someone else's) and just want to *use*
-the thoth PKM? Skip the install paths and go straight to
-{doc}`tutorials/use-thoth`.
 
 With that mental model in place, pick your install path:
 
@@ -65,5 +61,4 @@ tutorials/ai-guided-setup
 tutorials/getting-started-tpi
 tutorials/getting-started-generic
 tutorials/common-setup
-tutorials/use-thoth
 ```
