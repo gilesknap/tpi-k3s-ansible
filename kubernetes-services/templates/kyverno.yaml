@@ -24,19 +24,19 @@ spec:
             enabled: false
           reportsController:
             enabled: false
+          # The kyverno-api subchart renders `labels: {}` on the
+          # policies.kyverno.io CRDs when no labels are set; the API server
+          # drops the empty map, so ArgoCD reports permanent drift (an
+          # ignoreDifferences rule does not help under ServerSideApply).
+          kyverno-api:
+            labels:
+              app.kubernetes.io/part-of: kyverno
     - path: ./kubernetes-services/additions/t11-mutator
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
       helm:
         valuesObject:
           namespace: {{ .Values.kyverno.t11_namespace | quote }}
-  # The chart renders `labels: {}` on the policies.kyverno.io CRDs; the
-  # API server drops the empty map, so ArgoCD reports permanent drift.
-  ignoreDifferences:
-    - group: apiextensions.k8s.io
-      kind: CustomResourceDefinition
-      jqPathExpressions:
-        - select(.metadata.labels == {}) | .metadata.labels
   syncPolicy:
     automated:
       prune: true

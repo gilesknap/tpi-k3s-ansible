@@ -26,10 +26,20 @@ spec:
         repo_remote: "{{ repo_remote }}"
         cluster_domain: "{{ cluster_domain }}"
         domain_email: "{{ domain_email }}"
+  # ArgoCD adds pre-delete-finalizer.* to child apps whose charts ship
+  # PreDelete hooks (e.g. kyverno). Without this, self-heal strips them,
+  # the controller re-adds them, and the root app flaps OutOfSync.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jqPathExpressions:
+        - .metadata.finalizers[]? | select(startswith("pre-delete-finalizer"))
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
     retry:
       limit: 3
       backoff:
