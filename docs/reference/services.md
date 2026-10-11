@@ -128,7 +128,7 @@ hardware and want the full experience out of the box.
 | Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.1.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
+| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.1.1 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |

@@ -50,7 +50,7 @@ straight at your WAN IP.
   published. Check before enabling:
 
   ```bash
-  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.1.0
+  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.1.1
   ```
 
 ## Step 1: Create the NAS directories
@@ -191,7 +191,7 @@ Edit `kubernetes-services/values.yaml`:
 ```yaml
 enable_minecraft: true
 minecraft:
-  chart_version: "0.1.0"          # must be published (see Prerequisites)
+  chart_version: "0.1.1"          # must be published (see Prerequisites)
   archive_path: /bigdisk/minecraft-archive
   store_subdir: minecraft         # under nfs.cluster_share_path
   dns_name: mc                    # players use mc.<cluster_domain>
