@@ -30,6 +30,13 @@ spec:
       helm:
         valuesObject:
           namespace: {{ .Values.kyverno.t11_namespace | quote }}
+  # The chart renders `labels: {}` on the policies.kyverno.io CRDs; the
+  # API server drops the empty map, so ArgoCD reports permanent drift.
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - select(.metadata.labels == {}) | .metadata.labels
   syncPolicy:
     automated:
       prune: true

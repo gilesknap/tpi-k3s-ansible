@@ -5,6 +5,9 @@
 #   * Local PV data under /home/k8s-data (nuc2) and /var/lib/k8s-data/*
 #     (RK1s) is PRESERVED — the rebuild re-binds the same local-nvme PVs
 #     to the same PVCs so stateful apps come back with their data intact.
+#   * Legacy data left on disk by retired services (e.g.
+#     /home/k8s-data/supabase-* on nuc2) is likewise preserved; it is only
+#     removed by the opt-in wipe below.
 #
 # Clean-slate opt-in:
 #   Pass -e wipe_local_data=true to also wipe /home/k8s-data and
@@ -99,26 +102,6 @@
         replicas: 0
       failed_when: false
 
-    - name: Scale down supabase workloads
-      kubernetes.core.k8s_scale:
-        api_version: apps/v1
-        kind: "{{ item.kind }}"
-        name: "{{ item.name }}"
-        namespace: supabase
-        replicas: 0
-      loop:
-        - { kind: Deployment, name: supabase-supabase-auth }
-        - { kind: Deployment, name: supabase-supabase-functions }
-        - { kind: Deployment, name: supabase-supabase-kong }
-        - { kind: Deployment, name: supabase-supabase-meta }
-        - { kind: Deployment, name: supabase-supabase-minio }
-        - { kind: Deployment, name: supabase-supabase-realtime }
-        - { kind: Deployment, name: supabase-supabase-rest }
-        - { kind: Deployment, name: supabase-supabase-storage }
-        - { kind: Deployment, name: supabase-supabase-studio }
-        - { kind: StatefulSet, name: supabase-supabase-db }
-      failed_when: false
-
     - name: Wait for pods to terminate
       ansible.builtin.pause:
         seconds: 30
@@ -134,12 +117,6 @@
         - { ns: monitoring, name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0 }
         - { ns: monitoring, name: storage-grafana-prometheus-0 }
         - { ns: open-webui, name: open-webui }
-        - { ns: supabase, name: supabase-db }
-        - { ns: supabase, name: supabase-deno }
-        - { ns: supabase, name: supabase-functions }
-        - { ns: supabase, name: supabase-minio }
-        - { ns: supabase, name: supabase-snippets }
-        - { ns: supabase, name: supabase-storage }
       failed_when: false
 
 # ---------------------------------------------------------------------------
@@ -200,9 +177,7 @@
         - ingress-nginx
         - monitoring
         - oauth2-proxy
-        - open-brain-mcp
         - open-webui
-        - supabase
       changed_when: true
       failed_when: false
 

@@ -11,7 +11,7 @@ What is **not** in Git and needs separate backup:
 
 | Data | Where it lives | Backup approach |
 |------|-----------------|-----------------|
-| Stateful app data | static local-nvme PVs on nuc2 / RK1 nodes | nightly CronJob → NFS NAS |
+| Stateful app data | static local-nvme PVs on worker nodes | nightly CronJob → NFS NAS |
 | Sealed Secrets private key | `kube-system` namespace | manual export |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
 | ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
@@ -25,9 +25,6 @@ workload-specific `subPath` so it only sees its own target subdirectory.
 
 | Workload | Backup method | NFS path |
 |----------|---------------|----------|
-| Supabase Postgres | `pg_dump | gzip` | `backups/supabase-db/{,weekly}/<date>.sql.gz` |
-| Supabase Storage | `tar -czf` on `/home/k8s-data/supabase-storage` | `backups/supabase-storage/{,weekly}/<date>.tar.gz` |
-| Supabase MinIO | `tar -czf` on `/home/k8s-data/supabase-minio` | `backups/supabase-minio/{,weekly}/<date>.tar.gz` |
 | Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` | `backups/grafana/{,weekly}/<date>.db` |
 | Open WebUI sqlite | `tar -czf` on `/var/lib/k8s-data/open-webui` | `backups/open-webui/{,weekly}/<date>.tar.gz` |
 
@@ -42,63 +39,34 @@ via re-scrape, and the snapshot-API dance is not worth the complexity.
 ### Trigger a one-off backup
 
 ```bash
-kubectl create job --from=cronjob/supabase-db-daily manual-$(date +%s) -n backups
+kubectl create job --from=cronjob/grafana-daily manual-$(date +%s) -n backups
 kubectl logs -n backups job/manual-<timestamp> -f
 ```
 
 Then verify on the NAS:
 
 ```bash
-ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/supabase-db/'
+ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/'
 ```
 
-### Restore — Supabase Postgres
+### Restore — Open WebUI (tar archive)
 
-Copy the gzipped dump into the running DB pod and pipe it into `psql`:
-
-```bash
-kubectl cp /path/to/local/YYYY-MM-DD.sql.gz \
-  supabase/supabase-supabase-db-0:/tmp/restore.sql.gz
-kubectl exec -n supabase supabase-supabase-db-0 -- \
-  sh -c 'gunzip -c /tmp/restore.sql.gz | psql -U postgres'
-```
-
-Or restore from the NFS PV directly by mounting it into a debug pod:
-
-```bash
-kubectl run pg-restore -n backups --rm -it --restart=Never \
-  --overrides='{
-    "spec": {
-      "containers": [{
-        "name": "psql",
-        "image": "postgres:15",
-        "command": ["sh", "-c", "gunzip -c /backup/$(ls -1t /backup | head -1) | psql -h supabase-supabase-db.supabase -U postgres"],
-        "volumeMounts": [{"name": "nfs", "mountPath": "/backup", "subPath": "backups/supabase-db"}]
-      }],
-      "volumes": [{"name": "nfs", "persistentVolumeClaim": {"claimName": "k8s-cluster-nfs"}}]
-    }
-  }'
-```
-
-### Restore — Supabase Storage / MinIO / Open WebUI (tar archives)
-
-Scale the owning workload to zero, untar over the local-PV hostPath, then
-scale back up. Example for Supabase Storage (nuc2 hostPath
-`/home/k8s-data/supabase-storage`):
+The Open WebUI backup is a `tar.gz` holding a consistent `sqlite3 .backup`
+snapshot of `webui.db`. Scale the workload to zero, extract over the
+local-PV hostPath, then scale back up:
 
 ```bash
 # 1. Scale down
-kubectl scale -n supabase deploy/supabase-supabase-storage --replicas=0
+kubectl scale -n open-webui sts/open-webui --replicas=0
 
-# 2. Extract on the node (NFS share is already mounted on nuc2)
-ssh ansible@nuc2 '
-  cd /home/k8s-data/supabase-storage &&
-  sudo rm -rf ./* ./.* 2>/dev/null;
-  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/supabase-storage/YYYY-MM-DD.tar.gz
+# 2. Extract on the node that hosts the Open WebUI PV
+ssh ansible@node04 '
+  cd /var/lib/k8s-data/open-webui &&
+  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/open-webui/YYYY-MM-DD.tar.gz
 '
 
 # 3. Scale back
-kubectl scale -n supabase deploy/supabase-supabase-storage --replicas=1
+kubectl scale -n open-webui sts/open-webui --replicas=1
 ```
 
 (If the NFS share is not pre-mounted on the node, run the extract in a

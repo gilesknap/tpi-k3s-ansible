@@ -1,6 +1,6 @@
 # 3. Hybrid Intelligence Architecture
 
-**Status:** Accepted
+**Status:** Superseded — Open Brain has been removed from this repo. Kept as a historical record.
 
 ## Context
 

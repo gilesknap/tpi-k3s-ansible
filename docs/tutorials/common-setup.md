@@ -129,8 +129,8 @@ idle until configured.
 
 :::{important}
 **NFS is also a prerequisite for backups.** The daily and weekly backup
-CronJobs write stateful-service dumps (Supabase DB, Grafana, Open WebUI,
-…) to a shared NFS tree on a NAS. If you plan to run backups — strongly
+CronJobs write stateful-service dumps (Grafana, Open WebUI, …) to a
+shared NFS tree on a NAS. If you plan to run backups — strongly
 recommended for any stateful workload — set up the NAS share before the
 first backup fires using {doc}`/how-to/nas-setup`. This is a one-time
 manual runbook on the NAS itself (Ansible has no access to it by design).
@@ -147,7 +147,7 @@ OAuth proxy is not yet deployed.
 The fields above are the minimum needed to deploy. For the full set of
 fork-edit knobs — per-node flags (`nvidia_gpu_node`, `workstation`,
 `flannel_iface`), local-storage node mapping, service toggles
-(`enable_cloudflare_tunnel`, `enable_supabase`, …), and rkllama/open-brain
+(`enable_cloudflare_tunnel`, `enable_oauth2_proxy`, …), and rkllama
 pinning — see {doc}`/how-to/fork-this-repo`.
 :::
 <!-- end:configure-cluster -->

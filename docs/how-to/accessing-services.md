@@ -18,7 +18,6 @@ commands work immediately after bootstrap with no additional setup.
 | View cluster metrics and dashboards | [Grafana](#grafana) |
 | Inspect pods, logs, and Kubernetes objects in a UI | [Headlamp (Kubernetes Dashboard)](#headlamp-kubernetes-dashboard) |
 | Chat with a local LLM | [Open WebUI (LLM Chat)](#open-webui-llm-chat) |
-| Run SQL or browse the Open Brain database | [Supabase Studio (Open Brain)](#supabase-studio-open-brain) |
 | Verify ingress, TLS and request headers end-to-end | [Echo Test Service](#echo-test-service) |
 
 ## ArgoCD
@@ -105,29 +104,6 @@ RKLLama requires **RK1 compute modules** with the Rockchip NPU. llama.cpp requir
 an **NVIDIA GPU** node. The services will deploy on any cluster but inference needs
 the appropriate hardware.
 :::
-
-## Supabase Studio (Open Brain)
-
-Supabase Studio is the admin UI for the Open Brain database — browse tables,
-run SQL queries, and manage the `thoughts` schema.
-
-:::{note}
-Only available if you have enabled Open Brain — see {doc}`open-brain`.
-:::
-
-Via ingress: **https://supabase.\<domain\>** (behind oauth2-proxy)
-
-Via port-forward:
-
-```bash
-kubectl port-forward svc/supabase-supabase-kong -n supabase 8000:8000
-# Open http://localhost:8000
-```
-
-Two authentication steps: first authenticate via GitHub (oauth2-proxy),
-then log in with the Supabase dashboard username and password generated
-during {doc}`open-brain` setup. Use `just supabase-creds` to retrieve the
-dashboard credentials.
 
 ## Echo Test Service
 

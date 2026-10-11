@@ -55,32 +55,6 @@ them in a single model dropdown.
 - An NFS share for model files (shared across LLM backends — see {doc}`/how-to/nas-setup`)
 - `/var/lib/k8s-data/open-webui` on the Open WebUI host (5Gi for chat history and user accounts)
 
-### AI memory — Claude with long-term recall
-
-Give Claude.ai and Claude Code a persistent memory via an MCP server, backed
-by Supabase (PostgreSQL + S3-compatible MinIO). Add Open WebUI if you also
-want a browser chat interface over the same backend.
-
-**Install:** Supabase (full stack), Open Brain MCP, *(optionally)* Open WebUI.
-
-**Hardware prerequisites:**
-
-- One x86/amd64 node for the full Supabase stack — 10 pods, all scheduled
-  on `amd64` (pinned to `nuc2` by default)
-- Optionally: an x86 node for Open WebUI (pinned to `node04`)
-
-**Storage prerequisites:**
-
-- `/home/k8s-data/supabase-db`, `/home/k8s-data/supabase-storage`, and
-  `/home/k8s-data/supabase-minio` on the Supabase host
-- An NFS share for PostgreSQL backups — see {doc}`/how-to/nas-setup` and
-  {doc}`/how-to/backup-restore`
-
-**Other prerequisites:**
-
-- A **third** GitHub OAuth App — Open Brain MCP uses its own OAuth client,
-  separate from the baseline Dex and oauth2-proxy apps (see {doc}`/how-to/open-brain`)
-
 ### Monitoring-only — dashboards and alerts
 
 Metrics, dashboards, and Slack/email alerting for the cluster and any
@@ -110,11 +84,10 @@ hardware and want the full experience out of the box.
 
 **Minimum hardware:**
 
-- 1× x86 node for Supabase (`nuc2` role — hosts the 10-pod Supabase stack)
 - 2× x86 nodes for Prometheus and Grafana pinning (`node02`, `node03`)
 - 1× x86 node for Open WebUI (`node04`)
 - 1× RK1 *or* NVIDIA GPU node for LLM inference (at least one)
-- A NAS with two NFS exports: one for LLM model files, one for database backups
+- A NAS with two NFS exports: one for LLM model files, one for backups
 
 **Other prerequisites:**
 
@@ -131,14 +104,12 @@ hardware and want the full experience out of the box.
 | Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Supabase Studio |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Alertmanager |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
-| Open Brain MCP | Helm chart (local) | — | `open-brain-mcp` | `brain.<domain>` | OAuth 2.1 (GitHub) | Standalone MCP server for AI memory |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
-| Supabase | `supabase-community/supabase-kubernetes` | — | `supabase` | `supabase.<domain>`, `supabase-api.<domain>` | oauth2-proxy (Studio) + dashboard password, x-brain-key (API) | Self-hosted backend-as-a-service platform |
 
 ## Service details
 
@@ -186,7 +157,7 @@ Uses `ServerSideApply=true` sync option due to large CRDs.
 ### Headlamp
 
 Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
-(admin-only, same as Supabase Studio). After OAuth login,
+(admin-only, same as Alertmanager). After OAuth login,
 paste a ServiceAccount token generated with
 `kubectl create token headlamp -n headlamp` to access the Kubernetes API.
 The Helm chart creates a ClusterRoleBinding granting `cluster-admin` to
@@ -228,7 +199,7 @@ All busybox images pinned to `1.37`.
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
 for login. Protects services without native OIDC support: Headlamp and
-Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+Alertmanager. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.
 
 **Additional manifests:** `additions/oauth2-proxy/`
@@ -331,47 +302,10 @@ via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as so
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see {doc}`/how-to/llamacpp-models`).
 
-### Open Brain MCP
-
-Standalone MCP (Model Context Protocol) server providing persistent AI memory
-for Claude.ai and Claude Code. Authenticates via OAuth 2.1 with GitHub as
-identity provider. Connects directly to the Supabase PostgreSQL database for
-thought storage and to Supabase Storage (MinIO) for file attachments.
-
-Five tools: `capture_thought` (text-only), `search_thoughts`, `list_thoughts`,
-`thought_stats`, `get_attachment` (base64 file retrieval from MinIO).
-
-A local stdio MCP server (`open-brain-cli/`) extends this with
-`upload_attachment` and `download_attachment` for Claude Code use.
-
-**Additional manifests:** `additions/open-brain-mcp/`
-- `templates/open-brain-mcp-secret.yaml` — SealedSecret for GitHub OAuth credentials, DB URL, and JWT secret
-
-See {doc}`/how-to/open-brain` for deployment and {doc}`/how-to/claude-ai-mcp` for
-connecting Claude.ai.
-
 ### Sealed Secrets
 
 Bitnami Sealed Secrets controller. Installed in `kube-system` namespace. Decrypts
 `SealedSecret` resources into regular Kubernetes Secrets.
-
-### Supabase
-
-Self-hosted Supabase platform providing PostgreSQL, authentication, REST API
-(PostgREST), realtime subscriptions, edge functions, storage, and an admin
-dashboard (Studio). Used as the backend for Open Brain AI memory.
-
-Components: db, auth, rest, realtime, storage, functions, studio, kong, meta,
-minio (10 pods total). All pods scheduled on x86/amd64 nodes.
-
-MinIO provides S3-compatible object storage for file attachments, backed by a
-static `local-nvme` PV pinned to nuc2. Studio is protected by OAuth via
-oauth2-proxy.
-
-**Additional manifests:** `additions/supabase/`
-- `templates/supabase-secret.yaml` — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)
-
-See {doc}`/how-to/open-brain` for deployment.
 
 ## ArgoCD itself
 

@@ -2,29 +2,30 @@
 
 Decommission and rebuild the K3s cluster from scratch, validating the
 bootstrap path a new user would follow. NFS-backed data (LLM models,
-Supabase DB backups, NFS backup targets) and **local PV data under
+NFS backup targets) and **local PV data under
 `/home/k8s-data` (nuc2) and `/var/lib/k8s-data/*` (RK1s) are preserved
 by default** — stateful apps come back with their data intact because
 the rebuild re-binds the same static local-nvme PVs to the same PVCs.
 
 ## WARNING — DATA PRESERVATION MODEL
 
-Default behaviour: **local PV data is preserved.** Supabase DB,
-Supabase storage + MinIO, Grafana sqlite, Prometheus TSDB, and Open
-WebUI sqlite all live on on-disk directories that `pb_decommission.yml`
-does NOT touch:
-- `/home/k8s-data/{supabase-db,supabase-storage,supabase-minio}` (nuc2)
+Default behaviour: **local PV data is preserved.** Grafana sqlite,
+Prometheus TSDB, and Open WebUI sqlite all live on on-disk directories
+that `pb_decommission.yml` does NOT touch:
 - `/var/lib/k8s-data/{grafana,prometheus,open-webui}` (RK1s)
+- `/home/k8s-data/*` (nuc2) — currently only legacy
+  `supabase-{db,storage,minio}` data from the retired Supabase service;
+  no workload uses it, but it is still preserved
 
-NFS-backed data on the NAS (LLM models, Supabase DB dumps, nightly
+NFS-backed data on the NAS (LLM models, nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
 preserved — Ansible never touches the NAS.
 
 **Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
 decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`
-as well. Use only for a deliberate fresh start; after this, Supabase
-re-runs its init migrations and Grafana/Prometheus/Open WebUI come up
-empty.
+as well. Use only for a deliberate fresh start; after this,
+Grafana/Prometheus/Open WebUI come up empty (and the legacy Supabase
+data on nuc2 is gone).
 
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
@@ -33,9 +34,8 @@ explicitly requests a clean-slate wipe in the prompt arguments.
 
 Before the FIRST rebuild on this plan, the user must run
 `docs/how-to/nas-setup.md` on the NAS by hand. This creates
-`/bigdisk/k8s-cluster/` with the `models`, `supabase-dumps`, and
-`backups/*` subtrees that rkllama, llamacpp, supabase-db-data, and the
-backup CronJobs all mount. **This command does NOT touch the NAS** —
+`/bigdisk/k8s-cluster/` with the `models` and `backups/*` subtrees
+that rkllama, llamacpp, and the backup CronJobs all mount. **This command does NOT touch the NAS** —
 Ansible has zero trust boundary with it. If the setup has already been
 done (check with `showmount -e <nas>`), no action is needed.
 
@@ -92,7 +92,7 @@ If the secret does not exist (first-ever build), skip this step.
 
 ### 1c. Collect external credentials
 
-Export the 8 external credentials that cannot be generated. Run this
+Export the 7 external credentials that cannot be generated. Run this
 while the cluster is still up:
 
 ```bash
@@ -107,10 +107,7 @@ set -a && source .env && set +a
 ```
 
 Everything else (admin passwords, cookie secrets, Dex client secrets)
-is generated fresh. The Supabase DB password and JWT secret are also
-extracted — when the `.env` is sourced during rebuild, they are reused
-so that the preserved Postgres data volume keeps working without a
-password mismatch.
+is generated fresh.
 
 ## Phase 2: Decommission
 
@@ -206,9 +203,7 @@ The playbook automatically:
 2. Configures NVIDIA container runtime on GPU nodes (`--tags servers`)
 3. Deploys ArgoCD with full config (dex.config, RBAC, etc.)
 4. Waits for the sealed-secrets controller (up to 300s)
-5. Generates secrets (random tokens, Dex client secrets, etc.) —
-   reuses `SUPABASE_PASSWORD` and `SUPABASE_JWT_SECRET` from `.env`
-   when set, so preserved data volumes keep working
+5. Generates secrets (random tokens, Dex client secrets, etc.)
 6. Seals them with `kubeseal` using the new cluster's keys
 7. Sets the admin password (generated or from `ADMIN_PASSWORD` env var)
 8. Commits and pushes the sealed secret files
@@ -360,7 +355,7 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 - **Stateful pods Pending with "waiting for first consumer"** — the
   `local-nvme` StorageClass uses `WaitForFirstConsumer`. Pods can only
   schedule on the node that owns the PV: prometheus→node02,
-  grafana→node03, open-webui→node04, supabase→nuc2. If a pod is
+  grafana→node03, open-webui→node04. If a pod is
   Pending, check that its target node is Ready and untainted.
 - **Stateful pods CrashLooping with permission denied on /data** —
   the on-disk UID/mode set by `k8s_data_dirs` does not match what the
@@ -383,8 +378,7 @@ Read `cluster_domain` from `group_vars/all.yml`. Test all service URLs:
 ```bash
 for url in https://echo.<domain> https://grafana.<domain> \
            https://headlamp.<domain> https://open-webui.<domain> \
-           https://argocd-monitor.<domain> \
-           https://supabase.<domain> https://argocd.<domain>; do
+           https://argocd-monitor.<domain> https://argocd.<domain>; do
   status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$url")
   echo "$url -> HTTP $status"
 done
@@ -394,7 +388,7 @@ Expected results:
 - `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
 - `grafana`: HTTP 302 (redirects to OAuth login)
 - `headlamp`: HTTP 302 (oauth2-proxy redirect)
-- `supabase`, `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
+- `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
 
 All services must respond (no timeouts or 5xx errors).
 

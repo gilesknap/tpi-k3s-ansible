@@ -1,6 +1,6 @@
 # 10. MCP Protocol with GitHub OAuth for Claude.ai
 
-**Status:** Accepted
+**Status:** Superseded — the Open Brain MCP server has been removed from this repo. Kept as a historical record.
 
 **Supersedes:** [ADR 0004 — x-brain-key Header Auth](0004-mcp-auth-brain-key.md)
 

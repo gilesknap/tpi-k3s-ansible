@@ -1,6 +1,6 @@
 # 6. Supabase Database Storage on NAS via NFS
 
-**Status:** Accepted
+**Status:** Superseded — the self-hosted Supabase stack has been removed from this repo. Kept as a historical record.
 
 ## Context
 

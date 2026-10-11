@@ -22,10 +22,6 @@ how-to/nas-setup
 
 how-to/rkllama-models
 how-to/llamacpp-models
-how-to/open-brain
-how-to/claude-ai-mcp
-how-to/thoth
-how-to/connect-thoth-mcp
 how-to/add-remove-services
 ```
 

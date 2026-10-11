@@ -36,7 +36,7 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] `admin-auth` secret created for Grafana/basic-auth services
 - [ ] oauth2-proxy deployed with GitHub OAuth credentials
-- [ ] OAuth enabled on Grafana and Open WebUI; Headlamp and Supabase Studio gated by oauth2-proxy
+- [ ] OAuth enabled on Grafana and Open WebUI; Headlamp and Alertmanager gated by oauth2-proxy
 - [ ] ArgoCD admin password retrieved and changed from default
 
 ## Resource limits

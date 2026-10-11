@@ -1,6 +1,6 @@
 # 2. Self-Host Full Supabase Stack for Open Brain
 
-**Status:** Accepted
+**Status:** Superseded — Open Brain and the self-hosted Supabase stack have been removed from this repo. Kept as a historical record.
 
 ## Context
 

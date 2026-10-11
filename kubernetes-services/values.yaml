@@ -82,7 +82,7 @@ enable_cloudflare_tunnel: true
 cf_access_team: gilesk
 # Admin email addresses — full access to all services.
 # These emails get: ArgoCD admin, Grafana Admin, Open WebUI admin,
-# oauth2-proxy access (Longhorn, Supabase Studio).
+# oauth2-proxy access (Longhorn, Headlamp).
 # Must be kept in sync with admin_emails in group_vars/all.yml.
 admin_emails:
   - gilesknap@gmail.com
@@ -93,46 +93,12 @@ admin_emails:
 # who passes CF Access and authenticates via GitHub (Dex) lands in the
 # default Viewer role — Grafana Viewer, Open WebUI user, ArgoCD readonly.
 # Admin rights are still granted explicitly via admin_emails above.
-# oauth2-proxy-gated services (Longhorn, Supabase Studio, Headlamp)
+# oauth2-proxy-gated services (Longhorn, Headlamp)
 # remain admin-only and ignore this default.
-# Supabase self-hosted stack for Open Brain AI memory.
-# Provides database, auth, PostgREST, Edge Functions, Studio, and Kong gateway.
-enable_supabase: false
-supabase:
-  nfs:
-    server: 192.168.1.3
-    path: /bigdisk/k8s-cluster/supabase-dumps
-# Helm release name for the upstream supabase chart (the value passed
-# to `helm install <name>`). The chart prefixes every Service/Secret
-# with this name, so the in-cluster Postgres service is
-# `<release>-supabase-db`. Change here AND in the supabase ArgoCD
-# Application's `releaseName` if you want to rename the release.
-supabase_release_name: supabase
-# Open Brain MCP server — standalone FastAPI service for Claude.ai MCP connector.
-# Provides thought storage and retrieval via the Supabase Postgres database.
-enable_open_brain_mcp: true
-open_brain_mcp:
-  # Container image. Fork the upstream open-brain-mcp repo and point
-  # this at your fork to deploy your own build.
-  image_repository: ghcr.io/gilesknap/open-brain-mcp
-  image_tag: latest
-  # Comma-separated GitHub usernames allowed to authenticate to the
-  # MCP server. Forkers should set this to their own GitHub login(s).
-  github_allowed_users: "gilesknap"
-# thoth — Slack PKM daemon + HTTP MCP server + networked Hindsight index.
-# Deployed from the published OCI Helm chart in the thoth repo. The Secret
-# (thoth-env) is shipped here as a SealedSecret carrier chart; the upstream
-# chart provides Deployment/Service/Ingress.
-enable_thoth: false
-thoth:
-  # OCI chart version published by gilesknap/thoth CI.
-  chart_version: "0.8.0-beta.3"
-  # Container image tag (kept in lockstep with chart_version).
-  image_tag: "0.8.0-beta.3"
 # Cluster-owned NFS share on the NAS — single managed subtree under the
 # existing bigdisk export (set up manually via docs/how-to/nas-setup.md).
 # Hosts backup targets AND the hostPath-mirrored model/dump subdirs that
-# rkllama/llamacpp/supabase-db-data also point at.
+# rkllama/llamacpp also point at.
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
@@ -185,21 +151,3 @@ local_storage:
     capacity: 5Gi
     claim_namespace: open-webui
     claim_name: open-webui
-  supabase_db:
-    node: nuc2
-    path: /home/k8s-data/supabase-db
-    capacity: 50Gi
-    claim_namespace: supabase
-    claim_name: supabase-db
-  supabase_storage:
-    node: nuc2
-    path: /home/k8s-data/supabase-storage
-    capacity: 50Gi
-    claim_namespace: supabase
-    claim_name: supabase-storage
-  supabase_minio:
-    node: nuc2
-    path: /home/k8s-data/supabase-minio
-    capacity: 50Gi
-    claim_namespace: supabase
-    claim_name: supabase-minio

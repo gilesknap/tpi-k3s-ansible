@@ -1,6 +1,6 @@
 # 11. MinIO for Open Brain File Attachments
 
-**Status:** Accepted
+**Status:** Superseded — Open Brain and the self-hosted Supabase stack (including MinIO) have been removed from this repo. Kept as a historical record.
 
 ## Context
 
