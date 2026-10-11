@@ -340,10 +340,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
-<li class="toctree-l1"><a class="reference internal" href="thoth.html">thoth (Slack PKM + Hindsight)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="connect-thoth-mcp.html">Connect Claude Code &amp; Claude.ai to thoth over OAuth</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
@@ -436,8 +432,7 @@ QNAP web UI’s share configuration, there is no <code class="docutils literal n
 hand-editing <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> is dangerous because the UI overwrites it.</p>
 <p>The good news is we don’t need a new export at all. Your QNAP already
 exports <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk</span></code> with read-write access to the
-cluster subnet, and it is already mounted by rkllama, llamacpp, and
-the supabase db-dump PV.</p>
+cluster subnet, and it is already mounted by rkllama and llamacpp.</p>
 <p>So this runbook <strong>just creates a new subdirectory inside the existing
 <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export</strong> — <code class="docutils literal notranslate"><span class="pre">bigdisk/k8s-cluster/</span></code> — and populates it. No
 export changes, no <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> edits, no QNAP UI configuration. The
@@ -451,8 +446,6 @@ the cluster reads or writes over NFS:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">models/</span></code> — LLM model files consumed by rkllama and llamacpp
 (populated from the existing <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels/</span></code> tree)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">supabase-dumps/</span></code> — Supabase database dumps
-(populated from the existing <code class="docutils literal notranslate"><span class="pre">bigdisk/OpenBrain/</span></code> tree)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/</span></code> and <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/weekly/</span></code> — daily and weekly
 CronJob backup output (empty on first setup)</p></li>
 </ul>
@@ -488,8 +481,7 @@ clients. This is how rkllama and llamacpp already mount their models.</p>
 <li><p>You can SSH to the QNAP as <code class="docutils literal notranslate"><span class="pre">admin</span></code> (or another account with shell
 access and rights to write under <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA</span></code>).</p></li>
 <li><p>The QNAP is reachable at <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code> from the cluster subnet. Already
-true — rkllama / llamacpp / supabase-db-data all currently mount from
-there.</p></li>
+true — rkllama and llamacpp currently mount from there.</p></li>
 <li><p>Enough free space on the volume to duplicate the existing <code class="docutils literal notranslate"><span class="pre">LMModels</span></code>
 tree. Check with <code class="docutils literal notranslate"><span class="pre">du</span> <span class="pre">-sh</span> <span class="pre">/share/CACHEDEV1_DATA/bigdisk/LMModels</span></code> before
 starting; compare against <code class="docutils literal notranslate"><span class="pre">df</span> <span class="pre">-h</span> <span class="pre">/share/CACHEDEV1_DATA</span></code>.</p></li>
@@ -498,10 +490,9 @@ starting; compare against <code class="docutils literal notranslate"><span class
 <section id="phase-1-one-time-setup-initial-data-copy">
 <h2>Phase 1 — one-time setup + initial data copy<a class="headerlink" href="#phase-1-one-time-setup-initial-data-copy" title="Link to this heading">#</a></h2>
 <p>Run this once on the QNAP. It creates the directory tree and copies the
-existing LLM models and Supabase db dumps into their new homes. The old
-paths (<code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code> and <code class="docutils literal notranslate"><span class="pre">bigdisk/OpenBrain</span></code>) are <strong>preserved
-untouched</strong> — they remain available as a rollback safety net. Do not
-delete them until you are certain the new setup is working.</p>
+existing LLM models into their new home. The old path
+(<code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code>) is <strong>preserved untouched</strong> — it remains available as a rollback safety net. Do not
+delete it until you are certain the new setup is working.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
 
 <span class="nb">set</span><span class="w"> </span>-eu
@@ -513,38 +504,32 @@ delete them until you are certain the new setup is working.</p>
 <span class="c1"># 1. Create the cluster-owned directory tree.</span>
 <span class="c1">#    The export uses root_squash (root → 65534) but not all_squash, so</span>
 <span class="c1">#    writes from in-cluster pods arrive with their own UIDs. Leaf backup</span>
-<span class="c1">#    dirs use 0777 so mixed writers (alpine=root-squashed, postgres=999)</span>
-<span class="c1">#    can all write. Models/supabase-dumps are read-mostly so 0755 is fine.</span>
+<span class="c1">#    dirs use 0777 so mixed writers (alpine=root-squashed, app UIDs)</span>
+<span class="c1">#    can all write. Models are read-mostly so 0755 is fine.</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/supabase-dumps&quot;</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
-<span class="k">for</span><span class="w"> </span>app<span class="w"> </span><span class="k">in</span><span class="w"> </span>supabase-db<span class="w"> </span>supabase-storage<span class="w"> </span>supabase-minio<span class="w"> </span>grafana<span class="w"> </span>open-webui<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="k">for</span><span class="w"> </span>app<span class="w"> </span><span class="k">in</span><span class="w"> </span>grafana<span class="w"> </span>open-webui<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">&quot;</span>
 <span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">/weekly&quot;</span>
 <span class="k">done</span>
 
-chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/supabase-dumps&quot;</span>
+chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
 chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
 chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0777</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>/*
 
-<span class="c1"># 2. Initial data copy — bulk-populate models/ and supabase-dumps/ from</span>
-<span class="c1">#    the existing paths. cp -a preserves perms/times. rsync is also</span>
+<span class="c1"># 2. Initial data copy — bulk-populate models/ from the existing</span>
+<span class="c1">#    path. cp -a preserves perms/times. rsync is also</span>
 <span class="c1">#    available on QTS if you&#39;d rather see progress:</span>
 <span class="c1">#      rsync -a --info=progress2 &lt;src&gt;/ &lt;dst&gt;/</span>
 <span class="c1">#</span>
-<span class="c1">#    Safe to run while the cluster is using the old paths:</span>
-<span class="c1">#    - LLM models are read-only in practice</span>
-<span class="c1">#    - Supabase dumps are written once/day by a CronJob; worst case a</span>
-<span class="c1">#      dump written during the copy is missed and will be picked up by</span>
-<span class="c1">#      Phase 2.</span>
-cp<span class="w"> </span>-a<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/.<span class="w">  </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
-cp<span class="w"> </span>-a<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/OpenBrain/.<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/supabase-dumps/&quot;</span>
+<span class="c1">#    Safe to run while the cluster is using the old path: LLM models</span>
+<span class="c1">#    are read-only in practice, and Phase 2 picks up any late additions.</span>
+cp<span class="w"> </span>-a<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/.<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
 
 <span class="c1"># 3. Verify — sizes should match within a few MB of metadata.</span>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;--- Old vs new sizes ---&quot;</span>
-du<span class="w"> </span>-sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels<span class="w">  </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
-du<span class="w"> </span>-sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/OpenBrain<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/supabase-dumps&quot;</span>
+du<span class="w"> </span>-sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;--- Tree ---&quot;</span>
 ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
 </pre></div>
@@ -570,23 +555,20 @@ kubectl<span class="w"> </span>run<span class="w"> </span>nas-check<span class="
 <span class="s1">}&#39;</span>
 </pre></div>
 </div>
-<p>You should see the <code class="docutils literal notranslate"><span class="pre">models</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-dumps</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code> subtrees.</p>
+<p>You should see the <code class="docutils literal notranslate"><span class="pre">models</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code> subtrees.</p>
 </section>
 <section id="phase-2-final-sync-before-rebuild">
 <h2>Phase 2 — final sync before rebuild<a class="headerlink" href="#phase-2-final-sync-before-rebuild" title="Link to this heading">#</a></h2>
 <p>Re-run this right before <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code>. It catches any deltas since
-Phase 1 — in practice the only moving parts are the daily Supabase dump
-and any newly-downloaded LLM models. <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code> turns the target
+Phase 1 — in practice the only moving part is any newly-downloaded
+LLM models. <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code> turns the target
 into a true mirror of the source, so anything removed upstream is
 removed from the new share too.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">set</span><span class="w"> </span>-eu
 <span class="nv">ROOT</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 
 rsync<span class="w"> </span>-a<span class="w"> </span>--delete<span class="w"> </span>--info<span class="o">=</span>progress2<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/<span class="w">  </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
-
-rsync<span class="w"> </span>-a<span class="w"> </span>--delete<span class="w"> </span>--info<span class="o">=</span>progress2<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/share/CACHEDEV1_DATA/bigdisk/OpenBrain/<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/supabase-dumps/&quot;</span>
+<span class="w">  </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
 
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Final sync complete. Safe to run /rebuild-cluster now.&quot;</span>
 </pre></div>
@@ -598,17 +580,16 @@ path (<code class="docutils literal notranslate"><span class="pre">/usr/bin/rsyn
 <h2>Rollback<a class="headerlink" href="#rollback" title="Link to this heading">#</a></h2>
 <p>The old paths are never touched by this runbook, so rollback is:</p>
 <ol class="arabic">
-<li><p>Revert <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — point <code class="docutils literal notranslate"><span class="pre">rkllama.nfs.path</span></code>,
-<code class="docutils literal notranslate"><span class="pre">llamacpp.nfs.path</span></code> and <code class="docutils literal notranslate"><span class="pre">supabase.nfs.path</span></code> back at <code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels</span></code>,
-<code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels/cuda</span></code> and <code class="docutils literal notranslate"><span class="pre">/bigdisk/OpenBrain</span></code> respectively.</p></li>
-<li><p>Re-sync ArgoCD. rkllama / llamacpp / supabase-db-data will re-bind to
+<li><p>Revert <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — point <code class="docutils literal notranslate"><span class="pre">rkllama.nfs.path</span></code>
+and <code class="docutils literal notranslate"><span class="pre">llamacpp.nfs.path</span></code> back at <code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels/cuda</span></code> respectively.</p></li>
+<li><p>Re-sync ArgoCD. rkllama / llamacpp will re-bind to
 the OLD paths and work exactly as before.</p></li>
 <li><p>Only once no pods are consuming the new tree, on the QNAP:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 </pre></div>
 </div>
-<p>Note that <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code> and <code class="docutils literal notranslate"><span class="pre">bigdisk/OpenBrain</span></code> are untouched
-by the rollback — the copy was additive.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code> is untouched by the rollback — the copy was additive.</p>
 </li>
 </ol>
 </section>

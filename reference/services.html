@@ -446,31 +446,6 @@ them in a single model dropdown.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code> on the Open WebUI host (5Gi for chat history and user accounts)</p></li>
 </ul>
 </section>
-<section id="ai-memory-claude-with-long-term-recall">
-<h3>AI memory — Claude with long-term recall<a class="headerlink" href="#ai-memory-claude-with-long-term-recall" title="Link to this heading">#</a></h3>
-<p>Give Claude.ai and Claude Code a persistent memory via an MCP server, backed
-by Supabase (PostgreSQL + S3-compatible MinIO). Add Open WebUI if you also
-want a browser chat interface over the same backend.</p>
-<p><strong>Install:</strong> Supabase (full stack), Open Brain MCP, <em>(optionally)</em> Open WebUI.</p>
-<p><strong>Hardware prerequisites:</strong></p>
-<ul class="simple">
-<li><p>One x86/amd64 node for the full Supabase stack — 10 pods, all scheduled
-on <code class="docutils literal notranslate"><span class="pre">amd64</span></code> (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default)</p></li>
-<li><p>Optionally: an x86 node for Open WebUI (pinned to <code class="docutils literal notranslate"><span class="pre">node04</span></code>)</p></li>
-</ul>
-<p><strong>Storage prerequisites:</strong></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>, <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code> on the Supabase host</p></li>
-<li><p>An NFS share for PostgreSQL backups — see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> and
-<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and Restore</span></a></p></li>
-</ul>
-<p><strong>Other prerequisites:</strong></p>
-<ul class="simple">
-<li><p>A <strong>third</strong> GitHub OAuth App — Open Brain MCP uses its own OAuth client,
-separate from the baseline Dex and oauth2-proxy apps (see <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a>)</p></li>
-</ul>
-</section>
 <section id="monitoring-only-dashboards-and-alerts">
 <h3>Monitoring-only — dashboards and alerts<a class="headerlink" href="#monitoring-only-dashboards-and-alerts" title="Link to this heading">#</a></h3>
 <p>Metrics, dashboards, and Slack/email alerting for the cluster and any
@@ -498,11 +473,10 @@ workloads you add. Useful as a standalone observability cluster.</p>
 hardware and want the full experience out of the box.</p>
 <p><strong>Minimum hardware:</strong></p>
 <ul class="simple">
-<li><p>1× x86 node for Supabase (<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> role — hosts the 10-pod Supabase stack)</p></li>
 <li><p>2× x86 nodes for Prometheus and Grafana pinning (<code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code>)</p></li>
 <li><p>1× x86 node for Open WebUI (<code class="docutils literal notranslate"><span class="pre">node04</span></code>)</p></li>
 <li><p>1× RK1 <em>or</em> NVIDIA GPU node for LLM inference (at least one)</p></li>
-<li><p>A NAS with two NFS exports: one for LLM model files, one for database backups</p></li>
+<li><p>A NAS with two NFS exports: one for LLM model files, one for backups</p></li>
 </ul>
 <p><strong>Other prerequisites:</strong></p>
 <ul class="simple">
@@ -586,7 +560,7 @@ hardware and want the full experience out of the box.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
 <td><p>GitHub</p></td>
-<td><p>OAuth proxy for Headlamp and Supabase Studio</p></td>
+<td><p>OAuth proxy for Headlamp and Alertmanager</p></td>
 </tr>
 <tr class="row-even"><td><p>RKLlama</p></td>
 <td><p>Helm chart (local)</p></td>
@@ -620,29 +594,13 @@ hardware and want the full experience out of the box.</p>
 <td><p>Dex (OIDC)</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
-<tr class="row-even"><td><p>Open Brain MCP</p></td>
-<td><p>Helm chart (local)</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">open-brain-mcp</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">brain.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth 2.1 (GitHub)</p></td>
-<td><p>Standalone MCP server for AI memory</p></td>
-</tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Encrypted secrets in Git</p></td>
-</tr>
-<tr class="row-even"><td><p>Supabase</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">supabase-community/supabase-kubernetes</span></code></p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">supabase</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">supabase.&lt;domain&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-api.&lt;domain&gt;</span></code></p></td>
-<td><p>oauth2-proxy (Studio) + dashboard password, x-brain-key (API)</p></td>
-<td><p>Self-hosted backend-as-a-service platform</p></td>
 </tr>
 </tbody>
 </table>
@@ -696,7 +654,7 @@ Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
 <section id="headlamp">
 <h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
 <p>Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
-(admin-only, same as Supabase Studio). After OAuth login,
+(admin-only, same as Alertmanager). After OAuth login,
 paste a ServiceAccount token generated with
 <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">create</span> <span class="pre">token</span> <span class="pre">headlamp</span> <span class="pre">-n</span> <span class="pre">headlamp</span></code> to access the Kubernetes API.
 The Helm chart creates a ClusterRoleBinding granting <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> to
@@ -737,7 +695,7 @@ container. Set <code class="docutils literal notranslate"><span class="pre">head
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
 for login. Protects services without native OIDC support: Headlamp and
-Supabase Studio. Integrated with nginx ingress annotations. Resource limits:
+Alertmanager. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
 <ul class="simple">
@@ -831,43 +789,10 @@ via <code class="docutils literal notranslate"><span class="pre">rkllama-pull</s
 as the GGUF file is present on the NFS share and llamacpp has loaded it
 (see <a class="reference internal" href="../how-to/llamacpp-models.html"><span class="doc">llama.cpp CUDA Models</span></a>).</p>
 </section>
-<section id="open-brain-mcp">
-<h3>Open Brain MCP<a class="headerlink" href="#open-brain-mcp" title="Link to this heading">#</a></h3>
-<p>Standalone MCP (Model Context Protocol) server providing persistent AI memory
-for Claude.ai and Claude Code. Authenticates via OAuth 2.1 with GitHub as
-identity provider. Connects directly to the Supabase PostgreSQL database for
-thought storage and to Supabase Storage (MinIO) for file attachments.</p>
-<p>Five tools: <code class="docutils literal notranslate"><span class="pre">capture_thought</span></code> (text-only), <code class="docutils literal notranslate"><span class="pre">search_thoughts</span></code>, <code class="docutils literal notranslate"><span class="pre">list_thoughts</span></code>,
-<code class="docutils literal notranslate"><span class="pre">thought_stats</span></code>, <code class="docutils literal notranslate"><span class="pre">get_attachment</span></code> (base64 file retrieval from MinIO).</p>
-<p>A local stdio MCP server (<code class="docutils literal notranslate"><span class="pre">open-brain-cli/</span></code>) extends this with
-<code class="docutils literal notranslate"><span class="pre">upload_attachment</span></code> and <code class="docutils literal notranslate"><span class="pre">download_attachment</span></code> for Claude Code use.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/open-brain-mcp/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/open-brain-mcp-secret.yaml</span></code> — SealedSecret for GitHub OAuth credentials, DB URL, and JWT secret</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> for deployment and <a class="reference internal" href="../how-to/claude-ai-mcp.html"><span class="doc">Connect Claude.ai to Cluster Services via MCP</span></a> for
-connecting Claude.ai.</p>
-</section>
 <section id="sealed-secrets">
 <h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
 <p>Bitnami Sealed Secrets controller. Installed in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace. Decrypts
 <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> resources into regular Kubernetes Secrets.</p>
-</section>
-<section id="supabase">
-<h3>Supabase<a class="headerlink" href="#supabase" title="Link to this heading">#</a></h3>
-<p>Self-hosted Supabase platform providing PostgreSQL, authentication, REST API
-(PostgREST), realtime subscriptions, edge functions, storage, and an admin
-dashboard (Studio). Used as the backend for Open Brain AI memory.</p>
-<p>Components: db, auth, rest, realtime, storage, functions, studio, kong, meta,
-minio (10 pods total). All pods scheduled on x86/amd64 nodes.</p>
-<p>MinIO provides S3-compatible object storage for file attachments, backed by a
-static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV pinned to nuc2. Studio is protected by OAuth via
-oauth2-proxy.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/supabase/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/supabase-secret.yaml</span></code> — SealedSecret for all Supabase credentials (JWT, DB password, API keys, MinIO credentials)</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/open-brain.html"><span class="doc">Open Brain (AI Memory)</span></a> for deployment.</p>
 </section>
 </section>
 <section id="argocd-itself">
@@ -933,7 +858,6 @@ across services.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start-configurations">Quick-start configurations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#baseline-always-installed">Baseline (always installed)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-only-private-chatgpt">LLM-only — private ChatGPT</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ai-memory-claude-with-long-term-recall">AI memory — Claude with long-term recall</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#monitoring-only-dashboards-and-alerts">Monitoring-only — dashboards and alerts</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-stack-everything">Full stack — everything</a></li>
 </ul>
@@ -952,9 +876,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llama-cpp-cuda">llama.cpp (CUDA)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-webui">Open WebUI</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#open-brain-mcp">Open Brain MCP</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase">Supabase</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-itself">ArgoCD itself</a></li>

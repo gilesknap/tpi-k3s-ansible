@@ -10,7 +10,7 @@ cluster. Each path uses its own GitHub OAuth App:
 
 - **Part A** — Dex OIDC, used by **ArgoCD, Grafana, Open WebUI, and
   argocd-monitor** (services with native OIDC support).
-- **Part B** — oauth2-proxy, used by **Supabase Studio and Headlamp**
+- **Part B** — oauth2-proxy, used by **Headlamp and Alertmanager**
   (admin-only services with no native OIDC).
 
 ## Prerequisites
@@ -226,8 +226,8 @@ oauth2-proxy before forwarding each request.
 
 Services protected by oauth2-proxy (admin-only):
 
-- **Supabase Studio** — requires a dashboard password after OAuth login
 - **Headlamp** — uses OAuth as the outer access control layer
+- **Alertmanager** — no app-level auth, so OAuth is the only gate
 
 ---
 
@@ -249,7 +249,7 @@ ingress values.
 
 ### 403 after GitHub login
 
-For oauth2-proxy services (Headlamp, Supabase Studio): the email must be
+For oauth2-proxy services (Headlamp, Alertmanager): the email must be
 in `admin_emails` in `values.yaml`. Viewer users cannot access these services
 by design.
 

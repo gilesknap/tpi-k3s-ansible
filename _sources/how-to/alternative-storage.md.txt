@@ -54,7 +54,7 @@ StorageClass name:
 grep -rn local-nvme kubernetes-services/templates/
 ```
 
-Expect hits in `supabase.yaml`, `grafana.yaml`, and `open-webui.yaml`. For
+Expect hits in `grafana.yaml` and `open-webui.yaml`. For
 each, change `storageClassName: local-nvme` (or `storageClass: local-nvme`
 for Open WebUI's chart) to your provider's class.
 

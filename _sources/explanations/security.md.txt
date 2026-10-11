@@ -33,7 +33,6 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → Admin / Viewer |
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + token | — |
-| Supabase Studio | Cloudflare Access | oauth2-proxy | Dashboard password |
 | Echo | Cloudflare Access | None | None (public test) |
 | RKLlama | — | None | Internal API (fronted by Open WebUI) |
 
@@ -126,8 +125,7 @@ No inbound ports need to be opened on your router for public-facing services.
 ### Cloudflare Access
 
 All services are routed through the Cloudflare tunnel and protected by a
-Cloudflare Access email-gate policy. The only exception is `supabase-api`,
-which uses a bypass policy (authenticated by `x-brain-key` instead).
+Cloudflare Access email-gate policy.
 
 ### NetworkPolicies
 

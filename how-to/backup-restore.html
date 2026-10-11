@@ -340,10 +340,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="open-brain.html">Open Brain (AI Memory)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="claude-ai-mcp.html">Connect Claude.ai to Cluster Services via MCP</a></li>
-<li class="toctree-l1"><a class="reference internal" href="thoth.html">thoth (Slack PKM + Hindsight)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="connect-thoth-mcp.html">Connect Claude Code &amp; Claude.ai to thoth over OAuth</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
@@ -437,7 +433,7 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Stateful app data</p></td>
-<td><p>static local-nvme PVs on nuc2 / RK1 nodes</p></td>
+<td><p>static local-nvme PVs on worker nodes</p></td>
 <td><p>nightly CronJob → NFS NAS</p></td>
 </tr>
 <tr class="row-odd"><td><p>Sealed Secrets private key</p></td>
@@ -470,23 +466,11 @@ workload-specific <code class="docutils literal notranslate"><span class="pre">s
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Supabase Postgres</p></td>
-<td><p>`pg_dump</p></td>
-<td><p>gzip`</p></td>
-</tr>
-<tr class="row-odd"><td><p>Supabase Storage</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups/supabase-storage/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Supabase MinIO</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-minio</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups/supabase-minio/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Grafana sqlite</p></td>
+<tr class="row-even"><td><p>Grafana sqlite</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups/grafana/{,weekly}/&lt;date&gt;.db</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Open WebUI sqlite</p></td>
+<tr class="row-odd"><td><p>Open WebUI sqlite</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups/open-webui/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
 </tr>
@@ -504,57 +488,31 @@ via re-scrape, and the snapshot-API dance is not worth the complexity.</p>
 </section>
 <section id="trigger-a-one-off-backup">
 <h3>Trigger a one-off backup<a class="headerlink" href="#trigger-a-one-off-backup" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>--from<span class="o">=</span>cronjob/supabase-db-daily<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span><span class="w"> </span>-n<span class="w"> </span>backups
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>--from<span class="o">=</span>cronjob/grafana-daily<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span><span class="w"> </span>-n<span class="w"> </span>backups
 kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>backups<span class="w"> </span>job/manual-&lt;timestamp&gt;<span class="w"> </span>-f
 </pre></div>
 </div>
 <p>Then verify on the NAS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s1">&#39;ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/supabase-db/&#39;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s1">&#39;ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/&#39;</span>
 </pre></div>
 </div>
 </section>
-<section id="restore-supabase-postgres">
-<h3>Restore — Supabase Postgres<a class="headerlink" href="#restore-supabase-postgres" title="Link to this heading">#</a></h3>
-<p>Copy the gzipped dump into the running DB pod and pipe it into <code class="docutils literal notranslate"><span class="pre">psql</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>cp<span class="w"> </span>/path/to/local/YYYY-MM-DD.sql.gz<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>supabase/supabase-supabase-db-0:/tmp/restore.sql.gz
-kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;gunzip -c /tmp/restore.sql.gz | psql -U postgres&#39;</span>
-</pre></div>
-</div>
-<p>Or restore from the NFS PV directly by mounting it into a debug pod:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>run<span class="w"> </span>pg-restore<span class="w"> </span>-n<span class="w"> </span>backups<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--overrides<span class="o">=</span><span class="s1">&#39;{</span>
-<span class="s1">    &quot;spec&quot;: {</span>
-<span class="s1">      &quot;containers&quot;: [{</span>
-<span class="s1">        &quot;name&quot;: &quot;psql&quot;,</span>
-<span class="s1">        &quot;image&quot;: &quot;postgres:15&quot;,</span>
-<span class="s1">        &quot;command&quot;: [&quot;sh&quot;, &quot;-c&quot;, &quot;gunzip -c /backup/$(ls -1t /backup | head -1) | psql -h supabase-supabase-db.supabase -U postgres&quot;],</span>
-<span class="s1">        &quot;volumeMounts&quot;: [{&quot;name&quot;: &quot;nfs&quot;, &quot;mountPath&quot;: &quot;/backup&quot;, &quot;subPath&quot;: &quot;backups/supabase-db&quot;}]</span>
-<span class="s1">      }],</span>
-<span class="s1">      &quot;volumes&quot;: [{&quot;name&quot;: &quot;nfs&quot;, &quot;persistentVolumeClaim&quot;: {&quot;claimName&quot;: &quot;k8s-cluster-nfs&quot;}}]</span>
-<span class="s1">    }</span>
-<span class="s1">  }&#39;</span>
-</pre></div>
-</div>
-</section>
-<section id="restore-supabase-storage-minio-open-webui-tar-archives">
-<h3>Restore — Supabase Storage / MinIO / Open WebUI (tar archives)<a class="headerlink" href="#restore-supabase-storage-minio-open-webui-tar-archives" title="Link to this heading">#</a></h3>
-<p>Scale the owning workload to zero, untar over the local-PV hostPath, then
-scale back up. Example for Supabase Storage (nuc2 hostPath
-<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-storage</span></code>):</p>
+<section id="restore-open-webui-tar-archive">
+<h3>Restore — Open WebUI (tar archive)<a class="headerlink" href="#restore-open-webui-tar-archive" title="Link to this heading">#</a></h3>
+<p>The Open WebUI backup is a <code class="docutils literal notranslate"><span class="pre">tar.gz</span></code> holding a consistent <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>
+snapshot of <code class="docutils literal notranslate"><span class="pre">webui.db</span></code>. Scale the workload to zero, extract over the
+local-PV hostPath, then scale back up:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Scale down</span>
-kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>deploy/supabase-supabase-storage<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>open-webui<span class="w"> </span>sts/open-webui<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
 
-<span class="c1"># 2. Extract on the node (NFS share is already mounted on nuc2)</span>
-ssh<span class="w"> </span>ansible@nuc2<span class="w"> </span><span class="s1">&#39;</span>
-<span class="s1">  cd /home/k8s-data/supabase-storage &amp;&amp;</span>
-<span class="s1">  sudo rm -rf ./* ./.* 2&gt;/dev/null;</span>
-<span class="s1">  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/supabase-storage/YYYY-MM-DD.tar.gz</span>
+<span class="c1"># 2. Extract on the node that hosts the Open WebUI PV</span>
+ssh<span class="w"> </span>ansible@node04<span class="w"> </span><span class="s1">&#39;</span>
+<span class="s1">  cd /var/lib/k8s-data/open-webui &amp;&amp;</span>
+<span class="s1">  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/open-webui/YYYY-MM-DD.tar.gz</span>
 <span class="s1">&#39;</span>
 
 <span class="c1"># 3. Scale back</span>
-kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>deploy/supabase-supabase-storage<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>open-webui<span class="w"> </span>sts/open-webui<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
 </pre></div>
 </div>
 <p>(If the NFS share is not pre-mounted on the node, run the extract in a
@@ -718,8 +676,7 @@ requiring explicit restoration.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stateful-app-data-cronjob-to-nfs-backups">Stateful app data: CronJob-to-NFS backups</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#retention">Retention</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-a-one-off-backup">Trigger a one-off backup</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-supabase-postgres">Restore — Supabase Postgres</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-supabase-storage-minio-open-webui-tar-archives">Restore — Supabase Storage / MinIO / Open WebUI (tar archives)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-open-webui-tar-archive">Restore — Open WebUI (tar archive)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-grafana-sqlite">Restore — Grafana sqlite</a></li>
 </ul>
 </li>

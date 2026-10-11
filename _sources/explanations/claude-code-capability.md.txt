@@ -13,9 +13,9 @@ stacking on top of each other:
 | Dimension | Detail |
 |-----------|--------|
 | **Hardware** | Heterogeneous: 4× RK1 ARM SoCs on a Turing Pi board, plus x86 nodes (NUC, workstation) with different roles and taints |
-| **Services** | 20 ArgoCD-managed applications — cert-manager, ingress-nginx, Grafana, Prometheus, Supabase, Open Brain, and more |
+| **Services** | ~20 ArgoCD-managed applications — cert-manager, ingress-nginx, Grafana, Prometheus, Open WebUI, LLM servers, and more |
 | **Provisioning layers** | Ansible (OS + K3s) → Helm (ArgoCD root app) → ArgoCD (everything else) — three layers, each with its own failure modes |
-| **Stateful data** | Postgres databases, Grafana dashboards, Prometheus metrics, chat history — all must survive cluster rebuilds |
+| **Stateful data** | Grafana dashboards, Prometheus metrics, chat history — all must survive cluster rebuilds |
 | **Secret management** | Vault-derived secrets, SealedSecrets, OAuth client credentials, cookie secrets — each with different rotation rules |
 | **Auth stack** | GitHub OAuth → oauth2-proxy → Dex → per-service OIDC — a four-hop chain where any link can break silently |
 

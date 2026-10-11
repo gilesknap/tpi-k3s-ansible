@@ -5,6 +5,11 @@
 **Supersedes:** 0009 (workstation exclusion from Longhorn — no longer
 relevant with Longhorn removed).
 
+*Note:* the Supabase workloads listed below have since been removed from
+this repo (see ADRs 0002/0006). Their `/home/k8s-data/supabase-*`
+directories are left on disk untouched; the decision itself still
+applies to the remaining stateful workloads.
+
 ## Context
 
 The cluster previously used Longhorn as its block-storage CSI provider for
@@ -148,8 +153,8 @@ the right ownership.
   cannot come up without it (rkllama/llamacpp/supabase-db-data PVs
   would fail to mount their new paths).
 - **Supabase `db-data` NFS path changed** from `/bigdisk/OpenBrain` to
-  `/bigdisk/k8s-cluster/supabase-dumps` — ADR 0006 is still accepted
-  (NFS for the dump store), but its path is superseded by this ADR.
+  `/bigdisk/k8s-cluster/supabase-dumps` — ADR 0006 was still accepted
+  at the time (NFS for the dump store), but its path is superseded by this ADR.
 
 ## References
 

@@ -515,7 +515,7 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 <section id="viewer-emails-can-access-oauth2-proxy-gated-services">
 <h3>Viewer emails can access oauth2-proxy-gated services<a class="headerlink" href="#viewer-emails-can-access-oauth2-proxy-gated-services" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> Users with viewer emails can access admin-only services
-(Headlamp, Supabase Studio) — oauth2-proxy returns 202 instead of 403.</p>
+(Headlamp, Alertmanager) — oauth2-proxy returns 202 instead of 403.</p>
 <p><strong>Cause:</strong> The oauth2-proxy Helm chart generates <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[&quot;*&quot;]</span></code> in
 its default ConfigMap. This acts as an OR with <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> —
 any email from any domain passes the domain check, so the restrictive email
@@ -613,17 +613,17 @@ This avoids polluting your browser cache with intermediate states.</p>
 <p><strong>Symptom:</strong> A pod stuck <code class="docutils literal notranslate"><span class="pre">Pending</span></code> with events like <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">persistent</span> <span class="pre">volumes</span> <span class="pre">available</span> <span class="pre">for</span> <span class="pre">this</span> <span class="pre">claim</span></code>.</p>
 <p><strong>Check:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">-l</span> <span class="pre">type=local-nvme</span></code> — every PV listed in
 <code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code> should be <code class="docutils literal notranslate"><span class="pre">Bound</span></code>.</p>
-<p><strong>Fix:</strong> Verify the data directory exists on the target node
-(<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/&lt;app&gt;</span></code> on nuc2, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/&lt;app&gt;</span></code> on the RK1
-nodes); re-run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> to let the
+<p><strong>Fix:</strong> Verify the data directory exists on the target node (the
+<code class="docutils literal notranslate"><span class="pre">node</span></code>/<code class="docutils literal notranslate"><span class="pre">path</span></code> pair in its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry, e.g.
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/&lt;app&gt;</span></code>); re-run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> to let the
 <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role recreate any missing directory.</p>
 </section>
 <section id="restoring-from-an-nfs-backup">
 <h3>Restoring from an NFS backup<a class="headerlink" href="#restoring-from-an-nfs-backup" title="Link to this heading">#</a></h3>
 <p>The daily/weekly backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code> namespace write
 compressed dumps to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS. To find
-the latest, <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-lt</span> <span class="pre">/bigdisk/k8s-cluster/backups/supabase-db/</span></code> on the
-NAS host and pick the newest <code class="docutils literal notranslate"><span class="pre">*.sql.gz</span></code>.</p>
+the latest, <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-lt</span> <span class="pre">/bigdisk/k8s-cluster/backups/&lt;app&gt;/</span></code> on the
+NAS host and pick the newest archive.</p>
 </section>
 </section>
 <section id="networking">
@@ -795,145 +795,6 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class=
 <p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
 </section>
 </section>
-<section id="supabase">
-<h2>Supabase<a class="headerlink" href="#supabase" title="Link to this heading">#</a></h2>
-<section id="postgres-fails-on-nfs-storage">
-<h3>Postgres fails on NFS storage<a class="headerlink" href="#postgres-fails-on-nfs-storage" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Supabase Postgres pod crashes with <code class="docutils literal notranslate"><span class="pre">chown</span></code> or permission errors.</p>
-<p><strong>Cause:</strong> NFS with <code class="docutils literal notranslate"><span class="pre">root_squash</span></code> prevents the Postgres container (UID 105,
-GID 106) from changing file ownership. Unlike most Postgres images that use
-UID/GID 999, the Supabase image uses non-standard IDs.</p>
-<p><strong>Fix:</strong> The Supabase database runs on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV pinned to
-nuc2 (backed by <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/supabase-db</span></code>) — plain filesystem ownership
-works correctly. NFS is used only by the backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code>
-namespace to write compressed <code class="docutils literal notranslate"><span class="pre">pg_dump</span></code> output to the NAS; the live
-database never touches NFS. See
-<a class="reference internal" href="../explanations/decisions/0006-supabase-nfs-storage.html"><span class="doc">6. Supabase Database Storage on NAS via NFS</span></a> for the original
-context and <a class="reference internal" href="../explanations/decisions/0012-drop-longhorn.html"><span class="doc">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></a> for the
-current architecture.</p>
-</section>
-<section id="supabase-clients-crashloop-with-password-authentication-failed-after-rebuild">
-<h3>Supabase clients CrashLoop with “password authentication failed” after rebuild<a class="headerlink" href="#supabase-clients-crashloop-with-password-authentication-failed-after-rebuild" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> After a cluster rebuild with preserved local-nvme volumes,
-<code class="docutils literal notranslate"><span class="pre">supabase-auth</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-rest</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-storage</span></code>, <code class="docutils literal notranslate"><span class="pre">supabase-realtime</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">open-brain-mcp</span></code> all CrashLoop with <code class="docutils literal notranslate"><span class="pre">password</span> <span class="pre">authentication</span> <span class="pre">failed</span> <span class="pre">for</span> <span class="pre">user</span> <span class="pre">&quot;supabase_admin&quot;</span></code>.</p>
-<p><strong>Cause:</strong> Postgres init scripts only run when <code class="docutils literal notranslate"><span class="pre">PG_VERSION</span></code> is absent from
-PGDATA. On a preserved volume they are skipped, so service roles keep the
-old passwords. If <code class="docutils literal notranslate"><span class="pre">SUPABASE_PASSWORD</span></code> was not set in <code class="docutils literal notranslate"><span class="pre">.env</span></code> before the
-rebuild, <code class="docutils literal notranslate"><span class="pre">generate-secrets</span></code> rolled a fresh random password that does not
-match what Postgres has.</p>
-<p><strong>Prevention:</strong> Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code> before decommission. This
-extracts <code class="docutils literal notranslate"><span class="pre">SUPABASE_PASSWORD</span></code> and <code class="docutils literal notranslate"><span class="pre">SUPABASE_JWT_SECRET</span></code> into <code class="docutils literal notranslate"><span class="pre">.env</span></code> so the
-rebuild reuses the existing values.</p>
-<p><strong>Fix (if prevention was missed):</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1) Read the new password from the live secret</span>
-<span class="nv">NEW_PW</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-credentials<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.password}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="k">)</span>
-
-<span class="c1"># 2) ALTER all service roles to match (must use supabase_admin, not postgres)</span>
-<span class="c1">#    Must use -h 127.0.0.1 (trust auth) not local socket (scram)</span>
-kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-i<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>supabase-supabase-db-0<span class="w"> </span>-c<span class="w"> </span>supabase-db<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>supabase_admin<span class="w"> </span>-h<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="s">&lt;&lt;SQL</span>
-<span class="s">ALTER USER supabase_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_auth_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_storage_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_functions_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_realtime_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_replication_admin WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER supabase_read_only_user WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER authenticator WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER pgbouncer WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER dashboard_user WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">ALTER USER postgres WITH PASSWORD &#39;$NEW_PW&#39;;</span>
-<span class="s">SQL</span>
-
-<span class="c1"># 3) Restart the crashing clients</span>
-kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>deploy/supabase-supabase-auth<span class="w"> </span>deploy/supabase-supabase-rest<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>deploy/supabase-supabase-storage<span class="w"> </span>deploy/supabase-supabase-realtime
-kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>-n<span class="w"> </span>open-brain-mcp<span class="w"> </span>deploy/open-brain-mcp
-</pre></div>
-</div>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span></code> needs <code class="docutils literal notranslate"><span class="pre">-i</span></code> for the heredoc to reach psql. Without it the
-ALTER statements silently do nothing.</p>
-</div>
-</section>
-<section id="kong-oomkilled">
-<h3>Kong OOMKilled<a class="headerlink" href="#kong-oomkilled" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Supabase Kong pod restarts repeatedly with <code class="docutils literal notranslate"><span class="pre">OOMKilled</span></code>.</p>
-<p><strong>Fix:</strong> Set Kong memory limit to at least 2Gi. Lower values (512Mi–1Gi)
-cause consistent OOM kills under normal load.</p>
-</section>
-<section id="edge-function-not-updating-after-configmap-change">
-<h3>Edge Function not updating after ConfigMap change<a class="headerlink" href="#edge-function-not-updating-after-configmap-change" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Supabase Edge Function serves stale code after updating the
-ConfigMap.</p>
-<p><strong>Cause:</strong> subPath ConfigMap mounts do not receive automatic updates from
-Kubernetes. The pod must be restarted to pick up changes.</p>
-<p><strong>Fix:</strong> Delete the Edge Function pod to force a restart:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/name<span class="o">=</span>supabase-functions
-</pre></div>
-</div>
-</section>
-<section id="edge-function-returns-404">
-<h3>Edge Function returns 404<a class="headerlink" href="#edge-function-returns-404" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Requests to the Edge Function return 404 Not Found.</p>
-<p><strong>Cause:</strong> The Supabase Edge Runtime requires the <code class="docutils literal notranslate"><span class="pre">basePath</span></code> in the Hono
-application to match the function directory name (the subPath mount point).</p>
-<p><strong>Fix:</strong> Ensure the <code class="docutils literal notranslate"><span class="pre">basePath</span></code> in the function code matches the directory name.
-For example, if the function is mounted at <code class="docutils literal notranslate"><span class="pre">/open-brain-mcp</span></code>, the Hono app must
-use <code class="docutils literal notranslate"><span class="pre">basePath:</span> <span class="pre">'/open-brain-mcp'</span></code>.</p>
-</section>
-</section>
-<section id="minio-supabase-storage">
-<h2>MinIO / Supabase Storage<a class="headerlink" href="#minio-supabase-storage" title="Link to this heading">#</a></h2>
-<section id="minio-crashloopbackoff-file-access-denied">
-<h3>MinIO CrashLoopBackOff — file access denied<a class="headerlink" href="#minio-crashloopbackoff-file-access-denied" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> MinIO pod crashes with <code class="docutils literal notranslate"><span class="pre">unable</span> <span class="pre">to</span> <span class="pre">rename</span> <span class="pre">/data/.minio.sys/tmp</span> <span class="pre">—</span> <span class="pre">file</span> <span class="pre">access</span> <span class="pre">denied,</span> <span class="pre">drive</span> <span class="pre">may</span> <span class="pre">be</span> <span class="pre">faulty</span></code>.</p>
-<p><strong>Cause:</strong> The Chainguard MinIO image (<code class="docutils literal notranslate"><span class="pre">cgr.dev/chainguard/minio</span></code>) runs as
-UID 65532 (nonroot). Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs are backed by hostPath
-directories created with root ownership, so MinIO cannot write to the
-volume.</p>
-<p><strong>Fix:</strong> Add <code class="docutils literal notranslate"><span class="pre">podSecurityContext.fsGroup:</span> <span class="pre">65532</span></code> to the MinIO deployment
-config in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/supabase.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deployment</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">minio</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">podSecurityContext</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">fsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65532</span>
-</pre></div>
-</div>
-</section>
-<section id="storage-bucket-not-found-after-sql-migration">
-<h3>Storage bucket not found after SQL migration<a class="headerlink" href="#storage-bucket-not-found-after-sql-migration" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Supabase Storage returns <code class="docutils literal notranslate"><span class="pre">404</span> <span class="pre">Bucket</span> <span class="pre">not</span> <span class="pre">found</span></code> even though
-the bucket exists in <code class="docutils literal notranslate"><span class="pre">storage.buckets</span></code> table.</p>
-<p><strong>Cause:</strong> SQL migrations create the bucket row in PostgreSQL but MinIO
-needs to be notified separately. Supabase Storage syncs bucket state on
-startup.</p>
-<p><strong>Fix:</strong> Restart the storage pod after creating buckets via SQL:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment<span class="w"> </span>supabase-supabase-storage<span class="w"> </span>-n<span class="w"> </span>supabase
-</pre></div>
-</div>
-<p>Alternatively, create buckets via the Supabase Storage REST API (<code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/storage/v1/bucket</span></code>) which handles both PostgreSQL and MinIO in one call.</p>
-</section>
-<section id="minio-pvc-created-with-wrong-size">
-<h3>MinIO PVC created with wrong size<a class="headerlink" href="#minio-pvc-created-with-wrong-size" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pvc</span></code> shows MinIO PVC at 1Gi instead of the
-configured 50Gi.</p>
-<p><strong>Cause:</strong> PVC size is set at creation time. If the Helm values were
-incorrect when the PVC was first created, fixing the values won’t resize
-the existing PVC.</p>
-<p><strong>Fix:</strong> Delete the PVC (safe if MinIO has no data yet) and let ArgoCD
-recreate it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>-n<span class="w"> </span>supabase<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/name<span class="o">=</span>supabase-minio
-kubectl<span class="w"> </span>delete<span class="w"> </span>pvc<span class="w"> </span>supabase-minio<span class="w"> </span>-n<span class="w"> </span>supabase
-<span class="c1"># ArgoCD recreates both with correct size</span>
-</pre></div>
-</div>
-</section>
-</section>
 <section id="hardware">
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
@@ -1068,20 +929,6 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-control-plane">K3s Control Plane</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api-server-unreachable">API server unreachable</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-database-too-large">etcd database too large</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase">Supabase</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#postgres-fails-on-nfs-storage">Postgres fails on NFS storage</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supabase-clients-crashloop-with-password-authentication-failed-after-rebuild">Supabase clients CrashLoop with “password authentication failed” after rebuild</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kong-oomkilled">Kong OOMKilled</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-not-updating-after-configmap-change">Edge Function not updating after ConfigMap change</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-function-returns-404">Edge Function returns 404</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-supabase-storage">MinIO / Supabase Storage</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-crashloopbackoff-file-access-denied">MinIO CrashLoopBackOff — file access denied</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#storage-bucket-not-found-after-sql-migration">Storage bucket not found after SQL migration</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minio-pvc-created-with-wrong-size">MinIO PVC created with wrong size</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">
