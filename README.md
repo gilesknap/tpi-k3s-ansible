@@ -56,8 +56,8 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates
   (DNS-01 via Cloudflare)
 - **OIDC authentication** — ArgoCD Dex with GitHub connector provides native
-  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Headlamp
-  and Alertmanager
+  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Headlamp,
+  Alertmanager and the Minecraft dashboard
 - **Cloudflare Tunnel + Access** — optional secure public access via
   cloudflared with email-based access control
 
@@ -67,6 +67,9 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Persistent storage** — static `local-nvme` PVs per host, with daily/weekly NFS backup CronJobs to a NAS
 - **Kubernetes dashboard** — Headlamp with RBAC
 - **Echo test service** — for verifying ingress, TLS, and headers
+- **Minecraft dashboard** *(optional)* — admin UI that launches Minecraft
+  servers from world backups, with snapshots, a read-only NAS archive, and
+  DDNS for the game hostname
 
 ### AI / LLM
 

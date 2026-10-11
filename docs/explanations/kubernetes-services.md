@@ -21,6 +21,7 @@ kubernetes-services/
 │   ├── kernel-settings.yaml
 │   ├── llamacpp.yaml
 │   ├── local-storage.yaml
+│   ├── minecraft.yaml      # Minecraft dashboard (OCI chart, optional)
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
 │   ├── open-webui.yaml
@@ -36,6 +37,7 @@ kubernetes-services/
     ├── ingress/            # Reusable ingress sub-chart
     ├── llamacpp/           # NFS volume + GPU config
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
+    ├── minecraft/          # DDNS CronJob + its SealedSecret for the game hostname
     ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
 ```

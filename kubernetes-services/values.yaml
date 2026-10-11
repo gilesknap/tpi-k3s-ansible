@@ -111,6 +111,47 @@ nfs_csi:
   storage_class: nfs-rwx
   server: 192.168.1.3
   share: /k8s-dynamic
+# Minecraft dashboard (github.com/gilesknap/k3s-minecraft) — an admin web UI
+# at minecraft.<cluster_domain> that launches, stops, snapshots and restores
+# Minecraft worlds from backups. Deployed from the published OCI Helm chart,
+# which creates the dashboard Deployment/Service/RBAC plus the archive
+# (read-only) and store NFS PV/PVC pairs. Each world the dashboard launches
+# gets its own dynamic `nfs_csi.storage_class` PVC and a NodePort from the
+# port range below. See docs/how-to/minecraft.md.
+# Set to true AFTER the NAS directories exist (docs/how-to/nas-setup.md).
+enable_minecraft: true
+minecraft:
+  # OCI chart version published by gilesknap/k3s-minecraft CI. The image tag
+  # defaults to the chart's appVersion, so this is the only version pin.
+  # Check the tag exists before bumping (see the /argocd skill):
+  #   helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <ver>
+  chart_version: "0.1.0"
+  image:
+    repository: ghcr.io/gilesknap/k3s-minecraft
+  # Precious world archive — mounted read-only. Deliberately OUTSIDE
+  # nfs.cluster_share_path so no cluster-wide tooling ever targets it.
+  archive_path: /bigdisk/minecraft-archive
+  # Writable store (backups/, snapshots/, dashboard/) — a subdirectory of
+  # nfs.cluster_share_path. Both paths use nfs.server.
+  store_subdir: minecraft
+  # Players connect to <dns_name>.<cluster_domain>:<port>. This is a
+  # DNS-only (grey-cloud) record pointing at the WAN IP — it must NOT be a
+  # Cloudflare tunnel route, because the tunnel only carries HTTP(S).
+  dns_name: mc
+  worlds:
+    # All worlds are pinned to this node; forward the port range on your
+    # router to its LAN IP. Default matches this cluster's nuc2.
+    node: nuc2
+    # NodePort range for game ports (20 slots), inclusive. Must sit inside
+    # the k3s NodePort range (30000-32767) and match the router forward.
+    port_min: 30565
+    port_max: 30584
+  # In-cluster DDNS CronJob that keeps <dns_name>.<cluster_domain> pointed at
+  # the current WAN IP. Set to true AFTER committing the sealed Cloudflare
+  # API token (additions/minecraft/templates/cloudflare-ddns-secret.yaml) —
+  # see docs/how-to/minecraft.md.
+  ddns:
+    enabled: false
 # Personal-cluster policy engine (no T11 policies) and T11 gateway ServiceAccount.
 # Disabled for now: the app never settles to Synced on its policies.kyverno.io
 # CRDs (issue #552). No policies were in use. Disabling also removes the T11
