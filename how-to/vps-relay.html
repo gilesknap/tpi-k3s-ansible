@@ -469,7 +469,7 @@ routes.</p>
 <td><p>Tailscale OAuth client secret + frp token (created by you)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">frps</span></code></p></td>
-<td><p>The VPS (Docker or systemd)</p></td>
+<td><p>The VPS (Podman Quadlet, run by systemd)</p></td>
 <td><p>Control port bound to the VPS’s tailnet IP only</p></td>
 </tr>
 <tr class="row-odd"><td><p>Tailnet policy</p></td>
@@ -541,6 +541,9 @@ tags</strong>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tailscale<span class="w"> </span>up<span class="w"> </span>--advertise-tags<span class="o">=</span>tag:vps<span class="w"> </span>--reset
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">--reset</span></code> also clears any other <code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code> options you set earlier, such as
+<code class="docutils literal notranslate"><span class="pre">--ssh</span></code> or <code class="docutils literal notranslate"><span class="pre">--accept-routes</span></code>. Add them back on the same command, or use the
+console instead.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>A new tailnet starts with an allow-all rule (<code class="docutils literal notranslate"><span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;*&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;*&quot;]</span></code>).
@@ -582,8 +585,12 @@ starts it;</p></li>
 only, with <code class="docutils literal notranslate"><span class="pre">ufw</span></code> or <code class="docutils literal notranslate"><span class="pre">firewalld</span></code> if either is active;</p></li>
 <li><p>checks that frps is listening on the tailnet IP.</p></li>
 </ul>
-<p>It is idempotent: re-running it keeps the existing token and rewrites
-everything else.</p>
+<p>It is idempotent: re-running it keeps the existing token, replaces only the
+files that changed, and restarts frps only when something did, so players
+connected through the relay are not dropped by a no-op run.</p>
+<p>The frp control port defaults to 7000. If you change <code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code>, run
+the script with the same value (<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">FRP_PORT=&lt;port&gt;</span> <span class="pre">./vps-relay-setup</span> <span class="pre">...</span></code>)
+and change the port in the tailnet grant and <code class="docutils literal notranslate"><span class="pre">tests</span></code> in Step 1 to match.</p>
 <p>In the devcontainer, print the forwards in the form the script takes:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>vps-relay-forwards<span class="w">        </span><span class="c1"># e.g. tcp:30565-30584</span>
 </pre></div>
@@ -671,7 +678,8 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </div>
 </li>
 <li><p><strong>Tailnet</strong> — on the VPS, <code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">status</span></code> lists a <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> node
-tagged <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>.</p></li>
+(or <code class="docutils literal notranslate"><span class="pre">vps-relay-1</span></code> and so on, until Tailscale removes an earlier ephemeral
+node after a pod restart) tagged <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>.</p></li>
 <li><p><strong>frpc</strong> — each forwarded port logs <code class="docutils literal notranslate"><span class="pre">start</span> <span class="pre">proxy</span> <span class="pre">success</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>vps-relay<span class="w"> </span>deploy/vps-relay<span class="w"> </span>-c<span class="w"> </span>frpc<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;start proxy success&#39;</span>
 </pre></div>
@@ -729,6 +737,14 @@ port, frps is not running, or it is bound to a different address.</p></li>
 </ul>
 <p>frpc retries on its own, so a relay started before the VPS is ready
 recovers without a restart.</p>
+</section>
+<section id="rotating-the-credentials">
+<h3>Rotating the credentials<a class="headerlink" href="#rotating-the-credentials" title="Link to this heading">#</a></h3>
+<p>Re-seal <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> as in Step 4 and push. The pod reads the
+Secret only when it starts, so the new values take effect at its next
+restart. If you rotated the frp token, update <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> on the VPS
+to match (or delete it and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code>, which generates a
+new token for you to seal).</p>
 </section>
 <section id="the-public-port-is-closed">
 <h3>The public port is closed<a class="headerlink" href="#the-public-port-is-closed" title="Link to this heading">#</a></h3>
@@ -816,6 +832,7 @@ firewall ports. Finally delete the DNS record and revoke the OAuth client.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-pod-is-stuck-in-createcontainerconfigerror">The pod is stuck in <code class="docutils literal notranslate"><span class="pre">CreateContainerConfigError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-tailscale-container-never-becomes-ready">The tailscale container never becomes Ready</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#frpc-logs-connect-to-server-error">frpc logs <code class="docutils literal notranslate"><span class="pre">connect</span> <span class="pre">to</span> <span class="pre">server</span> <span class="pre">error</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rotating-the-credentials">Rotating the credentials</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-public-port-is-closed">The public port is closed</a></li>
 </ul>
 </li>
