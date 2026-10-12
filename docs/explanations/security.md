@@ -34,7 +34,7 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + token | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only; actions logged by email) |
-| Minecraft game ports | — (DNS-only, router port-forward) | None | Minecraft `online-mode` + per-world whitelist |
+| Minecraft game ports | — (DNS-only; VPS relay or router port-forward) | None | Minecraft `online-mode` + per-world whitelist |
 | Echo | Cloudflare Access | None | None (public test) |
 | RKLlama | — | None | Internal API (fronted by Open WebUI) |
 
@@ -58,6 +58,7 @@ Current SealedSecrets:
 - `kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml` — Open WebUI's Dex client secret
 - `kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml` — argocd-monitor Dex client + cookie secret
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — GitHub OAuth App credentials + cookie secret
+- `kubernetes-services/additions/vps-relay/templates/vps-relay-secret.yaml` — Tailscale OAuth client secret + frp token (optional VPS relay)
 
 ### Admin access
 

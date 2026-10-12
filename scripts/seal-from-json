@@ -119,5 +119,17 @@ else
     echo "Skipping: cloudflare-ddns-token (not in JSON)"
 fi
 
+# 10. vps-relay-credentials (vps-relay) — optional, only if present in JSON
+if has_secret vps-relay-credentials vps-relay; then
+    echo "Sealing: vps-relay-credentials..."
+    kubectl create secret generic vps-relay-credentials --namespace=vps-relay \
+        --from-literal=ts-oauth-client-secret="$(get_key vps-relay-credentials vps-relay ts-oauth-client-secret)" \
+        --from-literal=frp-token="$(get_key vps-relay-credentials vps-relay frp-token)" \
+        --dry-run=client -o yaml | seal_to "$BASE/vps-relay/templates/vps-relay-secret.yaml"
+    echo "  -> $BASE/vps-relay/templates/vps-relay-secret.yaml"
+else
+    echo "Skipping: vps-relay-credentials (not in JSON)"
+fi
+
 echo ""
 echo "All secrets sealed."

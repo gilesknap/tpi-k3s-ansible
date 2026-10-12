@@ -62,7 +62,7 @@ seal-argocd-dex target:
 # bootstrap / rebuild — initial install and full teardown/rebuild
 ################################################################################
 
-# Export 7 external credentials to .env at repo root (gitignored)
+# Export external credentials (required + optional) to .env at repo root (gitignored)
 export-external-creds:
     scripts/export-external-creds
 

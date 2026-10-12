@@ -1,0 +1,30 @@
+{{- if .Values.enable_vps_relay }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vps-relay
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vps-relay
+  project: kubernetes
+  source:
+    path: ./kubernetes-services/additions/vps-relay
+    repoURL: {{ .Values.repo_remote }}
+    targetRevision: {{ .Values.repo_branch }}
+    helm:
+      valuesObject:
+        vpsTailnetHost: {{ .Values.vps_relay.vps_tailnet_host | quote }}
+        frpPort: {{ .Values.vps_relay.frp_port }}
+        forwards:
+          {{- toYaml .Values.vps_relay.forwards | nindent 10 }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

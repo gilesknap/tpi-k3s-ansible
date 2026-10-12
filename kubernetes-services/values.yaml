@@ -137,23 +137,57 @@ minecraft:
   # nfs.cluster_share_path. Both paths use nfs.server.
   store_subdir: minecraft
   # Players connect to <dns_name>.<cluster_domain>:<port>. This is a
-  # DNS-only (grey-cloud) record pointing at the WAN IP — it must NOT be a
-  # Cloudflare tunnel route, because the tunnel only carries HTTP(S).
+  # DNS-only (grey-cloud) record pointing at the VPS relay's public IP, or
+  # at the WAN IP with a router forward — it must NOT be a Cloudflare
+  # tunnel route, because the tunnel only carries HTTP(S).
   dns_name: mc
   worlds:
-    # All worlds are pinned to this node; forward the port range on your
-    # router to its LAN IP. Default matches this cluster's nuc2.
+    # All worlds are pinned to this node; the vps_relay `minecraft` forward
+    # (or a router port-forward) targets its LAN IP. Default matches this
+    # cluster's nuc2.
     node: nuc2
     # NodePort range for game ports (20 slots), inclusive. Must sit inside
-    # the k3s NodePort range (30000-32767) and match the router forward.
+    # the k3s NodePort range (30000-32767) and match the vps_relay
+    # `minecraft` forward (or the router forward).
     port_min: 30565
     port_max: 30584
   # In-cluster DDNS CronJob that keeps <dns_name>.<cluster_domain> pointed at
-  # the current WAN IP. Set to true AFTER committing the sealed Cloudflare
-  # API token (additions/minecraft/templates/cloudflare-ddns-secret.yaml) —
-  # see docs/how-to/minecraft.md.
+  # the current WAN IP — only for a router forward; the VPS relay's IP is
+  # static, and behind CGNAT the WAN IP is unreachable anyway. Set to true
+  # AFTER committing the sealed Cloudflare API token
+  # (additions/minecraft/templates/cloudflare-ddns-secret.yaml) — see
+  # docs/how-to/minecraft.md.
   ddns:
     enabled: false
+# VPS relay — publishes chosen cluster ports on a VPS's fixed public IP, for
+# homes behind CGNAT or that should not expose their own IP. frpc in the
+# `vps-relay` namespace dials frps on the VPS over the tailnet (through a
+# Tailscale userspace sidecar); the VPS never connects into the home
+# network. See docs/how-to/vps-relay.md.
+# Set to true AFTER committing the sealed credentials
+# (additions/vps-relay/templates/vps-relay-secret.yaml) and setting up frps
+# on the VPS.
+enable_vps_relay: false
+vps_relay:
+  # The VPS's tailnet IP (100.x.y.z) or MagicDNS name.
+  vps_tailnet_host: vps.example.ts.net
+  # frps control port, bound to the VPS's tailnet address only.
+  frp_port: 7000
+  # Each entry publishes `ports` on the VPS and relays them to the same
+  # port numbers on `target` (a LAN IP or an in-cluster Service DNS name).
+  # `ports` is a single port or an inclusive "min-max" range; `protocol`
+  # is tcp or udp.
+  #
+  # MANUAL SYNC POINT: a forward only works once frps `allowPorts` and the
+  # VPS firewall include its ports. Adding an entry here is not enough —
+  # update the VPS too (docs/how-to/vps-relay.md).
+  forwards:
+    # SYNC: ports must equal minecraft.worlds.port_min-port_max, and
+    # target the LAN IP of minecraft.worlds.node.
+    - name: minecraft
+      protocol: tcp
+      ports: 30565-30584
+      target: 192.168.1.92
 # Personal-cluster policy engine (no T11 policies) and T11 gateway ServiceAccount.
 # Disabled for now: the app never settles to Synced on its policies.kyverno.io
 # CRDs (issue #552). No policies were in use. Disabling also removes the T11

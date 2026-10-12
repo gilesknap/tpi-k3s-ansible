@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Export external credentials (GitHub OAuth, Cloudflare, Slack, Minecraft DDNS) from the
-# running cluster into a .env file at the repo root (gitignored).
+# Export external credentials (GitHub OAuth, Cloudflare, Slack, Minecraft DDNS,
+# VPS relay) from the running cluster into a .env file at the repo root
+# (gitignored).
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
@@ -14,6 +15,8 @@ OAUTH2_PROXY_CLIENT_ID=$(get_key oauth2-proxy-credentials oauth2-proxy client-id
 OAUTH2_PROXY_CLIENT_SECRET=$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)
 SLACK_WEBHOOK_URL=$(get_key_opt alertmanager-slack-secret monitoring webhook-url)
 MINECRAFT_DDNS_API_TOKEN=$(get_key_opt cloudflare-ddns-token minecraft api-token)
+VPS_RELAY_TS_OAUTH_CLIENT_SECRET=$(get_key_opt vps-relay-credentials vps-relay ts-oauth-client-secret)
+VPS_RELAY_FRP_TOKEN=$(get_key_opt vps-relay-credentials vps-relay frp-token)
 EOF
 echo "Wrote .env (gitignored)"
 echo "Source with: set -a && source .env && set +a"

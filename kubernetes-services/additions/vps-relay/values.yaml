@@ -1,0 +1,27 @@
+# Defaults for standalone `helm template` rendering. In-cluster ArgoCD
+# overrides these via the parent chart's valuesObject (see
+# kubernetes-services/templates/vps-relay.yaml), driven by the `vps_relay`
+# block in kubernetes-services/values.yaml.
+
+# The VPS's tailnet IP (100.x.y.z) or MagicDNS name. frps listens for
+# frpc only on this address, never on the public interface.
+vpsTailnetHost: vps.example.ts.net
+frpPort: 7000
+# Tailnet hostname prefix for this pod (an ephemeral node).
+tailscaleHostname: vps-relay
+# Tag the pod's node advertises; the OAuth client must be allowed to
+# assign it, and the tailnet policy grants only this tag -> VPS:frpPort.
+tailscaleTag: tag:vps-relay
+
+# Each forward publishes `ports` on the VPS and relays them to the same
+# port numbers on `target`. `ports` is a single port or an inclusive
+# "min-max" range; `protocol` is tcp or udp.
+forwards: []
+#  - name: minecraft
+#    protocol: tcp
+#    ports: 30565-30584
+#    target: 192.168.1.92
+
+images:
+  tailscale: tailscale/tailscale:v1.102.5
+  frpc: fatedier/frpc:v0.71.0

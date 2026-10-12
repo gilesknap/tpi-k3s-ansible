@@ -68,8 +68,10 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Kubernetes dashboard** — Headlamp with RBAC
 - **Echo test service** — for verifying ingress, TLS, and headers
 - **Minecraft dashboard** *(optional)* — admin UI that launches Minecraft
-  servers from world backups, with snapshots, a read-only NAS archive, and
-  DDNS for the game hostname
+  servers from world backups, with snapshots and a read-only NAS archive
+- **VPS relay** *(optional)* — publishes chosen TCP/UDP ports on a VPS's
+  public IP via frp over Tailscale, for homes behind CGNAT; the VPS never
+  connects into the home network
 
 ### AI / LLM
 
