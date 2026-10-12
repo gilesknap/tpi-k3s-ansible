@@ -19,23 +19,35 @@ data:
     transport.tls.enable = true
     log.to = "console"
     log.level = "info"
+{{- /* Every check fails the render: a bad frpc.toml would crash-loop the
+       only replica and take down every forward, not just the broken one. */}}
+{{- $seen := dict }}
 {{- range .Values.forwards }}
 {{- $fwd := . }}
+{{- $name := toString (required "vps_relay: every forward needs a name" .name) }}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9-]*$" $name) }}
+{{- fail (printf "vps_relay forward %q: name must be lowercase letters, digits and dashes" $name) }}
+{{- end }}
+{{- if hasKey $seen $name }}
+{{- fail (printf "vps_relay forward %q: duplicate name" $name) }}
+{{- end }}
+{{- $_ := set $seen $name true }}
+{{- $target := toString (required (printf "vps_relay forward %q: target is required" $name) .target) }}
 {{- if not (has .protocol (list "tcp" "udp")) }}
-{{- fail (printf "vps_relay forward %q: protocol must be tcp or udp, not %q" .name .protocol) }}
+{{- fail (printf "vps_relay forward %q: protocol must be tcp or udp, not %q" $name (toString .protocol)) }}
 {{- end }}
 {{- $range := splitList "-" (toString .ports) }}
 {{- $min := index $range 0 | int }}
 {{- $max := index $range (sub (len $range) 1) | int }}
-{{- if or (lt $min 1) (gt $min $max) (gt $max 65535) }}
-{{- fail (printf "vps_relay forward %q: bad ports %q" .name (toString .ports)) }}
+{{- if or (gt (len $range) 2) (lt $min 1) (gt $min $max) (gt $max 65535) }}
+{{- fail (printf "vps_relay forward %q: bad ports %q (want N or N-M)" $name (toString .ports)) }}
 {{- end }}
 {{- range $port := untilStep $min (add1 $max | int) 1 }}
 
     [[proxies]]
-    name = "{{ $fwd.name }}-{{ $fwd.protocol }}-{{ $port }}"
+    name = {{ printf "%s-%s-%d" $name $fwd.protocol $port | quote }}
     type = "{{ $fwd.protocol }}"
-    localIP = {{ $fwd.target | quote }}
+    localIP = {{ $target | quote }}
     localPort = {{ $port }}
     remotePort = {{ $port }}
 {{- end }}
