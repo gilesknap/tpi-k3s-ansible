@@ -51,7 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Add or Remove Services" href="add-remove-services.html" />
+    <link rel="next" title="Expose Cluster Ports Through a VPS Relay" href="vps-relay.html" />
     <link rel="prev" title="llama.cpp CUDA Models" href="llamacpp-models.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -341,6 +341,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Run the Minecraft Dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
@@ -434,8 +435,10 @@ toggled by <code class="docutils literal notranslate"><span class="pre">enable_m
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>.</p></li>
 <li><p>An ingress for <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code>, gated by oauth2-proxy (admin emails
 only, the same as Headlamp).</p></li>
-<li><p>An optional DDNS CronJob (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/minecraft/</span></code>) that
-keeps the game hostname pointed at your WAN IP.</p></li>
+<li><p>A way for players to reach the game ports: a <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward on the
+<a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>, or a router port-forward with an optional DDNS
+CronJob (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/minecraft/</span></code>) that keeps the game
+hostname pointed at your WAN IP.</p></li>
 </ul>
 <section id="how-it-fits-together">
 <h2>How it fits together<a class="headerlink" href="#how-it-fits-together" title="Link to this heading">#</a></h2>
@@ -469,7 +472,7 @@ keeps the game hostname pointed at your WAN IP.</p></li>
 </tr>
 <tr class="row-odd"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare <strong>DNS-only</strong> A record</p></td>
-<td><p>Kept current by the DDNS CronJob</p></td>
+<td><p>The VPS’s static IP (relay), or your WAN IP kept current by the DDNS CronJob (router forward)</p></td>
 </tr>
 <tr class="row-even"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare tunnel route</p></td>
@@ -482,8 +485,8 @@ keeps the game hostname pointed at your WAN IP.</p></li>
 <p class="admonition-title">Important</p>
 <p>The game hostname is <strong>not</strong> a tunnel route. Cloudflare’s tunnel and proxy only
 carry HTTP(S); Minecraft speaks its own TCP protocol, so players reach the
-cluster through a router port-forward and a grey-cloud DNS record that points
-straight at your WAN IP.</p>
+cluster through the VPS relay or a router port-forward, via a grey-cloud DNS
+record that points straight at the VPS or your WAN IP.</p>
 </div>
 </section>
 <section id="prerequisites">
@@ -494,7 +497,8 @@ straight at your WAN IP.</p>
 working — world data is provisioned from it.</p></li>
 <li><p>oauth2-proxy working (<a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>) and the Cloudflare web tunnel set
 up (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
-<li><p>A router you can configure to forward a TCP port range to one node.</p></li>
+<li><p>Either the <a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>, or a public IPv4 address and a
+router you can configure to forward a TCP port range to one node.</p></li>
 <li><p>The dashboard chart version you pin in <code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code> must be
 published. Check before enabling:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>pull<span class="w"> </span>oci://ghcr.io/gilesknap/charts/minecraft-dashboard<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1
@@ -535,11 +539,41 @@ world name and date from them.</p>
 (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code>), re-run the ingest script, and lock it again with
 <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">-R</span> <span class="pre">a-w</span></code>.</p>
 </section>
-<section id="step-3-forward-the-game-ports-on-your-router">
-<h2>Step 3: Forward the game ports on your router<a class="headerlink" href="#step-3-forward-the-game-ports-on-your-router" title="Link to this heading">#</a></h2>
+<section id="step-3-make-the-game-ports-reachable">
+<h2>Step 3: Make the game ports reachable<a class="headerlink" href="#step-3-make-the-game-ports-reachable" title="Link to this heading">#</a></h2>
 <p>All worlds are pinned to one node (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code>, for example
-<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>), and their Services use <code class="docutils literal notranslate"><span class="pre">externalTrafficPolicy:</span> <span class="pre">Local</span></code> so the servers
-see real player IPs. Forward the whole range to that node:</p>
+<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>) and listen on NodePorts in <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">port_max</span></code>.
+Choose how players reach that node.</p>
+<p>If your router’s WAN address is in <code class="docutils literal notranslate"><span class="pre">100.64.0.0/10</span></code>, or differs from the
+public IP that sites such as <code class="docutils literal notranslate"><span class="pre">ifconfig.me</span></code> report, your ISP uses
+carrier-grade NAT. Inbound connections never reach your router, so a
+port-forward cannot work: use the VPS relay.</p>
+<section id="option-a-vps-relay">
+<h3>Option A: VPS relay<a class="headerlink" href="#option-a-vps-relay" title="Link to this heading">#</a></h3>
+<p>Set up the relay as in <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> and give it a <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward
+covering the whole port range, targeting the pinned node’s LAN IP (give the
+node a static DHCP lease):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">vps_relay</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">forwards</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span>
+<span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp</span>
+<span class="w">      </span><span class="nt">ports</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565-30584</span><span class="w">          </span><span class="c1"># = minecraft.worlds.port_min-port_max</span>
+<span class="w">      </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w">        </span><span class="c1"># LAN IP of minecraft.worlds.node</span>
+</pre></div>
+</div>
+<p>Run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> on the VPS with the same range (see
+<a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>, Step 3), and point
+<code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code> at the VPS’s public IP (DNS only). Skip Step 4: the VPS address
+is static, so no DDNS is needed. Servers see every player as coming from the
+relay; whitelists and ops are by name and work normally, but IP bans do not.</p>
+<p>If you change <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>/<code class="docutils literal notranslate"><span class="pre">port_max</span></code>, change the forward to
+match and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> on the VPS.</p>
+</section>
+<section id="option-b-router-port-forward">
+<h3>Option B: Router port-forward<a class="headerlink" href="#option-b-router-port-forward" title="Link to this heading">#</a></h3>
+<p>The world Services use <code class="docutils literal notranslate"><span class="pre">externalTrafficPolicy:</span> <span class="pre">Local</span></code>, so with a direct
+forward the servers see real player IPs. Forward the whole range to the
+pinned node:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Protocol</p></th>
@@ -560,8 +594,9 @@ see real player IPs. Forward the whole range to that node:</p>
 <p>Give the pinned node a static DHCP lease so the forward keeps working. If you
 change <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>/<code class="docutils literal notranslate"><span class="pre">port_max</span></code>, change the forward to match.</p>
 </section>
-<section id="step-4-create-the-ddns-token-and-seal-it">
-<h2>Step 4: Create the DDNS token and seal it<a class="headerlink" href="#step-4-create-the-ddns-token-and-seal-it" title="Link to this heading">#</a></h2>
+</section>
+<section id="step-4-create-the-ddns-token-and-seal-it-option-b-only">
+<h2>Step 4: Create the DDNS token and seal it (Option B only)<a class="headerlink" href="#step-4-create-the-ddns-token-and-seal-it-option-b-only" title="Link to this heading">#</a></h2>
 <p>The DDNS CronJob runs <a class="reference external" href="https://github.com/favonia/cloudflare-ddns">favonia/cloudflare-ddns</a>
 every five minutes. It detects your WAN IP and creates or updates the
 <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code> A record as <strong>DNS-only</strong> (<code class="docutils literal notranslate"><span class="pre">PROXIED=false</span></code>), with no AAAA record.
@@ -659,11 +694,11 @@ hostname; no Access change is needed. Do <strong>not</strong> add a route for <c
 <span class="w">  </span><span class="nt">store_subdir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span><span class="w">         </span><span class="c1"># under nfs.cluster_share_path</span>
 <span class="w">  </span><span class="nt">dns_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mc</span><span class="w">                    </span><span class="c1"># players use mc.&lt;cluster_domain&gt;</span>
 <span class="w">  </span><span class="nt">worlds</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nuc2</span><span class="w">                    </span><span class="c1"># the node your router forwards to</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nuc2</span><span class="w">                    </span><span class="c1"># the node game traffic is sent to</span>
 <span class="w">    </span><span class="nt">port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565</span>
 <span class="w">    </span><span class="nt">port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30584</span>
 <span class="w">  </span><span class="nt">ddns</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># only once cloudflare-ddns-secret.yaml exists</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Option B, once cloudflare-ddns-secret.yaml exists</span>
 </pre></div>
 </div>
 <p>The chart also takes its NFS server from <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> and the world storage
@@ -693,7 +728,9 @@ kubectl<span class="w"> </span>get<span class="w"> </span>pods,pvc<span class="w
 </pre></div>
 </div>
 </li>
-<li><p><strong>DDNS</strong> — trigger a run and check the record:</p>
+<li><p><strong>Game hostname</strong> — with the relay (Option A), <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.example.com</span></code>
+prints the VPS’s public IP and <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> Step 7 passes. With a
+router forward (Option B), trigger a DDNS run and check the record:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>ddns-test<span class="w"> </span>--from<span class="o">=</span>cronjob/cloudflare-ddns
 kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>job/ddns-test
 dig<span class="w"> </span>+short<span class="w"> </span>mc.example.com<span class="w">     </span><span class="c1"># should print your WAN IP</span>
@@ -709,7 +746,7 @@ GitHub account must be refused.</p></li>
 go seeding → starting → running, and note its port.</p></li>
 <li><p><strong>Connect</strong> from a real Minecraft Java client to <code class="docutils literal notranslate"><span class="pre">mc.example.com:&lt;port&gt;</span></code>,
 from outside your LAN (for example over a phone hotspot) to prove the
-router forward and DNS. The player must be on the world’s whitelist.</p></li>
+relay or router forward, and DNS. The player must be on the world’s whitelist.</p></li>
 <li><p><strong>Stop</strong> the world, then <strong>start</strong> it again — the world data survives.</p></li>
 <li><p><strong>Snapshot</strong> it, change something in game, then <strong>restore</strong> the snapshot.</p></li>
 <li><p><strong>Delete</strong> the world. A final snapshot is taken first and the port is freed.</p></li>
@@ -739,11 +776,14 @@ or not scoped to the zone.</p>
 <section id="players-cannot-connect">
 <h3>Players cannot connect<a class="headerlink" href="#players-cannot-connect" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Check <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.&lt;domain&gt;</span></code> returns your current WAN IP.</p></li>
-<li><p>Check the router forward targets the pinned node’s current LAN IP.</p></li>
+<li><p>Check <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.&lt;domain&gt;</span></code> returns the VPS’s public IP (relay) or
+your current WAN IP (router forward).</p></li>
+<li><p>With the relay, check frpc logged <code class="docutils literal notranslate"><span class="pre">start</span> <span class="pre">proxy</span> <span class="pre">success</span></code> for the world’s
+port, and see the troubleshooting in <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>.</p></li>
+<li><p>With a router forward, check it targets the pinned node’s current LAN IP.</p></li>
 <li><p>From the LAN, try <code class="docutils literal notranslate"><span class="pre">&lt;node-ip&gt;:&lt;port&gt;</span></code> directly to separate a cluster
 problem from a router/DNS problem.</p></li>
-<li><p>Some routers do not support NAT loopback; LAN players may need the node IP
+<li><p>With a router forward, some routers do not support NAT loopback; LAN players may need the node IP
 instead of <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code>.</p></li>
 </ul>
 </section>
@@ -757,7 +797,9 @@ world PVC by hand loses its data (<code class="docutils literal notranslate"><sp
 <p>Then set <code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">false</span></code> and push. ArgoCD prunes the dashboard,
 its ingress and the DDNS CronJob. The NAS archive and store directories are
 static NFS volumes and are never deleted by the cluster; remove the <code class="docutils literal notranslate"><span class="pre">mc</span></code> DNS
-record, the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> tunnel route and the router forward by hand.</p>
+record, the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> tunnel route and the router forward by hand, or
+remove the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> entry from <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> and its ports on the
+VPS.</p>
 </section>
 </section>
 
@@ -781,11 +823,11 @@ record, the <code class="docutils literal notranslate"><span class="pre">minecra
       </div>
     </a>
     <a class="right-next"
-       href="add-remove-services.html"
+       href="vps-relay.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Add or Remove Services</p>
+        <p class="prev-next-title">Expose Cluster Ports Through a VPS Relay</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -812,8 +854,12 @@ record, the <code class="docutils literal notranslate"><span class="pre">minecra
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-the-nas-directories">Step 1: Create the NAS directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-ingest-the-world-archive">Step 2: Ingest the world archive</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-forward-the-game-ports-on-your-router">Step 3: Forward the game ports on your router</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-create-the-ddns-token-and-seal-it">Step 4: Create the DDNS token and seal it</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-make-the-game-ports-reachable">Step 3: Make the game ports reachable</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#option-a-vps-relay">Option A: VPS relay</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#option-b-router-port-forward">Option B: Router port-forward</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-create-the-ddns-token-and-seal-it-option-b-only">Step 4: Create the DDNS token and seal it (Option B only)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-the-token">Create the token</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-existing-dns-record">Check the existing DNS record</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#seal-the-token">Seal the token</a></li>

@@ -82,8 +82,9 @@ workloads you add. Useful as a standalone observability cluster.
 An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.
 
-**Install:** Minecraft dashboard (`enable_minecraft: true`), optionally its
-DDNS CronJob.
+**Install:** Minecraft dashboard (`enable_minecraft: true`), plus either
+the VPS relay (`enable_vps_relay: true`) or a router port-forward with the
+optional DDNS CronJob.
 
 **Hardware prerequisites:**
 
@@ -98,8 +99,10 @@ DDNS CronJob.
 
 **Other prerequisites:**
 
-- A router port-forward of TCP `30565`–`30584` to the pinned node
-- A scoped Cloudflare API token for the DDNS record (see {doc}`/how-to/minecraft`)
+- Behind CGNAT: a VPS on your tailnet running frps (see {doc}`/how-to/vps-relay`)
+- Otherwise: a router port-forward of TCP `30565`–`30584` to the pinned
+  node, and a scoped Cloudflare API token for the DDNS record
+  (see {doc}`/how-to/minecraft`)
 
 ### Full stack — everything
 
@@ -134,6 +137,7 @@ hardware and want the full experience out of the box.
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
 
 ## Service details
@@ -241,6 +245,26 @@ Protected by oauth2-proxy (admin-only, same as Headlamp).
   Cloudflare token (created by you; not shipped)
 
 See {doc}`/how-to/minecraft` for setup.
+
+### VPS relay
+
+Optional (`enable_vps_relay`). One Deployment with two containers: a
+Tailscale userspace sidecar that joins the tailnet as an ephemeral node
+tagged `tag:vps-relay` and offers SOCKS5 on `127.0.0.1:1055`, and frpc,
+which dials frps on the VPS through it. Every entry in `vps_relay.forwards`
+becomes one frp proxy per port, so frps publishes those ports on the VPS and
+relays each connection to the same port on the entry's `target`. All
+connections are outbound from the cluster. Both containers run non-root
+with a read-only root filesystem and no service-account token.
+
+**Additional manifests:** `additions/vps-relay/`
+- `templates/deployment.yaml` and `templates/frpc-configmap.yaml` — the pod
+  and its generated `frpc.toml`
+- `templates/vps-relay-secret.yaml` — SealedSecret for the Tailscale OAuth
+  client secret and the frp token (created by you; not shipped)
+
+See {doc}`/how-to/vps-relay` for setup, including the frps runbook for the
+VPS.
 
 ### oauth2-proxy
 

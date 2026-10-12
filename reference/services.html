@@ -471,8 +471,9 @@ workloads you add. Useful as a standalone observability cluster.</p>
 <h3>Minecraft — game servers from world backups<a class="headerlink" href="#minecraft-game-servers-from-world-backups" title="Link to this heading">#</a></h3>
 <p>An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.</p>
-<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), optionally its
-DDNS CronJob.</p>
+<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), plus either
+the VPS relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>) or a router port-forward with the
+optional DDNS CronJob.</p>
 <p><strong>Hardware prerequisites:</strong></p>
 <ul class="simple">
 <li><p>One node to host every world (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default). Each world
@@ -486,8 +487,10 @@ see <a class="reference internal" href="../how-to/nas-setup.html"><span class="d
 </ul>
 <p><strong>Other prerequisites:</strong></p>
 <ul class="simple">
-<li><p>A router port-forward of TCP <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> to the pinned node</p></li>
-<li><p>A scoped Cloudflare API token for the DDNS record (see <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
+<li><p>Behind CGNAT: a VPS on your tailnet running frps (see <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>)</p></li>
+<li><p>Otherwise: a router port-forward of TCP <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> to the pinned
+node, and a scoped Cloudflare API token for the DDNS record
+(see <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
 </ul>
 </section>
 <section id="full-stack-everything">
@@ -625,7 +628,15 @@ hardware and want the full experience out of the box.</p>
 <td><p>Dex (OIDC)</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
+<tr class="row-odd"><td><p>VPS relay</p></td>
+<td><p>Plain manifests (tailscale v1.102.5, frpc v0.71.0)</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
+<td><p>—</p></td>
+<td><p>Tailscale + frp</p></td>
+<td><p>Publishes chosen TCP/UDP ports on a VPS’s public IP (optional)</p></td>
+</tr>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
@@ -743,6 +754,26 @@ current WAN IP; off until <code class="docutils literal notranslate"><span class
 Cloudflare token (created by you; not shipped)</p></li>
 </ul>
 <p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
+</section>
+<section id="vps-relay">
+<h3>VPS relay<a class="headerlink" href="#vps-relay" title="Link to this heading">#</a></h3>
+<p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code>). One Deployment with two containers: a
+Tailscale userspace sidecar that joins the tailnet as an ephemeral node
+tagged <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> and offers SOCKS5 on <code class="docutils literal notranslate"><span class="pre">127.0.0.1:1055</span></code>, and frpc,
+which dials frps on the VPS through it. Every entry in <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>
+becomes one frp proxy per port, so frps publishes those ports on the VPS and
+relays each connection to the same port on the entry’s <code class="docutils literal notranslate"><span class="pre">target</span></code>. All
+connections are outbound from the cluster. Both containers run non-root
+with a read-only root filesystem and no service-account token.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/vps-relay/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/deployment.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">templates/frpc-configmap.yaml</span></code> — the pod
+and its generated <code class="docutils literal notranslate"><span class="pre">frpc.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/vps-relay-secret.yaml</span></code> — SealedSecret for the Tailscale OAuth
+client secret and the frp token (created by you; not shipped)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> for setup, including the frps runbook for the
+VPS.</p>
 </section>
 <section id="oauth2-proxy">
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
@@ -926,6 +957,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama">RKLlama</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llama-cpp-cuda">llama.cpp (CUDA)</a></li>
