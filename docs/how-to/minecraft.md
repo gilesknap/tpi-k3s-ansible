@@ -120,13 +120,14 @@ vps_relay:
       target: 192.168.1.92        # LAN IP of minecraft.worlds.node
 ```
 
-Allow the same range in `frps.toml` and the VPS firewall, and point
+Run `scripts/vps-relay-setup` on the VPS with the same range (see
+{doc}`vps-relay`, Step 3), and point
 `mc.<domain>` at the VPS's public IP (DNS only). Skip Step 4: the VPS address
 is static, so no DDNS is needed. Servers see every player as coming from the
 relay; whitelists and ops are by name and work normally, but IP bans do not.
 
-If you change `minecraft.worlds.port_min`/`port_max`, change the forward and
-the VPS's `allowPorts` and firewall to match.
+If you change `minecraft.worlds.port_min`/`port_max`, change the forward to
+match and re-run `scripts/vps-relay-setup` on the VPS.
 
 ### Option B: Router port-forward
 

@@ -62,6 +62,10 @@ seal-argocd-dex target:
 # bootstrap / rebuild — initial install and full teardown/rebuild
 ################################################################################
 
+# Print vps_relay.forwards as PROTO:PORTS args for scripts/vps-relay-setup on the VPS
+vps-relay-forwards:
+    @uv run python -c 'import yaml; v = yaml.safe_load(open("kubernetes-services/values.yaml"))["vps_relay"]; print(" ".join(f["protocol"] + ":" + str(f["ports"]) for f in v["forwards"]))'
+
 # Export external credentials (required + optional) to .env at repo root (gitignored)
 export-external-creds:
     scripts/export-external-creds

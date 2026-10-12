@@ -57,36 +57,54 @@ routes.
 
 ## Step 1: Tailnet policy
 
-In the Tailscale admin console, **Access controls**, add an owner for the
-tag and one grant that lets the relay reach only the VPS's frp port. Replace
-`100.x.y.z` with the VPS's tailnet IP.
+**Tag the VPS** (for example `tag:vps`). An untagged VPS belongs to your user,
+so any rule that lets your own devices reach things (`autogroup:member`, or
+the default allow-all) would also let the VPS reach the relay. A tagged VPS
+is a separate identity that you grant nothing. Tagging also stops its key
+expiring; if you use Tailscale SSH to reach it, your `ssh` rules must then
+name the tag.
 
-```json
+In the Tailscale admin console, **Access controls**, merge the following
+into your policy file:
+
+```javascript
 {
   "tagOwners": {
+    "tag:vps":       ["autogroup:admin"],
     "tag:vps-relay": ["autogroup:admin"]
   },
-  "hosts": {
-    "vps": "100.x.y.z"
-  },
   "grants": [
-    {
-      "src": ["tag:vps-relay"],
-      "dst": ["vps"],
-      "ip": ["tcp:7000"]
-    }
+    // Your own devices keep full access. Tagged devices are not members,
+    // so this does not cover the VPS.
+    { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
+    // The relay may reach only frps on the VPS.
+    { "src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"] }
+    // Deliberately nothing with src tag:vps.
+  ],
+  "tests": [
+    { "src": "tag:vps-relay", "accept": ["tag:vps:7000"], "deny": ["tag:vps:22"] },
+    { "src": "tag:vps", "deny": ["tag:vps-relay:1055", "tag:vps-relay:22"] }
   ]
 }
 ```
 
-Merge these into your existing policy. Do **not** add any rule that gives
-the VPS (or `*`) access to `tag:vps-relay`.
+The `tests` are checked on every save, so a later policy edit cannot quietly
+let the VPS dial in. If your file uses `acls` rather than `grants`, the
+relay rule is `{"action": "accept", "src": ["tag:vps-relay"], "dst":
+["tag:vps:7000"]}`.
+
+Then apply the tag on the VPS (or in the console, **Machines → ⋯ → Edit ACL
+tags**):
+
+```bash
+sudo tailscale up --advertise-tags=tag:vps --reset
+```
 
 :::{warning}
 A new tailnet starts with an allow-all rule (`"src": ["*"], "dst": ["*"]`).
 While that rule is present, every device on the tailnet, including the VPS,
-can reach the relay node. Replace it with explicit grants before relying on
-the "VPS never dials in" property. The relay advertises no routes, so even
+can reach the relay node. Remove it; the `autogroup:member` grant above
+replaces it for your own devices. The relay advertises no routes, so even
 then the VPS cannot reach the rest of your home network through it.
 :::
 
@@ -108,81 +126,43 @@ goes away. No Tailscale state is stored in the cluster.
 
 ## Step 3: Set up frps on the VPS
 
-Generate the shared frp token, and keep it for Step 4:
+`scripts/vps-relay-setup` does the whole VPS side. It needs Podman 4.4 or
+newer and Tailscale up on the VPS, and it:
+
+- writes `/etc/frp/frps.toml`, with the control port bound to the VPS's
+  tailnet IP only and `allowPorts` set to exactly the ports you give it;
+- generates the shared frp token into `/etc/frp/frps.env` (root-only) on the
+  first run, and prints it once for sealing;
+- installs frps as a Podman Quadlet (`/etc/containers/systemd/frps.container`),
+  running as an unprivileged user with a read-only root filesystem, and
+  starts it;
+- opens the forwarded ports publicly and the control port on `tailscale0`
+  only, with `ufw` or `firewalld` if either is active;
+- checks that frps is listening on the tailnet IP.
+
+It is idempotent: re-running it keeps the existing token and rewrites
+everything else.
+
+In the devcontainer, print the forwards in the form the script takes:
 
 ```bash
-openssl rand -hex 32
+just vps-relay-forwards        # e.g. tcp:30565-30584
 ```
 
-On the VPS, create `/etc/frp/frps.toml`. Replace `100.x.y.z` with the VPS's
-tailnet IP, and make `allowPorts` exactly the union of the port ranges in
-`vps_relay.forwards`:
-
-```toml
-# Control port: tailnet only, never the public interface.
-bindAddr = "100.x.y.z"
-bindPort = 7000
-
-# Player-facing listeners for each forwarded port.
-proxyBindAddr = "0.0.0.0"
-
-auth.method = "token"
-auth.token = "{{ .Envs.FRP_AUTH_TOKEN }}"
-transport.tls.force = true
-
-# Exactly the ports in vps_relay.forwards — frps refuses any others.
-allowPorts = [
-  { start = 30565, end = 30584 },
-]
-
-log.to = "console"
-```
-
-Put the token in `/etc/frp/frps.env`, readable by root only:
+Copy the script to the VPS and run it with those arguments:
 
 ```bash
-sudo install -m 600 /dev/null /etc/frp/frps.env
-echo "FRP_AUTH_TOKEN=<token>" | sudo tee /etc/frp/frps.env > /dev/null
+scp scripts/vps-relay-setup <vps>:
+ssh <vps>
+sudo ./vps-relay-setup tcp:30565-30584
 ```
 
-Run frps with Docker Compose, using host networking so it can bind the
-tailnet IP. Pin the same frp version as the `frpc` image in
-`additions/vps-relay/values.yaml`:
+Save the printed token in your password manager: you need it for Step 4,
+and again for cluster rebuilds. `sudo ./vps-relay-setup --show-token`
+prints it again later.
 
-```yaml
-# /etc/frp/compose.yaml
-services:
-  frps:
-    image: fatedier/frps:v0.71.0
-    command: ["-c", "/etc/frp/frps.toml"]
-    network_mode: host
-    restart: unless-stopped
-    env_file: /etc/frp/frps.env
-    volumes:
-      - /etc/frp/frps.toml:/etc/frp/frps.toml:ro
-```
-
-```bash
-sudo docker compose -f /etc/frp/compose.yaml up -d
-sudo docker compose -f /etc/frp/compose.yaml logs -f
-```
-
-If frps starts before Tailscale has brought up the tailnet IP, it fails to
-bind and Docker restarts it until the address exists. The frps binary from
-the [frp releases](https://github.com/fatedier/frp/releases) under systemd
-works equally well; use the same config and environment file.
-
-### Firewall
-
-Open each forward's ports publicly and the frp control port on the tailnet
-interface only. With `ufw`:
-
-```bash
-sudo ufw allow 30565:30584/tcp                          # minecraft forward
-sudo ufw allow in on tailscale0 to any port 7000 proto tcp
-```
-
-Also open the ports in your VPS provider's cloud firewall, if it has one.
+Also open the forwarded ports in your VPS provider's cloud firewall, if it
+has one. Do not open `7000` there.
 
 ## Step 4: Seal the credentials
 
@@ -193,8 +173,8 @@ See {doc}`manage-sealed-secrets` for background.
 
 ```bash
 # Prompt for both values (not echoed, not stored in shell history)
-printf 'Tailscale OAuth client secret: ' && read -rs TS_SECRET && echo
-printf 'frp token: ' && read -rs FRP_TOKEN && echo
+printf 'Tailscale OAuth client secret: '; read -rs TS_SECRET; echo
+printf 'frp token: '; read -rs FRP_TOKEN; echo
 
 kubectl create secret generic vps-relay-credentials \
     --namespace vps-relay \
@@ -278,8 +258,10 @@ HTTP(S), so the record must not be proxied.
 ## Adding a forward
 
 1. Add an entry to `vps_relay.forwards`. Names must be unique.
-2. **On the VPS**, add its ports to `allowPorts` in `frps.toml` and restart
-   frps, and open them in the firewall.
+2. **On the VPS**, re-run `scripts/vps-relay-setup` with the new list from
+   `just vps-relay-forwards`. It updates `allowPorts`, restarts frps and
+   opens the ports. Firewall rules for ports you have *removed* are left
+   in place; close them by hand.
 3. Commit and push. The ConfigMap checksum changes, so the pod restarts with
    the new `frpc.toml`.
 
@@ -316,7 +298,10 @@ recovers without a restart.
 
 ### The public port is closed
 
-- Check `allowPorts` and both firewalls on the VPS.
+- Check `allowPorts` and both firewalls on the VPS; re-running
+  `scripts/vps-relay-setup` with the current forwards fixes the first two.
+- On the VPS, `sudo journalctl -u frps -n 20` shows why frps refused a
+  proxy.
 - Check the forward's target from inside the cluster, for example
   `kubectl run -it --rm nc --image=busybox -- nc -vz <target> <port>`.
 
@@ -324,5 +309,6 @@ recovers without a restart.
 
 Set `enable_vps_relay: false` and push. ArgoCD prunes the namespace's
 resources and the ephemeral tailnet node disappears shortly afterwards.
-Then stop frps on the VPS, close its firewall ports, delete the DNS record,
-and revoke the OAuth client.
+Then, on the VPS, run `sudo systemctl stop frps`, delete
+`/etc/containers/systemd/frps.container` and `/etc/frp/`, and close the
+firewall ports. Finally delete the DNS record and revoke the OAuth client.
