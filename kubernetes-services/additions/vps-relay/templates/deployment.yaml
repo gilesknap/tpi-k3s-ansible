@@ -1,0 +1,119 @@
+# One pod, two containers sharing the pod network:
+#  - tailscale joins the tailnet as an ephemeral, tagged node in userspace
+#    mode (no NET_ADMIN, no /dev/net/tun) and offers SOCKS5 on :1055;
+#  - frpc dials frps on the VPS through that proxy and relays the
+#    forwarded ports to their in-cluster or LAN targets.
+# Every connection is outbound from here; the VPS never dials in.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vps-relay
+  labels:
+    app: vps-relay
+spec:
+  replicas: 1
+  # Two frpc clients would fight over the same proxy names and ports.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vps-relay
+  template:
+    metadata:
+      labels:
+        app: vps-relay
+      annotations:
+        checksum/frpc: {{ include (print $.Template.BasePath "/frpc-configmap.yaml") . | sha256sum }}
+    spec:
+      # No Kubernetes API access needed: Tailscale state lives in memory
+      # (TS_KUBE_SECRET is empty), which suits an ephemeral node.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tailscale
+          image: {{ .Values.images.tailscale }}
+          env:
+            - name: TS_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vps-relay-credentials
+                  key: ts-oauth-client-secret
+            # An OAuth client secret works as an auth key; the suffix makes
+            # each pod an ephemeral node, removed soon after it goes away.
+            - name: TS_AUTHKEY
+              value: "$(TS_OAUTH_CLIENT_SECRET)?ephemeral=true&preauthorized=true"
+            - name: TS_EXTRA_ARGS
+              value: "--advertise-tags={{ .Values.tailscaleTag }}"
+            - name: TS_HOSTNAME
+              value: {{ .Values.tailscaleHostname | quote }}
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_SOCKS5_SERVER
+              value: "127.0.0.1:1055"
+            # Explicitly empty: keep state in memory, not a Kubernetes Secret.
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_ENABLE_HEALTH_CHECK
+              value: "true"
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9002
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tailscale-tmp
+              mountPath: /tmp
+        - name: frpc
+          image: {{ .Values.images.frpc }}
+          args:
+            - -c
+            - /etc/frp/frpc.toml
+          env:
+            - name: FRP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vps-relay-credentials
+                  key: frp-token
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: frpc-config
+              mountPath: /etc/frp
+              readOnly: true
+      volumes:
+        - name: tailscale-tmp
+          emptyDir: {}
+        - name: frpc-config
+          configMap:
+            name: vps-relay-frpc

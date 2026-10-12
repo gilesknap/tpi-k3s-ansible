@@ -16,8 +16,10 @@ This repository only provides the cluster wiring:
   `kubernetes-services/values.yaml`.
 - An ingress for `minecraft.<domain>`, gated by oauth2-proxy (admin emails
   only, the same as Headlamp).
-- An optional DDNS CronJob (`kubernetes-services/additions/minecraft/`) that
-  keeps the game hostname pointed at your WAN IP.
+- A way for players to reach the game ports: a `minecraft` forward on the
+  {doc}`VPS relay <vps-relay>`, or a router port-forward with an optional DDNS
+  CronJob (`kubernetes-services/additions/minecraft/`) that keeps the game
+  hostname pointed at your WAN IP.
 
 ## How it fits together
 
@@ -28,14 +30,14 @@ This repository only provides the cluster wiring:
 | Store: promoted backups, rolling snapshots, dashboard state | NAS `<nfs.cluster_share_path>/minecraft` | Written by the dashboard as uid/gid 1000 |
 | Live world data | One dynamic `nfs-rwx` PVC per world | Created by the dashboard; deleted with the world (after a snapshot) |
 | Game ports | NodePorts `30565`–`30584` on the pinned node | 20 slots; one per world for the world's lifetime |
-| Game hostname `mc.<domain>` | Cloudflare **DNS-only** A record | Kept current by the DDNS CronJob |
+| Game hostname `mc.<domain>` | Cloudflare **DNS-only** A record | The VPS's static IP (relay), or your WAN IP kept current by the DDNS CronJob (router forward) |
 | Dashboard hostname `minecraft.<domain>` | Cloudflare tunnel route | Cloudflare Access + oauth2-proxy |
 
 :::{important}
 The game hostname is **not** a tunnel route. Cloudflare's tunnel and proxy only
 carry HTTP(S); Minecraft speaks its own TCP protocol, so players reach the
-cluster through a router port-forward and a grey-cloud DNS record that points
-straight at your WAN IP.
+cluster through the VPS relay or a router port-forward, via a grey-cloud DNS
+record that points straight at the VPS or your WAN IP.
 :::
 
 ## Prerequisites
@@ -45,7 +47,8 @@ straight at your WAN IP.
   working — world data is provisioned from it.
 - oauth2-proxy working ({doc}`oauth-setup`) and the Cloudflare web tunnel set
   up ({doc}`cloudflare-web-tunnel`).
-- A router you can configure to forward a TCP port range to one node.
+- Either the {doc}`VPS relay <vps-relay>`, or a public IPv4 address and a
+  router you can configure to forward a TCP port range to one node.
 - The dashboard chart version you pin in `minecraft.chart_version` must be
   published. Check before enabling:
 
@@ -91,11 +94,46 @@ To add more files later, temporarily restore write access to the directory
 (`chmod u+w`), re-run the ingest script, and lock it again with
 `chmod -R a-w`.
 
-## Step 3: Forward the game ports on your router
+## Step 3: Make the game ports reachable
 
 All worlds are pinned to one node (`minecraft.worlds.node`, for example
-`nuc2`), and their Services use `externalTrafficPolicy: Local` so the servers
-see real player IPs. Forward the whole range to that node:
+`nuc2`) and listen on NodePorts in `minecraft.worlds.port_min`–`port_max`.
+Choose how players reach that node.
+
+If your router's WAN address is in `100.64.0.0/10`, or differs from the
+public IP that sites such as `ifconfig.me` report, your ISP uses
+carrier-grade NAT. Inbound connections never reach your router, so a
+port-forward cannot work: use the VPS relay.
+
+### Option A: VPS relay
+
+Set up the relay as in {doc}`vps-relay` and give it a `minecraft` forward
+covering the whole port range, targeting the pinned node's LAN IP (give the
+node a static DHCP lease):
+
+```yaml
+vps_relay:
+  forwards:
+    - name: minecraft
+      protocol: tcp
+      ports: 30565-30584          # = minecraft.worlds.port_min-port_max
+      target: 192.168.1.92        # LAN IP of minecraft.worlds.node
+```
+
+Run `scripts/vps-relay-setup` on the VPS with the same range (see
+{doc}`vps-relay`, Step 3), and point
+`mc.<domain>` at the VPS's public IP (DNS only). Skip Step 4: the VPS address
+is static, so no DDNS is needed. Servers see every player as coming from the
+relay; whitelists and ops are by name and work normally, but IP bans do not.
+
+If you change `minecraft.worlds.port_min`/`port_max`, change the forward to
+match and re-run `scripts/vps-relay-setup` on the VPS.
+
+### Option B: Router port-forward
+
+The world Services use `externalTrafficPolicy: Local`, so with a direct
+forward the servers see real player IPs. Forward the whole range to the
+pinned node:
 
 | Protocol | External ports | Internal host | Internal ports |
 |----------|----------------|---------------|----------------|
@@ -104,7 +142,7 @@ see real player IPs. Forward the whole range to that node:
 Give the pinned node a static DHCP lease so the forward keeps working. If you
 change `minecraft.worlds.port_min`/`port_max`, change the forward to match.
 
-## Step 4: Create the DDNS token and seal it
+## Step 4: Create the DDNS token and seal it (Option B only)
 
 The DDNS CronJob runs [favonia/cloudflare-ddns](https://github.com/favonia/cloudflare-ddns)
 every five minutes. It detects your WAN IP and creates or updates the
@@ -196,11 +234,11 @@ minecraft:
   store_subdir: minecraft         # under nfs.cluster_share_path
   dns_name: mc                    # players use mc.<cluster_domain>
   worlds:
-    node: nuc2                    # the node your router forwards to
+    node: nuc2                    # the node game traffic is sent to
     port_min: 30565
     port_max: 30584
   ddns:
-    enabled: true                 # only once cloudflare-ddns-secret.yaml exists
+    enabled: true                 # Option B, once cloudflare-ddns-secret.yaml exists
 ```
 
 The chart also takes its NFS server from `nfs.server` and the world storage
@@ -235,7 +273,9 @@ precious one.
      touch /archive/should-fail    # expect "Read-only file system"
    ```
 
-3. **DDNS** — trigger a run and check the record:
+3. **Game hostname** — with the relay (Option A), `dig +short mc.example.com`
+   prints the VPS's public IP and {doc}`vps-relay` Step 7 passes. With a
+   router forward (Option B), trigger a DDNS run and check the record:
 
    ```bash
    kubectl create job -n minecraft ddns-test --from=cronjob/cloudflare-ddns
@@ -253,7 +293,7 @@ precious one.
    go seeding → starting → running, and note its port.
 6. **Connect** from a real Minecraft Java client to `mc.example.com:<port>`,
    from outside your LAN (for example over a phone hotspot) to prove the
-   router forward and DNS. The player must be on the world's whitelist.
+   relay or router forward, and DNS. The player must be on the world's whitelist.
 7. **Stop** the world, then **start** it again — the world data survives.
 8. **Snapshot** it, change something in game, then **restore** the snapshot.
 9. **Delete** the world. A final snapshot is taken first and the port is freed.
@@ -283,11 +323,14 @@ or not scoped to the zone.
 
 ### Players cannot connect
 
-- Check `dig +short mc.<domain>` returns your current WAN IP.
-- Check the router forward targets the pinned node's current LAN IP.
+- Check `dig +short mc.<domain>` returns the VPS's public IP (relay) or
+  your current WAN IP (router forward).
+- With the relay, check frpc logged `start proxy success` for the world's
+  port, and see the troubleshooting in {doc}`vps-relay`.
+- With a router forward, check it targets the pinned node's current LAN IP.
 - From the LAN, try `<node-ip>:<port>` directly to separate a cluster
   problem from a router/DNS problem.
-- Some routers do not support NAT loopback; LAN players may need the node IP
+- With a router forward, some routers do not support NAT loopback; LAN players may need the node IP
   instead of `mc.<domain>`.
 
 ## Removing the dashboard
@@ -300,4 +343,6 @@ world PVC by hand loses its data (`nfs-rwx` uses `reclaimPolicy: Delete`).
 Then set `enable_minecraft: false` and push. ArgoCD prunes the dashboard,
 its ingress and the DDNS CronJob. The NAS archive and store directories are
 static NFS volumes and are never deleted by the cluster; remove the `mc` DNS
-record, the `minecraft` tunnel route and the router forward by hand.
+record, the `minecraft` tunnel route and the router forward by hand, or
+remove the `minecraft` entry from `vps_relay.forwards` and its ports on the
+VPS.

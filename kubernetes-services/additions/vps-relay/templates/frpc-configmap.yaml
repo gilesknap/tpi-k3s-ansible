@@ -1,0 +1,42 @@
+# frpc.toml generated from .Values.forwards: one frp proxy per port, with
+# remotePort = localPort. frps on the VPS must list the same ports in
+# allowPorts, or it refuses them (see docs/how-to/vps-relay.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vps-relay-frpc
+data:
+  frpc.toml: |
+    serverAddr = {{ .Values.vpsTailnetHost | quote }}
+    serverPort = {{ .Values.frpPort }}
+    # Keep retrying while the Tailscale sidecar is still joining the tailnet.
+    loginFailExit = false
+    # The token comes from the Secret via the environment, not this ConfigMap.
+    auth.method = "token"
+    auth.token = "{{ "{{" }} .Envs.FRP_AUTH_TOKEN {{ "}}" }}"
+    # Reach the VPS only through the Tailscale sidecar's SOCKS5 proxy.
+    transport.proxyURL = "socks5://127.0.0.1:1055"
+    transport.tls.enable = true
+    log.to = "console"
+    log.level = "info"
+{{- range .Values.forwards }}
+{{- $fwd := . }}
+{{- if not (has .protocol (list "tcp" "udp")) }}
+{{- fail (printf "vps_relay forward %q: protocol must be tcp or udp, not %q" .name .protocol) }}
+{{- end }}
+{{- $range := splitList "-" (toString .ports) }}
+{{- $min := index $range 0 | int }}
+{{- $max := index $range (sub (len $range) 1) | int }}
+{{- if or (lt $min 1) (gt $min $max) (gt $max 65535) }}
+{{- fail (printf "vps_relay forward %q: bad ports %q" .name (toString .ports)) }}
+{{- end }}
+{{- range $port := untilStep $min (add1 $max | int) 1 }}
+
+    [[proxies]]
+    name = "{{ $fwd.name }}-{{ $fwd.protocol }}-{{ $port }}"
+    type = "{{ $fwd.protocol }}"
+    localIP = {{ $fwd.target | quote }}
+    localPort = {{ $port }}
+    remotePort = {{ $port }}
+{{- end }}
+{{- end }}

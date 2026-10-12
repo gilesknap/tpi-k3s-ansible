@@ -99,9 +99,13 @@ ansible-playbook pb_all.yml \
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
 | `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
 | `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>`; also the DDNS record |
-| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the router port-forward target |
+| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the relay or router port-forward target |
 | `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
 | `minecraft.ddns.enabled` | `false` | Run the DDNS CronJob; needs the `cloudflare-ddns-token` SealedSecret |
+| `enable_vps_relay` | `false` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
+| `vps_relay.vps_tailnet_host` | *(tailnet IP or name)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
+| `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |
+| `vps_relay.forwards` | *(minecraft entry)* | List of `name`, `protocol` (`tcp`/`udp`), `ports` (port or `min-max`) and `target`; each publishes `ports` on the VPS and relays them to the same ports on `target`. The VPS's `allowPorts` and firewall must match |
 
 The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
 is tracking. Each branch must set this to match its own branch name.
