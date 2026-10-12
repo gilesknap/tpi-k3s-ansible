@@ -36,7 +36,7 @@ routes.
 |-------|-------|-------|
 | `vps-relay` Deployment and `vps-relay-frpc` ConfigMap | `kubernetes-services/additions/vps-relay/`, namespace `vps-relay` | `frpc.toml` is generated from `vps_relay.forwards` |
 | `vps-relay-credentials` SealedSecret | `additions/vps-relay/templates/vps-relay-secret.yaml` | Tailscale OAuth client secret + frp token (created by you) |
-| `frps` | The VPS (Docker or systemd) | Control port bound to the VPS's tailnet IP only |
+| `frps` | The VPS (Podman Quadlet, run by systemd) | Control port bound to the VPS's tailnet IP only |
 | Tailnet policy | Tailscale admin console | `tag:vps-relay` may reach only the VPS's frp port |
 | Public DNS name | Cloudflare **DNS-only** A record | Points at the VPS's public IP |
 
@@ -100,6 +100,10 @@ tags**):
 sudo tailscale up --advertise-tags=tag:vps --reset
 ```
 
+`--reset` also clears any other `tailscale up` options you set earlier, such as
+`--ssh` or `--accept-routes`. Add them back on the same command, or use the
+console instead.
+
 :::{warning}
 A new tailnet starts with an allow-all rule (`"src": ["*"], "dst": ["*"]`).
 While that rule is present, every device on the tailnet, including the VPS,
@@ -140,8 +144,13 @@ newer and Tailscale up on the VPS, and it:
   only, with `ufw` or `firewalld` if either is active;
 - checks that frps is listening on the tailnet IP.
 
-It is idempotent: re-running it keeps the existing token and rewrites
-everything else.
+It is idempotent: re-running it keeps the existing token, replaces only the
+files that changed, and restarts frps only when something did, so players
+connected through the relay are not dropped by a no-op run.
+
+The frp control port defaults to 7000. If you change `vps_relay.frp_port`, run
+the script with the same value (`sudo FRP_PORT=<port> ./vps-relay-setup ...`)
+and change the port in the tailnet grant and `tests` in Step 1 to match.
 
 In the devcontainer, print the forwards in the form the script takes:
 
@@ -240,7 +249,8 @@ HTTP(S), so the record must not be proxied.
    ```
 
 2. **Tailnet** — on the VPS, `tailscale status` lists a `vps-relay` node
-   tagged `tag:vps-relay`.
+   (or `vps-relay-1` and so on, until Tailscale removes an earlier ephemeral
+   node after a pod restart) tagged `tag:vps-relay`.
 3. **frpc** — each forwarded port logs `start proxy success`:
 
    ```bash
@@ -295,6 +305,14 @@ it. An authentication error means the client secret is wrong or was revoked.
 
 frpc retries on its own, so a relay started before the VPS is ready
 recovers without a restart.
+
+### Rotating the credentials
+
+Re-seal `vps-relay-credentials` as in Step 4 and push. The pod reads the
+Secret only when it starts, so the new values take effect at its next
+restart. If you rotated the frp token, update `/etc/frp/frps.env` on the VPS
+to match (or delete it and re-run `scripts/vps-relay-setup`, which generates a
+new token for you to seal).
 
 ### The public port is closed
 
