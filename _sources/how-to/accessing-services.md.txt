@@ -19,6 +19,7 @@ commands work immediately after bootstrap with no additional setup.
 | Inspect pods, logs, and Kubernetes objects in a UI | [Headlamp (Kubernetes Dashboard)](#headlamp-kubernetes-dashboard) |
 | Chat with a local LLM | [Open WebUI (LLM Chat)](#open-webui-llm-chat) |
 | Verify ingress, TLS and request headers end-to-end | [Echo Test Service](#echo-test-service) |
+| Launch and manage Minecraft worlds | [Minecraft Dashboard](#minecraft-dashboard) |
 
 ## ArgoCD
 
@@ -104,6 +105,22 @@ RKLLama requires **RK1 compute modules** with the Rockchip NPU. llama.cpp requir
 an **NVIDIA GPU** node. The services will deploy on any cluster but inference needs
 the appropriate hardware.
 :::
+
+## Minecraft Dashboard
+
+Via ingress: **https://minecraft.\<domain\>** (only when `enable_minecraft`
+is `true` — see {doc}`minecraft`)
+
+Via port-forward:
+
+```bash
+kubectl port-forward svc/minecraft-dashboard -n minecraft 8080:80
+# Open http://localhost:8080
+```
+
+Protected by oauth2-proxy — admin emails only. Players do not use this
+page; they connect their Minecraft client to `mc.<domain>:<port>`, where the
+port is shown in the dashboard.
 
 ## Echo Test Service
 

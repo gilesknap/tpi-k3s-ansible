@@ -467,6 +467,29 @@ workloads you add. Useful as a standalone observability cluster.</p>
 (see <a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring with Grafana and Prometheus</span></a>)</p></li>
 </ul>
 </section>
+<section id="minecraft-game-servers-from-world-backups">
+<h3>Minecraft — game servers from world backups<a class="headerlink" href="#minecraft-game-servers-from-world-backups" title="Link to this heading">#</a></h3>
+<p>An admin dashboard that launches Minecraft Java servers from a read-only
+archive of world backups, with snapshots, restore, and per-world whitelists.</p>
+<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), optionally its
+DDNS CronJob.</p>
+<p><strong>Hardware prerequisites:</strong></p>
+<ul class="simple">
+<li><p>One node to host every world (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default). Each world
+defaults to 4Gi of memory, so size the node for the worlds you run at once.</p></li>
+</ul>
+<p><strong>Storage prerequisites:</strong></p>
+<ul class="simple">
+<li><p>The NFS CSI storage class (<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>) for per-world data</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minecraft-archive/</span></code> (read-only) and <code class="docutils literal notranslate"><span class="pre">k8s-cluster/minecraft/</span></code> on the NAS —
+see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a></p></li>
+</ul>
+<p><strong>Other prerequisites:</strong></p>
+<ul class="simple">
+<li><p>A router port-forward of TCP <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> to the pinned node</p></li>
+<li><p>A scoped Cloudflare API token for the DDNS record (see <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
+</ul>
+</section>
 <section id="full-stack-everything">
 <h3>Full stack — everything<a class="headerlink" href="#full-stack-everything" title="Link to this heading">#</a></h3>
 <p>Install every service in the catalogue below. Use this if you have the
@@ -554,15 +577,23 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Sysctl tuning for performance</p></td>
 </tr>
-<tr class="row-odd"><td><p>oauth2-proxy</p></td>
+<tr class="row-odd"><td><p>Minecraft dashboard</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> (OCI)</p></td>
+<td><p>0.1.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
+<td><p>OAuth</p></td>
+<td><p>Launch and manage Minecraft worlds (optional)</p></td>
+</tr>
+<tr class="row-even"><td><p>oauth2-proxy</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code></p></td>
 <td><p>10.4.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
 <td><p>GitHub</p></td>
-<td><p>OAuth proxy for Headlamp and Alertmanager</p></td>
+<td><p>OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard</p></td>
 </tr>
-<tr class="row-even"><td><p>RKLlama</p></td>
+<tr class="row-odd"><td><p>RKLlama</p></td>
 <td><p>Helm chart (local)</p></td>
 <td><p>0.0.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama</span></code></p></td>
@@ -570,7 +601,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>None</p></td>
 <td><p>NPU-accelerated LLM server (Rockchip RK1)</p></td>
 </tr>
-<tr class="row-odd"><td><p>llama.cpp</p></td>
+<tr class="row-even"><td><p>llama.cpp</p></td>
 <td><p>Helm chart (local)</p></td>
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">llamacpp</span></code></p></td>
@@ -578,7 +609,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>CUDA-accelerated LLM server (NVIDIA GPU)</p></td>
 </tr>
-<tr class="row-even"><td><p>NVIDIA device plugin</p></td>
+<tr class="row-odd"><td><p>NVIDIA device plugin</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia/nvidia-device-plugin</span></code></p></td>
 <td><p>0.19.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
@@ -586,7 +617,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the scheduler</p></td>
 </tr>
-<tr class="row-odd"><td><p>Open WebUI</p></td>
+<tr class="row-even"><td><p>Open WebUI</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui/open-webui</span></code></p></td>
 <td><p>13.0.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
@@ -594,7 +625,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>Dex (OIDC)</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
-<tr class="row-even"><td><p>Sealed Secrets</p></td>
+<tr class="row-odd"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
@@ -691,11 +722,33 @@ container. Set <code class="docutils literal notranslate"><span class="pre">head
 </ul>
 <p>All busybox images pinned to <code class="docutils literal notranslate"><span class="pre">1.37</span></code>.</p>
 </section>
+<section id="minecraft-dashboard">
+<h3>Minecraft dashboard<a class="headerlink" href="#minecraft-dashboard" title="Link to this heading">#</a></h3>
+<p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code>). Deployed from the OCI chart published by
+<a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">gilesknap/k3s-minecraft</a>, which
+creates the dashboard Deployment, Service, a namespace-scoped
+ServiceAccount/Role, and two static NFS volumes: the world archive
+(mounted read-only) and the writable store. The dashboard itself installs
+one <a class="reference external" href="https://github.com/itzg/minecraft-server-charts">itzg Minecraft</a>
+Helm release per world in the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> namespace, each with a dynamic
+<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> PVC and a NodePort from <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code>, pinned to one node.
+Protected by oauth2-proxy (admin-only, same as Headlamp).</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/minecraft/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/cloudflare-ddns-cronjob.yaml</span></code> — DDNS CronJob
+(<a class="reference external" href="https://github.com/favonia/cloudflare-ddns">favonia/cloudflare-ddns</a>,
+pinned to <code class="docutils literal notranslate"><span class="pre">1.17.1</span></code>) that keeps the DNS-only <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code> A record on the
+current WAN IP; off until <code class="docutils literal notranslate"><span class="pre">minecraft.ddns.enabled</span></code> is set</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/cloudflare-ddns-secret.yaml</span></code> — SealedSecret for its scoped
+Cloudflare token (created by you; not shipped)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
+</section>
 <section id="oauth2-proxy">
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Headlamp and
-Alertmanager. Integrated with nginx ingress annotations. Resource limits:
+for login. Protects services without native OIDC support: Headlamp,
+Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
 <ul class="simple">
@@ -859,6 +912,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#baseline-always-installed">Baseline (always installed)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-only-private-chatgpt">LLM-only — private ChatGPT</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#monitoring-only-dashboards-and-alerts">Monitoring-only — dashboards and alerts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-game-servers-from-world-backups">Minecraft — game servers from world backups</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-stack-everything">Full stack — everything</a></li>
 </ul>
 </li>
@@ -871,6 +925,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp">Headlamp</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama">RKLlama</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#llama-cpp-cuda">llama.cpp (CUDA)</a></li>

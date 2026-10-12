@@ -126,6 +126,7 @@ details, and ArgoCD's TLS termination pattern.
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
 | Alertmanager | Cloudflare Access | oauth2-proxy | — |
+| Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only) |
 | Echo | Cloudflare Access | None | None (public test service) |
 
 ## Dex as shared OIDC provider
@@ -389,7 +390,7 @@ admin_emails:
 
 | Template / Config | Effect |
 |-------------------|--------|
-| `oauth2-proxy.yaml` | Email allowlist — only admins can access Headlamp and Alertmanager |
+| `oauth2-proxy.yaml` | Email allowlist — only admins can access Headlamp, Alertmanager and the Minecraft dashboard |
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
 | `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — admin emails get admin role |
 | `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |

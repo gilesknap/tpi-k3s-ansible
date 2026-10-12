@@ -340,6 +340,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
@@ -448,7 +449,12 @@ the cluster reads or writes over NFS:</p>
 (populated from the existing <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels/</span></code> tree)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/</span></code> and <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/weekly/</span></code> — daily and weekly
 CronJob backup output (empty on first setup)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> — optional; the Minecraft dashboard’s writable store (see
+<a class="reference internal" href="#minecraft-nas-directories"><span class="std std-ref">Minecraft directories (optional)</span></a> below)</p></li>
 </ul>
+<p>The optional Minecraft world <strong>archive</strong> is the one cluster-visible path
+that deliberately lives <em>outside</em> this tree — see
+<a class="reference internal" href="#minecraft-nas-directories"><span class="std std-ref">Minecraft directories (optional)</span></a>.</p>
 <section id="two-paths-same-directory">
 <h3>Two paths, same directory<a class="headerlink" href="#two-paths-same-directory" title="Link to this heading">#</a></h3>
 <p>Be aware of the two paths you’ll see in this runbook — they are the same
@@ -599,7 +605,8 @@ the OLD paths and work exactly as before.</p></li>
 <li><p>Read or write <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> (QNAP-managed — editing breaks the UI).</p></li>
 <li><p>Create or modify any QNAP share or NFS export.</p></li>
 <li><p>Restart any NFS service.</p></li>
-<li><p>Touch any path outside <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code>.</p></li>
+<li><p>Touch any path outside <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code>
+(the optional Minecraft archive below is a separate, deliberate step).</p></li>
 <li><p>Delete data from the old paths.</p></li>
 </ul>
 </section>
@@ -609,6 +616,70 @@ the OLD paths and work exactly as before.</p></li>
 No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export.</p>
+</section>
+<section id="minecraft-directories-optional">
+<span id="minecraft-nas-directories"></span><h2>Minecraft directories (optional)<a class="headerlink" href="#minecraft-directories-optional" title="Link to this heading">#</a></h2>
+<p>Only needed if you enable the Minecraft dashboard (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>). It uses
+two static NFS volumes, both on the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Client-side path</p></th>
+<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Access</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive/</span></code></p></td>
+<td><p>Precious original world backups</p></td>
+<td><p><strong>Read-only</strong> — locked on the NAS and mounted read-only</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/</span></code> (promoted), <code class="docutils literal notranslate"><span class="pre">snapshots/&lt;world&gt;/</span></code> (rolling), <code class="docutils literal notranslate"><span class="pre">dashboard/</span></code> (state)</p></td>
+<td><p>Read-write, owned by uid/gid <code class="docutils literal notranslate"><span class="pre">1000</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The archive sits <strong>outside</strong> <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code> on purpose: nothing that targets
+the cluster-owned subtree — backup tooling, a future cleanup script, a
+mistyped <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code> — can ever reach it. Moving a promoted backup into
+the archive is always a deliberate manual step on the NAS.</p>
+<p>Live world data does not live here: each world gets a dynamically
+provisioned <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volume from the NFS CSI driver.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
+
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">BIGDISK</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk
+
+<span class="c1"># 1. Writable store, owned by the uid/gid the dashboard and its Jobs run as.</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/backups&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">         </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/snapshots&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">         </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/dashboard&quot;</span>
+chown<span class="w"> </span>-R<span class="w"> </span><span class="m">1000</span>:1000<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft&quot;</span>
+chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft&quot;</span>
+
+<span class="c1"># 2. Archive directory — outside k8s-cluster/. Populate it now (see below)</span>
+<span class="c1">#    before locking it.</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span>
+</pre></div>
+</div>
+<p>Populate the archive with the <code class="docutils literal notranslate"><span class="pre">ingest-archive.sh</span></code> script from the
+<a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">k3s-minecraft</a> repository, as
+described in <a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scripts/ingest-archive.sh<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span><span class="w"> </span>&lt;drive-zips...&gt;
+</pre></div>
+</div>
+<p>Then make the archive read-only for everyone, including its owner:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span>
+
+<span class="c1"># Verify — no file or directory should show a &#39;w&#39; bit.</span>
+find<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span><span class="w"> </span>-perm<span class="w"> </span>/222<span class="w"> </span><span class="p">|</span><span class="w"> </span>head
+</pre></div>
+</div>
+<p>This is the first of two locks: the dashboard chart also mounts the archive
+with a read-only NFS mount, so a mistake in either layer alone cannot
+modify the originals. To add files later, <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code> the directory, re-run
+the ingest script, and lock it again.</p>
 </section>
 </section>
 
@@ -670,6 +741,7 @@ the existing <code class="docutils literal notranslate"><span class="pre">bigdis
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-runbook-explicitly-does-not-do">What this runbook explicitly DOES NOT do</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-new-cluster-owned-subfolders-later">Adding new cluster-owned subfolders later</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-directories-optional">Minecraft directories (optional)</a></li>
 </ul>
   </nav></div>
 

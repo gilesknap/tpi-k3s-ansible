@@ -39,6 +39,7 @@ These secrets are created during the setup guides:
 | `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/templates/cloudflare-api-token-secret.yaml |
 | `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
 | `alertmanager-slack-secret` | `monitoring` | Alertmanager Slack webhook URL | additions/grafana/alertmanager-slack-secret.yaml |
+| `cloudflare-ddns-token` | `minecraft` | Scoped Cloudflare token for the Minecraft DDNS CronJob (optional — see {doc}`minecraft`) | additions/minecraft/templates/cloudflare-ddns-secret.yaml |
 
 ## Prerequisites
 
