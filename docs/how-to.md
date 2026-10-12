@@ -22,6 +22,7 @@ how-to/nas-setup
 
 how-to/rkllama-models
 how-to/llamacpp-models
+how-to/minecraft
 how-to/add-remove-services
 ```
 

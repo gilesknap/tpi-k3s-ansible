@@ -94,6 +94,14 @@ ansible-playbook pb_all.yml \
 | `llamacpp.model.contextSize` | `8192` | KV-cache context length in tokens |
 | `llamacpp.model.parallel` | `4` | Concurrent request slots |
 | `llamacpp.model.memoryLimit` | `24Gi` | Kubernetes memory limit for the container |
+| `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
+| `minecraft.chart_version` | `0.1.1` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
+| `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
+| `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
+| `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>`; also the DDNS record |
+| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the router port-forward target |
+| `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
+| `minecraft.ddns.enabled` | `false` | Run the DDNS CronJob; needs the `cloudflare-ddns-token` SealedSecret |
 
 The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
 is tracking. Each branch must set this to match its own branch name.

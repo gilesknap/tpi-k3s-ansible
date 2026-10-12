@@ -33,6 +33,12 @@ the cluster reads or writes over NFS:
   (populated from the existing `bigdisk/LMModels/` tree)
 - `backups/<app>/` and `backups/<app>/weekly/` — daily and weekly
   CronJob backup output (empty on first setup)
+- `minecraft/` — optional; the Minecraft dashboard's writable store (see
+  {ref}`minecraft-nas-directories` below)
+
+The optional Minecraft world **archive** is the one cluster-visible path
+that deliberately lives *outside* this tree — see
+{ref}`minecraft-nas-directories`.
 
 ### Two paths, same directory
 
@@ -176,7 +182,8 @@ The old paths are never touched by this runbook, so rollback is:
 - Read or write `/etc/exports` (QNAP-managed — editing breaks the UI).
 - Create or modify any QNAP share or NFS export.
 - Restart any NFS service.
-- Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`.
+- Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`
+  (the optional Minecraft archive below is a separate, deliberate step).
 - Delete data from the old paths.
 
 ## Adding new cluster-owned subfolders later
@@ -185,3 +192,62 @@ Just `mkdir` under `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/` by hand.
 No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing `bigdisk` export.
+
+(minecraft-nas-directories)=
+## Minecraft directories (optional)
+
+Only needed if you enable the Minecraft dashboard ({doc}`minecraft`). It uses
+two static NFS volumes, both on the existing `bigdisk` export:
+
+| Client-side path | Purpose | Access |
+|------------------|---------|--------|
+| `/bigdisk/minecraft-archive/` | Precious original world backups | **Read-only** — locked on the NAS and mounted read-only |
+| `/bigdisk/k8s-cluster/minecraft/` | `backups/` (promoted), `snapshots/<world>/` (rolling), `dashboard/` (state) | Read-write, owned by uid/gid `1000` |
+
+The archive sits **outside** `k8s-cluster/` on purpose: nothing that targets
+the cluster-owned subtree — backup tooling, a future cleanup script, a
+mistyped `rsync --delete` — can ever reach it. Moving a promoted backup into
+the archive is always a deliberate manual step on the NAS.
+
+Live world data does not live here: each world gets a dynamically
+provisioned `nfs-rwx` volume from the NFS CSI driver.
+
+```bash
+# SSH to the QNAP as admin, then:
+
+set -eu
+BIGDISK=/share/CACHEDEV1_DATA/bigdisk
+
+# 1. Writable store, owned by the uid/gid the dashboard and its Jobs run as.
+mkdir -p "$BIGDISK/k8s-cluster/minecraft/backups" \
+         "$BIGDISK/k8s-cluster/minecraft/snapshots" \
+         "$BIGDISK/k8s-cluster/minecraft/dashboard"
+chown -R 1000:1000 "$BIGDISK/k8s-cluster/minecraft"
+chmod -R 0755 "$BIGDISK/k8s-cluster/minecraft"
+
+# 2. Archive directory — outside k8s-cluster/. Populate it now (see below)
+#    before locking it.
+mkdir -p "$BIGDISK/minecraft-archive"
+```
+
+Populate the archive with the `ingest-archive.sh` script from the
+[k3s-minecraft](https://github.com/gilesknap/k3s-minecraft) repository, as
+described in {doc}`minecraft`:
+
+```bash
+scripts/ingest-archive.sh "$BIGDISK/minecraft-archive" <drive-zips...>
+```
+
+Then make the archive read-only for everyone, including its owner:
+
+```bash
+chmod -R a-w "$BIGDISK/minecraft-archive"
+
+# Verify — no file or directory should show a 'w' bit.
+find "$BIGDISK/minecraft-archive" -perm /222 | head
+```
+
+This is the first of two locks: the dashboard chart also mounts the archive
+with a read-only NFS mount, so a mistake in either layer alone cannot
+modify the originals. To add files later, `chmod u+w` the directory, re-run
+the ingest script, and lock it again.

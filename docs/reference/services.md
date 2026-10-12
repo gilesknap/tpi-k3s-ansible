@@ -77,6 +77,30 @@ workloads you add. Useful as a standalone observability cluster.
 - Optional: a Slack webhook for Alertmanager notifications
   (see {doc}`/how-to/monitoring`)
 
+### Minecraft — game servers from world backups
+
+An admin dashboard that launches Minecraft Java servers from a read-only
+archive of world backups, with snapshots, restore, and per-world whitelists.
+
+**Install:** Minecraft dashboard (`enable_minecraft: true`), optionally its
+DDNS CronJob.
+
+**Hardware prerequisites:**
+
+- One node to host every world (pinned to `nuc2` by default). Each world
+  defaults to 4Gi of memory, so size the node for the worlds you run at once.
+
+**Storage prerequisites:**
+
+- The NFS CSI storage class (`nfs-rwx`) for per-world data
+- `minecraft-archive/` (read-only) and `k8s-cluster/minecraft/` on the NAS —
+  see {doc}`/how-to/nas-setup`
+
+**Other prerequisites:**
+
+- A router port-forward of TCP `30565`–`30584` to the pinned node
+- A scoped Cloudflare API token for the DDNS record (see {doc}`/how-to/minecraft`)
+
 ### Full stack — everything
 
 Install every service in the catalogue below. Use this if you have the
@@ -104,7 +128,8 @@ hardware and want the full experience out of the box.
 | Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp and Alertmanager |
+| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.1.1 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
 | RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
@@ -195,11 +220,33 @@ DaemonSet that applies system tuning on all nodes:
 
 All busybox images pinned to `1.37`.
 
+### Minecraft dashboard
+
+Optional (`enable_minecraft`). Deployed from the OCI chart published by
+[gilesknap/k3s-minecraft](https://github.com/gilesknap/k3s-minecraft), which
+creates the dashboard Deployment, Service, a namespace-scoped
+ServiceAccount/Role, and two static NFS volumes: the world archive
+(mounted read-only) and the writable store. The dashboard itself installs
+one [itzg Minecraft](https://github.com/itzg/minecraft-server-charts)
+Helm release per world in the `minecraft` namespace, each with a dynamic
+`nfs-rwx` PVC and a NodePort from `30565`–`30584`, pinned to one node.
+Protected by oauth2-proxy (admin-only, same as Headlamp).
+
+**Additional manifests:** `additions/minecraft/`
+- `templates/cloudflare-ddns-cronjob.yaml` — DDNS CronJob
+  ([favonia/cloudflare-ddns](https://github.com/favonia/cloudflare-ddns),
+  pinned to `1.17.1`) that keeps the DNS-only `mc.<domain>` A record on the
+  current WAN IP; off until `minecraft.ddns.enabled` is set
+- `templates/cloudflare-ddns-secret.yaml` — SealedSecret for its scoped
+  Cloudflare token (created by you; not shipped)
+
+See {doc}`/how-to/minecraft` for setup.
+
 ### oauth2-proxy
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Headlamp and
-Alertmanager. Integrated with nginx ingress annotations. Resource limits:
+for login. Protects services without native OIDC support: Headlamp,
+Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations. Resource limits:
 10m/64Mi request, 100m/128Mi limit.
 
 **Additional manifests:** `additions/oauth2-proxy/`

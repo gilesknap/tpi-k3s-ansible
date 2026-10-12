@@ -1,0 +1,77 @@
+{{- if .Values.enable_minecraft }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minecraft
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minecraft
+  project: kubernetes
+  sources:
+    # Source 1: the published OCI chart from the k3s-minecraft repo.
+    # repoURL is bare (no oci:// prefix) and must match the AppProject
+    # sourceRepos entry exactly — see the /argocd skill.
+    - repoURL: ghcr.io/gilesknap/charts
+      chart: minecraft-dashboard
+      targetRevision: {{ .Values.minecraft.chart_version | quote }}
+      helm:
+        # Fixed release name so the chart's Service is `minecraft-dashboard`,
+        # which the ingress source below points at.
+        releaseName: minecraft-dashboard
+        valuesObject:
+          image:
+            repository: {{ .Values.minecraft.image.repository | quote }}
+          storage:
+            archive:
+              nfs:
+                server: {{ .Values.nfs.server | quote }}
+                path: {{ .Values.minecraft.archive_path | quote }}
+            store:
+              nfs:
+                server: {{ .Values.nfs.server | quote }}
+                path: {{ printf "%s/%s" .Values.nfs.cluster_share_path .Values.minecraft.store_subdir | quote }}
+          worlds:
+            portMin: {{ .Values.minecraft.worlds.port_min }}
+            portMax: {{ .Values.minecraft.worlds.port_max }}
+            publicHost: {{ printf "%s.%s" .Values.minecraft.dns_name .Values.cluster_domain | quote }}
+            node: {{ .Values.minecraft.worlds.node | quote }}
+            storageClass: {{ .Values.nfs_csi.storage_class | quote }}
+
+    # Source 2: DDNS CronJob for the game hostname (+ its SealedSecret once
+    # created). Renders nothing while minecraft.ddns.enabled is false.
+    - path: ./kubernetes-services/additions/minecraft
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          ddns:
+            enabled: {{ .Values.minecraft.ddns.enabled }}
+            domain: {{ printf "%s.%s" .Values.minecraft.dns_name .Values.cluster_domain | quote }}
+
+    # Source 3: dashboard ingress — admin-only via oauth2-proxy, like Headlamp.
+    # The app does no auth itself; it logs X-Auth-Request-Email per action.
+    # oauth2_proxy is hard-wired on (not tied to enable_oauth2_proxy as
+    # Headlamp is): with no proxy the ingress fails closed instead of
+    # exposing an unauthenticated control panel.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: minecraft
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: minecraft-dashboard
+          service_port: 80
+          oauth2_proxy: true
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

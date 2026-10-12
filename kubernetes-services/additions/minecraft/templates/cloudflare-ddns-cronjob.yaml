@@ -1,0 +1,68 @@
+{{- if .Values.ddns.enabled }}
+# Keeps a DNS-only (grey-cloud) A record pointed at the cluster's WAN IP so
+# Minecraft clients can reach the router's port-forward. favonia/cloudflare-ddns
+# runs one detect-and-update pass (UPDATE_CRON=@once) and exits; the CronJob
+# provides the schedule. The WAN IP is detected via Cloudflare's trace
+# endpoint, which sees the router's public address through NAT.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflare-ddns
+spec:
+  schedule: {{ .Values.ddns.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cloudflare-ddns
+              image: favonia/cloudflare-ddns:1.17.1
+              env:
+                # Scoped token: Zone / DNS / Edit on this one zone only.
+                - name: CLOUDFLARE_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudflare-ddns-token
+                      key: api-token
+                - name: DOMAINS
+                  value: {{ .Values.ddns.domain | quote }}
+                # Grey cloud: Cloudflare cannot proxy Minecraft's TCP
+                # protocol. Note an existing record keeps its proxy status,
+                # so make sure a pre-existing record is already DNS-only.
+                - name: PROXIED
+                  value: "false"
+                # A record only — do not publish an AAAA for the game host.
+                - name: IP6_PROVIDER
+                  value: "none"
+                - name: UPDATE_CRON
+                  value: "@once"
+                - name: UPDATE_ON_START
+                  value: "true"
+                - name: DELETE_ON_STOP
+                  value: "false"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+{{- end }}
