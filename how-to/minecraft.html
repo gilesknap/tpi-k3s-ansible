@@ -470,11 +470,15 @@ hostname pointed at your WAN IP.</p></li>
 <td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> on the pinned node</p></td>
 <td><p>20 slots; one per world for the world’s lifetime</p></td>
 </tr>
-<tr class="row-odd"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
+<tr class="row-odd"><td><p>RCON ports</p></td>
+<td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code> on the pinned node</p></td>
+<td><p>LAN only (NetworkPolicy); one per world, for build tools</p></td>
+</tr>
+<tr class="row-even"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare <strong>DNS-only</strong> A record</p></td>
 <td><p>The VPS’s static IP (relay), or your WAN IP kept current by the DDNS CronJob (router forward)</p></td>
 </tr>
-<tr class="row-even"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
+<tr class="row-odd"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare tunnel route</p></td>
 <td><p>Cloudflare Access + oauth2-proxy</p></td>
 </tr>
@@ -501,7 +505,7 @@ up (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class=
 router you can configure to forward a TCP port range to one node.</p></li>
 <li><p>The dashboard chart version you pin in <code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code> must be
 published. Check before enabling:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>pull<span class="w"> </span>oci://ghcr.io/gilesknap/charts/minecraft-dashboard<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>pull<span class="w"> </span>oci://ghcr.io/gilesknap/charts/minecraft-dashboard<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.2.0
 </pre></div>
 </div>
 </li>
@@ -593,6 +597,28 @@ pinned node:</p>
 </div>
 <p>Give the pinned node a static DHCP lease so the forward keeps working. If you
 change <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>/<code class="docutils literal notranslate"><span class="pre">port_max</span></code>, change the forward to match.</p>
+</section>
+<section id="direct-rcon-for-build-tools-lan-only">
+<h3>Direct RCON for build tools (LAN only)<a class="headerlink" href="#direct-rcon-for-build-tools-lan-only" title="Link to this heading">#</a></h3>
+<p>Each world also gets an <strong>RCON NodePort</strong> from
+<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code> (default <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code>),
+shown on the world’s page with a <strong>Reveal</strong> button for the password. Use it
+for tools such as <a class="reference external" href="https://github.com/gilesknap/mciwb">mciwb</a> that send many
+RCON commands. Worlds that were already running when the dashboard was
+upgraded keep an in-cluster-only RCON Service until they are next started
+(or have their settings saved while running); restart one to give it a port.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mciwb.imports</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iwb</span>
+
+<span class="c1"># on the world node itself (fastest: ~0.04 ms per command)</span>
+<span class="n">world</span> <span class="o">=</span> <span class="n">Iwb</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">30600</span><span class="p">,</span> <span class="n">passwd</span><span class="o">=</span><span class="s2">&quot;&lt;password from the world page&gt;&quot;</span><span class="p">)</span>
+<span class="c1"># or from another LAN host: server=&quot;&lt;world node LAN IP&gt;&quot;</span>
+</pre></div>
+</div>
+<p>The dashboard chart’s NetworkPolicy only lets the dashboard, the world’s own
+node and <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code> reach RCON. RCON is plain text:
+<strong>never add the RCON range to <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> or a router forward.</strong>
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> also works but is about 1000x slower (~44 ms per
+command), too slow for building.</p>
 </section>
 </section>
 <section id="step-4-create-the-ddns-token-and-seal-it-option-b-only">
@@ -689,7 +715,7 @@ hostname; no Access change is needed. Do <strong>not</strong> add a route for <c
 <p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_minecraft</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="nt">minecraft</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">chart_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.1&quot;</span><span class="w">          </span><span class="c1"># must be published (see Prerequisites)</span>
+<span class="w">  </span><span class="nt">chart_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.2.0&quot;</span><span class="w">          </span><span class="c1"># must be published (see Prerequisites)</span>
 <span class="w">  </span><span class="nt">archive_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/minecraft-archive</span>
 <span class="w">  </span><span class="nt">store_subdir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span><span class="w">         </span><span class="c1"># under nfs.cluster_share_path</span>
 <span class="w">  </span><span class="nt">dns_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mc</span><span class="w">                    </span><span class="c1"># players use mc.&lt;cluster_domain&gt;</span>
@@ -697,6 +723,12 @@ hostname; no Access change is needed. Do <strong>not</strong> add a route for <c
 <span class="w">    </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nuc2</span><span class="w">                    </span><span class="c1"># the node game traffic is sent to</span>
 <span class="w">    </span><span class="nt">port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565</span>
 <span class="w">    </span><span class="nt">port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30584</span>
+<span class="w">    </span><span class="nt">rcon_port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30600</span>
+<span class="w">    </span><span class="nt">rcon_port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30619</span>
+<span class="w">    </span><span class="nt">rcon_allowed_cidrs</span><span class="p">:</span><span class="w">           </span><span class="c1"># who may reach RCON besides the dashboard</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.0/24</span><span class="w">      </span><span class="c1"># your LAN...</span>
+<span class="w">        </span><span class="nt">except</span><span class="p">:</span><span class="w">                   </span><span class="c1"># ...minus the other cluster nodes</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.81/32</span>
 <span class="w">  </span><span class="nt">ddns</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Option B, once cloudflare-ddns-secret.yaml exists</span>
 </pre></div>
@@ -857,6 +889,7 @@ VPS.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-make-the-game-ports-reachable">Step 3: Make the game ports reachable</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#option-a-vps-relay">Option A: VPS relay</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#option-b-router-port-forward">Option B: Router port-forward</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-rcon-for-build-tools-lan-only">Direct RCON for build tools (LAN only)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-create-the-ddns-token-and-seal-it-option-b-only">Step 4: Create the DDNS token and seal it (Option B only)</a><ul class="nav section-nav flex-column">
