@@ -127,7 +127,7 @@ minecraft:
   # defaults to the chart's appVersion, so this is the only version pin.
   # Check the tag exists before bumping (see the /argocd skill):
   #   helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <ver>
-  chart_version: "0.1.1"
+  chart_version: "0.2.0"
   image:
     repository: ghcr.io/gilesknap/k3s-minecraft
   # Precious world archive — mounted read-only. Deliberately OUTSIDE
@@ -151,6 +151,25 @@ minecraft:
     # `minecraft` forward (or the router forward).
     port_min: 30565
     port_max: 30584
+    # Per-world RCON NodePorts (one each) for direct LAN clients such as
+    # mciwb: `127.0.0.1:<port>` on the world node, `<node-ip>:<port>` from
+    # the LAN. Plain-text RCON: NEVER add this range to vps_relay.forwards or
+    # a router forward. Must not overlap port_min-port_max.
+    rcon_port_min: 30600
+    rcon_port_max: 30619
+    # Sources allowed to reach world RCON (port 25575) through the dashboard
+    # chart's NetworkPolicy, besides the dashboard pod and the world's own
+    # node. NodePort clients keep their IP (externalTrafficPolicy Local), but
+    # pods on OTHER cluster nodes arrive as their node's IP, so cluster nodes
+    # are excepted. Each entry is a CIDR or {cidr, except: [CIDRs]}.
+    rcon_allowed_cidrs:
+      - cidr: 192.168.1.0/24
+        except:
+          - 192.168.1.81/32   # node01
+          - 192.168.1.82/32   # node02
+          - 192.168.1.83/32   # node03
+          - 192.168.1.84/32   # node04
+      - cidr: 192.168.0.0/24  # nuc2's second LAN
   # In-cluster DDNS CronJob that keeps <dns_name>.<cluster_domain> pointed at
   # the current WAN IP — only for a router forward; the VPS relay's IP is
   # static, and behind CGNAT the WAN IP is unreachable anyway. Set to true

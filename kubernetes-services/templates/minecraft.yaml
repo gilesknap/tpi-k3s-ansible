@@ -37,9 +37,15 @@ spec:
           worlds:
             portMin: {{ .Values.minecraft.worlds.port_min }}
             portMax: {{ .Values.minecraft.worlds.port_max }}
+            rconPortMin: {{ .Values.minecraft.worlds.rcon_port_min }}
+            rconPortMax: {{ .Values.minecraft.worlds.rcon_port_max }}
             publicHost: {{ printf "%s.%s" .Values.minecraft.dns_name .Values.cluster_domain | quote }}
             node: {{ .Values.minecraft.worlds.node | quote }}
             storageClass: {{ .Values.nfs_csi.storage_class | quote }}
+          networkPolicy:
+            enabled: true
+            rconAllowedCidrs:
+              {{- toYaml .Values.minecraft.worlds.rcon_allowed_cidrs | nindent 14 }}
 
     # Source 2: DDNS CronJob for the game hostname (+ its SealedSecret once
     # created). Renders nothing while minecraft.ddns.enabled is false.

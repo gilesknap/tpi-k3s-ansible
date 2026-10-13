@@ -142,6 +142,28 @@ pinned node:
 Give the pinned node a static DHCP lease so the forward keeps working. If you
 change `minecraft.worlds.port_min`/`port_max`, change the forward to match.
 
+### Direct RCON for build tools (LAN only)
+
+Each world also gets an **RCON NodePort** from
+`minecraft.worlds.rcon_port_min`–`rcon_port_max` (default `30600`–`30619`),
+shown on the world's page with a **Reveal** button for the password. Use it
+for tools such as [mciwb](https://github.com/gilesknap/mciwb) that send many
+RCON commands:
+
+```python
+from mciwb.imports import Iwb
+
+# on the world node itself (fastest: ~0.04 ms per command)
+world = Iwb(server="127.0.0.1", port=30600, passwd="<password from the world page>")
+# or from another LAN host: server="<world node LAN IP>"
+```
+
+The dashboard chart's NetworkPolicy only lets the dashboard, the world's own
+node and `minecraft.worlds.rcon_allowed_cidrs` reach RCON. RCON is plain text:
+**never add the RCON range to `vps_relay.forwards` or a router forward.**
+`kubectl port-forward` also works but is about 1000x slower (~44 ms per
+command), too slow for building.
+
 ## Step 4: Create the DDNS token and seal it (Option B only)
 
 The DDNS CronJob runs [favonia/cloudflare-ddns](https://github.com/favonia/cloudflare-ddns)
