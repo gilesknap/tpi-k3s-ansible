@@ -267,7 +267,9 @@ HTTP(S), so the record must not be proxied.
 
 ## Adding a forward
 
-1. Add an entry to `vps_relay.forwards`. Names must be unique.
+1. Add an entry to `vps_relay.forwards`. Names must be unique. Never forward
+   plain-text admin protocols such as the Minecraft worlds' RCON NodePorts
+   (`minecraft.worlds.rcon_port_min`–`rcon_port_max`): they are LAN-only.
 2. **On the VPS**, re-run `scripts/vps-relay-setup` with the new list from
    `just vps-relay-forwards`. It updates `allowPorts`, restarts frps and
    opens the ports. Firewall rules for ports you have *removed* are left
