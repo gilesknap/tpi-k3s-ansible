@@ -95,7 +95,7 @@ ansible-playbook pb_all.yml \
 | `llamacpp.model.parallel` | `4` | Concurrent request slots |
 | `llamacpp.model.memoryLimit` | `24Gi` | Kubernetes memory limit for the container |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
-| `minecraft.chart_version` | `0.1.1` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
+| `minecraft.chart_version` | `0.2.0` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
 | `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
 | `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>`; also the DDNS record |

@@ -30,6 +30,7 @@ This repository only provides the cluster wiring:
 | Store: promoted backups, rolling snapshots, dashboard state | NAS `<nfs.cluster_share_path>/minecraft` | Written by the dashboard as uid/gid 1000 |
 | Live world data | One dynamic `nfs-rwx` PVC per world | Created by the dashboard; deleted with the world (after a snapshot) |
 | Game ports | NodePorts `30565`–`30584` on the pinned node | 20 slots; one per world for the world's lifetime |
+| RCON ports | NodePorts `30600`–`30619` on the pinned node | LAN only (NetworkPolicy); one per world, for build tools |
 | Game hostname `mc.<domain>` | Cloudflare **DNS-only** A record | The VPS's static IP (relay), or your WAN IP kept current by the DDNS CronJob (router forward) |
 | Dashboard hostname `minecraft.<domain>` | Cloudflare tunnel route | Cloudflare Access + oauth2-proxy |
 
@@ -53,7 +54,7 @@ record that points straight at the VPS or your WAN IP.
   published. Check before enabling:
 
   ```bash
-  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.1.1
+  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.2.0
   ```
 
 ## Step 1: Create the NAS directories
@@ -148,7 +149,9 @@ Each world also gets an **RCON NodePort** from
 `minecraft.worlds.rcon_port_min`–`rcon_port_max` (default `30600`–`30619`),
 shown on the world's page with a **Reveal** button for the password. Use it
 for tools such as [mciwb](https://github.com/gilesknap/mciwb) that send many
-RCON commands:
+RCON commands. Worlds that were already running when the dashboard was
+upgraded keep an in-cluster-only RCON Service until they are next started
+(or have their settings saved while running); restart one to give it a port.
 
 ```python
 from mciwb.imports import Iwb
@@ -251,7 +254,7 @@ Edit `kubernetes-services/values.yaml`:
 ```yaml
 enable_minecraft: true
 minecraft:
-  chart_version: "0.1.1"          # must be published (see Prerequisites)
+  chart_version: "0.2.0"          # must be published (see Prerequisites)
   archive_path: /bigdisk/minecraft-archive
   store_subdir: minecraft         # under nfs.cluster_share_path
   dns_name: mc                    # players use mc.<cluster_domain>
@@ -259,6 +262,12 @@ minecraft:
     node: nuc2                    # the node game traffic is sent to
     port_min: 30565
     port_max: 30584
+    rcon_port_min: 30600
+    rcon_port_max: 30619
+    rcon_allowed_cidrs:           # who may reach RCON besides the dashboard
+      - cidr: 192.168.1.0/24      # your LAN...
+        except:                   # ...minus the other cluster nodes
+          - 192.168.1.81/32
   ddns:
     enabled: true                 # Option B, once cloudflare-ddns-secret.yaml exists
 ```
