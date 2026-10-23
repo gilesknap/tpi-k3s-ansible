@@ -7,10 +7,10 @@ repository provides the cluster wiring:
 
 - An ArgoCD Application (`kubernetes-services/templates/scrap.yaml`) that
   deploys the chart from a git tag, with a NetworkPolicy, a local-disk data
-  volume, a nightly backup CronJob and optional Claude ingest.
+  volume, a nightly backup CronJob and Claude ingest (enabled in this deployment).
 - An ingress for `scrap.<domain>` gated by oauth2-proxy, plus a second
   `/mcp`-only ingress without oauth2-proxy
-  (`kubernetes-services/additions/scrap/`).
+  (`kubernetes-services/additions/scrap/`), disabled by default (see below).
 - A `local_storage.scrap` volume and a `k8s_data_dirs` entry for the data
   directory.
 
@@ -33,19 +33,33 @@ app's custom connector) cannot send Cloudflare service-token headers, so they
 cannot reach `/mcp` through this design.
 :::
 
+:::{warning}
+The `/mcp` Ingress is gated by `mcp_ingress_enabled` in
+`kubernetes-services/templates/scrap.yaml` and defaults to `false`. Set it to
+`true` only in the same change that bumps the scrap chart `targetRevision` to
+a release adding `SCRAP_MCP_TOKEN` bearer auth. Until then Cloudflare would be
+the only protection on `/mcp`, and ingress-nginx is reachable directly (LAN or
+split DNS) bypassing Cloudflare.
+:::
+
 The NetworkPolicy admits only the `ingress-nginx` namespace, so nothing else
 in the cluster can reach the pod or forge identity headers.
 
 ## Deploy
 
 1. Make sure the data directory exists on the pinned node:
-   `ansible-playbook pb_all.yml --tags cluster` creates the `k8s_data_dirs`
-   entry for scrap.
-2. Seal the Claude API key (needed because ingest is enabled). Follow
+   `ansible-playbook pb_all.yml --tags servers` runs the `k8s_data_dirs`
+   role, which creates `/home/k8s-data/scrap`.
+2. Seal the Claude API key into the `scrap-secrets` SealedSecret (ingest is
+   enabled, so this is required). Follow
    `kubernetes-services/additions/scrap/README.md` and
    {doc}`manage-sealed-secrets`. The file is
    `kubernetes-services/additions/scrap/templates/scrap-secret.yaml`.
-3. Commit and let ArgoCD sync.
+3. Commit, then let ArgoCD sync. Do this only after step 2: until the
+   SealedSecret exists the pod sits in `CreateContainerConfigError` because
+   it references the missing `scrap-secrets` Secret.
+4. Later, when a scrap release with `SCRAP_MCP_TOKEN` is available, bump
+   `targetRevision` and set `mcp_ingress_enabled: true` together.
 
 ## Cloudflare configuration
 

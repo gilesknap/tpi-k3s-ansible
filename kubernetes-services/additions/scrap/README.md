@@ -2,7 +2,8 @@
 
 This directory is a small Helm chart holding two things for scrap:
 
-- `templates/mcp-ingress.yaml`: an Ingress for `scrap.<domain>/mcp` only, without the
+- `templates/mcp-ingress.yaml`: (only when `mcp_ingress_enabled` is true; keep
+  it false until the scrap chart tag with `SCRAP_MCP_TOKEN` is deployed) an Ingress for `scrap.<domain>/mcp` only, without the
   oauth2-proxy annotations (the main PWA Ingress comes from `additions/ingress`).
 - the SealedSecret below.
 
@@ -17,4 +18,5 @@ kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o 
   templates/scrap-secret.yaml; unset KEY
 ```
 
-Run it from this directory. Commit the sealed file (see `/sealed-secrets` and docs/how-to/manage-sealed-secrets.md).
+Run it from this directory. Do this before the first Argo sync, otherwise the pod stays in
+`CreateContainerConfigError`. Commit the sealed file (see `/sealed-secrets` and docs/how-to/manage-sealed-secrets.md).
