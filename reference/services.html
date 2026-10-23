@@ -628,7 +628,15 @@ hardware and want the full experience out of the box.</p>
 <td><p>Dex (OIDC)</p></td>
 <td><p>ChatGPT-style UI backed by RKLLama and/or llama.cpp</p></td>
 </tr>
-<tr class="row-odd"><td><p>VPS relay</p></td>
+<tr class="row-odd"><td><p>scrap</p></td>
+<td><p>Helm chart from <code class="docutils literal notranslate"><span class="pre">github.com/gilesknap/scrap</span></code></p></td>
+<td><p>0.1.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code></p></td>
+<td><p>Cloudflare Access + oauth2-proxy</p></td>
+<td><p>Personal knowledge store (PWA; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> ingress off by default)</p></td>
+</tr>
+<tr class="row-even"><td><p>VPS relay</p></td>
 <td><p>Plain manifests (tailscale v1.102.5, frpc v0.71.0)</p></td>
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
@@ -636,7 +644,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>Tailscale + frp</p></td>
 <td><p>Publishes chosen TCP/UDP ports on a VPS’s public IP (optional)</p></td>
 </tr>
-<tr class="row-even"><td><p>Sealed Secrets</p></td>
+<tr class="row-odd"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
@@ -754,6 +762,25 @@ current WAN IP; off until <code class="docutils literal notranslate"><span class
 Cloudflare token (created by you; not shipped)</p></li>
 </ul>
 <p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
+</section>
+<section id="scrap">
+<h3>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h3>
+<p>Personal knowledge store (<a class="reference external" href="https://github.com/gilesknap/scrap">gilesknap/scrap</a>).
+The Argo CD Application deploys the chart from a git tag into the <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
+namespace with a SQLite data volume on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV pinned to
+<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code>, created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role under
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code>), a nightly backup CronJob, a NetworkPolicy admitting only
+<code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, and Claude ingest enabled. The PWA is protected by
+Cloudflare Access plus oauth2-proxy. A separate <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> Ingress exists but is
+disabled (<code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">false</span></code>) until the release with bearer-token
+auth is deployed.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/scrap/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/mcp-ingress.yaml</span></code> — <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only Ingress without oauth2-proxy</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-secret.yaml</span></code> — SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> holding the
+Claude API key (created by you; not shipped)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a> for setup.</p>
 </section>
 <section id="vps-relay">
 <h3>VPS relay<a class="headerlink" href="#vps-relay" title="Link to this heading">#</a></h3>
@@ -957,6 +984,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rkllama">RKLlama</a></li>

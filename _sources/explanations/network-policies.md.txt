@@ -2,7 +2,8 @@
 
 This page explains Kubernetes NetworkPolicies and how they could be applied
 to this cluster. NetworkPolicies are **not deployed** by default because
-the maintenance overhead outweighs the benefit for a single-admin homelab.
+the maintenance overhead outweighs the benefit for a single-admin homelab. The one exception is scrap, whose chart ships a NetworkPolicy
+admitting only `ingress-nginx` (see {doc}`/how-to/scrap`).
 
 ## What are NetworkPolicies?
 
@@ -62,6 +63,7 @@ would be:
 |------|------|------|---------|
 | `ingress-nginx` | all service namespaces | service ports | External access |
 | `monitoring` (Prometheus) | all namespaces | metrics ports | Scraping |
+| `ingress-nginx` | `scrap` | 80 | Only allowed source; scrap ships its own NetworkPolicy (see {doc}`/how-to/scrap`) |
 | `open-webui` | `rkllama` | 8080 | LLM API |
 | `open-webui` | `llamacpp` | 8080 | LLM API |
 | `cert-manager` | external | 443 | ACME DNS-01 |

@@ -137,6 +137,7 @@ hardware and want the full experience out of the box.
 | llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
+| scrap | Helm chart from `github.com/gilesknap/scrap` | 0.1.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` ingress off by default) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
 
@@ -245,6 +246,25 @@ Protected by oauth2-proxy (admin-only, same as Headlamp).
   Cloudflare token (created by you; not shipped)
 
 See {doc}`/how-to/minecraft` for setup.
+
+### scrap
+
+Personal knowledge store ([gilesknap/scrap](https://github.com/gilesknap/scrap)).
+The Argo CD Application deploys the chart from a git tag into the `scrap`
+namespace with a SQLite data volume on a static `local-nvme` PV pinned to
+`nuc2` (`/home/k8s-data/scrap`, created by the `k8s_data_dirs` role under
+`--tags servers`), a nightly backup CronJob, a NetworkPolicy admitting only
+`ingress-nginx`, and Claude ingest enabled. The PWA is protected by
+Cloudflare Access plus oauth2-proxy. A separate `/mcp` Ingress exists but is
+disabled (`mcp_ingress_enabled: false`) until the release with bearer-token
+auth is deployed.
+
+**Additional manifests:** `additions/scrap/`
+- `templates/mcp-ingress.yaml` — `/mcp`-only Ingress without oauth2-proxy
+- `templates/scrap-secret.yaml` — SealedSecret `scrap-secrets` holding the
+  Claude API key (created by you; not shipped)
+
+See {doc}`/how-to/scrap` for setup.
 
 ### VPS relay
 
