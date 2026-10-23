@@ -1,0 +1,40 @@
+{{- if .Values.mcp_ingress_enabled }}
+# NOTE: rendered only when mcp_ingress_enabled is true (default false). Enable
+# it ONLY together with the scrap chart tag bump that adds SCRAP_MCP_TOKEN
+# (bearer auth); until then /mcp would have only Cloudflare in front, and
+# ingress-nginx is reachable directly (LAN / split DNS).
+#
+# /mcp only, WITHOUT the oauth2-proxy annotations. Same host as the main
+# scrap Ingress (additions/ingress, which is oauth2-proxy gated); nginx picks
+# the most specific path, so /mcp comes here. MCP clients cannot do a browser
+# GitHub login: this path is protected by Cloudflare Access (service token) at
+# the edge and by scrap's own bearer token.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scrap-mcp-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ .Values.ssl_redirect | toString | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+    # MCP streamable HTTP / SSE responses are long-lived; don't let nginx
+    # cut idle streams at the 60s default, and don't buffer them.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - scrap.{{ .Values.cluster_domain }}
+  rules:
+    - host: scrap.{{ .Values.cluster_domain }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /mcp
+            backend:
+              service:
+                name: scrap
+                port:
+                  number: 80
+{{- end }}

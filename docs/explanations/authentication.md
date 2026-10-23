@@ -127,6 +127,7 @@ details, and ArgoCD's TLS termination pattern.
 | Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
 | Alertmanager | Cloudflare Access | oauth2-proxy | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only) |
+| scrap | Cloudflare Access | oauth2-proxy (`/mcp`: separate Ingress, disabled until bearer-token release) | — (scrap has no login of its own) |
 | Echo | Cloudflare Access | None | None (public test service) |
 
 ## Dex as shared OIDC provider
@@ -420,6 +421,7 @@ to Git:
 | `grafana-oauth-secret` | `additions/grafana/` | Grafana's Dex client secret |
 | `open-webui-oauth-secret` | `additions/open-webui/` | Open WebUI's Dex client secret |
 | `argocd-monitor-oauth-secret` | `additions/argocd-monitor/` | argocd-monitor's Dex client secret + cookie secret |
+| `scrap-secrets` | `additions/scrap/` | Claude API key for scrap ingest (not an auth credential) |
 | `oauth2-proxy-credentials` | `additions/oauth2-proxy/` | GitHub OAuth App credentials + cookie secret |
 
 Re-sealing any of these secrets requires restarting the affected pods

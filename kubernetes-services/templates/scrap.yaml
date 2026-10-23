@@ -1,0 +1,89 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: scrap
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: scrap
+  project: kubernetes
+  sources:
+    # scrap personal knowledge store — Helm chart straight from the scrap repo,
+    # pinned to a release tag (chart version == app version == image tag).
+    # https://github.com/gilesknap/scrap/blob/main/charts/scrap/values.yaml
+    - repoURL: https://github.com/gilesknap/scrap
+      targetRevision: 0.1.0
+      path: charts/scrap
+      helm:
+        releaseName: scrap
+        valuesObject:
+          extraEnv:
+            - name: SCRAP_PUBLIC_URL
+              value: https://scrap.{{ .Values.cluster_domain }}
+            - name: TZ
+              value: Europe/London
+
+          # Claude ingest (photo reading, text enrichment) via an API key in
+          # the SealedSecret in additions/scrap.
+          ingest:
+            enabled: true
+            existingSecret: scrap-secrets
+
+          # SQLite needs a local filesystem: static local-nvme PV pinned to
+          # nuc2 (additions/local-storage), pre-bound to scrap-data.
+          persistence:
+            storageClass: local-nvme
+            size: 5Gi
+
+          # Nightly `scrap backup` to the NFS-backed default StorageClass.
+          backup:
+            enabled: true
+            timeZone: Europe/London
+
+          # Only ingress-nginx may reach scrap, so clients inside the cluster
+          # cannot forge identity headers. scrap has no login of its own.
+          networkPolicy:
+            enabled: true
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+
+    # /mcp-only Ingress (no oauth2-proxy, off by default) and the SealedSecret.
+    - path: ./kubernetes-services/additions/scrap
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          cluster_domain: {{ .Values.cluster_domain }}
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          # Keep false until targetRevision above is bumped to a scrap release
+          # that supports SCRAP_MCP_TOKEN (bearer auth). Without it /mcp would
+          # have only Cloudflare in front.
+          mcp_ingress_enabled: false
+
+    # Public via the Cloudflare tunnel at scrap.<cluster_domain>. The PWA is
+    # gated by Cloudflare Access plus oauth2-proxy; /mcp is split out into its
+    # own Ingress (additions/scrap) without oauth2-proxy.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: scrap
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: scrap
+          service_port: 80
+          oauth2_proxy: true
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          extra_annotations:
+            nginx.ingress.kubernetes.io/proxy-body-size: 50m
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
