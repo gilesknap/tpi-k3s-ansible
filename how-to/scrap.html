@@ -469,9 +469,9 @@ cannot reach <code class="docutils literal notranslate"><span class="pre">/mcp</
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> Ingress is gated by <code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled</span></code> in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code> and defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>. Set it to
-<code class="docutils literal notranslate"><span class="pre">true</span></code> only in the same change that bumps the scrap chart <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> to
-a release adding <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code> bearer auth. Until then Cloudflare would be
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>. Keep it <code class="docutils literal notranslate"><span class="pre">true</span></code> only while the scrap
+chart <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> is a release with <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code> bearer auth
+(0.2.0 or later) and <code class="docutils literal notranslate"><span class="pre">mcp.tokenSecret</span></code> is set. Until then Cloudflare would be
 the only protection on <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, and ingress-nginx is reachable directly (LAN or
 split DNS) bypassing Cloudflare.</p>
 </div>
@@ -492,8 +492,9 @@ enabled, so this is required). Follow
 <li><p>Commit, then let ArgoCD sync. Do this only after step 2: until the
 SealedSecret exists the pod sits in <code class="docutils literal notranslate"><span class="pre">CreateContainerConfigError</span></code> because
 it references the missing <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> Secret.</p></li>
-<li><p>Later, when a scrap release with <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code> is available, bump
-<code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> and set <code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">true</span></code> together.</p></li>
+<li><p>For <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, seal <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code> into the same Secret, point
+<code class="docutils literal notranslate"><span class="pre">mcp.tokenSecret</span></code> at it and set <code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">true</span></code>. Use a scrap
+release of 0.2.0 or later.</p></li>
 </ol>
 </section>
 <section id="cloudflare-configuration">
