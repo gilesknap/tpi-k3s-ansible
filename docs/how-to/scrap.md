@@ -35,9 +35,9 @@ cannot reach `/mcp` through this design.
 
 :::{warning}
 The `/mcp` Ingress is gated by `mcp_ingress_enabled` in
-`kubernetes-services/templates/scrap.yaml` and defaults to `false`. Set it to
-`true` only in the same change that bumps the scrap chart `targetRevision` to
-a release adding `SCRAP_MCP_TOKEN` bearer auth. Until then Cloudflare would be
+`kubernetes-services/templates/scrap.yaml`. Keep it `true` only while the scrap
+chart `targetRevision` is a release with `SCRAP_MCP_TOKEN` bearer auth
+(0.2.0 or later) and `mcp.tokenSecret` is set. Until then Cloudflare would be
 the only protection on `/mcp`, and ingress-nginx is reachable directly (LAN or
 split DNS) bypassing Cloudflare.
 :::
@@ -58,8 +58,9 @@ in the cluster can reach the pod or forge identity headers.
 3. Commit, then let ArgoCD sync. Do this only after step 2: until the
    SealedSecret exists the pod sits in `CreateContainerConfigError` because
    it references the missing `scrap-secrets` Secret.
-4. Later, when a scrap release with `SCRAP_MCP_TOKEN` is available, bump
-   `targetRevision` and set `mcp_ingress_enabled: true` together.
+4. For `/mcp`, seal `SCRAP_MCP_TOKEN` into the same Secret, point
+   `mcp.tokenSecret` at it and set `mcp_ingress_enabled: true`. Use a scrap
+   release of 0.2.0 or later.
 
 ## Cloudflare configuration
 

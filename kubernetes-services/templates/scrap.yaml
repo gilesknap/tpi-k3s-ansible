@@ -15,7 +15,7 @@ spec:
     # pinned to a release tag (chart version == app version == image tag).
     # https://github.com/gilesknap/scrap/blob/main/charts/scrap/values.yaml
     - repoURL: https://github.com/gilesknap/scrap
-      targetRevision: 0.1.0
+      targetRevision: 0.2.0
       path: charts/scrap
       helm:
         releaseName: scrap
@@ -25,6 +25,13 @@ spec:
               value: https://scrap.{{ .Values.cluster_domain }}
             - name: TZ
               value: Europe/London
+
+          # /mcp requires a bearer token from the scrap-secrets SealedSecret
+          # (additions/scrap); the chart never takes the token as a value.
+          mcp:
+            tokenSecret:
+              name: scrap-secrets
+              key: SCRAP_MCP_TOKEN
 
           # Claude ingest (photo reading, text enrichment) via an API key in
           # the SealedSecret in additions/scrap.
@@ -52,7 +59,7 @@ spec:
                   matchLabels:
                     kubernetes.io/metadata.name: ingress-nginx
 
-    # /mcp-only Ingress (no oauth2-proxy, off by default) and the SealedSecret.
+    # /mcp-only Ingress (no oauth2-proxy) and the SealedSecret.
     - path: ./kubernetes-services/additions/scrap
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -60,10 +67,10 @@ spec:
         valuesObject:
           cluster_domain: {{ .Values.cluster_domain }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
-          # Keep false until targetRevision above is bumped to a scrap release
-          # that supports SCRAP_MCP_TOKEN (bearer auth). Without it /mcp would
+          # Only enable with a scrap release that supports SCRAP_MCP_TOKEN
+          # (>= 0.2.0) and mcp.tokenSecret set above; otherwise /mcp would
           # have only Cloudflare in front.
-          mcp_ingress_enabled: false
+          mcp_ingress_enabled: true
 
     # Public via the Cloudflare tunnel at scrap.<cluster_domain>. The PWA is
     # gated by Cloudflare Access plus oauth2-proxy; /mcp is split out into its

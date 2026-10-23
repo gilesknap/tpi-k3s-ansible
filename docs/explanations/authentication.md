@@ -127,7 +127,7 @@ details, and ArgoCD's TLS termination pattern.
 | Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
 | Alertmanager | Cloudflare Access | oauth2-proxy | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only) |
-| scrap | Cloudflare Access | oauth2-proxy (`/mcp`: separate Ingress, disabled until bearer-token release) | — (scrap has no login of its own) |
+| scrap | Cloudflare Access | oauth2-proxy (`/mcp`: separate Ingress, Cloudflare service token plus scrap bearer token) | — (scrap has no login of its own) |
 | Echo | Cloudflare Access | None | None (public test service) |
 
 ## Dex as shared OIDC provider
