@@ -52,12 +52,18 @@ spec:
                   matchLabels:
                     kubernetes.io/metadata.name: ingress-nginx
 
+    # /mcp-only Ingress (no oauth2-proxy) and the SealedSecret.
     - path: ./kubernetes-services/additions/scrap
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          cluster_domain: {{ .Values.cluster_domain }}
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
 
-    # Public via the Cloudflare tunnel at scrap.<cluster_domain>. Authentication
-    # is Cloudflare Access (see docs/how-to/scrap.md), not oauth2-proxy.
+    # Public via the Cloudflare tunnel at scrap.<cluster_domain>. The PWA is
+    # gated by Cloudflare Access plus oauth2-proxy; /mcp is split out into its
+    # own Ingress (additions/scrap) without oauth2-proxy.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -67,7 +73,7 @@ spec:
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: scrap
           service_port: 80
-          oauth2_proxy: false
+          oauth2_proxy: true
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           extra_annotations:
             nginx.ingress.kubernetes.io/proxy-body-size: 50m
