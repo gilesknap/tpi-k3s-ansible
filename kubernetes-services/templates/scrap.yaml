@@ -11,20 +11,16 @@ spec:
     namespace: scrap
   project: kubernetes
   sources:
-    # scrap personal knowledge store — Helm chart straight from the scrap repo,
-    # pinned to a release tag (chart version == app version == image tag).
+    # scrap personal knowledge store — the chart CI publishes to ghcr.io (OCI),
+    # pinned to a release (chart version == app version == image tag), so a
+    # release bump is just targetRevision.
     # https://github.com/gilesknap/scrap/blob/main/charts/scrap/values.yaml
-    - repoURL: https://github.com/gilesknap/scrap
+    - repoURL: ghcr.io/gilesknap/charts
+      chart: scrap
       targetRevision: 0.4.0
-      path: charts/scrap
       helm:
         releaseName: scrap
         valuesObject:
-          # The chart in git carries appVersion 0.0.0 (CI sets the real one only
-          # on the published chart), so pin the image to the release tag here.
-          image:
-            tag: 0.4.0
-
           extraEnv:
             - name: SCRAP_PUBLIC_URL
               value: https://scrap.{{ .Values.cluster_domain }}
