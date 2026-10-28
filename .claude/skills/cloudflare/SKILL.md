@@ -13,8 +13,7 @@ description: Cloudflare Tunnel and Access configuration for exposing K3s service
 ## Exposed Services
 Services exposed via tunnel: grafana, headlamp, open-webui, oauth2-proxy, argocd, echo, minecraft
 - `mc.<domain>` (Minecraft game port) is deliberately NOT a tunnel route — it is a
-  DNS-only A record on the VPS relay's public IP (`additions/vps-relay/`, needed
-  behind CGNAT), or on the WAN IP via the DDNS CronJob in `additions/minecraft/`
+  DNS-only A record on the VPS relay's public IP (`additions/vps-relay/`)
 
 ## Gotchas
 - Tunnel hostname config is managed in Cloudflare dashboard — NOT in this repo

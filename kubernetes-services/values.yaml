@@ -137,24 +137,24 @@ minecraft:
   # nfs.cluster_share_path. Both paths use nfs.server.
   store_subdir: minecraft
   # Players connect to <dns_name>.<cluster_domain>:<port>. This is a
-  # DNS-only (grey-cloud) record pointing at the VPS relay's public IP, or
-  # at the WAN IP with a router forward — it must NOT be a Cloudflare
+  # DNS-only (grey-cloud) record pointing at the VPS relay's public IP —
+  # it must NOT be a Cloudflare
   # tunnel route, because the tunnel only carries HTTP(S).
   dns_name: mc
   worlds:
     # All worlds are pinned to this node; the vps_relay `minecraft` forward
-    # (or a router port-forward) targets its LAN IP. Default matches this
+    # targets its LAN IP. Default matches this
     # cluster's nuc2.
     node: nuc2
     # NodePort range for game ports (20 slots), inclusive. Must sit inside
     # the k3s NodePort range (30000-32767) and match the vps_relay
-    # `minecraft` forward (or the router forward).
+    # `minecraft` forward.
     port_min: 30565
     port_max: 30584
     # Per-world RCON NodePorts (one each) for direct LAN clients such as
     # mciwb: `127.0.0.1:<port>` on the world node, `<node-ip>:<port>` from
-    # the LAN. Plain-text RCON: NEVER add this range to vps_relay.forwards or
-    # a router forward. Must not overlap port_min-port_max.
+    # the LAN. Plain-text RCON: NEVER add this range to vps_relay.forwards.
+    # Must not overlap port_min-port_max.
     rcon_port_min: 30600
     rcon_port_max: 30619
     # Sources allowed to reach world RCON (port 25575) through the dashboard
@@ -172,14 +172,6 @@ minecraft:
           - 192.168.1.83/32   # node03
           - 192.168.1.84/32   # node04
       - cidr: 192.168.0.0/24  # nuc2's second LAN
-  # In-cluster DDNS CronJob that keeps <dns_name>.<cluster_domain> pointed at
-  # the current WAN IP — only for a router forward; the VPS relay's IP is
-  # static, and behind CGNAT the WAN IP is unreachable anyway. Set to true
-  # AFTER committing the sealed Cloudflare API token
-  # (additions/minecraft/templates/cloudflare-ddns-secret.yaml) — see
-  # docs/how-to/minecraft.md.
-  ddns:
-    enabled: false
 # VPS relay — publishes chosen cluster ports on a VPS's fixed public IP, for
 # homes behind CGNAT or that should not expose their own IP. frpc in the
 # `vps-relay` namespace dials frps on the VPS over the tailnet (through a

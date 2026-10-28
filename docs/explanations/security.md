@@ -34,7 +34,7 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 | Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + token | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only; actions logged by email) |
-| Minecraft game ports | — (DNS-only; VPS relay or router port-forward) | None | Minecraft `online-mode` + per-world whitelist |
+| Minecraft game ports | — (DNS-only; VPS relay) | None | Minecraft `online-mode` + per-world whitelist |
 | Echo | Cloudflare Access | None | None (public test) |
 | RKLlama | — | None | Internal API (fronted by Open WebUI) |
 

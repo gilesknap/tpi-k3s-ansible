@@ -108,17 +108,6 @@ else
     echo "Skipping: alertmanager-slack-secret (not in JSON)"
 fi
 
-# 9. cloudflare-ddns-token (minecraft) — optional, only if present in JSON
-if has_secret cloudflare-ddns-token minecraft; then
-    echo "Sealing: cloudflare-ddns-token..."
-    kubectl create secret generic cloudflare-ddns-token --namespace=minecraft \
-        --from-literal=api-token="$(get_key cloudflare-ddns-token minecraft api-token)" \
-        --dry-run=client -o yaml | seal_to "$BASE/minecraft/templates/cloudflare-ddns-secret.yaml"
-    echo "  -> $BASE/minecraft/templates/cloudflare-ddns-secret.yaml"
-else
-    echo "Skipping: cloudflare-ddns-token (not in JSON)"
-fi
-
 # 10. vps-relay-credentials (vps-relay) — optional, only if present in JSON
 if has_secret vps-relay-credentials vps-relay; then
     echo "Sealing: vps-relay-credentials..."

@@ -235,7 +235,7 @@ Commit and push. ArgoCD creates the `vps-relay` Application and namespace.
 
 Create an `A` record for the public name (for example `mc.<domain>`) with
 the VPS's public IP and the **DNS only** (grey cloud) proxy status. The
-address is static, so no DDNS is needed. Cloudflare's proxy only carries
+address is static. Cloudflare's proxy only carries
 HTTP(S), so the record must not be proxied.
 
 ## Step 7: Verify
