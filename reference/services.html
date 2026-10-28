@@ -472,8 +472,7 @@ workloads you add. Useful as a standalone observability cluster.</p>
 <p>An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.</p>
 <p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), plus either
-the VPS relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>) or a router port-forward with the
-optional DDNS CronJob.</p>
+the VPS relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>).</p>
 <p><strong>Hardware prerequisites:</strong></p>
 <ul class="simple">
 <li><p>One node to host every world (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default). Each world
@@ -487,10 +486,8 @@ see <a class="reference internal" href="../how-to/nas-setup.html"><span class="d
 </ul>
 <p><strong>Other prerequisites:</strong></p>
 <ul class="simple">
-<li><p>Behind CGNAT: a VPS on your tailnet running frps (see <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>)</p></li>
-<li><p>Otherwise: a router port-forward of TCP <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> to the pinned
-node, and a scoped Cloudflare API token for the DDNS record
-(see <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
+<li><p>A VPS on your tailnet running frps (see <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> and
+<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
 </ul>
 </section>
 <section id="full-stack-everything">
@@ -752,15 +749,6 @@ one <a class="reference external" href="https://github.com/itzg/minecraft-server
 Helm release per world in the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> namespace, each with a dynamic
 <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> PVC and a NodePort from <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code>, pinned to one node.
 Protected by oauth2-proxy (admin-only, same as Headlamp).</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/minecraft/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/cloudflare-ddns-cronjob.yaml</span></code> — DDNS CronJob
-(<a class="reference external" href="https://github.com/favonia/cloudflare-ddns">favonia/cloudflare-ddns</a>,
-pinned to <code class="docutils literal notranslate"><span class="pre">1.17.1</span></code>) that keeps the DNS-only <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code> A record on the
-current WAN IP; off until <code class="docutils literal notranslate"><span class="pre">minecraft.ddns.enabled</span></code> is set</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/cloudflare-ddns-secret.yaml</span></code> — SealedSecret for its scoped
-Cloudflare token (created by you; not shipped)</p></li>
-</ul>
 <p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
 </section>
 <section id="scrap">
