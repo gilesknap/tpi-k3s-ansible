@@ -90,7 +90,7 @@ If the secret does not exist (first-ever build), skip this step.
 ### 1c. Collect external credentials
 
 Export the external credentials that cannot be generated (six required,
-plus the optional Slack webhook, Minecraft DDNS token and VPS relay
+plus the optional Slack webhook and VPS relay
 credentials). Run this while the cluster is still up:
 
 ```bash

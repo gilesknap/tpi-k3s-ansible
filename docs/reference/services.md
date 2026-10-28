@@ -83,8 +83,7 @@ An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.
 
 **Install:** Minecraft dashboard (`enable_minecraft: true`), plus either
-the VPS relay (`enable_vps_relay: true`) or a router port-forward with the
-optional DDNS CronJob.
+the VPS relay (`enable_vps_relay: true`).
 
 **Hardware prerequisites:**
 
@@ -99,10 +98,8 @@ optional DDNS CronJob.
 
 **Other prerequisites:**
 
-- Behind CGNAT: a VPS on your tailnet running frps (see {doc}`/how-to/vps-relay`)
-- Otherwise: a router port-forward of TCP `30565`–`30584` to the pinned
-  node, and a scoped Cloudflare API token for the DDNS record
-  (see {doc}`/how-to/minecraft`)
+- A VPS on your tailnet running frps (see {doc}`/how-to/vps-relay` and
+  {doc}`/how-to/minecraft`)
 
 ### Full stack — everything
 
@@ -236,14 +233,6 @@ one [itzg Minecraft](https://github.com/itzg/minecraft-server-charts)
 Helm release per world in the `minecraft` namespace, each with a dynamic
 `nfs-rwx` PVC and a NodePort from `30565`–`30584`, pinned to one node.
 Protected by oauth2-proxy (admin-only, same as Headlamp).
-
-**Additional manifests:** `additions/minecraft/`
-- `templates/cloudflare-ddns-cronjob.yaml` — DDNS CronJob
-  ([favonia/cloudflare-ddns](https://github.com/favonia/cloudflare-ddns),
-  pinned to `1.17.1`) that keeps the DNS-only `mc.<domain>` A record on the
-  current WAN IP; off until `minecraft.ddns.enabled` is set
-- `templates/cloudflare-ddns-secret.yaml` — SealedSecret for its scoped
-  Cloudflare token (created by you; not shipped)
 
 See {doc}`/how-to/minecraft` for setup.
 

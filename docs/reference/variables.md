@@ -98,12 +98,11 @@ ansible-playbook pb_all.yml \
 | `minecraft.chart_version` | `0.2.0` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
 | `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
-| `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>`; also the DDNS record |
-| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the relay or router port-forward target |
+| `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>` |
+| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the VPS relay forward target |
 | `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
 | `minecraft.worlds.rcon_port_min` / `rcon_port_max` | `30600` / `30619` | Inclusive NodePort range for per-world RCON (LAN only; never relay it) |
 | `minecraft.worlds.rcon_allowed_cidrs` | LAN CIDRs | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`) |
-| `minecraft.ddns.enabled` | `false` | Run the DDNS CronJob; needs the `cloudflare-ddns-token` SealedSecret |
 | `enable_vps_relay` | `false` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
 | `vps_relay.vps_tailnet_host` | *(tailnet IP or name)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
 | `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |

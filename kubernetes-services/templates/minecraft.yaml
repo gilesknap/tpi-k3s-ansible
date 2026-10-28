@@ -47,18 +47,7 @@ spec:
             rconAllowedCidrs:
               {{- toYaml .Values.minecraft.worlds.rcon_allowed_cidrs | nindent 14 }}
 
-    # Source 2: DDNS CronJob for the game hostname (+ its SealedSecret once
-    # created). Renders nothing while minecraft.ddns.enabled is false.
-    - path: ./kubernetes-services/additions/minecraft
-      repoURL: {{ .Values.repo_remote }}
-      targetRevision: {{ .Values.repo_branch }}
-      helm:
-        valuesObject:
-          ddns:
-            enabled: {{ .Values.minecraft.ddns.enabled }}
-            domain: {{ printf "%s.%s" .Values.minecraft.dns_name .Values.cluster_domain | quote }}
-
-    # Source 3: dashboard ingress — admin-only via oauth2-proxy, like Headlamp.
+    # Source 2: dashboard ingress — admin-only via oauth2-proxy, like Headlamp.
     # The app does no auth itself; it logs X-Auth-Request-Email per action.
     # oauth2_proxy is hard-wired on (not tied to enable_oauth2_proxy as
     # Headlamp is): with no proxy the ingress fails closed instead of
