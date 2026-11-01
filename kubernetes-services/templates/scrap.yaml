@@ -62,7 +62,39 @@ spec:
                   matchLabels:
                     kubernetes.io/metadata.name: ingress-nginx
 
-    # /mcp-only Ingress (no oauth2-proxy) and the SealedSecret.
+          # Public pages: a static site of the pages marked Public, served at
+          # pages.<cluster_domain> from the scrap-public namespace (created in
+          # additions/scrap, with the upload token SealedSecret in both
+          # namespaces). No oauth2-proxy: it is public, and Cloudflare Access
+          # needs a Bypass application for the host (docs/how-to/scrap.md).
+          public:
+            enabled: true
+            site: https://pages.{{ .Values.cluster_domain }}
+            # The namespace comes from additions/scrap, not the chart, so
+            # turning public off does not delete it and the token Secret in it.
+            createNamespace: false
+            tokenSecret:
+              name: scrap-publish
+              key: token
+            ingress:
+              className: nginx
+              annotations:
+                nginx.ingress.kubernetes.io/ssl-redirect: {{ if .Values.enable_cloudflare_tunnel }}"false"{{ else }}"true"{{ end }}
+              hosts:
+                - pages.{{ .Values.cluster_domain }}
+              tls:
+                - hosts:
+                    - pages.{{ .Values.cluster_domain }}
+            # Only ingress-nginx may reach nginx; the receiver is open to
+            # scrap's pods alone, and the namespace has no egress.
+            networkPolicy:
+              webFrom:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: ingress-nginx
+
+    # /mcp-only Ingress (no oauth2-proxy), the SealedSecrets and the
+    # scrap-public namespace.
     - path: ./kubernetes-services/additions/scrap
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
