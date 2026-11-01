@@ -434,6 +434,9 @@ volume, a nightly backup CronJob and Claude ingest (enabled in this deployment).
 (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>), disabled by default (see below).</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">local_storage.scrap</span></code> volume and a <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry for the data
 directory.</p></li>
+<li><p>Public pages: the chart’s <code class="docutils literal notranslate"><span class="pre">public</span></code> section serves the pages marked Public
+as a static site at <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code>, from its own <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace
+(see <a class="reference internal" href="#public-pages">Public pages</a>).</p></li>
 </ul>
 <p>scrap has no login of its own, so access control is layered in front of it.</p>
 <section id="authentication-layers">
@@ -453,6 +456,10 @@ directory.</p></li>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
 <td><p>Cloudflare Access service token (<code class="docutils literal notranslate"><span class="pre">CF-Access-Client-Id</span></code> / <code class="docutils literal notranslate"><span class="pre">CF-Access-Client-Secret</span></code> headers)</p></td>
 <td><p>scrap bearer token</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code></p></td>
+<td><p>None: a Cloudflare Access <strong>Bypass</strong> application, as the site is public</p></td>
+<td><p>None: static files only, nothing can reach scrap</p></td>
 </tr>
 </tbody>
 </table>
@@ -511,6 +518,55 @@ Service Auth policy and a service token. Store the token safely.</p></li>
 <li><p>Confirm the more specific application wins for <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>.</p></li>
 </ol>
 </section>
+<section id="public-pages">
+<h2>Public pages<a class="headerlink" href="#public-pages" title="Link to this heading">#</a></h2>
+<p>scrap can publish the pages you mark Public to a static site at
+<code class="docutils literal notranslate"><span class="pre">https://pages.&lt;domain&gt;</span></code>, open to anyone. The scrap chart’s <code class="docutils literal notranslate"><span class="pre">public</span></code> section
+(in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>) runs it in a namespace of its
+own, <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>: one pod with nginx, which serves the site, and an upload
+receiver that scrap pushes each public page to. Nothing on the public side can
+reach scrap. See the scrap
+<a class="reference external" href="https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#public-pages">deployment guide</a>
+for the design.</p>
+<p>This repository provides:</p>
+<ul class="simple">
+<li><p>the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace (<code class="docutils literal notranslate"><span class="pre">additions/scrap/templates/public-namespace.yaml</span></code>),
+labelled Pod Security <code class="docutils literal notranslate"><span class="pre">restricted</span></code>. The chart’s <code class="docutils literal notranslate"><span class="pre">public.createNamespace</span></code> is
+left <code class="docutils literal notranslate"><span class="pre">false</span></code>, and Argo CD’s <code class="docutils literal notranslate"><span class="pre">CreateNamespace=true</span></code> creates only the
+Application’s own namespace (<code class="docutils literal notranslate"><span class="pre">scrap</span></code>), so the namespace is a manifest here;</p></li>
+<li><p>the upload token, a SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-publish</span></code> (key <code class="docutils literal notranslate"><span class="pre">token</span></code>) sealed
+<strong>twice</strong>, once for each namespace, because a pod reads only its own
+namespace’s Secrets: <code class="docutils literal notranslate"><span class="pre">scrap-publish-secret.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">scrap</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">scrap-public-publish-secret.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>). Both must hold the same
+token; <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/README.md</span></code> has the command that
+seals a new one into both;</p></li>
+<li><p>an Ingress for <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> (the chart’s <code class="docutils literal notranslate"><span class="pre">public.ingress</span></code>) on the
+<code class="docutils literal notranslate"><span class="pre">nginx</span></code> class with the wildcard certificate, <strong>without</strong> the oauth2-proxy
+annotations. Only nginx is on it; the receiver never is;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">public.networkPolicy.webFrom</span></code>, which admits only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>
+namespace to nginx. The chart’s NetworkPolicy admits only scrap’s pods to
+the receiver, and denies all egress from the namespace.</p></li>
+</ul>
+<p>The image is <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/scrap-public</span></code>; its package must be public on
+GitHub (or the cluster given a pull secret), otherwise the pod cannot pull it.</p>
+<p>The site is held in an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, so it starts empty when the pod moves;
+scrap checks the receiver’s manifest at start and every 10 minutes and pushes
+what is missing.</p>
+<section id="cloudflare-for-the-public-site">
+<h3>Cloudflare for the public site<a class="headerlink" href="#cloudflare-for-the-public-site" title="Link to this heading">#</a></h3>
+<p>The wildcard Access application covers every subdomain, so without more
+configuration readers of <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> meet a login page. In the
+Cloudflare dashboard:</p>
+<ol class="arabic simple">
+<li><p>Add a public hostname <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> on the tunnel pointing at
+ingress-nginx, as for <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code> (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
+<li><p>Add an Access application for <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> with a policy whose Action
+is <strong>Bypass</strong> and Include <strong>Everyone</strong>, as in
+<a class="reference internal" href="cloudflare-web-tunnel.html#bypass-application-for-api-endpoints"><span class="std std-ref">Bypass application for API endpoints</span></a>.
+The more specific application takes precedence over the wildcard.</p></li>
+</ol>
+</section>
+</section>
 <section id="notes-on-the-unauthenticated-path">
 <h2>Notes on the unauthenticated path<a class="headerlink" href="#notes-on-the-unauthenticated-path" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -540,6 +596,17 @@ header to trust.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code> without the Cloudflare headers is refused at the edge; with them but
 without the scrap token it returns 401; with both it works.</p></li>
 <li><p>A capture from the phone appears, and the nightly backup CronJob completes.</p></li>
+</ul>
+<p>For public pages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap-public<span class="w"> </span>get<span class="w"> </span>pods,ingress,networkpolicy,secret
+</pre></div>
+</div>
+<p>From outside your private network:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">https://pages.&lt;domain&gt;/</span></code> returns 200, with no Cloudflare Access redirect.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">https://pages.&lt;domain&gt;/v1/manifest</span></code> returns 404: the receiver is not on
+the Ingress.</p></li>
+<li><p>In scrap, <code class="docutils literal notranslate"><span class="pre">/api/health</span></code> shows <code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">true</span></code> in its <code class="docutils literal notranslate"><span class="pre">publish</span></code> block.</p></li>
 </ul>
 </section>
 </section>
@@ -594,6 +661,10 @@ without the scrap token it returns 401; with both it works.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication-layers">Authentication layers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy">Deploy</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-configuration">Cloudflare configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#public-pages">Public pages</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-for-the-public-site">Cloudflare for the public site</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notes-on-the-unauthenticated-path">Notes on the unauthenticated path</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify">Verify</a></li>
 </ul>

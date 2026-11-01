@@ -426,7 +426,8 @@
 <p>This page explains Kubernetes NetworkPolicies and how they could be applied
 to this cluster. NetworkPolicies are <strong>not deployed</strong> by default because
 the maintenance overhead outweighs the benefit for a single-admin homelab. The one exception is scrap, whose chart ships a NetworkPolicy
-admitting only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> (see <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a>).</p>
+admitting only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, and a second one for its public pages site in
+the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace (see <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a>).</p>
 <section id="what-are-networkpolicies">
 <h2>What are NetworkPolicies?<a class="headerlink" href="#what-are-networkpolicies" title="Link to this heading">#</a></h2>
 <p>NetworkPolicies are Kubernetes resources that control pod-to-pod and
@@ -500,6 +501,16 @@ would be:</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 <td><p>80</p></td>
 <td><p>Only allowed source; scrap ships its own NetworkPolicy (see <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> (nginx)</p></td>
+<td><p>8080</p></td>
+<td><p>The public pages site at <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code>; only allowed source (<code class="docutils literal notranslate"><span class="pre">public.networkPolicy.webFrom</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code> (scrap’s pod)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> (receiver)</p></td>
+<td><p>8081</p></td>
+<td><p>scrap pushes public pages; only allowed source. The namespace has no egress at all</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rkllama</span></code></p></td>
