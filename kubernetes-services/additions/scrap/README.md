@@ -46,4 +46,3 @@ Commit both files together, then restart both pods after the sync
 (`kubectl -n scrap rollout restart deploy/scrap` and
 `kubectl -n scrap-public rollout restart deploy/scrap-public`), since each reads
 the token at start.
-
