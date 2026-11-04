@@ -63,7 +63,7 @@ wrong is cheap.
 - All Helm/ArgoCD values: `kubernetes-services/values.yaml`
 - ArgoCD app templates: `kubernetes-services/templates/`
 - Extra manifests: `kubernetes-services/additions/` (incl. `ingress/` sub-chart)
-- SSH to nodes: `ssh ansible@<node>` (not root)
+- SSH to nodes: `ssh ansible@<node>` (not root); inside the sandbox add `-i /root/.config/claude-ssh/id_ed25519` (ansible: `--private-key`), as nothing passes that key automatically
 - ArgoCD namespace: `argo-cd` (hyphenated, not `argocd`)
 - kubectl works in the devcontainer — never SSH to nodes for kubectl
 
