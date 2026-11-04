@@ -27,7 +27,7 @@ Ask the user:
 
 3. **What is the node's intended role?**
    - General worker (default)
-   - GPU compute (for llama.cpp)
+   - GPU compute
    - Additional storage node
    - Dedicated x86 node (for amd64-only workloads)
 
@@ -158,8 +158,7 @@ replicas (the default for multi-node clusters).
 If the new node enables features that weren't previously available, inform the
 user:
 
-- **First GPU node added** → llama.cpp is now possible
-- **First RK1 node added** → RKLLama is now possible
+- **First GPU node added** → GPU workloads are now possible
 - **Third node added** → Longhorn now has full 3-replica redundancy
 
 Point the user to the relevant how-to guide or suggest running

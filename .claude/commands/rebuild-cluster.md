@@ -1,28 +1,28 @@
 # Rebuild Cluster
 
 Decommission and rebuild the K3s cluster from scratch, validating the
-bootstrap path a new user would follow. NFS-backed data (LLM models,
-NFS backup targets) and **local PV data under
+bootstrap path a new user would follow. NFS-backed data (NFS backup
+targets) and **local PV data under
 `/home/k8s-data` (nuc2) and `/var/lib/k8s-data/*` (RK1s) are preserved
 by default** — stateful apps come back with their data intact because
 the rebuild re-binds the same static local-nvme PVs to the same PVCs.
 
 ## WARNING — DATA PRESERVATION MODEL
 
-Default behaviour: **local PV data is preserved.** Grafana sqlite,
-Prometheus TSDB, and Open WebUI sqlite all live on on-disk directories
+Default behaviour: **local PV data is preserved.** Grafana sqlite and
+Prometheus TSDB live on on-disk directories
 that `pb_decommission.yml` does NOT touch:
-- `/var/lib/k8s-data/{grafana,prometheus,open-webui}` (RK1s)
-- `/home/k8s-data/*` (nuc2) — currently unused by any workload
+- `/var/lib/k8s-data/{grafana,prometheus}` (RK1s)
+- `/home/k8s-data/*` (nuc2) — scrap
 
-NFS-backed data on the NAS (LLM models, nightly
+NFS-backed data on the NAS (nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
 preserved — Ansible never touches the NAS.
 
 **Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
 decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`
 as well. Use only for a deliberate fresh start; after this,
-Grafana/Prometheus/Open WebUI come up empty.
+Grafana/Prometheus come up empty.
 
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
@@ -31,8 +31,8 @@ explicitly requests a clean-slate wipe in the prompt arguments.
 
 Before the FIRST rebuild on this plan, the user must run
 `docs/how-to/nas-setup.md` on the NAS by hand. This creates
-`/bigdisk/k8s-cluster/` with the `models` and `backups/*` subtrees
-that rkllama, llamacpp, and the backup CronJobs all mount. **This command does NOT touch the NAS** —
+`/bigdisk/k8s-cluster/` with the `backups/*` subtree
+that the backup CronJobs mount. **This command does NOT touch the NAS** —
 Ansible has zero trust boundary with it. If the setup has already been
 done (check with `showmount -e <nas>`), no action is needed.
 
@@ -269,7 +269,6 @@ secrets were re-sealed will have stale values and OAuth will fail with
 
 ```bash
 just restart-dex
-kubectl rollout restart statefulset open-webui -n open-webui
 ```
 
 ### 4d. GPU node setup
@@ -327,7 +326,7 @@ read the last few notifications to identify which check is failing,
 then consult the troubleshooting steps below.
 
 Do not proceed until all apps are Healthy — including
-`nvidia-device-plugin` and `llamacpp` (if stuck, see Phase 4d).
+`nvidia-device-plugin` (if stuck, see Phase 4d).
 
 If any SealedSecrets show `False` with "no key could decrypt":
 1. ArgoCD may have synced old sealed secrets from the wrong branch.
@@ -353,7 +352,7 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 - **Stateful pods Pending with "waiting for first consumer"** — the
   `local-nvme` StorageClass uses `WaitForFirstConsumer`. Pods can only
   schedule on the node that owns the PV: prometheus→node02,
-  grafana→node03, open-webui→node04. If a pod is
+  grafana→node03. If a pod is
   Pending, check that its target node is Ready and untainted.
 - **Stateful pods CrashLooping with permission denied on /data** —
   the on-disk UID/mode set by `k8s_data_dirs` does not match what the
@@ -375,7 +374,7 @@ Read `cluster_domain` from `group_vars/all.yml`. Test all service URLs:
 
 ```bash
 for url in https://echo.<domain> https://grafana.<domain> \
-           https://headlamp.<domain> https://open-webui.<domain> \
+           https://headlamp.<domain> \
            https://argocd-monitor.<domain> https://argocd.<domain>; do
   status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$url")
   echo "$url -> HTTP $status"
@@ -383,7 +382,7 @@ done
 ```
 
 Expected results:
-- `echo`, `argocd`, `open-webui`: HTTP 200 (no auth or own login page)
+- `echo`, `argocd`: HTTP 200 (no auth or own login page)
 - `grafana`: HTTP 302 (redirects to OAuth login)
 - `headlamp`: HTTP 302 (oauth2-proxy redirect)
 - `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)

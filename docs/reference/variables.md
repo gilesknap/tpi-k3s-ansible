@@ -85,15 +85,8 @@ ansible-playbook pb_all.yml \
 | `enable_oauth2_proxy` | `false` | Enable OAuth2 proxy authentication on protected services. Set `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
 | `enable_cloudflare_tunnel` | `false` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. Set `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
 | `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
-| `rkllama.nfs.server` | *(your NFS server IP)* | NFS server for RKLLama model storage |
-| `rkllama.nfs.path` | *(your NFS export path)* | Exported NFS path for RKLLama models (`.rkllm` files) |
-| `llamacpp.nfs.server` | *(your NFS server IP)* | NFS server for llama.cpp model storage |
-| `llamacpp.nfs.path` | *(your NFS export path)* | Exported NFS path for llama.cpp models (GGUF files — keep separate from rkllama) |
-| `llamacpp.model.file` | *(GGUF filename)* | Filename of the GGUF model to load at startup |
-| `llamacpp.model.gpuLayers` | `99` | Transformer layers to offload to GPU (`99` = all) |
-| `llamacpp.model.contextSize` | `8192` | KV-cache context length in tokens |
-| `llamacpp.model.parallel` | `4` | Concurrent request slots |
-| `llamacpp.model.memoryLimit` | `24Gi` | Kubernetes memory limit for the container |
+| `nfs.server` | *(your NFS server IP)* | NFS server for the backup and Minecraft volumes |
+| `nfs.cluster_share_path` | *(your NFS export path)* | Cluster-owned directory on the NFS export (see {doc}`/how-to/nas-setup`) |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
 | `minecraft.chart_version` | `0.2.0` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
@@ -111,8 +104,8 @@ ansible-playbook pb_all.yml \
 The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
 is tracking. Each branch must set this to match its own branch name.
 
-The `rkllama.nfs.*` values are the **single source of truth** for NFS configuration.
-ArgoCD injects them directly into the rkllama Helm chart; no corresponding Ansible
+The `nfs.*` values are the **single source of truth** for NFS configuration.
+ArgoCD injects them directly into the Helm charts that use them; no corresponding Ansible
 variable is needed because Ansible does not create the PersistentVolume.
 
 ## Environment variables

@@ -31,12 +31,10 @@ Dex OIDC or oauth2-proxy (ingress auth), and per-service RBAC. See
 | ArgoCD | Cloudflare Access | Dex (native OIDC) | email → admin / readonly |
 | argocd-monitor | Cloudflare Access | Dex (sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → Admin / Viewer |
-| Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + token | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only; actions logged by email) |
 | Minecraft game ports | — (DNS-only; VPS relay) | None | Minecraft `online-mode` + per-world whitelist |
 | Echo | Cloudflare Access | None | None (public test) |
-| RKLlama | — | None | Internal API (fronted by Open WebUI) |
 
 See {doc}`/how-to/oauth-setup` for setup instructions.
 
@@ -53,9 +51,8 @@ Current SealedSecrets:
 
 - `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` — Cloudflare tunnel token
 - `kubernetes-services/additions/cert-manager/templates/cloudflare-api-token-secret.yaml` — DNS API token
-- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — GitHub connector + all 5 Dex client secrets
+- `kubernetes-services/additions/argocd/argocd-dex-secret.yaml` — GitHub connector + all 4 Dex client secrets
 - `kubernetes-services/additions/grafana/grafana-oauth-secret.yaml` — Grafana's Dex client secret
-- `kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml` — Open WebUI's Dex client secret
 - `kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml` — argocd-monitor Dex client + cookie secret
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — GitHub OAuth App credentials + cookie secret
 - `kubernetes-services/additions/vps-relay/templates/vps-relay-secret.yaml` — Tailscale OAuth client secret + frp token (optional VPS relay)

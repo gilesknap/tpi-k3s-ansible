@@ -20,8 +20,6 @@ how-to/nas-setup
 :maxdepth: 1
 :caption: Optional Features
 
-how-to/rkllama-models
-how-to/llamacpp-models
 how-to/minecraft
 how-to/scrap
 how-to/vps-relay

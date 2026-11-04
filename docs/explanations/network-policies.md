@@ -67,8 +67,6 @@ would be:
 | `ingress-nginx` | `scrap` | 80 | Only allowed source; scrap ships its own NetworkPolicy (see {doc}`/how-to/scrap`) |
 | `ingress-nginx` | `scrap-public` (nginx) | 8080 | The public pages site at `pages.<domain>`; only allowed source (`public.networkPolicy.webFrom`) |
 | `scrap` (scrap's pod) | `scrap-public` (receiver) | 8081 | scrap pushes public pages; only allowed source. The namespace has no egress at all |
-| `open-webui` | `rkllama` | 8080 | LLM API |
-| `open-webui` | `llamacpp` | 8080 | LLM API |
 | `cert-manager` | external | 443 | ACME DNS-01 |
 | `cloudflared` | `ingress-nginx` | 80/443 | Tunnel traffic |
 | `argo-cd` | all namespaces | various | GitOps sync |

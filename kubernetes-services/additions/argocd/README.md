@@ -96,7 +96,6 @@ the need for separate GitHub OAuth Apps or oauth2-proxy on those services.
 | `argo-cd` | ArgoCD | Built-in Dex integration |
 | `argocd-monitor` | argocd-monitor | oauth2-proxy sidecar |
 | `grafana` | Grafana | `auth.generic_oauth` in `grafana.ini` |
-| `open-webui` | Open WebUI | `OPENID_PROVIDER_URL` env var |
 | `headlamp` | Headlamp | Active — native OIDC via K3s API server OIDC flags |
 
 Each service has its own SealedSecret containing the client secret.

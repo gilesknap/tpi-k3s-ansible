@@ -12,7 +12,7 @@ whichever tutorial you picked
 {doc}`/tutorials/getting-started-generic`, or
 {doc}`/tutorials/ai-guided-setup`). The tutorials walk the happy-path
 minimum; this guide covers the full set of options (storage mapping,
-per-node flags, service toggles, rkllama pinning, re-sealing).
+per-node flags, service toggles, re-sealing).
 :::
 
 ## The three files you must edit
@@ -56,7 +56,7 @@ Per-node variables that matter:
 - `root_dev` — set to migrate the OS to NVMe; omit for servers
   already on their target disk.
 - `nvidia_gpu_node: true` — enables the NVIDIA driver and container
-  toolkit on that node. Required for llama.cpp CUDA.
+  toolkit on that node. Required for GPU workloads.
 - `workstation: true` — applies a `NoSchedule` taint. Useful for
   machines that reboot unexpectedly (only tolerating workloads land
   there).
@@ -128,41 +128,27 @@ The `claim_namespace` and `claim_name` fields in `local_storage` are
 determined by upstream chart naming conventions — don't change them
 unless you also rename Helm releases.
 
-### 5. NFS share for backups and large models
+### 5. NFS share for backups
 
-Backup CronJobs and the rkllama/llamacpp model stores write to an NFS
+Backup CronJobs write to an NFS
 share on your NAS. In `kubernetes-services/values.yaml`:
 
 ```yaml
 nfs:
   server: <nas-ip>
   cluster_share_path: /<your-share>/k8s-cluster
-rkllama:
-  nfs:
-    server: <nas-ip>
-    path: /<your-share>/k8s-cluster/models
-  node: nodeX  # which RK1 hosts the rkllama daemonset
 ```
 
 Then run the one-time NAS setup runbook in {doc}`nas-setup`.
 
-### 6. Pin rkllama
-
-If you use rkllama, set:
-
-```yaml
-rkllama:
-  node: <RK1-with-32GB-RAM>
-```
-
-### 7. Re-seal secrets
+### 6. Re-seal secrets
 
 SealedSecrets are bound to the cluster's controller key, so the
 existing committed secrets won't decrypt on your cluster. After your
 first cluster bootstrap, follow {doc}`manage-sealed-secrets` to
 re-seal every secret with your cluster's key.
 
-### 8. (Optional) Disable services you don't want
+### 7. (Optional) Disable services you don't want
 
 Top-level toggles in `kubernetes-services/values.yaml`:
 
@@ -174,7 +160,7 @@ enable_cloudflare_tunnel: false  # if you don't expose services to the internet
 Whole-service Application templates can also be removed by deleting
 the corresponding file in `kubernetes-services/templates/`.
 
-### 9. (Optional) Customise the home page LAN links
+### 8. (Optional) Customise the home page LAN links
 
 The home page (`kubernetes-services/additions/home/templates/manifests.yaml`)
 hard-codes a couple of LAN-only service links (router, media server).

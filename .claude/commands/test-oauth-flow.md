@@ -74,7 +74,6 @@ Subsequent Dex services reuse the session.
 
 | Service | URL | Action | Logged-in indicator |
 |---------|-----|--------|---------------------|
-| Open WebUI | `https://open-webui.<cluster_domain>` | See note about scroll-jacking below | Chat interface |
 | ArgoCD Monitor | `https://argocd-monitor.<cluster_domain>` | Auto-redirects through sidecar oauth2-proxy -> Dex | HTML contains "argocd-monitor" |
 
 **3d. oauth2-proxy services:**
@@ -124,13 +123,6 @@ For each service:
 
 #### Known gotchas
 
-- **Open WebUI scroll-jacking** — the login page has a parallax animation.
-  Use JavaScript to click the button:
-  ```javascript
-  document.querySelectorAll('button').forEach(b => {
-    if (b.textContent.includes('GitHub')) b.click();
-  });
-  ```
 - **Cloudflare Access redirect** — some services may
   sit behind a Cloudflare Access app in addition to ingress oauth2-proxy.
   The non-incognito Chrome session usually has an existing
@@ -162,7 +154,6 @@ Return a summary table:
 | Echo           | PASS   | Echo response               |
 | ArgoCD         | PASS   | Applications dashboard      |
 | Grafana        | PASS   | Home page loaded            |
-| Open WebUI     | PASS   | Chat interface              |
 | ArgoCD Monitor | PASS   | Monitor page                |
 | Headlamp       | PASS   | Token login page            |
 | Longhorn       | PASS   | Dashboard loaded            |

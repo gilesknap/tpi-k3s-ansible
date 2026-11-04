@@ -33,28 +33,6 @@ TLS, and human login work:
 See {doc}`/how-to/oauth-setup` and {doc}`/how-to/cloudflare-tunnel` for the
 setup steps.
 
-### LLM-only — private ChatGPT
-
-Run local LLMs behind a ChatGPT-style web UI. No databases, no memory,
-no external APIs. This is the smallest useful deployment on a pure
-Turing Pi cluster.
-
-**Install:** RKLLama (*or* llama.cpp), Open WebUI.
-
-**Hardware prerequisites:**
-
-- **RKLLama** — one or more Rockchip RK1 nodes with NPUs (Turing Pi RK1 modules)
-- **llama.cpp** — one x86 node with an NVIDIA GPU (`nvidia_gpu_node: true` in `extra_nodes`)
-- **Open WebUI** — one x86 node (pinned to `node04` by default)
-
-Either backend works on its own — or run both and Open WebUI will merge
-them in a single model dropdown.
-
-**Storage prerequisites:**
-
-- An NFS share for model files (shared across LLM backends — see {doc}`/how-to/nas-setup`)
-- `/var/lib/k8s-data/open-webui` on the Open WebUI host (5Gi for chat history and user accounts)
-
 ### Monitoring-only — dashboards and alerts
 
 Metrics, dashboards, and Slack/email alerting for the cluster and any
@@ -109,9 +87,7 @@ hardware and want the full experience out of the box.
 **Minimum hardware:**
 
 - 2× x86 nodes for Prometheus and Grafana pinning (`node02`, `node03`)
-- 1× x86 node for Open WebUI (`node04`)
-- 1× RK1 *or* NVIDIA GPU node for LLM inference (at least one)
-- A NAS with two NFS exports: one for LLM model files, one for backups
+- A NAS with an NFS export for backups
 
 **Other prerequisites:**
 
@@ -130,10 +106,7 @@ hardware and want the full experience out of the box.
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
-| RKLlama | Helm chart (local) | 0.0.4 | `rkllama` | `rkllama.<domain>` | None | NPU-accelerated LLM server (Rockchip RK1) |
-| llama.cpp | Helm chart (local) | — | `llamacpp` | `llamacpp.<domain>` | — | CUDA-accelerated LLM server (NVIDIA GPU) |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| Open WebUI | `open-webui/open-webui` | 13.0.1 | `open-webui` | `open-webui.<domain>` | Dex (OIDC) | ChatGPT-style UI backed by RKLLama and/or llama.cpp |
 | scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
@@ -287,66 +260,6 @@ Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotati
 
 See {doc}`/how-to/oauth-setup` for configuration details.
 
-### RKLlama
-
-NPU-accelerated LLM inference server for Rockchip RK1 nodes. Runs as a DaemonSet on
-nodes labelled `node-type: rk1`. Requires privileged access to `/dev/rknpu`. Models
-are stored on an NFS PersistentVolume so they are shared across all RK1 nodes and
-persist outside the cluster. Image pinned to `0.0.4`. Startup probe allows up to 5
-minutes for model loading.
-
-**Helm chart:** `additions/rkllama/` (local chart, no external registry)
-- `templates/configmap.yaml` — CPU/NPU governor tuning script and nginx reverse-proxy config
-- `templates/daemonset.yaml` — Main workload (init + rkllama + nginx sidecar containers)
-- `templates/ingress.yaml` — Ingress for `rkllama.<domain>`
-- `templates/service.yaml` — ClusterIP Service round-robining across DaemonSet pods
-- `templates/pv.yaml` — NFS PersistentVolume (server/path from `values.yaml`)
-- `templates/pvc.yaml` — PersistentVolumeClaim bound to the NFS PV
-
-**NFS configuration** — edit `kubernetes-services/values.yaml` (the single source of truth):
-
-```yaml
-rkllama:
-  nfs:
-    server: 192.168.1.3   # your NAS IP
-    path: /bigdisk/LMModels  # your NFS export path
-```
-
-ArgoCD injects these values directly into the rkllama Helm chart. No other file needs
-changing (see [Variables Reference](variables.md)).
-
-### llama.cpp (CUDA)
-
-OpenAI-compatible LLM inference server using
-[llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA acceleration. Runs as
-a single-replica Deployment scheduled exclusively on nodes labelled
-`nvidia.com/gpu.present=true`. Requires an NVIDIA GPU node in `extra_nodes` with
-`nvidia_gpu_node: true` in the inventory. Image pinned to `server-cuda-b8172`.
-Startup probe allows up to 10 minutes for model loading.
-
-Security context drops all capabilities while retaining GPU access.
-
-Models are stored as GGUF files on an NFS PersistentVolume (a separate subdirectory
-from RKLLama — the two formats are incompatible). Exposes an OpenAI-compatible
-`/v1` API on port 8080, consumed by Open WebUI.
-
-**NFS and model configuration** — edit `kubernetes-services/values.yaml`:
-
-```yaml
-llamacpp:
-  nfs:
-    server: 192.168.1.3          # your NFS server IP
-    path: /bigdisk/LMModels/cuda # separate from rkllama — GGUF files only
-  model:
-    file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
-    gpuLayers: 99        # offload all layers to GPU
-    contextSize: 8192
-    parallel: 4
-    memoryLimit: "24Gi"
-```
-
-See {doc}`/how-to/llamacpp-models` for how to download models to the NFS share.
-
 ### NVIDIA device plugin
 
 DaemonSet that detects NVIDIA GPUs and advertises `nvidia.com/gpu` resources to the
@@ -358,29 +271,6 @@ resource on the node.
 Requires the NVIDIA container runtime to be configured in k3s's containerd. The
 `update_packages` role writes a `config.toml.tmpl` that sets the NVIDIA runtime as
 default and survives k3s-agent restarts.
-
-### Open WebUI
-
-ChatGPT-style web interface for interacting with LLMs. Authenticates via Dex
-(OIDC) with GitHub — emails in `admin_emails` get admin role, all other authenticated
-users get user role. Password login is disabled. Connects to both:
-
-- **RKLLama** (Ollama-compatible API) on the RK1 NPU — via `ollamaUrls`
-- **llama.cpp** (OpenAI-compatible API) on an NVIDIA GPU — via `openaiBaseApiUrl`
-
-Models from both backends appear merged in the model dropdown. Stores chat history
-and user accounts on a static `local-nvme` PV pinned to node04 (5Gi). Resource
-limits: 100m/256Mi request, 500m/1Gi limit.
-
-:::{note}
-Either backend is optional. The service works with just RKLLama (RK1 cluster),
-just llama.cpp (NVIDIA GPU node), or both simultaneously.
-:::
-
-RK1 models appear after being pulled
-via `rkllama-pull` (see {doc}`/how-to/rkllama-models`). CUDA models appear as soon
-as the GGUF file is present on the NFS share and llamacpp has loaded it
-(see {doc}`/how-to/llamacpp-models`).
 
 ### Sealed Secrets
 

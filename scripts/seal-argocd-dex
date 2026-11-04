@@ -12,7 +12,6 @@
 #   argocd      Re-derive argo-cd client secret from server.secretkey
 #   monitor     Rotate argocd-monitor client + cookie secrets
 #   grafana     Rotate grafana client secret
-#   open-webui  Rotate open-webui client secret
 #   slack       Re-seal alertmanager Slack webhook (standalone, not in argocd-dex-secret)
 #
 # The argo-cd client secret is auto-derived from server.secretkey so it
@@ -25,7 +24,6 @@ set -euo pipefail
 DEX_SECRET_FILE=kubernetes-services/additions/argocd/argocd-dex-secret.yaml
 MONITOR_SECRET_FILE=kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
 GRAFANA_SECRET_FILE=kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
-OPENWEBUI_SECRET_FILE=kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 SLACK_SECRET_FILE=kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
 
 # Read a dotted key from the running argocd-dex-secret (base64-decoded).
@@ -64,14 +62,13 @@ rand_hex32() {
 # Re-seal argocd-dex-secret. Any of the following variables that are unset
 # or empty are populated from the currently-running secret in the cluster:
 #   client_id client_secret argocd_client_secret
-#   monitor_secret grafana_secret openwebui_secret
+#   monitor_secret grafana_secret
 seal_dex_secret() {
     : "${client_id:=$(get_dex_key 'dex\.github\.clientID')}"
     : "${client_secret:=$(get_dex_key 'dex\.github\.clientSecret')}"
     : "${argocd_client_secret:=$(get_dex_key 'argo-cd\.clientSecret')}"
     : "${monitor_secret:=$(get_dex_key 'argocd-monitor\.clientSecret')}"
     : "${grafana_secret:=$(get_dex_key 'grafana\.clientSecret')}"
-    : "${openwebui_secret:=$(get_dex_key 'open-webui\.clientSecret')}"
 
     kubectl create secret generic argocd-dex-secret \
       --namespace argo-cd \
@@ -81,7 +78,6 @@ seal_dex_secret() {
       --from-literal=argocd.clientSecret="$argocd_client_secret" \
       --from-literal=argocd-monitor.clientSecret="$monitor_secret" \
       --from-literal=grafana.clientSecret="$grafana_secret" \
-      --from-literal=open-webui.clientSecret="$openwebui_secret" \
       --dry-run=client -o yaml | \
       yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
       seal_to "$DEX_SECRET_FILE"
@@ -112,16 +108,6 @@ seal_grafana_secret() {
     echo "Sealed: $GRAFANA_SECRET_FILE"
 }
 
-# Key must be client-secret (loaded via secretKeyRef)
-seal_openwebui_secret() {
-    : "${openwebui_secret:=$(rand_hex32)}"
-    kubectl create secret generic open-webui-oauth-secret \
-      --namespace open-webui \
-      --from-literal=client-secret="$openwebui_secret" \
-      --dry-run=client -o yaml | seal_to "$OPENWEBUI_SECRET_FILE"
-    echo "Sealed: $OPENWEBUI_SECRET_FILE"
-}
-
 # Re-seal alertmanager Slack webhook. Errors on blank input.
 seal_slack_secret() {
     local slack_webhook="${SLACK_WEBHOOK_URL:-}"
@@ -140,7 +126,7 @@ seal_slack_secret() {
 }
 
 usage() {
-    echo "Usage: $0 {github|argocd|monitor|grafana|open-webui|slack}" >&2
+    echo "Usage: $0 {github|argocd|monitor|grafana|slack}" >&2
     echo "Run '$0 help' for details." >&2
 }
 
@@ -169,17 +155,11 @@ case "$cmd" in
         seal_dex_secret
         seal_grafana_secret
         ;;
-    open-webui)
-        require_existing_dex_secret
-        openwebui_secret=$(rand_hex32)
-        seal_dex_secret
-        seal_openwebui_secret
-        ;;
     slack)
         seal_slack_secret
         ;;
     -h|--help|help)
-        sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "")

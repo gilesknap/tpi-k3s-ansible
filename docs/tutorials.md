@@ -10,7 +10,7 @@ they are the choices this repo made, and knowing *why* will save you
 from fighting the defaults later.
 
 **Static local-nvme PVs, one per stateful workload.** Each stateful
-service (Grafana, Prometheus, Open WebUI, …) gets a
+service (Grafana, Prometheus, …) gets a
 hand-declared `PersistentVolume` backed by a plain directory on a
 specific node — e.g. `/var/lib/k8s-data/grafana` on `node03`. The PV
 is pre-bound to its PVC via `claimRef` and pinned to its node via
@@ -33,8 +33,8 @@ NFS CronJobs give you off-cluster point-in-time restore.
 
 **Pod-to-node pinning is deliberate.** Because each stateful PV is
 tied to one node, the corresponding Deployment/StatefulSet must also
-land on that node. The existing pinning — `prometheus→node02`,
-`grafana→node03`, `open-webui→node04` — is
+land on that node. The existing pinning — `prometheus→node02` and
+`grafana→node03` — is
 not an accident, and new RWO `local-nvme` workloads need to pick
 their own host. This is called out in `CLAUDE.md` as a hard rule.
 

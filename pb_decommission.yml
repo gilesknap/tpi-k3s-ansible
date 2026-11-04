@@ -90,15 +90,6 @@
         - { kind: StatefulSet, name: prometheus-grafana-prometheus-kube-pr-prometheus }
       failed_when: false
 
-    - name: Scale down open-webui
-      kubernetes.core.k8s_scale:
-        api_version: apps/v1
-        kind: StatefulSet
-        name: open-webui
-        namespace: open-webui
-        replicas: 0
-      failed_when: false
-
     - name: Wait for pods to terminate
       ansible.builtin.pause:
         seconds: 30
@@ -113,7 +104,6 @@
       loop:
         - { ns: monitoring, name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0 }
         - { ns: monitoring, name: storage-grafana-prometheus-0 }
-        - { ns: open-webui, name: open-webui }
       failed_when: false
 
 # ---------------------------------------------------------------------------
@@ -174,7 +164,6 @@
         - ingress-nginx
         - monitoring
         - oauth2-proxy
-        - open-webui
       changed_when: true
       failed_when: false
 

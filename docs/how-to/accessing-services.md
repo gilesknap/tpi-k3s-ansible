@@ -17,7 +17,6 @@ commands work immediately after bootstrap with no additional setup.
 | Review ArgoCD app health history | [argocd-monitor](#argocd-monitor) |
 | View cluster metrics and dashboards | [Grafana](#grafana) |
 | Inspect pods, logs, and Kubernetes objects in a UI | [Headlamp (Kubernetes Dashboard)](#headlamp-kubernetes-dashboard) |
-| Chat with a local LLM | [Open WebUI (LLM Chat)](#open-webui-llm-chat) |
 | Verify ingress, TLS and request headers end-to-end | [Echo Test Service](#echo-test-service) |
 | Launch and manage Minecraft worlds | [Minecraft Dashboard](#minecraft-dashboard) |
 
@@ -83,28 +82,6 @@ kubectl create token headlamp -n headlamp --duration=24h
 ```
 
 Paste the token into the login page to access the cluster dashboard.
-
-## Open WebUI (LLM Chat)
-
-Via ingress: **https://open-webui.\<domain\>**
-
-Via port-forward:
-
-```bash
-kubectl port-forward svc/open-webui -n open-webui 8080:80
-# Open http://localhost:8080
-```
-
-Click the OAuth button to log in via GitHub (through Dex). Password login is
-disabled. Emails in the `oauth2_emails` list get admin access; others get the
-user role. Models appear in the dropdown once pulled — see {doc}`rkllama-models`
-or {doc}`llamacpp-models`.
-
-:::{note}
-RKLLama requires **RK1 compute modules** with the Rockchip NPU. llama.cpp requires
-an **NVIDIA GPU** node. The services will deploy on any cluster but inference needs
-the appropriate hardware.
-:::
 
 ## Minecraft Dashboard
 
