@@ -58,13 +58,13 @@ After the command completes, your cluster is running with all core services
 managed by ArgoCD. Claude will print next steps, but here is a summary:
 
 - **Pick which services to run** — see {doc}`/reference/services` for the
-  quick-start configurations (LLM-only, monitoring, full stack)
+  quick-start configurations (monitoring, full stack)
 - **Access services now** via port-forward — see {doc}`/how-to/accessing-services`
 - **Expose services to the internet** — follow {doc}`/how-to/cloudflare-tunnel`
 - **Add GitHub OAuth** — follow {doc}`/how-to/oauth-setup`
 - **Set up the NAS share for backups** — follow {doc}`/how-to/nas-setup`
 - **Tune anything `/bootstrap-cluster` didn't ask about** — per-node flags,
-  storage node mapping, service toggles, rkllama pinning — see
+  storage node mapping, service toggles — see
   {doc}`/how-to/fork-this-repo`
 
 ## Prefer a manual setup?

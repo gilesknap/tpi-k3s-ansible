@@ -24,12 +24,12 @@
   (ws03, nuc2, node01) are fine as labelled examples.
 - **Local PV data paths are sacred.** `/home/k8s-data/*` (nuc2) and
   `/var/lib/k8s-data/*` (RK1s) back the static `local-nvme` PVs that
-  carry Grafana/Prometheus/Open-WebUI state across rebuilds.
+  carry Grafana/Prometheus/scrap state across rebuilds.
   Do not wipe them. `pb_decommission.yml` preserves them by default;
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
   existing pinning is prometheus→node02, grafana→node03,
-  open-webui→node04. Each local PV in
+  scrap→nuc2. Each local PV in
   `additions/local-storage/` has `spec.nodeAffinity` matching its pod;
   a new workload needs its own PV + node choice, not a shared pool.
 - **Run `just check` before pushing** — it runs `ansible-lint` and
@@ -63,7 +63,7 @@ wrong is cheap.
 - All Helm/ArgoCD values: `kubernetes-services/values.yaml`
 - ArgoCD app templates: `kubernetes-services/templates/`
 - Extra manifests: `kubernetes-services/additions/` (incl. `ingress/` sub-chart)
-- SSH to nodes: `ssh ansible@<node>` (not root)
+- SSH to nodes: `ssh ansible@<node>` (not root); inside the sandbox add `-i /root/.config/claude-ssh/id_ed25519` (ansible: `--private-key`), as nothing passes that key automatically
 - ArgoCD namespace: `argo-cd` (hyphenated, not `argocd`)
 - kubectl works in the devcontainer — never SSH to nodes for kubectl
 

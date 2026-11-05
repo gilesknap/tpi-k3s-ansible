@@ -19,13 +19,10 @@ kubernetes-services/
 │   ├── grafana.yaml
 │   ├── ingress.yaml
 │   ├── kernel-settings.yaml
-│   ├── llamacpp.yaml
 │   ├── local-storage.yaml
 │   ├── minecraft.yaml      # Minecraft dashboard (OCI chart, optional)
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
-│   ├── open-webui.yaml
-│   ├── rkllama.yaml
 │   ├── sealed-secrets.yaml
 │   └── vps-relay.yaml      # frpc + Tailscale relay to a VPS (optional)
 └── additions/              # Extra manifests per service
@@ -36,10 +33,8 @@ kubernetes-services/
     ├── dashboard/          # RBAC for Headlamp
     ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
-    ├── llamacpp/           # NFS volume + GPU config
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
-    ├── rkllama/            # DaemonSet + ConfigMap + Ingress + Service
     └── vps-relay/          # Tailscale + frpc Deployment, generated frpc.toml
 ```
 
@@ -111,7 +106,7 @@ This avoids duplicating ingress boilerplate across services.
 
 ### Plain manifest services
 
-Some services (echo, cloudflared, rkllama) don't use external Helm charts — they
+Some services (echo, cloudflared) don't use external Helm charts — they
 deploy raw Kubernetes manifests directly from `additions/<service>/`. The ArgoCD
 Application simply points at the directory.
 

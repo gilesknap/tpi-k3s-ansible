@@ -38,9 +38,7 @@ If the hardware is absent, tell the user the feature is unavailable and why.
 
 | Feature | Requirement | Reason |
 |---------|-------------|--------|
-| **RKLLama** | At least one **RK1** node (`type: rk1`) | Needs Rockchip NPU (`/dev/rknpu`) |
-| **llama.cpp** | A node with **NVIDIA GPU** (`nvidia_gpu_node: true`) | Needs CUDA for inference |
-| **NFS storage** | Ask if user wants **rkllama, llamacpp, or backups** | NFS backs LLM models and the daily/weekly backup CronJobs |
+| **NFS storage** | Ask if user wants **backups** | NFS backs the daily/weekly backup CronJobs |
 
 ### Single-node cluster notes
 
@@ -81,14 +79,11 @@ which hardware-gated features can be offered.
 Only present features the hardware supports (see constraints above).
 
 7. **Control plane taint?** (skip for 1 node, offer for 2, default yes for 3+)
-8. **NFS server?** — Ask if the user wants rkllama, llamacpp, or any
+8. **NFS server?** — Ask if the user wants any
    backups. If yes: IP and the cluster share
    path on the NAS (e.g. `/bigdisk/k8s-cluster`).
 9. **OAuth2 proxy?** (yes/no, default: no — enable later)
 10. **Cloudflare tunnel?** (yes/no, default: no — enable later)
-11. **RKLLama?** — Only if RK1 nodes exist. If yes: which RK1 node hosts
-    the DaemonSet (pick one with ≥32 GB RAM — model files are large).
-12. **llama.cpp?** — Only if NVIDIA GPU node exists.
 
 ## Phase 2: Configure files
 
@@ -123,10 +118,7 @@ Based on answers, edit these files (read each before editing):
   hostname from `hosts.yml` AND the matching `k8s_data_dirs` entry.
   Leave `claim_namespace`/`claim_name` alone unless renaming Helm releases.
 - Configure `nfs.server` and `nfs.cluster_share_path` if the user said yes
-  to NFS (needed for backups and LLM models). Also set
-  `rkllama.nfs` and `llamacpp.nfs` paths under this share
-  if those services are enabled.
-- If deploying RKLLama, set `rkllama.node` to the chosen RK1 hostname.
+  to NFS (needed for backups).
 - Set `enable_oauth2_proxy: false` (user enables later)
 - Set `enable_cloudflare_tunnel: false` (user enables later)
 
@@ -222,7 +214,6 @@ the relevant documentation for remaining manual steps:
   the user's local network (router, media server, etc.)
 - **Cloudflare tunnel**: `docs/how-to/cloudflare-tunnel` (4-part guide)
 - **OAuth setup**: `docs/how-to/oauth-setup` (GitHub OAuth app)
-- **LLM models**: `docs/how-to/rkllama-models` or `docs/how-to/llamacpp-models`
 - **NAS setup for backups**: `docs/how-to/nas-setup` (one-time manual runbook)
 - **Full fork-edit reference** (anything this command didn't ask about):
   `docs/how-to/fork-this-repo`

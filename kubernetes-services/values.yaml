@@ -2,46 +2,6 @@
 # group_vars/all.yml). This default is only used if the root app
 # does not pass it down (e.g. during local helm template testing).
 repo_branch: main
-# NFS storage for RKLLama models — edit these to match your NFS server.
-# This is the single place to configure NFS for rkllama; ArgoCD injects
-# these values into the rkllama Helm chart at sync time.
-rkllama:
-  nfs:
-    server: 192.168.1.3 # IP address of your NFS server
-    path: /bigdisk/k8s-cluster/models # subdir of the cluster-owned NFS share
-  # The single node the rkllama DaemonSet runs on. Pinned by hostname
-  # because the model files (loaded into the Rockchip NPU) are large
-  # enough that running on every RK1 would exhaust RAM. Change to one
-  # of your RK1 nodes when forking; default matches this cluster's
-  # node04 (32GB RAM).
-  node: node04
-  # Container image — points at the in-tree overlay so the cluster
-  # picks up the patches in rkllama-overlay/patches/ (clearer error
-  # message, automatic NPU eviction). `:beta` is the moving tag for
-  # non-main builds; after merge to main, repin to a `sha-<short>` if
-  # you want immutability across overlay changes.
-  image:
-    repository: ghcr.io/gilesknap/rkllama-overlay
-    tag: beta
-# llama.cpp CUDA server configuration.
-# Uses a separate NFS subdirectory from rkllama — the two backends use
-# incompatible model formats (GGUF for CUDA vs RKLLM for ARM NPU) so
-# co-locating them in the same folder would cause confusion.
-# model.file: filename of the GGUF model relative to the NFS path root.
-# model.gpuLayers: number of transformer layers to offload to GPU (99 = all).
-# model.contextSize: KV-cache context length in tokens.
-# model.parallel: number of concurrent request slots (one per simultaneous user).
-# model.memoryLimit: Kubernetes memory limit for the container (VRAM + system RAM).
-llamacpp:
-  nfs:
-    server: 192.168.1.3 # IP address of your NFS server
-    path: /bigdisk/k8s-cluster/models/cuda # separate subdir from rkllama (GGUF models only)
-  model:
-    file: "deepseek-coder-33b-instruct.Q4_K_M.gguf" # GGUF model file on your NFS share
-    gpuLayers: 99 # offload all layers; reduce if GPU VRAM is insufficient
-    contextSize: 8192 # reduce for large models that leave little VRAM for KV cache
-    parallel: 2 # reduce for large models; 33B Q5 leaves ~200MB for KV cache
-    memoryLimit: "20Gi"
 # Headlamp — the Kubernetes web UI (kubernetes-sigs).
 # The Argo CD plugin adds an "Argo CD" sidebar section listing
 # Applications with sync/health status, plus sync and refresh actions.
@@ -81,7 +41,7 @@ enable_cloudflare_tunnel: true
 # build the CF Access logout URL.
 cf_access_team: gilesk
 # Admin email addresses — full access to all services.
-# These emails get: ArgoCD admin, Grafana Admin, Open WebUI admin,
+# These emails get: ArgoCD admin, Grafana Admin,
 # oauth2-proxy access (Longhorn, Headlamp).
 # Must be kept in sync with admin_emails in group_vars/all.yml.
 admin_emails:
@@ -91,14 +51,13 @@ admin_emails:
 # gated at the edge by the Cloudflare Access application's one-time-PIN
 # email allowlist (managed in the Cloudflare Zero Trust dashboard). Anyone
 # who passes CF Access and authenticates via GitHub (Dex) lands in the
-# default Viewer role — Grafana Viewer, Open WebUI user, ArgoCD readonly.
+# default Viewer role — Grafana Viewer, ArgoCD readonly.
 # Admin rights are still granted explicitly via admin_emails above.
 # oauth2-proxy-gated services (Longhorn, Headlamp)
 # remain admin-only and ignore this default.
 # Cluster-owned NFS share on the NAS — single managed subtree under the
 # existing bigdisk export (set up manually via docs/how-to/nas-setup.md).
-# Hosts backup targets AND the hostPath-mirrored model/dump subdirs that
-# rkllama/llamacpp also point at.
+# Hosts backup targets.
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
@@ -242,12 +201,6 @@ local_storage:
     # twice (chart name + STS name). Do not "simplify" — it must match
     # what the operator creates verbatim.
     claim_name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0
-  open_webui:
-    node: node04
-    path: /var/lib/k8s-data/open-webui
-    capacity: 5Gi
-    claim_namespace: open-webui
-    claim_name: open-webui
   scrap:
     node: nuc2
     path: /home/k8s-data/scrap

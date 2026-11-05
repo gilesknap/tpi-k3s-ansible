@@ -186,7 +186,6 @@ on its target node (guarded by `inventory_hostname`).
 |--------|-----------------------------------|----------------------|-------------|
 | node02 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
 | node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
-| node04 | `/var/lib/k8s-data/open-webui`    | root / 0777          | open-webui  |
 
 Data lives outside `/var/lib/rancher` deliberately: `pb_decommission.yml`
 wipes `/var/lib/rancher` to reset K3s, but these directories are preserved
@@ -221,8 +220,6 @@ Installs K3s with one control plane node and the rest as workers.
 - Checks if the node is already in the cluster (skip if so, unless force).
 - Gets the join token from the control plane.
 - Runs the K3s agent installer.
-- Labels RK1 nodes with `node-type=rk1` (used by the rkllama DaemonSet selector).
-- Creates `/opt/rkllama/models` directory on RK1 nodes.
 - Labels NVIDIA GPU nodes with `nvidia.com/gpu.present=true` (when `nvidia_gpu_node: true`
   in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
   then takes over and advertises `nvidia.com/gpu` allocatable resources to the scheduler.

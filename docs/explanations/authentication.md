@@ -123,7 +123,6 @@ details, and ArgoCD's TLS termination pattern.
 | ArgoCD | Cloudflare Access | Dex (native) | email → `role:admin` / `role:readonly` |
 | argocd-monitor | Cloudflare Access | Dex (oauth2-proxy sidecar) | Inherits ArgoCD RBAC |
 | Grafana | Cloudflare Access | Dex (`generic_oauth`) | email → `Admin` / `Viewer` |
-| Open WebUI | Cloudflare Access | Dex (native OIDC) | email → admin / user |
 | Headlamp | Cloudflare Access | oauth2-proxy + ServiceAccount token | — |
 | Alertmanager | Cloudflare Access | oauth2-proxy | — |
 | Minecraft dashboard | Cloudflare Access | oauth2-proxy | — (admin-only) |
@@ -135,7 +134,7 @@ details, and ArgoCD's TLS termination pattern.
 ArgoCD ships with [Dex](https://dexidp.io/), a federated OIDC provider.
 Rather than deploying a separate identity provider, all OIDC-capable
 services share ArgoCD's Dex instance. Dex connects to GitHub as its
-upstream identity source and issues tokens to four registered static
+upstream identity source and issues tokens to three registered static
 clients.
 
 ```{mermaid}
@@ -147,7 +146,6 @@ flowchart LR
         CON --> C1[argo-cd]
         CON --> C2[argocd-monitor]
         CON --> C3[grafana]
-        CON --> C4[open-webui]
     end
 
     GH --> CON
@@ -155,10 +153,9 @@ flowchart LR
     C1 --> ArgoCD
     C2 --> argocd-monitor
     C3 --> Grafana
-    C4 --> Open-WebUI
 ```
 
-All four clients authenticate through a single GitHub OAuth App whose
+All three clients authenticate through a single GitHub OAuth App whose
 callback URL points to `https://argocd.<your-domain>/api/dex/callback`.
 Each client has its own `client_secret` stored in the `argocd-dex-secret`
 SealedSecret.
@@ -243,22 +240,6 @@ The `role_attribute_path` JMESPath expression grants `Admin` to emails in
 the `admin_emails` list and `Viewer` to everyone else. The client secret
 is injected from the `grafana-oauth-secret` SealedSecret.
 
-### Open WebUI — native OIDC via Dex
-
-Open WebUI uses its built-in OIDC support via environment variables. The
-`OPENID_PROVIDER_URL` points to the Dex discovery endpoint. Password login
-is disabled — the login page shows only an OAuth button.
-
-The `OAUTH_ADMIN_EMAIL` variable (populated from `admin_emails`) controls
-who gets the admin role. Everyone else gets the `user` role. The client
-secret comes from the `open-webui-oauth-secret` SealedSecret.
-
-:::{important}
-The discovery URL must be the full path including
-`.well-known/openid-configuration` — Open WebUI's OIDC library does not
-follow the 301 redirect from `/api/dex` to `/api/dex/`.
-:::
-
 ### Headlamp — oauth2-proxy + ServiceAccount token
 
 Headlamp is protected by the cluster-wide oauth2-proxy (admin-only,
@@ -328,7 +309,6 @@ flowchart TB
             ArgoCD
             Monitor[argocd-monitor]
             Grafana
-            OpenWebUI[Open WebUI]
         end
 
         Headlamp
@@ -352,7 +332,6 @@ flowchart TB
     NGINX --> ArgoCD
     NGINX --> Monitor
     NGINX --> Grafana
-    NGINX --> OpenWebUI
     NGINX --> Headlamp
     NGINX --> Alertmanager
     NGINX --> Echo
@@ -360,7 +339,6 @@ flowchart TB
     ArgoCD <-.-> DexPod
     Monitor <-.-> DexPod
     Grafana <-.-> DexPod
-    OpenWebUI <-.-> DexPod
     Headlamp <-.-> OAP
     Alertmanager <-.-> OAP
 
@@ -387,17 +365,16 @@ admin_emails:
   - alice@example.com     # full admin access everywhere
 ```
 
-**Admin emails** are consumed in four places:
+**Admin emails** are consumed in three places:
 
 | Template / Config | Effect |
 |-------------------|--------|
 | `oauth2-proxy.yaml` | Email allowlist — only admins can access Headlamp, Alertmanager and the Minecraft dashboard |
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
-| `open-webui.yaml` | `OAUTH_ADMIN_EMAIL` — admin emails get admin role |
 | `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |
 
 All other authenticated users receive read-only roles: ArgoCD
-`role:readonly`, Grafana `Viewer`, Open WebUI `user`. They cannot
+`role:readonly`, Grafana `Viewer`. They cannot
 access oauth2-proxy-gated services (Headlamp, Alertmanager).
 
 :::{important}
@@ -417,9 +394,8 @@ to Git:
 
 | SealedSecret | Location | Contents |
 |-------------|----------|----------|
-| `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 5 Dex client secrets |
+| `argocd-dex-secret` | `additions/argocd/` | GitHub connector credentials + all 4 Dex client secrets |
 | `grafana-oauth-secret` | `additions/grafana/` | Grafana's Dex client secret |
-| `open-webui-oauth-secret` | `additions/open-webui/` | Open WebUI's Dex client secret |
 | `argocd-monitor-oauth-secret` | `additions/argocd-monitor/` | argocd-monitor's Dex client secret + cookie secret |
 | `scrap-secrets` | `additions/scrap/` | Claude API key for scrap ingest (not an auth credential) |
 | `oauth2-proxy-credentials` | `additions/oauth2-proxy/` | GitHub OAuth App credentials + cookie secret |
@@ -432,7 +408,7 @@ watched).
 
 **Why two auth paths (Dex + oauth2-proxy)?** Dex provides proper OIDC
 tokens with scopes and claims, enabling fine-grained RBAC (admin vs
-viewer). Services with native OIDC support (ArgoCD, Grafana, Open WebUI) use
+viewer). Services with native OIDC support (ArgoCD, Grafana) use
 Dex for authentication, which allows both admin and viewer users to log
 in with differentiated roles. Services without native OIDC
 (Alertmanager) use oauth2-proxy as a binary admin-only gate. Headlamp

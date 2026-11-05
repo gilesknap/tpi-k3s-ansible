@@ -11,7 +11,7 @@ description: Cloudflare Tunnel and Access configuration for exposing K3s service
 - **Flow**: Internet → Cloudflare edge → Tunnel pod → NGINX Ingress → Service
 
 ## Exposed Services
-Services exposed via tunnel: grafana, headlamp, open-webui, oauth2-proxy, argocd, echo, minecraft
+Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, minecraft
 - `mc.<domain>` (Minecraft game port) is deliberately NOT a tunnel route — it is a
   DNS-only A record on the VPS relay's public IP (`additions/vps-relay/`)
 

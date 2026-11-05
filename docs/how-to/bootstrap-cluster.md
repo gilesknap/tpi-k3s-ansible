@@ -6,7 +6,7 @@ all services. Follow these steps to finish the setup.
 :::{tip}
 **NAS prerequisite for backups.** The daily and weekly backup CronJobs write
 to an NFS export on a NAS. If you intend to run backups (recommended for any
-stateful workload — Grafana, Prometheus, Open WebUI), set up the
+stateful workload — Grafana, Prometheus), set up the
 NAS share **before** the first backup runs. See {doc}`nas-setup` — this is a
 one-time manual runbook on the NAS itself.
 :::
@@ -92,7 +92,7 @@ certificates, and optionally exposes services to the internet.
 Other guides:
 
 - {doc}`../reference/services` — pick which services your cluster should run
-  (quick-start configurations: LLM-only, AI memory, monitoring, full stack)
+  (quick-start configurations: AI memory, monitoring, full stack)
 - {doc}`manage-sealed-secrets` — manage encrypted secrets in the repository
 - {doc}`add-remove-services` — customise which services are deployed
 - {doc}`nas-setup` — create the NFS share layout used by backup CronJobs
@@ -100,5 +100,3 @@ Other guides:
 - {doc}`backup-restore` — verify backup CronJobs and restore from a dump
 - {doc}`alternative-storage` — swap the static `local-nvme` default for
   another CSI driver (Longhorn, Rook-Ceph, …)
-- {doc}`rkllama-models` — pull LLM models for RKLLama (RK1 clusters only)
-- {doc}`llamacpp-models` — pull GGUF models for llama.cpp (NVIDIA GPU nodes)

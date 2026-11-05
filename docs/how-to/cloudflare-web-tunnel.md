@@ -3,7 +3,7 @@
 :::{note}
 **When to use this guide.** Use this guide when you want a single toggle
 (`enable_cloudflare_tunnel: true`) to publish all OAuth-protected web
-services — Grafana, Headlamp, Open WebUI, oauth2-proxy, and ArgoCD —
+services — Grafana, Headlamp, oauth2-proxy, and ArgoCD —
 through your Cloudflare tunnel at once, gated by Cloudflare Access.
 **Prerequisites:** complete {doc}`cloudflare-tunnel` first (for the base
 tunnel and DNS/TLS setup) and {doc}`oauth-setup` (for the in-cluster
@@ -30,7 +30,7 @@ cloudflared pod (outbound-only tunnel, 2 replicas)
 ingress-nginx
   │  auth subrequest to oauth2-proxy (email allowlist)
   ▼
-Backend service (Grafana, Headlamp, Open WebUI, ArgoCD)
+Backend service (Grafana, Headlamp, ArgoCD)
   │  Native login / RBAC
   ▼
 Authenticated session
@@ -71,12 +71,7 @@ Before exposing services, consider the risk profile of each:
 |---------|------------|--------|----------------------|
 | Grafana | Admin login + user accounts | Yes | Low — requires credentials |
 | Headlamp | Kubernetes service account token | Yes | Low — requires token |
-| Open WebUI | User accounts with registration | Yes | Low — requires login |
 | ArgoCD | Admin password + optional OIDC | No (SSL passthrough) | Low — requires credentials |
-
-**Services deliberately excluded:**
-
-- **RKLlama** — internal API consumed by Open WebUI. No reason to expose directly.
 
 **Overall risk assessment:** The combination of Cloudflare Access + oauth2-proxy +
 native service auth provides strong defense in depth. The risk is low for a homelab
@@ -97,7 +92,7 @@ In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 
 1. Select your domain zone.
 2. Go to **DNS → Records**.
-3. For each service you plan to tunnel (`grafana`, `headlamp`, `open-webui`, `oauth2`,
+3. For each service you plan to tunnel (`grafana`, `headlamp`, `oauth2`,
    `argocd`), delete the existing A record.
 
 :::{note}
@@ -115,15 +110,14 @@ In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 2. Go to the **Routes** tab (or click **View all** under Routes on the Overview tab)
    and click **Add route** for each service below.
 
-### HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)
+### HTTP services (Grafana, Headlamp, oauth2-proxy)
 
-These four services use the same origin configuration:
+These three services use the same origin configuration:
 
 | Subdomain | Domain | URL |
 |-----------|--------|-----|
 | `grafana` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 | `headlamp` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
-| `open-webui` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 | `oauth2` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 
 Use `http://`, not `https://` — Cloudflare terminates TLS at its edge and sends
@@ -259,7 +253,7 @@ enable_cloudflare_tunnel: true
 ```
 
 Commit and push. ArgoCD picks up the change and sets `ssl_redirect: false` on the
-ingresses for Grafana, Headlamp, Open WebUI, and oauth2-proxy. This prevents
+ingresses for Grafana, Headlamp, and oauth2-proxy. This prevents
 redirect loops — Cloudflare sends HTTP to `cloudflared`, and without this toggle
 ingress-nginx would redirect back to HTTPS in a loop.
 
@@ -278,7 +272,6 @@ Use a mobile hotspot or VPN to test from outside your home network:
 # Each should load the login page (Cloudflare Access, then OAuth/service login)
 curl -I https://grafana.example.com
 curl -I https://headlamp.example.com
-curl -I https://open-webui.example.com
 curl -I https://argocd.example.com
 ```
 
@@ -304,7 +297,7 @@ kubectl get ingress -A -o json | \
   jq '.items[] | select(.metadata.annotations["nginx.ingress.kubernetes.io/ssl-redirect"] == "false") | .metadata.name'
 ```
 
-Expected: ingresses for `grafana`, `headlamp`, `open-webui`, and `oauth2-proxy`.
+Expected: ingresses for `grafana`, `headlamp`, and `oauth2-proxy`.
 
 ## Reverting to LAN-only
 
@@ -339,7 +332,7 @@ flow.
 
 ### OIDC discovery fails (invalid JSON / HTML response)
 
-Services that use Dex for OIDC (Headlamp, Grafana, Open WebUI) fetch the
+Services that use Dex for OIDC (Headlamp, Grafana) fetch the
 discovery document from `https://argocd.<domain>/api/dex/.well-known/openid-configuration`.
 When Cloudflare manages DNS, pods resolve this to Cloudflare IPs and the request
 hairpins through the tunnel, often returning a Cloudflare Access HTML page instead

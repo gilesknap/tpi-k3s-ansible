@@ -54,9 +54,9 @@ StorageClass name:
 grep -rn local-nvme kubernetes-services/templates/
 ```
 
-Expect hits in `grafana.yaml` and `open-webui.yaml`. For
+Expect hits in `grafana.yaml` and `scrap.yaml`. For
 each, change `storageClassName: local-nvme` (or `storageClass: local-nvme`
-for Open WebUI's chart) to your provider's class.
+for scrap's chart) to your provider's class.
 
 :::{tip}
 If your replacement storage provider registers itself as the **default**

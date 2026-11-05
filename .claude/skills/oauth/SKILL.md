@@ -65,7 +65,7 @@ The established pattern for MCP servers in this cluster is:
   `dex.config` uses `$argocd-dex-secret:key` for each static client.
   Missing keys silently resolve to empty, causing "Failed to get token
   from provider" on login. The rebuild path (`scripts/seal-from-json`)
-  seals all clients (grafana, open-webui, argocd-monitor) along with
+  seals all clients (grafana, argocd-monitor) along with
   the matching service-side secrets in one pass.
 - **Sidecar oauth2-proxy cookie clash** — the shared oauth2-proxy sets
   `cookie-domain=.gkcluster.org`, so its `_oauth2_proxy` cookie reaches all
@@ -102,7 +102,7 @@ The established pattern for MCP servers in this cluster is:
   unreachable from the cluster, causing intermittent 500s on all
   oauth2-protected ingresses.
 - **Dex base URL redirects** — `/api/dex` 301s to `/api/dex/` which returns
-  404. OIDC clients that don't follow redirects (e.g. Open WebUI's authlib)
+  404. OIDC clients that don't follow redirects
   need the full discovery URL: `.well-known/openid-configuration`.
 - **Grafana 12.x requires `[users].allow_sign_up`** — the per-provider
   `allow_sign_up` under `[auth.generic_oauth]` is not sufficient alone.

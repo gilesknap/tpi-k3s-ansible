@@ -41,7 +41,7 @@ prompts for GitHub creds + Slack webhook. To rotate just one secret
 without re-entering unrelated values, use a subcommand:
 
 ```
-seal-argocd-dex [github|argocd|monitor|grafana|open-webui|slack]
+seal-argocd-dex [github|argocd|monitor|grafana|slack]
 ```
 
 Subcommands read existing keys from the running `argocd-dex-secret` to
@@ -62,7 +62,6 @@ etc.), you must restart pods in these namespaces:
 
 - `argo-cd` / `argocd-monitor` (Dex: `just restart-dex`)
 - `monitoring` (`kubectl rollout restart sts grafana-prometheus -n monitoring`)
-- `open-webui`
 - `headlamp`
 
 ## `cookie-secret` generation

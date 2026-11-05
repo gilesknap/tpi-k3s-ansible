@@ -26,7 +26,7 @@ point-in-time restore. See the
 for a visual tour, the [architecture explanation](https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html)
 for the layered model, and the
 [services reference](https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html)
-for quick-start configurations (LLM-only, AI memory, monitoring, full
+for quick-start configurations (AI memory, monitoring, full
 stack) to help you pick which services to run.
 
 Source          | <https://github.com/gilesknap/tpi-k3s-ansible>
@@ -56,7 +56,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Ingress + TLS** — NGINX ingress with Let's Encrypt certificates
   (DNS-01 via Cloudflare)
 - **OIDC authentication** — ArgoCD Dex with GitHub connector provides native
-  OIDC for ArgoCD, Grafana, and Open WebUI; oauth2-proxy covers Headlamp,
+  OIDC for ArgoCD and Grafana; oauth2-proxy covers Headlamp,
   Alertmanager and the Minecraft dashboard
 - **Cloudflare Tunnel + Access** — optional secure public access via
   cloudflared with email-based access control
@@ -72,13 +72,8 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **VPS relay** *(optional)* — publishes chosen TCP/UDP ports on a VPS's
   public IP via frp over Tailscale, for homes behind CGNAT; the VPS never
   connects into the home network
-
-### AI / LLM
-
-- **Local LLM inference** — NPU-accelerated RKLLama on RK1 nodes
-- **Local LLM inference** — NVIDIA GPU-accelerated llama.cpp on compatible
-  servers (with automatic device plugin for GPU scheduling)
-- **Open WebUI** — chat interface to the above LLM backends
+- **GPU support** — NVIDIA GPU nodes, with an automatic device plugin for
+  GPU scheduling
 
 ### Developer Experience
 

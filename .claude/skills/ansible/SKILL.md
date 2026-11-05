@@ -130,10 +130,10 @@ ssh root@turingpi 'tpi power off -n 4 && sleep 15 && tpi power on -n 4'
 Notes:
 - Don't try `kubectl drain` first — the node is unreachable, so the
   drain will just hang. Just power-cycle and let workloads reschedule
-  (or come back, for DaemonSets pinned to that node like `rkllama`).
+  (or come back, for DaemonSets pinned to that node).
 - Hard power-cycle is unclean for in-flight writes. If the node hosts
   live local-PV data (see CLAUDE.md "Local PV data paths are sacred":
-  Prometheus on node02, Grafana on node03, Open-WebUI on node04),
+  Prometheus on node02, Grafana on node03),
   expect fsck on boot — check pod logs once the node returns.
 - For the Claude sandbox specifically: the BMC SSH key isn't reachable
   from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`,
@@ -155,8 +155,8 @@ Notes:
   annotations from a template (e.g. `ssl-passthrough`), you must
   `kubectl delete` the old Ingress first, then re-run the playbook to
   recreate it cleanly.
-- **ArgoCD `valuesObject` overrides `values.yaml`** — for child apps
-  like `rkllama`, the image tag is set in `templates/*.yaml`
+- **ArgoCD `valuesObject` overrides `values.yaml`** — for child
+  apps, the image tag is set in `templates/*.yaml`
   under `valuesObject`, not in `additions/*/values.yaml`. Editing
   `values.yaml` alone has no effect — check the template first.
 - **`admin_emails` is duplicated** — must be kept in sync between
@@ -191,8 +191,7 @@ Notes:
   managed rule — you're clearing kube-managed runtime state, not
   changing template intent.) Long-term fix tracked in issue #397.
   Prefer `argocd app sync --replace` over `argocd app delete`/recreate
-  for the `local-nvme`-backed apps: open-webui, grafana and
-  prometheus.
+  for the `local-nvme`-backed apps: grafana and prometheus.
 
 ## Key files
 - `pb_all.yml` — main playbook

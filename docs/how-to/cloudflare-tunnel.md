@@ -7,7 +7,7 @@ and an optional tunnel for a single echo service. For the specialised
 follow-ups, see the other two Cloudflare how-tos once this one works:
 
 - {doc}`cloudflare-web-tunnel` — expose a set of OAuth-protected web
-  services (Grafana, Headlamp, Open WebUI, ArgoCD) through the tunnel
+  services (Grafana, Headlamp, ArgoCD) through the tunnel
   with a single `enable_cloudflare_tunnel` toggle.
 - {doc}`cloudflare-ssh-tunnel` — add a Cloudflare Access-gated SSH
   tunnel for remote `kubectl` / shell access without opening inbound
@@ -41,7 +41,7 @@ cloudflared pod (in cluster, outbound connection only — no inbound firewall po
 ingress-nginx → service
 
 LAN ACCESS (all services)
-  DNS: grafana/argocd/headlamp/rkllama.<domain> → worker IP  (DNS-only A records)
+  DNS: grafana/argocd/headlamp.<domain> → worker IP  (DNS-only A records)
   Clients resolve directly to ingress-nginx without going via Cloudflare
 ```
 
@@ -138,7 +138,7 @@ Cloudflare will round-robin across them:
 
 Replace the IPs with the LAN addresses of your worker nodes (e.g.
 `192.168.1.82`, `.83`, `.84`). Services to add: `argocd`, `grafana`,
-`headlamp`, `home-lan`, `oauth2`, `open-webui`, `rkllama`.
+`headlamp`, `home-lan`, `oauth2`.
 
 :::{note}
 `home-lan` backs the landing page's LAN-detection probe. The page

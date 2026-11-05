@@ -69,7 +69,6 @@ kubectl create secret generic argocd-dex-secret --namespace=argo-cd \
     --from-literal=argocd.clientSecret="$(get_key argocd-dex-secret argo-cd argocd.clientSecret)" \
     --from-literal=argocd-monitor.clientSecret="$(get_key argocd-dex-secret argo-cd argocd-monitor.clientSecret)" \
     --from-literal=grafana.clientSecret="$(get_key argocd-dex-secret argo-cd grafana.clientSecret)" \
-    --from-literal=open-webui.clientSecret="$(get_key argocd-dex-secret argo-cd open-webui.clientSecret)" \
     --dry-run=client -o yaml | \
     yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
     seal_to "$BASE/argocd/argocd-dex-secret.yaml"
@@ -90,14 +89,7 @@ kubectl create secret generic grafana-oauth-secret --namespace=monitoring \
     --dry-run=client -o yaml | seal_to "$BASE/grafana/grafana-oauth-secret.yaml"
 echo "  -> $BASE/grafana/grafana-oauth-secret.yaml"
 
-# 7. open-webui-oauth-secret (open-webui)
-echo "Sealing: open-webui-oauth-secret..."
-kubectl create secret generic open-webui-oauth-secret --namespace=open-webui \
-    --from-literal=client-secret="$(get_key open-webui-oauth-secret open-webui client-secret)" \
-    --dry-run=client -o yaml | seal_to "$BASE/open-webui/open-webui-oauth-secret.yaml"
-echo "  -> $BASE/open-webui/open-webui-oauth-secret.yaml"
-
-# 8. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
+# 7. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
 if has_secret alertmanager-slack-secret monitoring; then
     echo "Sealing: alertmanager-slack-secret..."
     kubectl create secret generic alertmanager-slack-secret --namespace=monitoring \
