@@ -16,10 +16,10 @@ hand-editing `/etc/exports` is dangerous because the UI overwrites it.
 
 The good news is we don't need a new export at all. Your QNAP already
 exports `/share/CACHEDEV1_DATA/bigdisk` with read-write access to the
-cluster subnet, and it is already mounted by rkllama and llamacpp.
+cluster subnet.
 
 So this runbook **just creates a new subdirectory inside the existing
-`bigdisk` export** — `bigdisk/k8s-cluster/` — and populates it. No
+`bigdisk` export** — `bigdisk/k8s-cluster/`. No
 export changes, no `/etc/exports` edits, no QNAP UI configuration. The
 exact client-side vs server-side path mapping is covered under
 [Two paths, same directory](#two-paths-same-directory) below.
@@ -29,8 +29,6 @@ exact client-side vs server-side path mapping is covered under
 A single directory tree `bigdisk/k8s-cluster/` that contains **everything**
 the cluster reads or writes over NFS:
 
-- `models/` — LLM model files consumed by rkllama and llamacpp
-  (populated from the existing `bigdisk/LMModels/` tree)
 - `backups/<app>/` and `backups/<app>/weekly/` — daily and weekly
   CronJob backup output (empty on first setup)
 - `minecraft/` — optional; the Minecraft dashboard's writable store (see
@@ -53,24 +51,17 @@ physical directory, just viewed from different sides:
 The client-side path `/bigdisk/...` works because the QNAP exports a
 separate NFSv4-pseudo entry `/share/NFSv=4/bigdisk` with `nohide` and
 its own `fsid`, which makes `bigdisk` a first-class path for NFSv4
-clients. This is how rkllama and llamacpp already mount their models.
+clients.
 
 ## Prerequisites
 
 - You can SSH to the QNAP as `admin` (or another account with shell
   access and rights to write under `/share/CACHEDEV1_DATA`).
-- The QNAP is reachable at `192.168.1.3` from the cluster subnet. Already
-  true — rkllama and llamacpp currently mount from there.
-- Enough free space on the volume to duplicate the existing `LMModels`
-  tree. Check with `du -sh /share/CACHEDEV1_DATA/bigdisk/LMModels` before
-  starting; compare against `df -h /share/CACHEDEV1_DATA`.
+- The QNAP is reachable at `192.168.1.3` from the cluster subnet.
 
-## Phase 1 — one-time setup + initial data copy
+## One-time setup
 
-Run this once on the QNAP. It creates the directory tree and copies the
-existing LLM models into their new home. The old path
-(`bigdisk/LMModels`) is **preserved untouched** — it remains available as a rollback safety net. Do not
-delete it until you are certain the new setup is working.
+Run this once on the QNAP. It creates the directory tree.
 
 ```bash
 # SSH to the QNAP as admin, then:
@@ -85,32 +76,19 @@ ROOT=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 #    The export uses root_squash (root → 65534) but not all_squash, so
 #    writes from in-cluster pods arrive with their own UIDs. Leaf backup
 #    dirs use 0777 so mixed writers (alpine=root-squashed, app UIDs)
-#    can all write. Models are read-mostly so 0755 is fine.
+#    can all write.
 mkdir -p "$ROOT"
-mkdir -p "$ROOT/models"
 mkdir -p "$ROOT/backups"
-for app in grafana open-webui; do
+for app in grafana; do
   mkdir -p "$ROOT/backups/$app"
   mkdir -p "$ROOT/backups/$app/weekly"
 done
 
-chmod 0755 "$ROOT" "$ROOT/models"
+chmod 0755 "$ROOT"
 chmod 0755 "$ROOT/backups"
 chmod -R 0777 "$ROOT/backups"/*
 
-# 2. Initial data copy — bulk-populate models/ from the existing
-#    path. cp -a preserves perms/times. rsync is also
-#    available on QTS if you'd rather see progress:
-#      rsync -a --info=progress2 <src>/ <dst>/
-#
-#    Safe to run while the cluster is using the old path: LLM models
-#    are read-only in practice, and Phase 2 picks up any late additions.
-cp -a /share/CACHEDEV1_DATA/bigdisk/LMModels/. "$ROOT/models/"
-
-# 3. Verify — sizes should match within a few MB of metadata.
-echo "--- Old vs new sizes ---"
-du -sh /share/CACHEDEV1_DATA/bigdisk/LMModels "$ROOT/models"
-echo "--- Tree ---"
+# 2. Verify.
 ls -la "$ROOT" "$ROOT/backups"
 ```
 
@@ -137,45 +115,22 @@ kubectl run nas-check --rm -it --restart=Never \
 }'
 ```
 
-You should see the `models` and `backups` subtrees.
-
-## Phase 2 — final sync before rebuild
-
-Re-run this right before `/rebuild-cluster`. It catches any deltas since
-Phase 1 — in practice the only moving part is any newly-downloaded
-LLM models. `rsync --delete` turns the target
-into a true mirror of the source, so anything removed upstream is
-removed from the new share too.
-
-```bash
-set -eu
-ROOT=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-
-rsync -a --delete --info=progress2 \
-  /share/CACHEDEV1_DATA/bigdisk/LMModels/ "$ROOT/models/"
-
-echo "Final sync complete. Safe to run /rebuild-cluster now."
-```
-
-If the QNAP doesn't have `rsync` on the default PATH, either use its full
-path (`/usr/bin/rsync` on most QTS builds) or fall back to `cp -a`.
+You should see the `backups` subtree.
 
 ## Rollback
 
-The old paths are never touched by this runbook, so rollback is:
+:::{warning}
+Only use this straight after first-time setup, while the tree is still empty.
+Once the cluster is running, this tree holds your backups and other workload
+data, and removing it destroys them.
+:::
 
-1. Revert `kubernetes-services/values.yaml` — point `rkllama.nfs.path`
-   and `llamacpp.nfs.path` back at `/bigdisk/LMModels` and
-   `/bigdisk/LMModels/cuda` respectively.
-2. Re-sync ArgoCD. rkllama / llamacpp will re-bind to
-   the OLD paths and work exactly as before.
-3. Only once no pods are consuming the new tree, on the QNAP:
+This runbook only adds a new directory, so rollback is to remove it once no
+pods are consuming the tree. On the QNAP:
 
-   ```bash
-   rm -rf /share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-   ```
-
-   Note that `bigdisk/LMModels` is untouched by the rollback — the copy was additive.
+```bash
+rm -rf /share/CACHEDEV1_DATA/bigdisk/k8s-cluster
+```
 
 ## What this runbook explicitly DOES NOT do
 
@@ -184,7 +139,6 @@ The old paths are never touched by this runbook, so rollback is:
 - Restart any NFS service.
 - Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`
   (the optional Minecraft archive below is a separate, deliberate step).
-- Delete data from the old paths.
 
 ## Adding new cluster-owned subfolders later
 

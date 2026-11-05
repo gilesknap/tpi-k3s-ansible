@@ -30,7 +30,7 @@ flowchart TB
     subgraph Cluster["K3s Cluster"]
         K3S[K3s Control Plane]
         ARGO[ArgoCD]
-        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Grafana, Open WebUI,<br/>LLM servers, etc.]
+        SVC[Services<br/>cert-manager, ingress-nginx,<br/>Grafana, etc.]
     end
 
     subgraph Git["Git Repository"]

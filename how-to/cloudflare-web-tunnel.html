@@ -338,8 +338,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
@@ -425,7 +423,7 @@
 <p class="admonition-title">Note</p>
 <p><strong>When to use this guide.</strong> Use this guide when you want a single toggle
 (<code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel:</span> <span class="pre">true</span></code>) to publish all OAuth-protected web
-services — Grafana, Headlamp, Open WebUI, oauth2-proxy, and ArgoCD —
+services — Grafana, Headlamp, oauth2-proxy, and ArgoCD —
 through your Cloudflare tunnel at once, gated by Cloudflare Access.
 <strong>Prerequisites:</strong> complete <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> first (for the base
 tunnel and DNS/TLS setup) and <a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> (for the in-cluster
@@ -449,7 +447,7 @@ cloudflared pod (outbound-only tunnel, 2 replicas)
 ingress-nginx
   │  auth subrequest to oauth2-proxy (email allowlist)
   ▼
-Backend service (Grafana, Headlamp, Open WebUI, ArgoCD)
+Backend service (Grafana, Headlamp, ArgoCD)
   │  Native login / RBAC
   ▼
 Authenticated session
@@ -507,12 +505,7 @@ dashboard for managing Access Applications and security policies.</p></li>
 <td><p>Yes</p></td>
 <td><p>Low — requires token</p></td>
 </tr>
-<tr class="row-even"><td><p>Open WebUI</p></td>
-<td><p>User accounts with registration</p></td>
-<td><p>Yes</p></td>
-<td><p>Low — requires login</p></td>
-</tr>
-<tr class="row-odd"><td><p>ArgoCD</p></td>
+<tr class="row-even"><td><p>ArgoCD</p></td>
 <td><p>Admin password + optional OIDC</p></td>
 <td><p>No (SSL passthrough)</p></td>
 <td><p>Low — requires credentials</p></td>
@@ -520,10 +513,6 @@ dashboard for managing Access Applications and security policies.</p></li>
 </tbody>
 </table>
 </div>
-<p><strong>Services deliberately excluded:</strong></p>
-<ul class="simple">
-<li><p><strong>RKLlama</strong> — internal API consumed by Open WebUI. No reason to expose directly.</p></li>
-</ul>
 <p><strong>Overall risk assessment:</strong> The combination of Cloudflare Access + oauth2-proxy +
 native service auth provides strong defense in depth. The risk is low for a homelab
 or small-team cluster, provided Cloudflare Access policies are configured. Without
@@ -541,7 +530,7 @@ clients resolve to your private IP instead of the tunnel.</p>
 <ol class="arabic simple">
 <li><p>Select your domain zone.</p></li>
 <li><p>Go to <strong>DNS → Records</strong>.</p></li>
-<li><p>For each service you plan to tunnel (<code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">open-webui</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code>,
+<li><p>For each service you plan to tunnel (<code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code>,
 <code class="docutils literal notranslate"><span class="pre">argocd</span></code>), delete the existing A record.</p></li>
 </ol>
 <div class="admonition note">
@@ -560,9 +549,9 @@ hostnames.</p>
 <li><p>Go to the <strong>Routes</strong> tab (or click <strong>View all</strong> under Routes on the Overview tab)
 and click <strong>Add route</strong> for each service below.</p></li>
 </ol>
-<section id="http-services-grafana-headlamp-open-webui-oauth2-proxy">
-<h3>HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)<a class="headerlink" href="#http-services-grafana-headlamp-open-webui-oauth2-proxy" title="Link to this heading">#</a></h3>
-<p>These four services use the same origin configuration:</p>
+<section id="http-services-grafana-headlamp-oauth2-proxy">
+<h3>HTTP services (Grafana, Headlamp, oauth2-proxy)<a class="headerlink" href="#http-services-grafana-headlamp-oauth2-proxy" title="Link to this heading">#</a></h3>
+<p>These three services use the same origin configuration:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Subdomain</p></th>
@@ -579,11 +568,7 @@ and click <strong>Add route</strong> for each service below.</p></li>
 <td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">open-webui</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
 </tr>
@@ -792,7 +777,7 @@ account if you have multiple.</p>
 </pre></div>
 </div>
 <p>Commit and push. ArgoCD picks up the change and sets <code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code> on the
-ingresses for Grafana, Headlamp, Open WebUI, and oauth2-proxy. This prevents
+ingresses for Grafana, Headlamp, and oauth2-proxy. This prevents
 redirect loops — Cloudflare sends HTTP to <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>, and without this toggle
 ingress-nginx would redirect back to HTTPS in a loop.</p>
 <div class="admonition note">
@@ -809,7 +794,6 @@ works independently.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Each should load the login page (Cloudflare Access, then OAuth/service login)</span>
 curl<span class="w"> </span>-I<span class="w"> </span>https://grafana.example.com
 curl<span class="w"> </span>-I<span class="w"> </span>https://headlamp.example.com
-curl<span class="w"> </span>-I<span class="w"> </span>https://open-webui.example.com
 curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
 </pre></div>
 </div>
@@ -836,7 +820,7 @@ curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
 <span class="w">  </span>jq<span class="w"> </span><span class="s1">&#39;.items[] | select(.metadata.annotations[&quot;nginx.ingress.kubernetes.io/ssl-redirect&quot;] == &quot;false&quot;) | .metadata.name&#39;</span>
 </pre></div>
 </div>
-<p>Expected: ingresses for <code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">open-webui</span></code>, and <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>.</p>
+<p>Expected: ingresses for <code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, and <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>.</p>
 </section>
 </section>
 <section id="reverting-to-lan-only">
@@ -871,7 +855,7 @@ flow.</p>
 </section>
 <section id="oidc-discovery-fails-invalid-json-html-response">
 <h3>OIDC discovery fails (invalid JSON / HTML response)<a class="headerlink" href="#oidc-discovery-fails-invalid-json-html-response" title="Link to this heading">#</a></h3>
-<p>Services that use Dex for OIDC (Headlamp, Grafana, Open WebUI) fetch the
+<p>Services that use Dex for OIDC (Headlamp, Grafana) fetch the
 discovery document from <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;domain&gt;/api/dex/.well-known/openid-configuration</span></code>.
 When Cloudflare manages DNS, pods resolve this to Cloudflare IPs and the request
 hairpins through the tunnel, often returning a Cloudflare Access HTML page instead
@@ -962,7 +946,7 @@ DNS resolver to return private IPs for the service hostnames.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#security-assessment">Security assessment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-1-delete-existing-dns-records">Part 1: Delete existing DNS records</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#part-2-add-routes-to-the-tunnel">Part 2: Add routes to the tunnel</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#http-services-grafana-headlamp-open-webui-oauth2-proxy">HTTP services (Grafana, Headlamp, Open WebUI, oauth2-proxy)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#http-services-grafana-headlamp-oauth2-proxy">HTTP services (Grafana, Headlamp, oauth2-proxy)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-https-origin">ArgoCD (HTTPS origin)</a></li>
 </ul>
 </li>

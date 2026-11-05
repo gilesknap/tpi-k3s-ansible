@@ -51,7 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Download RKLLama Models" href="rkllama-models.html" />
+    <link rel="next" title="Run the Minecraft Dashboard" href="minecraft.html" />
     <link rel="prev" title="Set Up OAuth Authentication" href="oauth-setup.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -338,8 +338,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
@@ -435,9 +433,9 @@ QNAP web UI’s share configuration, there is no <code class="docutils literal n
 hand-editing <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> is dangerous because the UI overwrites it.</p>
 <p>The good news is we don’t need a new export at all. Your QNAP already
 exports <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk</span></code> with read-write access to the
-cluster subnet, and it is already mounted by rkllama and llamacpp.</p>
+cluster subnet.</p>
 <p>So this runbook <strong>just creates a new subdirectory inside the existing
-<code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export</strong> — <code class="docutils literal notranslate"><span class="pre">bigdisk/k8s-cluster/</span></code> — and populates it. No
+<code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export</strong> — <code class="docutils literal notranslate"><span class="pre">bigdisk/k8s-cluster/</span></code>. No
 export changes, no <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> edits, no QNAP UI configuration. The
 exact client-side vs server-side path mapping is covered under
 <a class="reference internal" href="#two-paths-same-directory">Two paths, same directory</a> below.</p>
@@ -447,8 +445,6 @@ exact client-side vs server-side path mapping is covered under
 <p>A single directory tree <code class="docutils literal notranslate"><span class="pre">bigdisk/k8s-cluster/</span></code> that contains <strong>everything</strong>
 the cluster reads or writes over NFS:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">models/</span></code> — LLM model files consumed by rkllama and llamacpp
-(populated from the existing <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels/</span></code> tree)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/</span></code> and <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/weekly/</span></code> — daily and weekly
 CronJob backup output (empty on first setup)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> — optional; the Minecraft dashboard’s writable store (see
@@ -480,7 +476,7 @@ physical directory, just viewed from different sides:</p>
 <p>The client-side path <code class="docutils literal notranslate"><span class="pre">/bigdisk/...</span></code> works because the QNAP exports a
 separate NFSv4-pseudo entry <code class="docutils literal notranslate"><span class="pre">/share/NFSv=4/bigdisk</span></code> with <code class="docutils literal notranslate"><span class="pre">nohide</span></code> and
 its own <code class="docutils literal notranslate"><span class="pre">fsid</span></code>, which makes <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> a first-class path for NFSv4
-clients. This is how rkllama and llamacpp already mount their models.</p>
+clients.</p>
 </section>
 </section>
 <section id="prerequisites">
@@ -488,19 +484,12 @@ clients. This is how rkllama and llamacpp already mount their models.</p>
 <ul class="simple">
 <li><p>You can SSH to the QNAP as <code class="docutils literal notranslate"><span class="pre">admin</span></code> (or another account with shell
 access and rights to write under <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA</span></code>).</p></li>
-<li><p>The QNAP is reachable at <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code> from the cluster subnet. Already
-true — rkllama and llamacpp currently mount from there.</p></li>
-<li><p>Enough free space on the volume to duplicate the existing <code class="docutils literal notranslate"><span class="pre">LMModels</span></code>
-tree. Check with <code class="docutils literal notranslate"><span class="pre">du</span> <span class="pre">-sh</span> <span class="pre">/share/CACHEDEV1_DATA/bigdisk/LMModels</span></code> before
-starting; compare against <code class="docutils literal notranslate"><span class="pre">df</span> <span class="pre">-h</span> <span class="pre">/share/CACHEDEV1_DATA</span></code>.</p></li>
+<li><p>The QNAP is reachable at <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code> from the cluster subnet.</p></li>
 </ul>
 </section>
-<section id="phase-1-one-time-setup-initial-data-copy">
-<h2>Phase 1 — one-time setup + initial data copy<a class="headerlink" href="#phase-1-one-time-setup-initial-data-copy" title="Link to this heading">#</a></h2>
-<p>Run this once on the QNAP. It creates the directory tree and copies the
-existing LLM models into their new home. The old path
-(<code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code>) is <strong>preserved untouched</strong> — it remains available as a rollback safety net. Do not
-delete it until you are certain the new setup is working.</p>
+<section id="one-time-setup">
+<h2>One-time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
+<p>Run this once on the QNAP. It creates the directory tree.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
 
 <span class="nb">set</span><span class="w"> </span>-eu
@@ -513,32 +502,19 @@ delete it until you are certain the new setup is working.</p>
 <span class="c1">#    The export uses root_squash (root → 65534) but not all_squash, so</span>
 <span class="c1">#    writes from in-cluster pods arrive with their own UIDs. Leaf backup</span>
 <span class="c1">#    dirs use 0777 so mixed writers (alpine=root-squashed, app UIDs)</span>
-<span class="c1">#    can all write. Models are read-mostly so 0755 is fine.</span>
+<span class="c1">#    can all write.</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
-<span class="k">for</span><span class="w"> </span>app<span class="w"> </span><span class="k">in</span><span class="w"> </span>grafana<span class="w"> </span>open-webui<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="k">for</span><span class="w"> </span>app<span class="w"> </span><span class="k">in</span><span class="w"> </span>grafana<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">&quot;</span>
 <span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">/weekly&quot;</span>
 <span class="k">done</span>
 
-chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
+chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
 chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
 chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0777</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>/*
 
-<span class="c1"># 2. Initial data copy — bulk-populate models/ from the existing</span>
-<span class="c1">#    path. cp -a preserves perms/times. rsync is also</span>
-<span class="c1">#    available on QTS if you&#39;d rather see progress:</span>
-<span class="c1">#      rsync -a --info=progress2 &lt;src&gt;/ &lt;dst&gt;/</span>
-<span class="c1">#</span>
-<span class="c1">#    Safe to run while the cluster is using the old path: LLM models</span>
-<span class="c1">#    are read-only in practice, and Phase 2 picks up any late additions.</span>
-cp<span class="w"> </span>-a<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/.<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
-
-<span class="c1"># 3. Verify — sizes should match within a few MB of metadata.</span>
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;--- Old vs new sizes ---&quot;</span>
-du<span class="w"> </span>-sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/LMModels<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models&quot;</span>
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;--- Tree ---&quot;</span>
+<span class="c1"># 2. Verify.</span>
 ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
 </pre></div>
 </div>
@@ -563,43 +539,21 @@ kubectl<span class="w"> </span>run<span class="w"> </span>nas-check<span class="
 <span class="s1">}&#39;</span>
 </pre></div>
 </div>
-<p>You should see the <code class="docutils literal notranslate"><span class="pre">models</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code> subtrees.</p>
-</section>
-<section id="phase-2-final-sync-before-rebuild">
-<h2>Phase 2 — final sync before rebuild<a class="headerlink" href="#phase-2-final-sync-before-rebuild" title="Link to this heading">#</a></h2>
-<p>Re-run this right before <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code>. It catches any deltas since
-Phase 1 — in practice the only moving part is any newly-downloaded
-LLM models. <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code> turns the target
-into a true mirror of the source, so anything removed upstream is
-removed from the new share too.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">set</span><span class="w"> </span>-eu
-<span class="nv">ROOT</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-
-rsync<span class="w"> </span>-a<span class="w"> </span>--delete<span class="w"> </span>--info<span class="o">=</span>progress2<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/share/CACHEDEV1_DATA/bigdisk/LMModels/<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/models/&quot;</span>
-
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Final sync complete. Safe to run /rebuild-cluster now.&quot;</span>
-</pre></div>
-</div>
-<p>If the QNAP doesn’t have <code class="docutils literal notranslate"><span class="pre">rsync</span></code> on the default PATH, either use its full
-path (<code class="docutils literal notranslate"><span class="pre">/usr/bin/rsync</span></code> on most QTS builds) or fall back to <code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code>.</p>
+<p>You should see the <code class="docutils literal notranslate"><span class="pre">backups</span></code> subtree.</p>
 </section>
 <section id="rollback">
 <h2>Rollback<a class="headerlink" href="#rollback" title="Link to this heading">#</a></h2>
-<p>The old paths are never touched by this runbook, so rollback is:</p>
-<ol class="arabic">
-<li><p>Revert <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — point <code class="docutils literal notranslate"><span class="pre">rkllama.nfs.path</span></code>
-and <code class="docutils literal notranslate"><span class="pre">llamacpp.nfs.path</span></code> back at <code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels</span></code> and
-<code class="docutils literal notranslate"><span class="pre">/bigdisk/LMModels/cuda</span></code> respectively.</p></li>
-<li><p>Re-sync ArgoCD. rkllama / llamacpp will re-bind to
-the OLD paths and work exactly as before.</p></li>
-<li><p>Only once no pods are consuming the new tree, on the QNAP:</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Only use this straight after first-time setup, while the tree is still empty.
+Once the cluster is running, this tree holds your backups and other workload
+data, and removing it destroys them.</p>
+</div>
+<p>This runbook only adds a new directory, so rollback is to remove it once no
+pods are consuming the tree. On the QNAP:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 </pre></div>
 </div>
-<p>Note that <code class="docutils literal notranslate"><span class="pre">bigdisk/LMModels</span></code> is untouched by the rollback — the copy was additive.</p>
-</li>
-</ol>
 </section>
 <section id="what-this-runbook-explicitly-does-not-do">
 <h2>What this runbook explicitly DOES NOT do<a class="headerlink" href="#what-this-runbook-explicitly-does-not-do" title="Link to this heading">#</a></h2>
@@ -609,7 +563,6 @@ the OLD paths and work exactly as before.</p></li>
 <li><p>Restart any NFS service.</p></li>
 <li><p>Touch any path outside <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code>
 (the optional Minecraft archive below is a separate, deliberate step).</p></li>
-<li><p>Delete data from the old paths.</p></li>
 </ul>
 </section>
 <section id="adding-new-cluster-owned-subfolders-later">
@@ -705,11 +658,11 @@ the ingest script, and lock it again.</p>
       </div>
     </a>
     <a class="right-next"
-       href="rkllama-models.html"
+       href="minecraft.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Download RKLLama Models</p>
+        <p class="prev-next-title">Run the Minecraft Dashboard</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -738,8 +691,7 @@ the ingest script, and lock it again.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phase-1-one-time-setup-initial-data-copy">Phase 1 — one-time setup + initial data copy</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phase-2-final-sync-before-rebuild">Phase 2 — final sync before rebuild</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-time-setup">One-time setup</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-runbook-explicitly-does-not-do">What this runbook explicitly DOES NOT do</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-new-cluster-owned-subfolders-later">Adding new cluster-owned subfolders later</a></li>

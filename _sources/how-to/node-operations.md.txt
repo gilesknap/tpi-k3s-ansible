@@ -67,7 +67,7 @@ kubectl get nodes -w
 :::{warning}
 A hard power-cycle is an unclean shutdown for any in-flight writes. If
 the node carries live local-PV data (Prometheus on node02, Grafana on
-node03, Open-WebUI on node04 — see the "Local PV data paths are sacred"
+node03 — see the "Local PV data paths are sacred"
 rule in `CLAUDE.md`), expect fsck on boot and check the affected pods'
 logs once the node returns.
 :::
@@ -76,7 +76,7 @@ logs once the node returns.
 Don't `kubectl drain` first — the node is already unreachable, so the
 drain will hang waiting for pods that can't be contacted. Just
 power-cycle and let workloads reschedule (or come back, for DaemonSets
-pinned to the node, like `rkllama` on node04).
+pinned to the node).
 :::
 
 ## Drain a node for maintenance

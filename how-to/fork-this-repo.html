@@ -338,8 +338,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
@@ -433,7 +431,7 @@ whichever tutorial you picked
 <a class="reference internal" href="../tutorials/getting-started-generic.html"><span class="doc">Getting Started without Turing Pi</span></a>, or
 <a class="reference internal" href="../tutorials/ai-guided-setup.html"><span class="doc">AI-Guided Setup</span></a>). The tutorials walk the happy-path
 minimum; this guide covers the full set of options (storage mapping,
-per-node flags, service toggles, rkllama pinning, re-sealing).</p>
+per-node flags, service toggles, re-sealing).</p>
 </div>
 <section id="the-three-files-you-must-edit">
 <h2>The three files you must edit<a class="headerlink" href="#the-three-files-you-must-edit" title="Link to this heading">#</a></h2>
@@ -486,7 +484,7 @@ compute module type (<code class="docutils literal notranslate"><span class="pre
 <li><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code> — set to migrate the OS to NVMe; omit for servers
 already on their target disk.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> — enables the NVIDIA driver and container
-toolkit on that node. Required for llama.cpp CUDA.</p></li>
+toolkit on that node. Required for GPU workloads.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code> — applies a <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> taint. Useful for
 machines that reboot unexpectedly (only tolerating workloads land
 there).</p></li>
@@ -551,39 +549,26 @@ directory that doesn’t exist and the PVC will hang Pending.</p>
 determined by upstream chart naming conventions — don’t change them
 unless you also rename Helm releases.</p>
 </section>
-<section id="nfs-share-for-backups-and-large-models">
-<h3>5. NFS share for backups and large models<a class="headerlink" href="#nfs-share-for-backups-and-large-models" title="Link to this heading">#</a></h3>
-<p>Backup CronJobs and the rkllama/llamacpp model stores write to an NFS
+<section id="nfs-share-for-backups">
+<h3>5. NFS share for backups<a class="headerlink" href="#nfs-share-for-backups" title="Link to this heading">#</a></h3>
+<p>Backup CronJobs write to an NFS
 share on your NAS. In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nfs</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nas-ip&gt;</span>
 <span class="w">  </span><span class="nt">cluster_share_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/&lt;your-share&gt;/k8s-cluster</span>
-<span class="nt">rkllama</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">nfs</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nas-ip&gt;</span>
-<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/&lt;your-share&gt;/k8s-cluster/models</span>
-<span class="w">  </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nodeX</span><span class="w">  </span><span class="c1"># which RK1 hosts the rkllama daemonset</span>
 </pre></div>
 </div>
 <p>Then run the one-time NAS setup runbook in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>.</p>
 </section>
-<section id="pin-rkllama">
-<h3>6. Pin rkllama<a class="headerlink" href="#pin-rkllama" title="Link to this heading">#</a></h3>
-<p>If you use rkllama, set:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rkllama</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;RK1-with-32GB-RAM&gt;</span>
-</pre></div>
-</div>
-</section>
 <section id="re-seal-secrets">
-<h3>7. Re-seal secrets<a class="headerlink" href="#re-seal-secrets" title="Link to this heading">#</a></h3>
+<h3>6. Re-seal secrets<a class="headerlink" href="#re-seal-secrets" title="Link to this heading">#</a></h3>
 <p>SealedSecrets are bound to the cluster’s controller key, so the
 existing committed secrets won’t decrypt on your cluster. After your
 first cluster bootstrap, follow <a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> to
 re-seal every secret with your cluster’s key.</p>
 </section>
 <section id="optional-disable-services-you-don-t-want">
-<h3>8. (Optional) Disable services you don’t want<a class="headerlink" href="#optional-disable-services-you-don-t-want" title="Link to this heading">#</a></h3>
+<h3>7. (Optional) Disable services you don’t want<a class="headerlink" href="#optional-disable-services-you-don-t-want" title="Link to this heading">#</a></h3>
 <p>Top-level toggles in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">   </span><span class="c1"># disables OAuth gating on Headlamp/Alertmanager</span>
 <span class="nt">enable_cloudflare_tunnel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># if you don&#39;t expose services to the internet</span>
@@ -593,7 +578,7 @@ re-seal every secret with your cluster’s key.</p>
 the corresponding file in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>.</p>
 </section>
 <section id="optional-customise-the-home-page-lan-links">
-<h3>9. (Optional) Customise the home page LAN links<a class="headerlink" href="#optional-customise-the-home-page-lan-links" title="Link to this heading">#</a></h3>
+<h3>8. (Optional) Customise the home page LAN links<a class="headerlink" href="#optional-customise-the-home-page-lan-links" title="Link to this heading">#</a></h3>
 <p>The home page (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/home/templates/manifests.yaml</span></code>)
 hard-codes a couple of LAN-only service links (router, media server).
 These are intentionally not templated — every fork’s local network is
@@ -682,11 +667,10 @@ described in its final step. Once the cluster is up, proceed with
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edit-the-inventory">2. Edit the inventory</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#point-the-cluster-at-your-fork">3. Point the cluster at your fork</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#map-storage-to-your-nodes">4. Map storage to your nodes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-share-for-backups-and-large-models">5. NFS share for backups and large models</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pin-rkllama">6. Pin rkllama</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#re-seal-secrets">7. Re-seal secrets</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-disable-services-you-don-t-want">8. (Optional) Disable services you don’t want</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-customise-the-home-page-lan-links">9. (Optional) Customise the home page LAN links</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-share-for-backups">5. NFS share for backups</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#re-seal-secrets">6. Re-seal secrets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-disable-services-you-don-t-want">7. (Optional) Disable services you don’t want</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-customise-the-home-page-lan-links">8. (Optional) Customise the home page LAN links</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-not-templated-by-design">What’s NOT templated (by design)</a></li>

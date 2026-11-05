@@ -8,7 +8,7 @@ see {doc}`/explanations/authentication`.
 This guide walks through configuring both authentication paths used by the
 cluster. Each path uses its own GitHub OAuth App:
 
-- **Part A** — Dex OIDC, used by **ArgoCD, Grafana, Open WebUI, and
+- **Part A** — Dex OIDC, used by **ArgoCD, Grafana, and
   argocd-monitor** (services with native OIDC support).
 - **Part B** — oauth2-proxy, used by **Headlamp and Alertmanager**
   (admin-only services with no native OIDC).
@@ -49,7 +49,7 @@ Each Dex static client needs its own secret. Generate them:
 
 ```bash
 # One secret per client
-for client in argo-cd argocd-monitor grafana open-webui; do
+for client in argo-cd argocd-monitor grafana; do
   echo "$client: $(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 done
 ```
@@ -73,7 +73,7 @@ This creates `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`.
 
 ### A4: Seal per-service OAuth secrets
 
-Grafana and Open WebUI each need their own SealedSecret containing the
+Grafana needs its own SealedSecret containing the
 Dex client secret:
 
 ```bash
@@ -84,14 +84,6 @@ kubectl create secret generic grafana-oauth-secret \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
   kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
-
-# Open WebUI
-kubectl create secret generic open-webui-oauth-secret \
-  --namespace open-webui \
-  --from-literal=client-secret="<open-webui-client-secret>" \
-  --dry-run=client -o yaml | \
-kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 ```
 
 ### A5: Configure admin and viewer emails
@@ -125,7 +117,6 @@ restart pods that read secrets from environment variables:
 
 ```bash
 kubectl rollout restart deployment/grafana-prometheus -n monitoring
-kubectl rollout restart deployment/open-webui -n open-webui
 kubectl rollout restart deployment/headlamp -n headlamp
 ```
 

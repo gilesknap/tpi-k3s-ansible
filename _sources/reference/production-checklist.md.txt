@@ -36,13 +36,12 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] `admin-auth` secret created for Grafana/basic-auth services
 - [ ] oauth2-proxy deployed with GitHub OAuth credentials
-- [ ] OAuth enabled on Grafana and Open WebUI; Headlamp and Alertmanager gated by oauth2-proxy
+- [ ] OAuth enabled on Grafana; Headlamp and Alertmanager gated by oauth2-proxy
 - [ ] ArgoCD admin password retrieved and changed from default
 
 ## Resource limits
 
 - [ ] All services have CPU/memory requests and limits set
-- [ ] LLM services have appropriate memory limits for loaded models
 - [ ] ingress-nginx has resource requests
 
 ## Storage
@@ -51,7 +50,6 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 - [ ] `k8s_data_dirs` role has run on every node (directories exist under `/home/k8s-data/*` on nuc2 and `/var/lib/k8s-data/*` on RK1 nodes)
 - [ ] NAS NFS share is mounted by the `k8s-cluster-nfs` PVC in the `backups` namespace
 - [ ] At least one backup CronJob run has produced a file on the NAS under `/bigdisk/k8s-cluster/backups/`
-- [ ] NFS server configured for LLM model storage (if applicable)
 
 ## Monitoring
 

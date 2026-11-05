@@ -338,8 +338,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
@@ -473,10 +471,6 @@ workload-specific <code class="docutils literal notranslate"><span class="pre">s
 <td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups/grafana/{,weekly}/&lt;date&gt;.db</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Open WebUI sqlite</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-czf</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/open-webui</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups/open-webui/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -500,27 +494,6 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </pre></div>
 </div>
 </section>
-<section id="restore-open-webui-tar-archive">
-<h3>Restore — Open WebUI (tar archive)<a class="headerlink" href="#restore-open-webui-tar-archive" title="Link to this heading">#</a></h3>
-<p>The Open WebUI backup is a <code class="docutils literal notranslate"><span class="pre">tar.gz</span></code> holding a consistent <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>
-snapshot of <code class="docutils literal notranslate"><span class="pre">webui.db</span></code>. Scale the workload to zero, extract over the
-local-PV hostPath, then scale back up:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Scale down</span>
-kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>open-webui<span class="w"> </span>sts/open-webui<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
-
-<span class="c1"># 2. Extract on the node that hosts the Open WebUI PV</span>
-ssh<span class="w"> </span>ansible@node04<span class="w"> </span><span class="s1">&#39;</span>
-<span class="s1">  cd /var/lib/k8s-data/open-webui &amp;&amp;</span>
-<span class="s1">  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/open-webui/YYYY-MM-DD.tar.gz</span>
-<span class="s1">&#39;</span>
-
-<span class="c1"># 3. Scale back</span>
-kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>open-webui<span class="w"> </span>sts/open-webui<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
-</pre></div>
-</div>
-<p>(If the NFS share is not pre-mounted on the node, run the extract in a
-debug pod that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PVC instead.)</p>
-</section>
 <section id="restore-grafana-sqlite">
 <h3>Restore — Grafana sqlite<a class="headerlink" href="#restore-grafana-sqlite" title="Link to this heading">#</a></h3>
 <p>The Grafana daily backup uses <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> (a consistent live snapshot,
@@ -533,6 +506,8 @@ ssh<span class="w"> </span>ansible@node03<span class="w"> </span><span class="s1
 kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
 </pre></div>
 </div>
+<p>(If the NFS share is not pre-mounted on the node, run the copy in a
+debug pod that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PVC instead.)</p>
 </section>
 </section>
 <section id="sealed-secrets-key-backup">
@@ -679,7 +654,6 @@ requiring explicit restoration.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stateful-app-data-cronjob-to-nfs-backups">Stateful app data: CronJob-to-NFS backups</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#retention">Retention</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-a-one-off-backup">Trigger a one-off backup</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-open-webui-tar-archive">Restore — Open WebUI (tar archive)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-grafana-sqlite">Restore — Grafana sqlite</a></li>
 </ul>
 </li>

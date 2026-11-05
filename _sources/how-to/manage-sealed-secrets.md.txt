@@ -117,7 +117,6 @@ freshly generated values.
 | `argocd-dex-secret` | `argo-cd` | `github` / `argocd` | GitHub OAuth credentials + every Dex static client secret |
 | `argocd-monitor-oauth` | `argocd-monitor` | `monitor` | oauth2-proxy client + fresh cookie secret |
 | `grafana-oauth-secret` | `monitoring` | `grafana` | Grafana Dex client secret |
-| `open-webui-oauth-secret` | `open-webui` | `open-webui` | Open WebUI Dex client secret |
 | `alertmanager-slack-secret` | `monitoring` | `slack` | Slack incoming webhook URL |
 
 ### Rotate a single secret
@@ -132,7 +131,6 @@ scripts/seal-argocd-dex github       # Update GitHub OAuth credentials
 scripts/seal-argocd-dex argocd       # Re-derive argo-cd client from server.secretkey
 scripts/seal-argocd-dex monitor      # Rotate argocd-monitor client + cookie
 scripts/seal-argocd-dex grafana      # Rotate grafana Dex client secret
-scripts/seal-argocd-dex open-webui   # Rotate open-webui Dex client secret
 scripts/seal-argocd-dex slack        # Re-seal alertmanager Slack webhook
 ```
 
@@ -144,7 +142,7 @@ interactively.
 
 Commit the updated `*-secret.yaml` files and push. ArgoCD syncs them
 and the sealed-secrets controller decrypts them. Pods that read
-secrets via `envFrom` or `secretKeyRef` (Dex, Grafana, Open WebUI,
+secrets via `envFrom` or `secretKeyRef` (Dex, Grafana,
 Headlamp, argocd-monitor) cache values at startup, so the script also
 rolls out the affected workloads automatically.
 

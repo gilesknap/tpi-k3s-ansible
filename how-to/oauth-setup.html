@@ -338,8 +338,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="rkllama-models.html">Download RKLLama Models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="llamacpp-models.html">llama.cpp CUDA Models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
@@ -429,7 +427,7 @@ see <a class="reference internal" href="../explanations/authentication.html"><sp
 <p>This guide walks through configuring both authentication paths used by the
 cluster. Each path uses its own GitHub OAuth App:</p>
 <ul class="simple">
-<li><p><strong>Part A</strong> — Dex OIDC, used by <strong>ArgoCD, Grafana, Open WebUI, and
+<li><p><strong>Part A</strong> — Dex OIDC, used by <strong>ArgoCD, Grafana, and
 argocd-monitor</strong> (services with native OIDC support).</p></li>
 <li><p><strong>Part B</strong> — oauth2-proxy, used by <strong>Headlamp and Alertmanager</strong>
 (admin-only services with no native OIDC).</p></li>
@@ -484,7 +482,7 @@ as its upstream identity source.</p>
 <h3>A2: Generate Dex client secrets<a class="headerlink" href="#a2-generate-dex-client-secrets" title="Link to this heading">#</a></h3>
 <p>Each Dex static client needs its own secret. Generate them:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># One secret per client</span>
-<span class="k">for</span><span class="w"> </span>client<span class="w"> </span><span class="k">in</span><span class="w"> </span>argo-cd<span class="w"> </span>argocd-monitor<span class="w"> </span>grafana<span class="w"> </span>open-webui<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="k">for</span><span class="w"> </span>client<span class="w"> </span><span class="k">in</span><span class="w"> </span>argo-cd<span class="w"> </span>argocd-monitor<span class="w"> </span>grafana<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$client</span><span class="s2">: </span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import secrets; print(secrets.token_urlsafe(32))&#39;</span><span class="k">)</span><span class="s2">&quot;</span>
 <span class="k">done</span>
 </pre></div>
@@ -507,7 +505,7 @@ credentials and client secrets, then creates the SealedSecret:</p>
 </section>
 <section id="a4-seal-per-service-oauth-secrets">
 <h3>A4: Seal per-service OAuth secrets<a class="headerlink" href="#a4-seal-per-service-oauth-secrets" title="Link to this heading">#</a></h3>
-<p>Grafana and Open WebUI each need their own SealedSecret containing the
+<p>Grafana needs its own SealedSecret containing the
 Dex client secret:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Grafana</span>
 kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>grafana-oauth-secret<span class="w"> </span><span class="se">\</span>
@@ -516,14 +514,6 @@ kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="
 <span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
 kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
-
-<span class="c1"># Open WebUI</span>
-kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>open-webui-oauth-secret<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--namespace<span class="w"> </span>open-webui<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--from-literal<span class="o">=</span>client-secret<span class="o">=</span><span class="s2">&quot;&lt;open-webui-client-secret&gt;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-kubeseal<span class="w"> </span>--controller-name<span class="w"> </span>sealed-secrets<span class="w"> </span>--controller-namespace<span class="w"> </span>kube-system<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>kubernetes-services/additions/open-webui/open-webui-oauth-secret.yaml
 </pre></div>
 </div>
 </section>
@@ -553,7 +543,6 @@ Ansible-rendered ArgoCD RBAC):</p>
 <p>Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
 restart pods that read secrets from environment variables:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/grafana-prometheus<span class="w"> </span>-n<span class="w"> </span>monitoring
-kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/open-webui<span class="w"> </span>-n<span class="w"> </span>open-webui
 kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/headlamp<span class="w"> </span>-n<span class="w"> </span>headlamp
 </pre></div>
 </div>

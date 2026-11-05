@@ -7,7 +7,7 @@ opening any inbound firewall ports. It adds an Access-gated SSH route on
 top of the existing Cloudflare tunnel. **Prerequisite:** complete
 {doc}`cloudflare-tunnel` first so that `cloudflared` is running in the
 cluster. For exposing *web* services through the tunnel (Grafana,
-Headlamp, Open WebUI, ArgoCD), see {doc}`cloudflare-web-tunnel` instead.
+Headlamp, ArgoCD), see {doc}`cloudflare-web-tunnel` instead.
 :::
 
 This guide walks through setting up secure remote access to your K3s cluster via an

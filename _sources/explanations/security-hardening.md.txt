@@ -8,7 +8,7 @@ and the principles behind them.
 Kubernetes defines three Pod Security Standards: Privileged, Baseline, and
 Restricted. This cluster applies security contexts at the individual
 workload level rather than enforcing a cluster-wide standard, because some
-workloads (kernel tuning, NPU access) require privileged access.
+workloads (such as kernel tuning) require privileged access.
 
 ### Security context summary
 
@@ -16,9 +16,6 @@ workloads (kernel tuning, NPU access) require privileged access.
 |----------|-------------|----------------------|-----------|--------|
 | cloudflared | Yes (65532) | Yes | No | Network-only, no special access needed |
 | echo | Yes (65534) | Yes | No | Stateless test service |
-| llamacpp | — | — | No | Drops all capabilities; needs GPU device |
-| rkllama | — | — | Yes | Requires `/dev/rknpu` NPU access |
-| rkllama (nginx) | — | — | No | Drops capabilities, adds NET_BIND_SERVICE |
 | kernel-settings | — | — | Yes | Needs sysctl and host filesystem access |
 
 ## Container image pinning

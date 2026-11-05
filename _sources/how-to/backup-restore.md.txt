@@ -26,7 +26,6 @@ workload-specific `subPath` so it only sees its own target subdirectory.
 | Workload | Backup method | NFS path |
 |----------|---------------|----------|
 | Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` | `backups/grafana/{,weekly}/<date>.db` |
-| Open WebUI sqlite | `tar -czf` on `/var/lib/k8s-data/open-webui` | `backups/open-webui/{,weekly}/<date>.tar.gz` |
 
 Prometheus is deliberately **not** backed up — metrics are reconstructible
 via re-scrape, and the snapshot-API dance is not worth the complexity.
@@ -49,29 +48,6 @@ Then verify on the NAS:
 ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/'
 ```
 
-### Restore — Open WebUI (tar archive)
-
-The Open WebUI backup is a `tar.gz` holding a consistent `sqlite3 .backup`
-snapshot of `webui.db`. Scale the workload to zero, extract over the
-local-PV hostPath, then scale back up:
-
-```bash
-# 1. Scale down
-kubectl scale -n open-webui sts/open-webui --replicas=0
-
-# 2. Extract on the node that hosts the Open WebUI PV
-ssh ansible@node04 '
-  cd /var/lib/k8s-data/open-webui &&
-  sudo tar -xzf /mnt/nfs/k8s-cluster/backups/open-webui/YYYY-MM-DD.tar.gz
-'
-
-# 3. Scale back
-kubectl scale -n open-webui sts/open-webui --replicas=1
-```
-
-(If the NFS share is not pre-mounted on the node, run the extract in a
-debug pod that mounts the `k8s-cluster-nfs` PVC instead.)
-
 ### Restore — Grafana sqlite
 
 The Grafana daily backup uses `sqlite3 .backup` (a consistent live snapshot,
@@ -85,6 +61,9 @@ ssh ansible@node03 '
 '
 kubectl scale -n monitoring sts/grafana-prometheus --replicas=1
 ```
+
+(If the NFS share is not pre-mounted on the node, run the copy in a
+debug pod that mounts the `k8s-cluster-nfs` PVC instead.)
 
 ## Sealed Secrets key backup
 

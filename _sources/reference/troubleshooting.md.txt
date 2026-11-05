@@ -384,7 +384,7 @@ If only the local-resolver lookup fails, you are hitting cached
 
 ### PVC stuck in Pending
 
-**Symptom:** A PersistentVolumeClaim for LLM models stays in `Pending`.
+**Symptom:** A PersistentVolumeClaim backed by NFS stays in `Pending`.
 
 **Checklist:**
 
@@ -446,15 +446,3 @@ K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
 ssh root@turingpi
 tpi info
 ```
-
-### NPU not available for RKLlama
-
-**Symptom:** RKLlama pod can't access `/dev/rknpu`.
-
-**Checklist:**
-1. Node must be an RK1 (not CM4) — NPU is only on RK3588
-2. Pod must run privileged (already set in the DaemonSet)
-3. Node must have label `node-type: rk1`:
-   ```bash
-   kubectl label node <node> node-type=rk1
-   ```
