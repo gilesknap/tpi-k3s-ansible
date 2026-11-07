@@ -1,0 +1,22 @@
+#cloud-config
+# {{ ansible_managed }}
+hostname: {{ flash_seed_hostname }}
+preserve_hostname: false
+users:
+  - name: {{ ansible_account }}
+    gecos: Ansible User
+    groups: [adm, audio, cdrom, dialout, dip, floppy, netdev, plugdev, sudo, video]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+{% for key in flash_seed_ssh_keys %}
+      - {{ key }}
+{% endfor %}
+disable_root: true
+ssh_pwauth: false
+{% if flash_seed_stage == 'nvme' %}
+# The install copied the staging OS's SSH host keys onto the NVMe, so the
+# node keeps the identity already in known_hosts: keep them.
+ssh_deletekeys: false
+{% endif %}

@@ -31,7 +31,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 |----------|---------|-------------|
 | `slot_num` | — | Turing Pi BMC slot number (1–4), required for Turing Pi nodes |
 | `type` | — | Module type: `rk1` or `pi4` |
-| `root_dev` | — | Block device to migrate root filesystem to (e.g. `/dev/nvme0n1`) |
+| `root_dev` | — | RK1 only: the disk to install the OS on (e.g. `/dev/nvme0n1`) |
 | `nvidia_gpu_node` | `false` | Set `true` on nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true` so the device plugin DaemonSet can schedule. |
 
 ### `tools` role (`roles/tools/vars/main.yml`)
@@ -48,9 +48,14 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `flash_force` | `false` | Force re-flash even if node is contactable |
-| `flash_local_tmp` | `/tmp` | Local directory for downloading OS images |
+| `flash_local_tmp` | `/tmp/iac2` | Local directory for downloading OS images |
 | `flash_pre_flashed` | `false` | Skip flashing for pre-flashed nodes |
-| (image URLs/SHAs) | (hardcoded) | OS image download URLs and checksums for RK1 and CM4 |
+| `flash_image_info` | (pinned) | CM4 OS image URL and checksum |
+| `flash_rk1_uboot_deb`, `flash_rk1_uboot_deb_file` | (pinned) | Armbian's mainline U-Boot package for the RK1: URL, sha256, and the path and sha256 of `u-boot-rockchip.bin` in it |
+| `flash_rk1_os_vers`, `flash_rk1_os_image` | `26.04.1` (pinned) | Ubuntu's preinstalled server image for the RK1: URL and sha256 |
+| `flash_rk1_emmc_sha256` | (pinned) | sha256 of the uncompressed eMMC staging image built from the two above |
+| `flash_rk1_cache_dir` | `{{ flash_local_tmp }}/rk1` | Controller cache for the RK1 downloads and the built image (about 3 GB) |
+| `flash_seed_ssh_keys` | ansible key (+ Claude key) | Keys authorised for the `ansible` account by the RK1 cloud-init seed |
 
 ### `k3s` role (`roles/k3s/vars/main.yml`)
 

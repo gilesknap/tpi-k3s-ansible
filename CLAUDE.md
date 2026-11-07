@@ -33,6 +33,19 @@
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
   scrap's live data is on the NAS (`/bigdisk/k8s-cluster/scrap-data`,
   `/bigdisk/k8s-cluster/backups/scrap`): just as sacred.
+- **Never touch `/var/lib/k8s-data`** on an RK1: no task, script or
+  ad-hoc command may write, move or delete anything under it. The one
+  way it goes is a re-flash (`flash_force`), which is a fresh install
+  that wipes the node's NVMe and so loses its local PV data: say so to
+  the user, and get their go-ahead, before re-flashing an RK1 that
+  carries a `local-nvme` PV.
+- **Never write to the first 16 MiB of an RK1's eMMC except via the
+  U-Boot image itself.** U-Boot lives there (LBA 64 to about 9.5 MiB;
+  there is no SPI flash), and only `tpi flash` of the eMMC staging image
+  built by `roles/flash` writes it. No `dd`, `mkfs`, partitioning or
+  `bmaptool` into that range. The sole other write is the install's
+  `wipefs --all` of the eMMC, which clears just the partition table
+  signatures (LBA 0–1 and the backup GPT at the far end), never LBA 64+.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
   existing pinning is prometheus→node02, grafana→node03,
   scrap's off-NAS backup copy→nuc2. scrap itself is not pinned (ADR

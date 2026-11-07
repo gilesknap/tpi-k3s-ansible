@@ -33,7 +33,8 @@ lsusb  # should show device ID 2207:350b for RK1
 **Symptom:** SSH connection refused or timeout after `tpi flash` completes.
 
 **Possible causes:**
-1. Node hasn't finished booting — wait 60–90 seconds
+1. Node hasn't finished booting — wait 60–90 seconds (an RK1's first boot of its
+   staging OS takes a few minutes; watch it with `tpi uart -n <slot> get` on the BMC)
 2. IP address changed — check `hosts.yml` matches the DHCP lease or static IP
 3. `known_hosts` entry stale — delete the old entry and re-run:
 

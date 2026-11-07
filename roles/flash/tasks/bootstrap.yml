@@ -1,8 +1,11 @@
-# This can reliably update the filesystem on the node to apply
-# the changes we need to make, including giving the node a new hostname.
-# For this purpose, we change the cloud.cfg file to set the hostname and
-# also add our ansible user to the system, including the ssh key as an
-# authorized key.
+# Seeds cloud-init on the freshly flashed eMMC, from the BMC in disk (msd)
+# mode, so the first boot sets the hostname and creates the ansible user
+# with its SSH key.
+#
+# CM4: the image's root filesystem (partition 2) gets our cloud.cfg and
+# its cloud-init cache is cleared.
+# RK1: the staging image's CIDATA partition (14, vfat) gets a NoCloud seed
+# (meta-data, user-data, network-config); the image itself is pristine.
 
 # this guarantees the state of the node and msd will automatically turn in on
 - name: Turn Off Node {{ node_name }}
@@ -13,51 +16,117 @@
   ansible.builtin.raw: tpi advanced msd -n {{ flash_node.slot_num }}
   changed_when: true
 
+- name: Select the partition to seed {{ node_name }}
+  ansible.builtin.set_fact:
+    flash_seed_part: "{{ '14' if flash_node.type == 'rk1' else '2' }}"
+
 - name: Wait for block device to appear {{ node_name }}
-  ansible.builtin.raw: ls /dev/sd*2
+  ansible.builtin.raw: ls /dev/sd*{{ flash_seed_part }}
   changed_when: false
   register: flash_block_device
-  retries: 5
+  until: flash_block_device.rc == 0
+  retries: 30
   delay: 1
 
 - name: Extract Block Device Partition From Raw Output {{ node_name }}
   ansible.builtin.set_fact:
-    flash_partition: "{{ flash_block_device.stdout_lines[0] | regex_search('(/dev/sd[a-z]?2)', '\\1') | first }}"
+    flash_partition: >-
+      {{ flash_block_device.stdout_lines[0] | regex_search('(/dev/sd[a-z]?' ~ flash_seed_part ~ ')', '\1') | first }}
 
 - name: Mount Block Device Into BMC Filesystem {{ node_name }}
   ansible.builtin.raw: mkdir -p /mnt/node && mount {{ flash_partition }} /mnt/node
   changed_when: true
 
-- name: Render Cloud.cfg File {{ node_name }}
-  delegate_to: localhost
-  ansible.builtin.template:
-    src: cloud.cfg
-    dest: /tmp/cloud.cfg
-    mode: "0644"
+- name: Seed cloud-init on the CM4 root filesystem {{ node_name }}
+  when: flash_node.type != 'rk1'
+  block:
+    - name: Render Cloud.cfg File {{ node_name }}
+      delegate_to: localhost
+      ansible.builtin.template:
+        src: cloud.cfg
+        dest: /tmp/cloud.cfg
+        mode: "0644"
 
-- name: SCP Image To BMC {{ node_name }}
-  delegate_to: localhost
-  ansible.builtin.command: |-
-    scp /tmp/cloud.cfg
-    {{ tpi_user }}@{{ inventory_hostname }}:/mnt/node/etc/cloud/cloud.cfg
-  register: flash_node_modifications
-  changed_when: true
+    - name: SCP Image To BMC {{ node_name }}
+      delegate_to: localhost
+      ansible.builtin.command: |-
+        scp /tmp/cloud.cfg
+        {{ tpi_user }}@{{ inventory_hostname }}:/mnt/node/etc/cloud/cloud.cfg
+      register: flash_node_modifications
+      changed_when: true
 
-- name: Report Modifications Made To Node Filesystem {{ node_name }}
-  ansible.builtin.debug:
-    var: flash_node_modifications.stdout_lines
+    - name: Report Modifications Made To Node Filesystem {{ node_name }}
+      ansible.builtin.debug:
+        var: flash_node_modifications.stdout_lines
 
-- name: Delete Cloud Init Cache To Force First Boot Configuration {{ node_name }}
-  ansible.builtin.raw: rm -rf /mnt/node/var/lib/cloud
-  changed_when: true
+    - name: Delete Cloud Init Cache To Force First Boot Configuration {{ node_name }}
+      ansible.builtin.raw: rm -rf /mnt/node/var/lib/cloud
+      changed_when: true
+
+- name: Seed cloud-init on the RK1 CIDATA partition {{ node_name }}
+  when: flash_node.type == 'rk1'
+  block:
+    - name: Create a local directory for the seed {{ node_name }}
+      delegate_to: localhost
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: .seed
+      register: flash_seed_tmp
+
+    - name: Render the staging OS seed {{ node_name }}
+      ansible.builtin.include_tasks:
+        file: seed_files.yml
+        apply:
+          delegate_to: localhost
+      vars:
+        flash_seed_dir: "{{ flash_seed_tmp.path }}"
+        flash_seed_hostname: "{{ node_name }}"
+        flash_seed_stage: staging
+
+    - name: Copy the seed to the CIDATA partition {{ node_name }}
+      delegate_to: localhost
+      ansible.builtin.command: >-
+        scp {{ flash_seed_files | map('regex_replace', '^', flash_seed_tmp.path ~ '/') | join(' ') }}
+        {{ tpi_user }}@{{ inventory_hostname }}:/mnt/node/
+      changed_when: true
+
+  always:
+    - name: Remove the local seed directory {{ node_name }}
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ flash_seed_tmp.path }}"
+        state: absent
+      when: flash_seed_tmp.path is defined
 
 - name: Unmount Block Device {{ node_name }}
   ansible.builtin.raw: umount /mnt/node
   changed_when: true
 
-- name: Reboot Node In Slot {{ node_name.slot_num }}
+- name: Reboot Node In Slot {{ flash_node.slot_num }}
   ansible.builtin.raw: tpi advanced normal -n {{ flash_node.slot_num }}
   changed_when: true
+
+# Neither the old OS nor flash.yml cleared the NVMe: zero its partition
+# table from the U-Boot prompt over the UART, then reset into the staging
+# OS. This powers the node on.
+- name: Clear the NVMe from U-Boot and boot the staging OS {{ node_name }}
+  when:
+    - flash_node.type == 'rk1'
+    - flash_node.root_dev is defined
+    - not flash_rk1_nvme_cleared | default(false) | bool
+  block:
+    - name: Power off before the U-Boot NVMe wipe {{ node_name }}
+      ansible.builtin.raw: tpi power off -n {{ flash_node.slot_num }}
+      changed_when: true
+
+    - name: Zero the NVMe partition table from the U-Boot prompt {{ node_name }}
+      ansible.builtin.script: rk1_zap_nvme.sh {{ flash_node.slot_num }}
+      register: flash_rk1_zap
+      changed_when: true
+
+    - name: Show the U-Boot NVMe wipe {{ node_name }}
+      ansible.builtin.debug:
+        var: flash_rk1_zap.stdout_lines
 
 # wait until the node is ready to accept ssh connections
 - name: Wait for {{ node_name }}

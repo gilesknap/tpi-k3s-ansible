@@ -1,18 +1,58 @@
 # details of the Ubuntu OS images to flash onto the nodes
 flash_rp4_vers: "24.04.4"
-flash_rk1_vers: "24.04"
 
 flash_image_info:
-  rk1:
-    url: https://github.com/Joshua-Riek/ubuntu-rockchip/releases/download/v2.4.0/ubuntu-{{ flash_rk1_vers }}-preinstalled-server-arm64-turing-rk1.img.xz
-    sha: 88584d5797bac01efd3bb1063935ce9f00947e4d4aa0c671d0a39ec8db6ca8f7
-    os_file: "{{ flash_local_tmp }}/rk1.os.ubuntu-{{ flash_rk1_vers }}.img.xz"
-    osf_remote: "{{ tpi_images_path }}/rk1.os.ubuntu-{{ flash_rk1_vers }}.img.xz"
   pi4:
     url: https://cdimage.ubuntu.com/releases/{{ flash_rp4_vers }}/release/ubuntu-{{ flash_rp4_vers }}-preinstalled-server-arm64+raspi.img.xz
     sha: 790652faeb4f61ce7bb12f5cb61734595c61d3cd882915b8b5f9918106c80d37
     os_file: "{{ flash_local_tmp }}/os.raspi{{ flash_rp4_vers }}.img.xz"
     osf_remote: "{{ tpi_images_path }}/os.raspi{{ flash_rp4_vers }}.img.xz"
+
+# RK1: stock Ubuntu with Armbian's build of mainline U-Boot, no vendor image.
+# See docs/explanations/ansible-roles.md for the flow and how to bump these.
+#
+# Mainline U-Boot (turing-rk1-rk3588_defconfig) as built by Armbian. The
+# pool filename changes with every Armbian build: to bump, take the newest
+# linux-u-boot-turing-rk1-current .deb from the Packages index and update
+# flash_rk1_uboot_deb_file, sha256 and member_sha256 together (then flash_rk1_emmc_sha256 below).
+flash_rk1_uboot_deb_file: linux-u-boot-turing-rk1-current_26.8.3_arm64__2026.07-Sece3-Pb90d-H1974-V54fc-B5da4-R448a.deb
+flash_rk1_uboot_deb:
+  url: https://apt.armbian.com/pool/main/l/linux-u-boot-turing-rk1-current/{{ flash_rk1_uboot_deb_file }}
+  sha256: ea2e22f48cbf4f9d4a1895fe038ee81d5c9115b463a9bd717dc87edf78e0dc30
+  member: usr/lib/linux-u-boot-current-turing-rk1/u-boot-rockchip.bin
+  member_sha256: 3ebca4c59fe8235e97b44b59b1b7b7e2d5c875353aedd837bfce1f755a73bc49
+
+# Ubuntu's official preinstalled server image: GPT with root on p1, a
+# cloud-init CIDATA seed on p14 and its ESP (shim + GRUB) on p15. It is both
+# the eMMC staging OS and what move_fs writes to the NVMe.
+flash_rk1_os_vers: "26.04.1"
+flash_rk1_os_image:
+  url: https://cdimage.ubuntu.com/releases/26.04/release/ubuntu-{{ flash_rk1_os_vers }}-preinstalled-server-arm64.img.xz
+  sha256: 189b1aec3eaf9544a51dba4e6ac3f4d5d24fd1031ed0263fa5ea78f1824934c1
+
+# The eMMC staging image built from the two above by files/rk1_emmc_image.py
+# (U-Boot at LBA 64, the image's partitions moved to start at 16 MiB). The
+# build is deterministic, so this pins the uncompressed result: the build
+# fails if it differs, and a cached image that matches is not rebuilt.
+# After bumping either source, set this to the sha256 the failed build
+# reports.
+flash_rk1_emmc_sha256: bca9ca691e03e215f0e261c375fbba5cf6be9fe302fdf5e96d7fa342e3be7306
+flash_rk1_emmc_name: rk1-emmc-ubuntu-{{ flash_rk1_os_vers }}-{{ flash_rk1_emmc_sha256[:12] }}.img.xz
+
+# The cloud-init NoCloud seed for the eMMC staging OS and the NVMe OS
+# (templates/rk1-seed). The keys authorised for the ansible account: the
+# cluster's ansible key, plus the Claude sandbox key when the claude_key
+# play in pb_all.yml would add it anyway and the key exists.
+flash_seed_files: [meta-data, user-data, network-config]
+flash_seed_ssh_keys: >-
+  {{ [lookup('file', 'pub_keys/ansible_rsa.pub')]
+     + ([lookup('file', flash_claude_pubkey_path, errors='ignore')]
+        if claude_pubkey_state | default('present') == 'present' else [])
+     | select | list }}
+flash_claude_pubkey_path: "{{ claude_ansible_pubkey_path | default('/root/.config/claude-ssh/id_ed25519.pub') }}"
+
+# On the controller: the downloads and the built image (about 3 GB).
+flash_rk1_cache_dir: "{{ flash_local_tmp }}/rk1"
 
 # force re-flash of nodes even if they are already contactable
 flash_force: false
