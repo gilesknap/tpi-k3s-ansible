@@ -8,10 +8,10 @@ combinations. Tags map to plays within the playbook.
 | Tag | Play | Roles | Runs on | Description |
 |-----|------|-------|---------|-------------|
 | `tools` | Install client tools | `tools` | localhost | Installs helm, kubectl, kubeseal, scripts |
-| `flash` | Bare metal provisioning | `flash` | turing_pis | Flashes Ubuntu to compute modules (BMC) |
+| `flash` | Bare metal provisioning | `flash` | turing_pis | Flashes Ubuntu to compute modules (BMC); on RK1s, mainline U-Boot plus an eMMC staging copy of Ubuntu 26.04 |
 | `known_hosts` | Update known_hosts | `known_hosts` | all_nodes, turing_pis | Updates SSH known_hosts (serial: 1) |
-| `servers` | Prepare nodes | `move_fs`, `rk1_os`, `update_packages`, `k8s_data_dirs` | all_nodes | OS migration, RK1 OS conversion, dist-upgrade, dependencies |
-| `rk1_os` | Convert RK1 nodes | `rk1_os` | RK1 nodes, `serial: 1` | Stock Ubuntu 26.04, generic kernel, EFI/GRUB boot |
+| `servers` | Prepare nodes | `move_fs`, `rk1_os`, `update_packages`, `k8s_data_dirs` | all_nodes | Ubuntu install on RK1 NVMe, conversion of older RK1 installs, dist-upgrade, dependencies |
+| `rk1_os` | Convert RK1 nodes | `rk1_os` | RK1 nodes, `serial: 1` | Converts RK1s still on the old ubuntu-rockchip vendor layout to stock Ubuntu 26.04; skips standard installs |
 | `k3s` | Install K3s | `k3s`, `etcd_backup` | all_nodes | Installs K3s control plane + workers, and the control plane's nightly etcd backup timer |
 | `apparmor` | Install K3s | `k3s` (`apparmor.yml` only) | all_nodes | Only the corrected containerd AppArmor profile (see {doc}`/reference/troubleshooting`) |
 | `etcd_backup` | Install K3s | `etcd_backup` | control plane | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
@@ -60,6 +60,9 @@ ansible-playbook pb_all.yml --limit extra_nodes --tags known_hosts,servers,k3s
 :::{note}
 When using `--limit` with the `flash` tag, always include the Turing Pi BMC host
 (e.g. `turingpi`) because the flash role runs on the BMC, not on the node itself.
+An RK1 flash is only complete after the `servers` tag's `move_fs` has installed its
+NVMe, so for an RK1 run the whole playbook (or at least
+`--tags flash,known_hosts,servers`), not `--tags flash` alone.
 :::
 
 ## Standalone playbooks

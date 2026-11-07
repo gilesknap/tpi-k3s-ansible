@@ -1,0 +1,172 @@
+# Builds the RK1 eMMC staging image on the controller and stages it on the
+# BMC, then sets flash_image for flash.yml.
+#
+# The image is Armbian's mainline U-Boot at LBA 64 plus Ubuntu's
+# preinstalled server image moved to start at 16 MiB (files/
+# rk1_emmc_image.py, Python standard library only). It is built once per
+# run, and only when the cached copy does not decompress to the pinned
+# flash_rk1_emmc_sha256. Both downloads are re-checked on every run.
+#
+# With several BMCs, each builds into its own temporary files and moves
+# the checked result into place, so concurrent builds cannot mix their
+# output (the build is deterministic, so either copy is the same image).
+# throttle keeps these steps to one BMC at a time where a strategy would
+# otherwise run them in parallel.
+
+- name: Build the RK1 eMMC staging image on the controller
+  delegate_to: localhost
+  when: flash_rk1_image is not defined
+  throttle: 1
+  block:
+    - name: Check xz is installed on the controller
+      ansible.builtin.command: xz --version
+      changed_when: false
+      check_mode: false
+
+    - name: Create the RK1 image cache directory
+      ansible.builtin.file:
+        path: "{{ flash_rk1_cache_dir }}"
+        state: directory
+        mode: "0755"
+
+    # get_url checks an existing file against the checksum and downloads
+    # it again if it does not match.
+    - name: Download Armbian's U-Boot package for the RK1
+      ansible.builtin.get_url:
+        url: "{{ flash_rk1_uboot_deb.url }}"
+        dest: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_uboot_deb.url | basename }}"
+        checksum: "sha256:{{ flash_rk1_uboot_deb.sha256 }}"
+        mode: "0644"
+
+    - name: Download Ubuntu's preinstalled server image
+      ansible.builtin.get_url:
+        url: "{{ flash_rk1_os_image.url }}"
+        dest: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_os_image.url | basename }}"
+        checksum: "sha256:{{ flash_rk1_os_image.sha256 }}"
+        mode: "0644"
+
+    - name: Check the cached eMMC image against the pinned checksum
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          xz -dc {{ (flash_rk1_cache_dir ~ '/' ~ flash_rk1_emmc_name) | quote }} |
+          sha256sum | cut -d ' ' -f 1
+        executable: /bin/bash
+      register: flash_rk1_cached
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Build the eMMC image
+      when:
+        - flash_rk1_cached.stdout | trim != flash_rk1_emmc_sha256
+        - not ansible_check_mode
+      vars:
+        flash_rk1_raw: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_emmc_name | regex_replace('\\.xz$', '') }}.{{ inventory_hostname }}"
+        flash_rk1_xz: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_emmc_name }}"
+        flash_rk1_xz_part: "{{ flash_rk1_xz }}.{{ inventory_hostname }}.part"
+      block:
+        - name: Put U-Boot and the Ubuntu partitions on one eMMC image
+          ansible.builtin.command:
+            argv:
+              - "{{ ansible_playbook_python }}"
+              - -I
+              - "{{ role_path }}/files/rk1_emmc_image.py"
+              - --ubuntu-xz
+              - "{{ flash_rk1_cache_dir }}/{{ flash_rk1_os_image.url | basename }}"
+              - --uboot-deb
+              - "{{ flash_rk1_cache_dir }}/{{ flash_rk1_uboot_deb.url | basename }}"
+              - --uboot-member
+              - "{{ flash_rk1_uboot_deb.member }}"
+              - --uboot-sha256
+              - "{{ flash_rk1_uboot_deb.member_sha256 }}"
+              - --output
+              - "{{ flash_rk1_raw }}"
+          register: flash_rk1_build
+          changed_when: true
+
+        - name: Check the eMMC image is the pinned build
+          ansible.builtin.assert:
+            that: (flash_rk1_build.stdout | from_json).sha256 == flash_rk1_emmc_sha256
+            fail_msg: >-
+              The eMMC image built from {{ flash_rk1_os_image.url | basename }} and
+              {{ flash_rk1_uboot_deb.url | basename }} has sha256
+              {{ (flash_rk1_build.stdout | from_json).sha256 }}, not the pinned
+              {{ flash_rk1_emmc_sha256 }}. If you bumped either source, set
+              flash_rk1_emmc_sha256 in roles/flash/vars/main.yml to the new value.
+            quiet: true
+
+        - name: Compress the eMMC image
+          ansible.builtin.shell:
+            cmd: xz -T0 -3 -c {{ flash_rk1_raw | quote }} > {{ flash_rk1_xz_part | quote }}
+            executable: /bin/bash
+          changed_when: true
+
+        - name: Check the compressed eMMC image decompresses to the pinned build
+          ansible.builtin.shell:
+            cmd: >-
+              set -o pipefail &&
+              xz -dc {{ flash_rk1_xz_part | quote }} | sha256sum | cut -d ' ' -f 1
+            executable: /bin/bash
+          register: flash_rk1_xz_check
+          changed_when: false
+          failed_when: flash_rk1_xz_check.stdout | trim != flash_rk1_emmc_sha256
+
+        - name: Move the compressed eMMC image into place
+          ansible.builtin.command:
+            argv: [mv, "{{ flash_rk1_xz_part }}", "{{ flash_rk1_xz }}"]
+          changed_when: true
+
+      always:
+        - name: Remove the uncompressed and partial eMMC images
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ flash_rk1_raw }}"
+            - "{{ flash_rk1_xz_part }}"
+
+    - name: Find the checksum of the compressed eMMC image
+      ansible.builtin.stat:
+        path: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_emmc_name }}"
+        checksum_algorithm: sha256
+      register: flash_rk1_xz_stat
+
+    # xz output can differ between xz versions, so the BMC copy is named
+    # after the compressed file's own checksum too, which tpi flash checks.
+    - name: Select the RK1 eMMC image
+      vars:
+        flash_rk1_xz_sha: "{{ flash_rk1_xz_stat.stat.checksum | default('none') }}"
+        flash_rk1_stem: "{{ flash_rk1_emmc_name | regex_replace('\\.img\\.xz$', '') }}"
+      ansible.builtin.set_fact:
+        flash_rk1_image:
+          os_file: "{{ flash_rk1_cache_dir }}/{{ flash_rk1_emmc_name }}"
+          osf_remote: "{{ tpi_images_path }}/{{ flash_rk1_stem }}-{{ flash_rk1_xz_sha[:12] }}.img.xz"
+          sha: "{{ flash_rk1_xz_sha }}"
+
+# The copy goes to a .part file and is renamed when complete, so a file
+# with the final name is a whole copy.
+- name: Check for the RK1 eMMC image on the BMC
+  ansible.builtin.raw: mkdir -p {{ tpi_images_path }} && test -f {{ flash_rk1_image.osf_remote }}
+  register: flash_rk1_bmc_image
+  failed_when: false
+  changed_when: false
+
+- name: Copy the RK1 eMMC image to the BMC
+  when: flash_rk1_bmc_image.rc != 0
+  block:
+    - name: Scp the RK1 eMMC image to the BMC
+      delegate_to: localhost
+      ansible.builtin.command: >-
+        scp {{ flash_bmc_ssh_opts }} {{ ansible_scp_extra_args | default('') }}
+        {{ flash_rk1_image.os_file | quote }}
+        {{ flash_bmc_target }}:{{ flash_rk1_image.osf_remote | quote }}.part
+      changed_when: true
+
+    - name: Rename the complete copy on the BMC
+      ansible.builtin.raw: mv {{ flash_rk1_image.osf_remote }}.part {{ flash_rk1_image.osf_remote }}
+      changed_when: true
+
+- name: Select the image to flash for RK1
+  ansible.builtin.set_fact:
+    flash_image: "{{ flash_rk1_image }}"

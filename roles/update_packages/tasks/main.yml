@@ -7,6 +7,14 @@
     upgrade: dist
     update_cache: true
 
+# The RK1 install's cloud-init seed (roles/flash/templates/rk1-seed)
+# holds apt's periodic jobs until this dist-upgrade has run. Remove the
+# hold, so unattended-upgrades runs again. No-op elsewhere.
+- name: Re-enable unattended-upgrades after the RK1 install
+  ansible.builtin.file:
+    path: /etc/apt/apt.conf.d/99rk1-install-hold
+    state: absent
+
 - name: Check if a reboot is required
   ansible.builtin.stat:
     path: /var/run/reboot-required

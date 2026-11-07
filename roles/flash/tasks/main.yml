@@ -2,6 +2,21 @@
   ansible.builtin.set_fact:
     flash_nodes: "{{ groups[inventory_hostname + '_nodes'] }}"
 
+# The BMC has no Python, so file copies and the long-running tpi flash
+# (which needs async, and raw cannot do async) run on the controller as
+# scp and ssh. They use this play's SSH settings for the BMC: the key from
+# ansible_ssh_private_key_file or --private-key, and ansible_ssh_common_args.
+- name: Set the SSH options for commands the controller runs on the BMC
+  vars:
+    flash_bmc_key: "{{ ansible_ssh_private_key_file | default(ansible_private_key_file | default('')) }}"
+  ansible.builtin.set_fact:
+    flash_bmc_ssh_opts: >-
+      -o BatchMode=yes
+      {{ ('-o Port=' ~ ansible_port) if ansible_port is defined else '' }}
+      {{ ('-i ' ~ (flash_bmc_key | quote)) if flash_bmc_key | length > 0 else '' }}
+      {{ ansible_ssh_common_args | default('') }}
+    flash_bmc_target: "{{ ansible_user | default(tpi_user) }}@{{ ansible_host | default(inventory_hostname) }}"
+
 - name: List the nodes for '{{ inventory_hostname }}'
   ansible.builtin.debug:
     var: flash_nodes

@@ -1,0 +1,35 @@
+#cloud-config
+# {{ ansible_managed }}
+hostname: {{ flash_seed_hostname }}
+preserve_hostname: false
+users:
+  - name: {{ ansible_account }}
+    gecos: Ansible User
+    groups: [adm, audio, cdrom, dialout, dip, floppy, netdev, plugdev, sudo, video]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+{% for key in flash_seed_ssh_keys %}
+      - {{ key }}
+{% endfor %}
+disable_root: true
+ssh_pwauth: false
+{% if flash_seed_stage == 'nvme' %}
+# The install copied the staging OS's SSH host keys onto the NVMe, so the
+# node keeps the identity already in known_hosts: keep them.
+ssh_deletekeys: false
+{% endif %}
+# Hold apt's periodic jobs (unattended-upgrades) during the install: on a
+# first boot they would install a hundred-odd packages one at a time and
+# hold the dpkg lock for half an hour. cloud-init writes this before
+# network-online.target, so before apt-daily*.service can start. On the
+# NVMe install, update_packages runs one dist-upgrade and then removes the
+# file, which re-enables unattended-upgrades.
+write_files:
+  - path: /etc/apt/apt.conf.d/99rk1-install-hold
+    permissions: "0644"
+    content: |
+      // Written by cloud-init for the RK1 install (roles/flash). Removed by
+      // roles/update_packages after its dist-upgrade.
+      APT::Periodic::Enable "0";

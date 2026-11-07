@@ -41,7 +41,7 @@ all_nodes:
 |----------|----------|--------|-------------|
 | `slot_num` | For Turing Pi nodes | `1`–`4` | Physical slot on the board (slot 1 nearest coin battery) |
 | `type` | For Turing Pi nodes | `rk1`, `pi4` | Compute module type (determines OS image) |
-| `root_dev` | Optional | Device path | Target block device for OS migration (e.g. `/dev/nvme0n1`) |
+| `root_dev` | Optional, RK1 only | Device path | The disk to install the OS on (e.g. `/dev/nvme0n1`); the eMMC then holds only U-Boot |
 | `nvidia_gpu_node` | Optional | `true`/`false` | Set `true` for nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true`. Required for GPU workloads. |
 | `workstation` | Optional | `true`/`false` | Applies `workstation=true:NoSchedule` taint and `node-role=workstation` label. Only tolerating workloads (GPU, monitoring) schedule here. |
 | `node_ip` | Optional | IP address | Forces K3s to use this IP (passed as `--node-ip`). Required for multi-homed nodes where the default route interface is on the wrong subnet. |

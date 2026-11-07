@@ -3,46 +3,52 @@
 # commands are delegated to localhost or use 'raw'
 # because the BMC has no python or disk space to install python
 # such commands cannot have ansible do idempotent checks, so suppress no-changed-when
+#
+# Nothing here touches an RK1's NVMe: bootstrap.yml clears it from the
+# U-Boot prompt only after this flash has succeeded, so a failed flash
+# leaves the node's existing install as it was.
 
-- name: Select The Image To Flash For Rk1
-  ansible.builtin.set_fact:
-    flash_image: "{{ flash_image_info.rk1 }}"
+- name: Build and stage the RK1 eMMC image
+  ansible.builtin.include_tasks: image_rk1.yml
   when: flash_node.type == 'rk1'
 
-- name: Select The Image To Flash For Rpi4 Compute Module
-  ansible.builtin.set_fact:
-    flash_image: "{{ flash_image_info.pi4 }}"
+- name: Download and stage the Rpi4 Compute Module image
   when: flash_node.type == 'pi4'
+  block:
+    - name: Select The Image To Flash For Rpi4 Compute Module
+      ansible.builtin.set_fact:
+        flash_image: "{{ flash_image_info.pi4 }}"
 
-- name: Check for existing image file
-  ansible.builtin.raw: mkdir -p {{ tpi_images_path }} && test -f {{ flash_image.osf_remote }}
-  register: flash_os_file_stat
-  ignore_errors: true
-  changed_when: false
+    - name: Check for existing image file
+      ansible.builtin.raw: mkdir -p {{ tpi_images_path }} && test -f {{ flash_image.osf_remote }}
+      register: flash_os_file_stat
+      ignore_errors: true
+      changed_when: false
 
-- name: Create Temporary Download Directory {{ flash_local_tmp }}
-  delegate_to: localhost
-  ansible.builtin.file:
-    path: "{{ flash_local_tmp }}"
-    state: directory
-    mode: "0755"
+    - name: Create Temporary Download Directory {{ flash_local_tmp }}
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ flash_local_tmp }}"
+        state: directory
+        mode: "0755"
 
-- name: Get OS image for {{ flash_node.type }}
-  delegate_to: localhost
-  ansible.builtin.get_url:
-    url: "{{ flash_image.url }}"
-    dest: "{{ flash_image.os_file }}"
-    mode: "0644"
-  register: flash_os_file
-  when: flash_os_file_stat.rc | default(0) != 0
+    - name: Get OS image for {{ flash_node.type }}
+      delegate_to: localhost
+      ansible.builtin.get_url:
+        url: "{{ flash_image.url }}"
+        dest: "{{ flash_image.os_file }}"
+        mode: "0644"
+      register: flash_os_file
+      when: flash_os_file_stat.rc | default(0) != 0
 
-- name: Scp image to BMC
-  delegate_to: localhost
-  ansible.builtin.command: |-
-    scp {{ flash_image.os_file }}
-    {{ tpi_user }}@{{ inventory_hostname }}:{{ flash_image.osf_remote }}
-  changed_when: true
-  when: flash_os_file_stat.rc | default(0) != 0
+    - name: Scp image to BMC
+      delegate_to: localhost
+      ansible.builtin.command: >-
+        scp {{ flash_bmc_ssh_opts }} {{ ansible_scp_extra_args | default('') }}
+        {{ flash_image.os_file | quote }}
+        {{ flash_bmc_target }}:{{ flash_image.osf_remote | quote }}
+      changed_when: true
+      when: flash_os_file_stat.rc | default(0) != 0
 
 # this guarantees the state of the node and tpi flash will automatically turn in on
 - name: Turn off {{ node_name }}
@@ -53,18 +59,27 @@
   ansible.builtin.pause:
     seconds: 10
 
+# tpi flash runs from the controller over ssh, not with raw: raw cannot
+# use async, and async+poll keeps a 10-minute flash from hitting SSH or
+# task timeouts while printing a status line every 15 s.
+# If tpi flash fails with a USB enumeration error, power-cycle the BMC and re-run.
 - name: Flash image to {{ node_name }}
-  # async+poll prints a status line every 15s so you can see it isn't hung.
-  # Note: async is incompatible with retries/until; those are removed here.
-  # If tpi flash fails with a USB enumeration error, power-cycle the BMC and re-run.
-  ansible.builtin.raw: >-
-    tpi power off -n {{ flash_node.slot_num }} &&
-    sleep 15 &&
-    tpi flash -n {{ flash_node.slot_num }} --image-path {{ flash_image.osf_remote }} --sha256 {{ flash_image.sha }}
+  delegate_to: localhost
+  vars:
+    # The async job and its status polls run on the controller, but Ansible
+    # resolves their interpreter from the BMC's host vars (it has no Python).
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    flash_tpi_command: >-
+      tpi flash -n {{ flash_node.slot_num }}
+      --image-path {{ flash_image.osf_remote }} --sha256 {{ flash_image.sha }}
+  ansible.builtin.command: >-
+    ssh {{ flash_bmc_ssh_opts }} {{ ansible_ssh_extra_args | default('') }}
+    {{ flash_bmc_target }} {{ flash_tpi_command | quote }}
   register: flash_results
   changed_when: true
-  failed_when: flash_results.rc != 0 or 'Error occured' in (flash_results.stdout | default(''))
-  async: 600
+  failed_when: flash_results.rc | default(1) != 0 or 'Error occured' in (flash_results.stdout | default(''))
+  # An RK1 eMMC image takes about 10 minutes.
+  async: 1800
   poll: 15
   # use pre_flashed to skip this step when testing bootstrapping
   when: not flash_pre_flashed

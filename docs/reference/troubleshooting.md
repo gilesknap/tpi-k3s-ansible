@@ -33,13 +33,36 @@ lsusb  # should show device ID 2207:350b for RK1
 **Symptom:** SSH connection refused or timeout after `tpi flash` completes.
 
 **Possible causes:**
-1. Node hasn't finished booting — wait 60–90 seconds
+1. Node hasn't finished booting — wait 60–90 seconds (an RK1's first boot of its
+   staging OS takes a few minutes; watch it with `tpi uart -n <slot> get` on the BMC)
 2. IP address changed — check `hosts.yml` matches the DHCP lease or static IP
 3. `known_hosts` entry stale — delete the old entry and re-run:
 
 ```bash
 ssh-keygen -R <node-ip>
 ansible-playbook pb_all.yml --tags known_hosts
+```
+
+### Wrong data from `dd iflag=direct` on an RK1
+
+**Symptom:** a checksum of a block device or file read with `dd iflag=direct` on an
+RK1 does not match, but a second read, a buffered read, or GNU dd gives the right
+answer. The bad bytes are the first 4 to 60 bytes of 128 KiB chunks.
+
+**Cause:** a kernel bug on the RK3588 with kernel 7.0 (non-coherent PCIe DMA). An
+`O_DIRECT` read over 128 KiB into a buffer that is not 64-byte aligned loses a
+partial cache line at request boundaries to a swiotlb bounce and the cache
+maintenance after it. Ubuntu 26.04's default `dd` is uutils, whose buffer is not
+aligned. `O_DIRECT` writes, buffered reads and page-cache I/O (filesystems,
+databases) are not affected: the data on disk is correct.
+
+**Fix:** on RK1s, don't read block devices with `dd iflag=direct` (uutils). Use
+GNU dd (`gnudd`, page-aligned buffers), or a buffered read after dropping the page
+cache:
+
+```bash
+sync && echo 3 | sudo tee /proc/sys/vm/drop_caches
+sudo head -c <bytes> /dev/nvme0n1 | sha256sum
 ```
 
 ## SSH / known_hosts
