@@ -26,7 +26,23 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-          minAvailable: 1
+          # Two replicas on different nodes, so a node reboot or drain keeps
+          # one controller serving. The chart's PDB is created when
+          # replicaCount > 1.
+          replicaCount: 2
+          maxUnavailable: 1
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              # Ignore tainted and cordoned nodes when counting skew, so a
+              # rollout or drain never waits for a node it cannot use.
+              nodeTaintsPolicy: Honor
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: ingress-nginx
+                  app.kubernetes.io/instance: ingress
+                  app.kubernetes.io/component: controller
           admissionWebhooks:
             # Disabled: hook jobs (admission-create/patch) delete themselves before
             # ArgoCD records Succeeded, causing every sync to get permanently stuck.

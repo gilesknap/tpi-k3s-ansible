@@ -45,11 +45,18 @@
   register: k3s_node_token
   changed_when: false
 
-- name: Install k3s worker node version {{ k3s_version | default('latest') }}
+- name: Read the k3s version the control plane runs
+  ansible.builtin.command:
+    cmd: kubectl get node {{ control_plane }} -o jsonpath={.status.nodeInfo.kubeletVersion}
+  delegate_to: "{{ control_plane }}"
+  register: k3s_control_plane_version
+  changed_when: false
+
+- name: Install k3s worker node {{ k3s_version | default(k3s_control_plane_version.stdout) }}
   ansible.builtin.command:
     cmd: /usr/local/bin/k3s-install.sh
   environment:
-    INSTALL_K3S_VERSION: "{{ k3s_version | default('') }}"
+    INSTALL_K3S_VERSION: "{{ k3s_version | default(k3s_control_plane_version.stdout) }}"
     K3S_URL: "https://{{ k3s_control_plane_ip }}:6443"
     K3S_TOKEN: "{{ k3s_node_token.stdout }}"
     INSTALL_K3S_EXEC: >-

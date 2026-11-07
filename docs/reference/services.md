@@ -99,18 +99,21 @@ hardware and want the full experience out of the box.
 | Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
 |---------|---------------|---------|-----------|-------------|------|---------|
 | cert-manager | `jetstack/cert-manager` | v1.20.1 | `cert-manager` | — | — | TLS certificate management |
-| cloudflared | Plain manifests | 2026.3.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
+| cloudflared | Plain manifests | 2026.10.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
+| CoreDNS HA | Plain manifests | — | `kube-system` | — | — | Holds K3s's bundled CoreDNS at 2 replicas |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
 | Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
 | Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
+| kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
+| system-upgrade-controller | Upstream release manifests | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |
 
 ## Service details
 
@@ -126,12 +129,13 @@ for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi lim
 
 ### cloudflared
 
-Outbound Cloudflare tunnel connector. Runs 2 replicas for availability. Reads the
-tunnel token from a SealedSecret. Non-root, read-only rootfs. Image pinned to
-`2026.3.0`.
+Outbound Cloudflare tunnel connector. Runs 2 replicas on different nodes
+(required pod anti-affinity) with a PodDisruptionBudget of `maxUnavailable: 1`.
+Reads the tunnel token from a SealedSecret. Non-root, read-only rootfs.
 
 **Additional manifests:** `additions/cloudflared/`
-- `deployment.yaml` — 2-replica Deployment with hardened security context
+- `deployment.yaml` — 2-replica Deployment with hardened security context, and
+  its PodDisruptionBudget
 - `tunnel-secret.yaml` — SealedSecret for tunnel token
 
 ### echo
@@ -151,7 +155,9 @@ Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
 emails in `admin_emails` get Admin role, all other authenticated users get Viewer. Uses
 static `local-nvme` PVs pinned by node affinity (Grafana → node03 30Gi,
 Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
-500m/512Mi limit.
+500m/512Mi limit. Alertmanager, the Prometheus operator and kube-state-metrics
+do not tolerate the workstation taint, so they stay off workstation nodes;
+node-exporter runs on every node.
 
 Uses `ServerSideApply=true` sync option due to large CRDs.
 
@@ -186,8 +192,14 @@ container. Set `headlamp.argocd_plugin.enabled` to `false` in
 
 ### ingress-nginx
 
-NGINX ingress controller. Admission webhooks are disabled. Resource limits:
-100m/256Mi request, 500m/512Mi limit. PodDisruptionBudget: minAvailable 1.
+NGINX ingress controller. Runs 2 replicas spread across nodes with a
+PodDisruptionBudget of `maxUnavailable: 1`. Admission webhooks are disabled.
+Resource limits: 100m/256Mi request, 500m/512Mi limit.
+
+### CoreDNS HA
+
+Adds a HorizontalPodAutoscaler fixed at 2 replicas and a PodDisruptionBudget
+to the CoreDNS Deployment that K3s manages. See {doc}`/explanations/upgrade-model`.
 
 ### kernel-settings
 
@@ -195,6 +207,13 @@ DaemonSet that applies system tuning on all nodes:
 - Sets `rmem_max` and `wmem_max` to 7500000 (network buffers)
 
 All busybox images pinned to `1.37`.
+
+### kured
+
+DaemonSet that reboots a node when `/var/run/reboot-required` exists, inside
+the nightly reboot window, one node at a time, after draining it. Runs on the
+control plane but not on workstation nodes. Exposes `kured_*` metrics to
+Prometheus. See {doc}`/explanations/upgrade-model`.
 
 ### Minecraft dashboard
 
@@ -259,8 +278,10 @@ VPS.
 
 Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
 for login. Protects services without native OIDC support: Headlamp,
-Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations. Resource limits:
-10m/64Mi request, 100m/128Mi limit.
+Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations.
+Runs 2 replicas spread across nodes with a PodDisruptionBudget of
+`maxUnavailable: 1`; sessions live in the encrypted cookie, so replicas share no
+state. Resource limits: 10m/64Mi request, 100m/128Mi limit.
 
 **Additional manifests:** `additions/oauth2-proxy/`
 - `oauth2-proxy-secret.yaml` — SealedSecret for GitHub OAuth credentials
@@ -278,6 +299,12 @@ resource on the node.
 Requires the NVIDIA container runtime to be configured in k3s's containerd. The
 `update_packages` role writes a `config.toml.tmpl` that sets the NVIDIA runtime as
 default and survives k3s-agent restarts.
+
+### system-upgrade-controller
+
+Rancher's controller plus two Plans (`additions/k3s-upgrade-plans/`) that keep
+the nodes on the newest k3s patch of `k3s.minor`, in the nightly upgrade
+window. Workstation nodes are excluded. See {doc}`/how-to/upgrade-k3s`.
 
 ### Sealed Secrets
 

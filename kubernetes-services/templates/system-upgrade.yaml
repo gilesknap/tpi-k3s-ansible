@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: system-upgrade
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: system-upgrade
+  project: kubernetes
+  sources:
+    # Rancher system-upgrade-controller (controller, RBAC and Plan CRD).
+    - path: ./kubernetes-services/additions/system-upgrade-controller
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+    # The k3s upgrade Plans; see the chart's templates/plans.yaml.
+    - path: ./kubernetes-services/additions/k3s-upgrade-plans
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          k3s_minor: {{ .Values.k3s.minor | quote }}
+          window:
+            {{- toYaml .Values.k3s.upgrade_window | nindent 12 }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The Plans need the CRD from the first source; retry until it is
+    # established.
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2
+    syncOptions:
+      - SkipDryRunOnMissingResource=true

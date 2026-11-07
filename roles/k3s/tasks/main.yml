@@ -26,6 +26,44 @@
     dest: /usr/local/bin/k3s-install.sh
     mode: "0755"
 
+# Which k3s an install uses: the control plane takes the newest patch of
+# the k3s_minor release channel, and a worker joins at the version the
+# control plane runs now, so an agent never runs ahead of the server
+# (system-upgrade-controller then moves them all to the newest patch).
+# `-e k3s_version=v1.34.6+k3s1` overrides both, but must stay on the
+# k3s_minor line. Refuse outright if a node already runs a newer minor than
+# k3s_minor: that would be a downgrade.
+- name: Check k3s_version is on the k3s_minor line
+  ansible.builtin.assert:
+    that:
+      - k3s_version is match('^' ~ (k3s_minor | regex_escape) ~ '\\.')
+    fail_msg: >-
+      k3s_version {{ k3s_version }} is not a {{ k3s_minor }} release. Change
+      k3s.minor in kubernetes-services/values.yaml to move to another minor.
+    quiet: true
+  when: k3s_version is defined
+
+- name: Read the installed k3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Refuse to downgrade k3s to an older minor version
+  ansible.builtin.assert:
+    that:
+      - k3s_running_minor is version(k3s_minor | regex_replace('^v', ''), '<=')
+    fail_msg: >-
+      {{ inventory_hostname }} runs k3s {{ k3s_running_minor }}, newer than
+      k3s_minor {{ k3s_minor }}. Update k3s.minor in
+      kubernetes-services/values.yaml instead of downgrading.
+    quiet: true
+  vars:
+    # `k3s --version` prints "k3s version v1.34.6+k3s1 (<hash>)" first.
+    k3s_running_minor: >-
+      {{ (k3s_installed_version.stdout.split()[2] | regex_replace('^v', '')).split('.')[:2] | join('.') }}
+  when: k3s_installed_version.rc == 0
+
 - name: Execute control plane tasks
   ansible.builtin.include_tasks: control.yml
   when: k3s_is_control_plane

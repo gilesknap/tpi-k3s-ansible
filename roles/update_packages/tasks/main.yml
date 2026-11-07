@@ -41,6 +41,38 @@
       - linux-tools-generic  # provides usbip userspace tools
     update_cache: false
 
+# Nightly unattended-upgrades that include kernel updates. The node then
+# writes /var/run/reboot-required and kured reboots it in the cluster's
+# reboot window. Workstations keep their own update policy.
+- name: Enable periodic unattended-upgrades
+  ansible.builtin.copy:
+    src: 20auto-upgrades
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+  when: not (workstation | default(false))
+
+- name: Let unattended-upgrades install from the -updates pocket
+  ansible.builtin.copy:
+    src: 52unattended-upgrades-cluster
+    dest: /etc/apt/apt.conf.d/52unattended-upgrades-cluster
+    mode: "0644"
+  when: not (workstation | default(false))
+
+- name: Create the apt-daily-upgrade timer drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/apt-daily-upgrade.timer.d
+    state: directory
+    mode: "0755"
+  when: not (workstation | default(false))
+
+- name: Schedule unattended-upgrades before the reboot window
+  ansible.builtin.template:
+    src: apt-daily-upgrade-timer.conf.j2
+    dest: /etc/systemd/system/apt-daily-upgrade.timer.d/override.conf
+    mode: "0644"
+  when: not (workstation | default(false))
+  notify: Restart apt-daily-upgrade timer
+
 - name: Load vhci-hcd kernel module
   community.general.modprobe:
     name: vhci_hcd

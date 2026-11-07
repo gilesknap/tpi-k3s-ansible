@@ -2,6 +2,30 @@
 # group_vars/all.yml). This default is only used if the root app
 # does not pass it down (e.g. during local helm template testing).
 repo_branch: main
+# Automatic node maintenance (docs/explanations/upgrade-model.md). Each
+# night, in Europe/London time:
+#   00:00-00:30  unattended-upgrades installs packages (update_packages role)
+#   01:00-02:00  system-upgrade-controller applies k3s patch releases
+#   02:30-05:00  kured reboots nodes that need it, one at a time
+# Keep the windows apart: kured and system-upgrade-controller each drain
+# nodes. system-upgrade-controller only starts a round in its window but
+# finishes it afterwards, so kured also skips any node running an upgrade
+# Job (templates/kured.yaml).
+k3s:
+  # The k3s minor line. Nodes follow this release channel, so patches
+  # arrive automatically; changing it is the (deliberate) minor upgrade.
+  # The k3s Ansible role reads this value too (k3s_minor in
+  # group_vars/all.yml), so fresh installs use the same line.
+  minor: v1.34
+  upgrade_window:
+    days: [su, mo, tu, we, th, fr, sa]
+    startTime: "01:00"
+    endTime: "02:00"
+    timeZone: Europe/London
+kured:
+  start_time: "02:30"
+  end_time: "05:00"
+  time_zone: Europe/London
 # Headlamp — the Kubernetes web UI (kubernetes-sigs).
 # The Argo CD plugin adds an "Argo CD" sidebar section listing
 # Applications with sync/health status, plus sync and refresh actions.

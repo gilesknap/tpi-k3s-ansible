@@ -113,11 +113,8 @@ spec:
                 - hosts:
                     - alertmanager.{{ .Values.cluster_domain }}
             alertmanagerSpec:
-              tolerations:
-                - key: workstation
-                  operator: Equal
-                  value: "true"
-                  effect: NoSchedule
+              # No workstation toleration: workstation nodes reboot outside
+              # the kured window, so Alertmanager stays on cluster nodes.
               secrets:
                 - alertmanager-slack-secret
             config:
@@ -168,11 +165,9 @@ spec:
               deployment:
                 image:
                   tag: v0.94.2
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
+            # No workstation toleration here or on kube-state-metrics:
+            # workstation nodes reboot outside the kured window, so both stay
+            # on cluster nodes.
 
           # Textfile collector for host-side jobs such as the k3s etcd
           # backup timer (roles/etcd_backup). DirectoryOrCreate makes the
@@ -192,13 +187,6 @@ spec:
                 type: DirectoryOrCreate
                 mountPath: /host/textfile
                 readOnly: true
-
-          kube-state-metrics:
-            tolerations:
-              - key: workstation
-                operator: Equal
-                value: "true"
-                effect: NoSchedule
 
           # K3s bundles scheduler, controller-manager and kube-proxy into the
           # k3s-server process — there are no pods with component=kube-scheduler

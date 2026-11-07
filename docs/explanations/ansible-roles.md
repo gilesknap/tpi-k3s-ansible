@@ -273,9 +273,14 @@ Prepares each node for K3s:
 3. Reboot if required (kernel updates)
 4. `apt autoremove` (clean up)
 5. Install required packages:
-   - `unattended-upgrades` — automatic security updates
+   - `unattended-upgrades` — automatic updates
    - `original-awk` — required by some K3s scripts
-6. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
+6. **Non-workstation nodes only:** configure unattended-upgrades to install
+   from the `-updates` pocket as well as `-security` (so kernel updates are
+   included), without rebooting, nightly at 00:00 Europe/London
+   (`update_packages_upgrade_on_calendar`). kured does the reboot; see
+   {doc}`/explanations/upgrade-model`.
+7. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
    - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
    - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA
@@ -321,7 +326,12 @@ separate manual runbook — see {doc}`../how-to/nas-setup`.
 **Runs on:** `all_nodes`
 **Tag:** `k3s`
 
-Installs K3s with one control plane node and the rest as workers.
+Installs K3s with one control plane node and the rest as workers. The
+control plane gets the newest patch of the release channel for `k3s.minor`
+in `kubernetes-services/values.yaml`; workers join at the version the
+control plane runs. `-e k3s_version=...` pins an exact release on that line.
+The role fails rather than install an older minor than a node already runs.
+Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 
 ### Control plane (`control.yml`)
 

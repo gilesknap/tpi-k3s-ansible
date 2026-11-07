@@ -89,9 +89,15 @@ reboot unexpectedly. This has these consequences you must design for:
 - **DaemonSets that need ws03** must tolerate the taint. The
   `nvidia-device-plugin` template already does; audit any new DaemonSet
   that needs to run there.
-- **Monitoring statefulsets** (Grafana, Prometheus) tolerate the taint
-  so they can scrape workstation metrics. Their data stays off ws03
-  because their `local-nvme` PVs pin them (see below).
+- **Monitoring workloads stay off workstations.** node-exporter tolerates
+  every taint so it can report workstation metrics; Grafana and Prometheus
+  tolerate the workstation taint but are pinned to their nodes by their
+  `local-nvme` PVs. Alertmanager, the Prometheus operator and
+  kube-state-metrics do not tolerate it. Don't add the toleration to
+  anything that must survive a workstation reboot.
+- **No automatic maintenance on workstations**: kured and the k3s
+  upgrade Plans skip them, and `update_packages` leaves their
+  unattended-upgrades config alone.
 - **amd64-only workloads land on nuc2 by default.** ws03 and nuc2 are the
   only amd64 nodes; ws03's taint means a chart with
   `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any
@@ -143,6 +149,16 @@ Notes:
   prompt prefix runs inside the same sandbox, so it doesn't help — ask
   the user to run `ssh root@turingpi 'tpi power ...'` from a regular
   devcontainer terminal or the host shell.
+
+## k3s version
+
+`k3s_minor` (group_vars) is read from `k3s.minor` in
+`kubernetes-services/values.yaml`; the control plane installs from that
+release channel, workers join at the control plane's running version, and
+system-upgrade-controller applies patches nightly. Edit the value in
+`values.yaml`, never in group_vars. `-e k3s_version=v1.34.6+k3s1` still
+pins an exact release, but only on the `k3s_minor` line. See
+`docs/how-to/upgrade-k3s.md`.
 
 ## Foot-guns
 

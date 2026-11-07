@@ -11,6 +11,7 @@ explanations/architecture
 explanations/gitops-flow
 explanations/kubernetes-services
 explanations/ansible-roles
+explanations/upgrade-model
 ```
 
 ```{toctree}

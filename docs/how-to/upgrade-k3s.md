@@ -1,68 +1,64 @@
 # Upgrade K3s
 
-K3s can be upgraded by re-running the K3s installation role, which downloads and
-installs the latest stable release.
+K3s patch releases are applied automatically overnight by
+system-upgrade-controller; see {doc}`/explanations/upgrade-model`. This page
+covers what stays manual: minor upgrades, workstation nodes and checking
+progress.
 
-## Upgrade all nodes
+## Check versions and upgrade progress
 
 ```bash
-ansible-playbook pb_all.yml --tags k3s -e k3s_force=true
+kubectl get nodes                       # VERSION column per node
+kubectl -n system-upgrade get plans     # target version per plan
+kubectl -n system-upgrade get jobs      # one Job per node being upgraded
 ```
 
-This uninstalls and reinstalls K3s on every node (control plane first, then workers).
-The `k3s_force=true` flag forces reinstallation even if K3s is already installed.
+## Upgrade to a new minor version
+
+The cluster follows one k3s minor line, set by `k3s.minor` in
+`kubernetes-services/values.yaml` (e.g. `v1.34`). Both the upgrade Plans and
+the Ansible `k3s` role read it.
+
+1. Check the [k3s release notes](https://docs.k3s.io/release-notes/v1.35.X)
+   for the new minor. Move one minor at a time (Kubernetes does not support
+   skipping minors).
+2. Change `k3s.minor` (e.g. `v1.34` → `v1.35`), commit and merge to `main`.
+3. ArgoCD updates the Plans. In the next upgrade window the control plane
+   is snapshotted and upgraded, then the workers one at a time.
+4. Upgrade workstation nodes by hand (below).
+
+To upgrade outside the window, edit `k3s.upgrade_window` in the same file.
+
+## Upgrade a workstation node
+
+Workstation nodes (`workstation: true` in the inventory) are excluded from
+automatic upgrades. Upgrade them after the rest of the cluster, when the
+workstation can be interrupted:
+
+```bash
+kubectl drain ws03 --ignore-daemonsets --delete-emptydir-data
+ansible-playbook pb_all.yml --tags k3s --limit ws03 -e k3s_force=true
+kubectl uncordon ws03
+```
+
+`k3s_force=true` reinstalls the K3s agent at the version the control plane
+runs, and the node rejoins the cluster.
+
+## Fresh installs and Ansible re-runs
+
+The `k3s` role installs the control plane from the `k3s.minor` release
+channel, which always serves its newest patch. A worker joins at the
+version the control plane runs, so an agent is never ahead of the server;
+system-upgrade-controller moves every node to the newest patch in the next
+window. Re-runs leave an installed node alone (only `k3s_force=true`
+reinstalls).
+
+To install a particular patch, pass it explicitly, e.g.
+`-e k3s_version=v1.34.6+k3s1`; it must be on the `k3s.minor` line. The role
+fails if a node already runs a newer minor than `k3s.minor`; raise
+`k3s.minor` instead of downgrading.
 
 :::{warning}
-This causes a brief cluster downtime while the control plane is reinstalled. Worker
-nodes will be unavailable while K3s is being reinstalled on each one.
+`k3s_force=true` on the control plane uninstalls K3s, including its etcd
+data. Only use it there as part of a rebuild.
 :::
-
-## Upgrade a single worker
-
-```bash
-ansible-playbook pb_all.yml --tags k3s --limit node03 -e k3s_force=true
-```
-
-This reinstalls K3s on only the specified worker node.
-
-## Check current version
-
-```bash
-kubectl version
-k3s --version   # Run on a node via SSH
-```
-
-## Rolling upgrade strategy
-
-For minimal disruption:
-
-1. Upgrade the control plane first:
-
-   ```bash
-   ansible-playbook pb_all.yml --tags k3s --limit node01 -e k3s_force=true
-   ```
-
-2. Drain and upgrade each worker one at a time:
-
-   ```bash
-   kubectl drain node02 --ignore-daemonsets --delete-emptydir-data
-   ansible-playbook pb_all.yml --tags k3s --limit node02 -e k3s_force=true
-   kubectl uncordon node02
-   ```
-
-3. Verify the node is Ready before proceeding to the next:
-
-   ```bash
-   kubectl get nodes
-   ```
-
-## Pin a specific K3s version
-
-By default, the `k3s` role installs the latest stable release. To pin a version,
-set the `INSTALL_K3S_VERSION` environment variable before running the install script.
-Edit `roles/k3s/tasks/control.yml` and/or `roles/k3s/tasks/worker.yml` to add:
-
-```yaml
-environment:
-  INSTALL_K3S_VERSION: "v1.31.5+k3s1"
-```
