@@ -795,6 +795,36 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class=
 <p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
 </section>
 </section>
+<section id="node-os">
+<h2>Node OS<a class="headerlink" href="#node-os" title="Link to this heading">#</a></h2>
+<section id="apparmor-signal-denials-in-containers-ubuntu-25-04-and-later">
+<h3>AppArmor signal denials in containers (Ubuntu 25.04 and later)<a class="headerlink" href="#apparmor-signal-denials-in-containers-ubuntu-25-04-and-later" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> the node’s kernel log fills with <code class="docutils literal notranslate"><span class="pre">apparmor=&quot;DENIED&quot;</span> <span class="pre">operation=&quot;signal&quot;</span></code> entries for container processes, often <code class="docutils literal notranslate"><span class="pre">signal=urg</span></code>
+from Go programs or <code class="docutils literal notranslate"><span class="pre">signal=hup</span></code> from nginx. Visible failures include
+ingress-nginx never becoming ready because its reload fails with
+<code class="docutils literal notranslate"><span class="pre">kill(...):</span> <span class="pre">permission</span> <span class="pre">denied</span></code>, and containers that ignore SIGTERM on
+shutdown.</p>
+<p><strong>Cause:</strong> Ubuntu 25.04 and later set
+<code class="docutils literal notranslate"><span class="pre">kernel.apparmor_restrict_unprivileged_unconfined=1</span></code>. Container processes
+then run under the stacked label <code class="docutils literal notranslate"><span class="pre">cri-containerd.apparmor.d//&amp;unconfined</span></code>,
+which containerd’s default AppArmor profile does not allow as a signal
+peer (<a class="reference external" href="https://github.com/containerd/containerd/issues/14485">containerd#14485</a>).</p>
+<p><strong>Fix:</strong> the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role installs a corrected <code class="docutils literal notranslate"><span class="pre">cri-containerd.apparmor.d</span></code>
+profile in <code class="docutils literal notranslate"><span class="pre">/etc/apparmor.d/</span></code> on every node with AppArmor enabled, and
+containerd uses it in place of its own. A small systemd unit,
+<code class="docutils literal notranslate"><span class="pre">k3s-apparmor-profile.service</span></code>, reloads it at boot before k3s starts, so it
+works even on images that mask <code class="docutils literal notranslate"><span class="pre">apparmor.service</span></code>. Running pods pick it up
+without a restart. To apply it to a node on its own:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>apparmor<span class="w"> </span>--limit<span class="w"> </span>&lt;node&gt;
+<span class="c1"># then confirm no new denials</span>
+ssh<span class="w"> </span>&lt;node&gt;<span class="w"> </span><span class="s2">&quot;sudo journalctl -k --since &#39;-10 min&#39; | grep -c &#39;apparmor=\&quot;DENIED\&quot; operation=\&quot;signal\&quot;&#39;&quot;</span>
+</pre></div>
+</div>
+<p>If the denials come back after a reboot, check the boot unit: a failure in
+<code class="docutils literal notranslate"><span class="pre">systemctl</span> <span class="pre">status</span> <span class="pre">k3s-apparmor-profile</span></code> does not stop k3s, so containerd falls
+back to its stock profile silently.</p>
+</section>
+</section>
 <section id="hardware">
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
@@ -915,6 +945,10 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-control-plane">K3s Control Plane</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api-server-unreachable">API server unreachable</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-database-too-large">etcd database too large</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-os">Node OS</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#apparmor-signal-denials-in-containers-ubuntu-25-04-and-later">AppArmor signal denials in containers (Ubuntu 25.04 and later)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">

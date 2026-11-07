@@ -431,6 +431,40 @@ sudo systemctl restart k3s
 
 K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
 
+## Node OS
+
+### AppArmor signal denials in containers (Ubuntu 25.04 and later)
+
+**Symptom:** the node's kernel log fills with `apparmor="DENIED"
+operation="signal"` entries for container processes, often `signal=urg`
+from Go programs or `signal=hup` from nginx. Visible failures include
+ingress-nginx never becoming ready because its reload fails with
+`kill(...): permission denied`, and containers that ignore SIGTERM on
+shutdown.
+
+**Cause:** Ubuntu 25.04 and later set
+`kernel.apparmor_restrict_unprivileged_unconfined=1`. Container processes
+then run under the stacked label `cri-containerd.apparmor.d//&unconfined`,
+which containerd's default AppArmor profile does not allow as a signal
+peer ([containerd#14485](https://github.com/containerd/containerd/issues/14485)).
+
+**Fix:** the `k3s` role installs a corrected `cri-containerd.apparmor.d`
+profile in `/etc/apparmor.d/` on every node with AppArmor enabled, and
+containerd uses it in place of its own. A small systemd unit,
+`k3s-apparmor-profile.service`, reloads it at boot before k3s starts, so it
+works even on images that mask `apparmor.service`. Running pods pick it up
+without a restart. To apply it to a node on its own:
+
+```bash
+ansible-playbook pb_all.yml --tags apparmor --limit <node>
+# then confirm no new denials
+ssh <node> "sudo journalctl -k --since '-10 min' | grep -c 'apparmor=\"DENIED\" operation=\"signal\"'"
+```
+
+If the denials come back after a reboot, check the boot unit: a failure in
+`systemctl status k3s-apparmor-profile` does not stop k3s, so containerd falls
+back to its stock profile silently.
+
 ## Hardware
 
 ### RK1 module not detected in slot
