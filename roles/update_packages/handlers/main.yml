@@ -8,12 +8,14 @@
     state: restarted
   failed_when: false
 
-- name: Reboot node
-  ansible.builtin.reboot:
-    reboot_timeout: 300
-
 - name: Restart apt-daily-upgrade timer
   ansible.builtin.systemd:
     name: apt-daily-upgrade.timer
     state: restarted
     daemon_reload: true
+
+- name: Ask for a reboot to load the NVIDIA driver
+  ansible.builtin.file:
+    path: /var/run/reboot-required
+    state: touch
+    mode: "0644"

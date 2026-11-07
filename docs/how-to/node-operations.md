@@ -14,7 +14,17 @@ ansible-playbook pb_all.yml --tags servers
 
 # Specific nodes only
 ansible-playbook pb_all.yml --tags servers --limit node02,node03
+
+# Also reboot now the nodes that need it: drained, one at a time
+ansible-playbook pb_all.yml --tags servers -e reboot_now=true
 ```
+
+`update_packages` does not reboot a node that is in the cluster. If an upgrade
+needs a reboot it leaves `/var/run/reboot-required` for kured, which drains and
+reboots the node in the nightly window, and says so in the output. With
+`-e reboot_now=true` the nodes that need it are drained, rebooted and uncordoned
+one at a time instead. A node not yet running k3s is rebooted straight away, and
+workstations are never rebooted. See {doc}`/explanations/upgrade-model`.
 
 :::{note}
 `--tags update_packages` will silently do nothing — the correct tag is `servers`,
@@ -27,7 +37,8 @@ vendor image (the `rk1_os` role; RK1s installed by the current `flash` role are
 already stock Ubuntu and are skipped): it drains the node, reboots it into GRUB, runs a release
 upgrade of 15–20 minutes and reboots it again. Nodes are converted one at a time,
 but each is out of the cluster for the duration. Use `--limit` to choose which
-nodes are converted when. See [](../explanations/ansible-roles.md).
+nodes are converted when. Apart from this conversion, `--tags servers` reboots
+no node that is in the cluster unless you pass `-e reboot_now=true`. See [](../explanations/ansible-roles.md).
 :::
 
 ## Shutdown all nodes

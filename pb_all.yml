@@ -52,6 +52,25 @@
   become: true
   tags: servers
 
+# Only with -e reboot_now=true: drains, reboots and uncordons each node
+# that update_packages found needing a reboot, one node at a time.
+# Otherwise every host is skipped without being contacted, and kured
+# reboots the nodes in its nightly window. Workstations are never
+# rebooted. See docs/explanations/upgrade-model.md.
+- name: Reboot nodes that need it, one at a time
+  hosts: all_nodes
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Drain, reboot and uncordon the node
+      ansible.builtin.include_role:
+        name: node_reboot
+      vars:
+        node_reboot_msg: Rebooting after update_packages (reboot_now)
+      when: update_packages_reboot_pending | default(false) | bool
+  become: true
+  tags: servers
+
 - name: Install or update k3s control plane and workers
   hosts: all_nodes # all nodes in all turing pi groups and outside
   roles:

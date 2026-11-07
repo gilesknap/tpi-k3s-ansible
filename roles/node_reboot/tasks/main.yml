@@ -1,0 +1,19 @@
+# A drained reboot: drains the node if it is in the cluster (its k3s
+# unit is installed), reboots it, waits for the Node to be Ready with
+# the new boot ID and uncordons it if this role cordoned it. A node not
+# yet in the cluster is just rebooted.
+#
+# The role does not serialise itself: run it from a play with
+# `serial: 1` so only one node is down at a time. Callers that need
+# steps between the reboot and the wait (rk1_os) include drain.yml,
+# wait_ready.yml and uncordon.yml with tasks_from instead.
+- name: Drain the node
+  ansible.builtin.include_tasks: drain.yml
+
+- name: Reboot the node
+  ansible.builtin.reboot:
+    msg: "{{ node_reboot_msg }}"
+    reboot_timeout: "{{ node_reboot_timeout }}"
+
+- name: Wait for the node to be Ready and uncordon it
+  ansible.builtin.include_tasks: wait_ready.yml

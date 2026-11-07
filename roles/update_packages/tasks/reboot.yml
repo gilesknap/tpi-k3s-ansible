@@ -1,0 +1,72 @@
+# The role never reboots a node that is in the cluster: kured drains and
+# reboots it, one node at a time, in the nightly window, as long as
+# /var/run/reboot-required exists. With -e reboot_now=true, the next play
+# in pb_all.yml (serial: 1) drains and reboots it now through the
+# node_reboot role, so a plain --tags servers is safe to run at any time.
+#
+# A node without k3s is not in the cluster yet (first-time provisioning)
+# and is rebooted here, so the k3s play runs on the new kernel; there is
+# nothing to drain. Workstations are never rebooted.
+- name: Check if a reboot is required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+    get_checksum: false
+  register: update_packages_reboot_required_file
+
+# Same test as node_reboot's drain.yml.
+- name: Check whether k3s is installed
+  ansible.builtin.stat:
+    path: >-
+      /etc/systemd/system/{{ 'k3s.service' if inventory_hostname == control_plane
+      else 'k3s-agent.service' }}
+    get_checksum: false
+  register: update_packages_k3s_unit_file
+
+- name: Set the reboot facts
+  ansible.builtin.set_fact:
+    update_packages_needs_reboot: >-
+      {{ update_packages_reboot_required_file.stat.exists
+         and not (workstation | default(false) | bool) }}
+    update_packages_in_cluster: "{{ update_packages_k3s_unit_file.stat.exists }}"
+
+# Read by the drained reboot play in pb_all.yml.
+- name: Queue a drained reboot (reboot_now)
+  ansible.builtin.set_fact:
+    update_packages_reboot_pending: >-
+      {{ update_packages_needs_reboot
+         and update_packages_in_cluster
+         and reboot_now | default(false) | bool }}
+
+- name: Reboot a node that is not in the cluster yet
+  ansible.builtin.reboot:
+    msg: Rebooting after the first dist-upgrade, before k3s
+    reboot_timeout: 900
+  when:
+    - update_packages_needs_reboot
+    - not update_packages_in_cluster
+
+- name: Report that kured will reboot the node
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} needs a reboot. kured will drain and reboot it
+      in the next nightly reboot window, {{ update_packages_kured.start_time }} to
+      {{ update_packages_kured.end_time }} {{ update_packages_kured.time_zone }}.
+      To reboot it now, drained and one node at a time, re-run with
+      -e reboot_now=true.
+  when:
+    - update_packages_needs_reboot
+    - update_packages_in_cluster
+    - not (reboot_now | default(false) | bool)
+  vars:
+    update_packages_kured: >-
+      {{ (lookup('ansible.builtin.file', playbook_dir ~ '/kubernetes-services/values.yaml')
+      | from_yaml).kured }}
+
+- name: Warn that workstation node requires a manual reboot
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ inventory_hostname }} needs a reboot but is marked as a
+      workstation. Reboot it manually when convenient.
+  when:
+    - update_packages_reboot_required_file.stat.exists
+    - workstation | default(false)
