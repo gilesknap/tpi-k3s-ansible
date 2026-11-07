@@ -172,9 +172,8 @@ pins an exact release, but only on the `k3s_minor` line. See
   `k3s.lan`, a router DNS record), not the control plane's IP. The role
   asserts it resolves to `control_plane` on every node and the
   controller (warns only under `--check`). Moving the control plane =
-  change `control_plane` + repoint the record; see
-  `docs/how-to/recover-control-plane.md`.
-
+  change `control_plane` + repoint the record (`just k3s-api-dns <ip>`,
+  OpenWrt `dns_router` via uci); see `docs/how-to/recover-control-plane.md`.
 - **`known_hosts` write tasks need `throttle: 1`** — parallel writes
   race on the shared file. The scans run in parallel; don't add `serial`.
 - **Traefik is disabled** — `--disable=traefik` with NGINX Ingress. Do

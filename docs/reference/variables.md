@@ -14,7 +14,8 @@ All configurable variables, their defaults, and where they are used.
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
 | `local_domain` | `.lan` | Local domain suffix; `known_hosts` looks up `<node>{{ local_domain }}` to find a node's IPs |
 | `control_plane` | `node01` | Hostname of the K3s control plane node |
-| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, resolving to the control plane. Agents join it, it is a `tls-san` on the server certificate, and the kubeconfig uses it. An IP address also works, without LAN DNS. |
+| `dns_router` | `root@192.168.1.1` | SSH target of an OpenWrt (dnsmasq, `uci`) router, used only by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane. |
+| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, resolving to the control plane. Agents join it, it is a `tls-san` on the server certificate, and the kubeconfig uses it. Every address it resolves to must be the control plane's. Without LAN DNS, the control plane's IPv4 address also works; an IPv6 literal does not. |
 | `etcd_backup_age_recipient` | `""` | age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading. |
 | `cluster_domain` | `<domain>` | Domain name for ingress hosts |
 | `domain_email` | `your.email@...` | Email for Let's Encrypt certificate registration |

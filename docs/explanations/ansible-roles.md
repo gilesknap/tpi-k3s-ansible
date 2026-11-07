@@ -542,9 +542,13 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 - Copies `k3s.yaml` from the control plane to `~/.kube/config` on the devcontainer.
 - Replaces `https://127.0.0.1:6443` with `https://<k3s_api_name>:6443`.
 
-Before any of this, the role checks that `k3s_api_name` resolves to the
-control plane's IP on every node and on the controller, and stops if it does
-not (in `--check` mode it only warns).
+Before any of this, the role checks that every address `k3s_api_name`
+resolves to (IPv4 and IPv6) belongs to the control plane, on every node and
+on the controller. Before the kubeconfig write and any agent change, it also
+fetches `https://<k3s_api_name>:6443/ping` against the cluster CA, from the
+controller and from each node that already has the CA, so nothing switches
+to the name until the server certificate carries it. It stops if either
+check fails (in `--check` mode it only warns).
 
 ### Force reinstall
 

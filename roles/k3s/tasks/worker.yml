@@ -46,6 +46,7 @@
   delegate_to: "{{ control_plane }}"
   register: k3s_node_token
   changed_when: false
+  no_log: true
   # Read-only: run in --check too, so later tasks see real data.
   check_mode: false
 
@@ -70,6 +71,8 @@
       {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
   register: k3s_installed
   changed_when: true
+  # The environment carries K3S_TOKEN.
+  no_log: true
   when: k3s_force or not k3s_in_cluster
 
 # Agents installed before k3s_api_name existed joined the control plane by

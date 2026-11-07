@@ -88,6 +88,20 @@ etcd-backup-now:
         sudo journalctl -u k3s-etcd-backup.service -n 20 --no-pager; \
         cat /var/lib/node_exporter/textfile_collector/k3s_etcd_backup.prom | grep -v "^#"'
 
+# Point k3s_api_name at a control-plane IP on the dns_router (OpenWrt, uci)
+# and check it resolves here. See docs/how-to/recover-control-plane.md.
+k3s-api-dns ip:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    name=$(awk '/^k3s_api_name:/ {print $2}' group_vars/all.yml)
+    router=$(awk '/^dns_router:/ {print $2}' group_vars/all.yml)
+    [[ -n $name && -n $router ]] || { echo "set k3s_api_name and dns_router in group_vars/all.yml" >&2; exit 1; }
+    echo "before: $(getent hosts "$name" || echo "$name does not resolve")"
+    ssh "$router" "NAME='$name' IP='{{ ip }}' sh -s" < scripts/k3s-api-dns
+    after=$(getent hosts "$name" || true)
+    echo "after:  ${after:-$name does not resolve}"
+    [[ $after == "{{ ip }} "* ]] || { echo "ERROR: $name does not resolve to {{ ip }} here yet" >&2; exit 1; }
+
 ################################################################################
 # bootstrap / rebuild — initial install and full teardown/rebuild
 ################################################################################

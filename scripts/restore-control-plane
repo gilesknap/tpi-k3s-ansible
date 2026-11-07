@@ -14,6 +14,8 @@
 #                       Defaults to node-password next to TOKEN_FILE, but
 #                       only when the target is the node the bundle came
 #                       from (MANIFEST's node:); another node keeps its own.
+#                       A bundle without a node: line restores none: pass
+#                       it explicitly if the bundle came from this node.
 #
 # Environment:
 #   NODE      target node (default: control_plane in group_vars/all.yml)
@@ -56,8 +58,14 @@ if [[ -r $bundle_dir/MANIFEST ]]; then
     bundle_node=$(awk '/^node:/ {print $2}' "$bundle_dir/MANIFEST")
 fi
 if [[ -z $node_password && -s $bundle_dir/node-password ]]; then
-    if [[ -z $bundle_node || $bundle_node == "$node" ]]; then
+    if [[ $bundle_node == "$node" ]]; then
         node_password=$bundle_dir/node-password
+    elif [[ -z $bundle_node ]]; then
+        # Older bundles don't record their node, so the password may belong
+        # to another one. Restoring it under this node's name would be wrong.
+        echo "Not restoring the bundle's node-password: its MANIFEST has no node: line."
+        echo "If the bundle came from $node, pass the k3s version and $bundle_dir/node-password"
+        echo "as the third and fourth arguments."
     else
         echo "Not restoring the bundle's node-password: it belongs to $bundle_node, not $node."
     fi

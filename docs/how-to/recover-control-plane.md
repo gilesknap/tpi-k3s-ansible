@@ -129,8 +129,10 @@ just restore-control-plane ~/k3s-restore/snapshot/<name> ~/k3s-restore/token
 
 The recipe restores onto `control_plane` (or `NODE=<node>`). It reads the
 k3s version from `MANIFEST` and picks up `node-password` from the same
-directory when the target is the node the bundle came from; a spare node
-keeps its own. It refuses a node that still runs the k3s agent. Run it with `DRY_RUN=1` first to
+directory when the target is the node the bundle came from (the `node:`
+line in `MANIFEST`); a spare node keeps its own. An older bundle without a
+`node:` line restores no node password unless you pass it as the fourth
+argument. It refuses a node that still runs the k3s agent. Run it with `DRY_RUN=1` first to
 see exactly what it will do. It shows what it found on the node, then asks
 you to type the node name. If k3s is running there or the node already
 has etcd data, it also asks you to type `RESET <node>` (or set `FORCE=1`
@@ -156,8 +158,16 @@ remove on other servers.
 
 ## 4. Point the API name at the new control plane
 
-On a spare node, change the `k3s_api_name` DNS record on your router to the
-new node's IP, and check it from the controller and a worker:
+On a spare node, point the `k3s_api_name` DNS record at the new node's IP.
+With an OpenWrt `dns_router`, that is one command, which also checks the
+name resolves on the controller:
+
+```bash
+just k3s-api-dns 192.168.1.83
+```
+
+On another router, change the record by hand. Either way, check it from a
+worker too:
 
 ```bash
 getent hosts k3s.lan
@@ -201,8 +211,18 @@ If something is off:
 - **A worker stays `NotReady`:** check `getent hosts k3s.lan` on it, then
   run `sudo systemctl restart k3s-agent` on it.
 - **A worker still dials the old IP:** it joined before `k3s_api_name`
-  existed. `ansible-playbook pb_all.yml --tags k3s --limit <worker>`
-  rewrites its `K3S_URL` and restarts the agent.
+  existed. Fix it by hand on the worker:
+
+  ```bash
+  sudo sed -i "s|^K3S_URL=.*|K3S_URL='https://k3s.lan:6443'|" \
+    /etc/systemd/system/k3s-agent.service.env
+  sudo systemctl restart k3s-agent
+  ```
+
+  Don't use `--tags k3s --limit <worker>` for this while the worker is
+  `NotReady`: the role then deletes its Node object, uninstalls the agent
+  and reinstalls it. That works, but it is a full rejoin, not a URL fix.
+  Once the worker is `Ready`, the role rewrites `K3S_URL` in place.
 - **The control plane stays `NotReady` with "Node password rejected"** (no
   `node-password` restored): run
   `kubectl -n kube-system delete secret <node>.node-password.k3s`.
@@ -249,11 +269,19 @@ record must exist and every agent must already use it (run
 4. Fetch and decrypt that bundle ([step 1](#1-get-and-decrypt-the-latest-backup)).
 5. Set `control_plane: node03` in `group_vars/all.yml` and restore
    ([step 3](#3-restore-etcd)).
-6. Point the DNS record at node03 and run the `k3s` tag on it
+6. Point the DNS record at node03 (`just k3s-api-dns 192.168.1.83`) and run
+   the `k3s` tag on it
    ([step 4](#4-point-the-api-name-at-the-new-control-plane)), then check the
    cluster ([step 5](#5-check-the-cluster)).
-7. Retire the old control plane: `kubectl delete node node01`, then
-   `ssh ansible@node01 sudo k3s-uninstall.sh`. To keep it as a worker, run
+7. Remove the old server, whether you retire node01 or keep it as a
+   worker, so its etcd data and `k3s.service` don't linger:
+
+   ```bash
+   kubectl delete node node01
+   ssh ansible@node01 sudo k3s-uninstall.sh
+   ```
+
+   To keep it as a worker, then run
    `ansible-playbook pb_all.yml --tags k3s --limit node01`.
 8. Taint the new control plane with
    `ansible-playbook pb_all.yml --tags cluster`, and update anything else
