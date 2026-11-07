@@ -37,6 +37,11 @@
   hosts: all_nodes # all nodes in all turing pi groups and outside
   roles:
     - role: k3s
+    # Nightly encrypted etcd snapshot + token to the NAS (systemd timer,
+    # so it works when the API server does not). Control plane only.
+    - role: etcd_backup
+      when: inventory_hostname == control_plane
+      tags: etcd_backup
   become: true
   tags: k3s
 

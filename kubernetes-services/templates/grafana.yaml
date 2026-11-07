@@ -154,6 +154,25 @@ spec:
                 value: "true"
                 effect: NoSchedule
 
+          # Textfile collector for host-side jobs such as the k3s etcd
+          # backup timer (roles/etcd_backup). DirectoryOrCreate makes the
+          # directory on every node, so nodes without such jobs report an
+          # empty collector rather than a NodeTextFileCollectorScrapeError.
+          # extraArgs replaces the chart default list, so its two
+          # filesystem excludes are repeated here. Recheck them against the
+          # chart's values on every kube-prometheus-stack bump.
+          prometheus-node-exporter:
+            extraArgs:
+              - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+              - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+              - --collector.textfile.directory=/host/textfile
+            extraHostVolumeMounts:
+              - name: textfile
+                hostPath: /var/lib/node_exporter/textfile_collector
+                type: DirectoryOrCreate
+                mountPath: /host/textfile
+                readOnly: true
+
           kube-state-metrics:
             tolerations:
               - key: workstation

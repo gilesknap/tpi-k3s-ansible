@@ -1,0 +1,85 @@
+# Install the nightly k3s etcd backup timer on the control plane. It runs
+# outside Kubernetes so it keeps working when the API server does not.
+
+- name: Check the age recipient looks like an age public key
+  ansible.builtin.assert:
+    that:
+      - etcd_backup_age_recipient is match('^age1[02-9ac-hj-np-z]{58}$')
+    fail_msg: >-
+      etcd_backup_age_recipient must be an age public key (age1...), not a
+      private key or an SSH key. Got: {{ etcd_backup_age_recipient }}
+    quiet: true
+  when: etcd_backup_age_recipient | length > 0
+
+- name: Warn that no age recipient is configured
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: etcd_backup_age_recipient is empty. The k3s-etcd-backup job
+      will fail on every run and upload nothing until it is set in
+      group_vars/all.yml (see docs/how-to/backup-restore.md).
+  when: etcd_backup_age_recipient | length == 0
+
+- name: Install age and the NFS client
+  ansible.builtin.apt:
+    pkg:
+      - age
+      - nfs-common
+    update_cache: false
+
+- name: Create backup configuration, state and textfile directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/k3s-etcd-backup
+    - /var/lib/k3s-etcd-backup
+    - "{{ etcd_backup_mount_point }}"
+    - "{{ etcd_backup_textfile_dir }}"
+
+- name: Add the NAS share to fstab without mounting it
+  ansible.posix.mount:
+    src: "{{ etcd_backup_nfs_server }}:{{ etcd_backup_nfs_path }}"
+    path: "{{ etcd_backup_mount_point }}"
+    fstype: nfs4
+    opts: vers=4.1,soft,timeo=150,retrans=3,noauto,nofail,_netdev
+    state: present
+
+- name: Write the age recipient file
+  ansible.builtin.copy:
+    content: "{{ (etcd_backup_age_recipient ~ '\n') if etcd_backup_age_recipient | length > 0 else '' }}"
+    dest: /etc/k3s-etcd-backup/recipients
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the backup script
+  ansible.builtin.template:
+    src: k3s-etcd-backup.sh.j2
+    dest: /usr/local/sbin/k3s-etcd-backup
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the backup service and timer units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - k3s-etcd-backup.service
+    - k3s-etcd-backup.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the backup timer
+  ansible.builtin.systemd_service:
+    name: k3s-etcd-backup.timer
+    enabled: true
+    state: started

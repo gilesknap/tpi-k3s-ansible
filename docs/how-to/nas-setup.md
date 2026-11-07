@@ -31,6 +31,9 @@ the cluster reads or writes over NFS:
 
 - `backups/<app>/` and `backups/<app>/weekly/` — daily and weekly
   CronJob backup output (empty on first setup)
+- `backups/etcd/` — the control plane's nightly age-encrypted etcd backup
+  ({ref}`etcd-offsite-backup`), written by root on the control plane and
+  so arriving as the root-squashed uid
 - `minecraft/` — optional; the Minecraft dashboard's writable store (see
   {ref}`minecraft-nas-directories` below)
 
@@ -83,6 +86,7 @@ for app in grafana; do
   mkdir -p "$ROOT/backups/$app"
   mkdir -p "$ROOT/backups/$app/weekly"
 done
+mkdir -p "$ROOT/backups/etcd/pre-upgrade"
 
 chmod 0755 "$ROOT"
 chmod 0755 "$ROOT/backups"

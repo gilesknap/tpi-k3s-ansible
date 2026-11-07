@@ -11,7 +11,8 @@ combinations. Tags map to plays within the playbook.
 | `flash` | Bare metal provisioning | `flash` | turing_pis | Flashes Ubuntu to compute modules (BMC) |
 | `known_hosts` | Update known_hosts | `known_hosts` | all_nodes, turing_pis | Updates SSH known_hosts (serial: 1) |
 | `servers` | Prepare nodes | `move_fs`, `update_packages` | all_nodes | OS migration, dist-upgrade, dependencies |
-| `k3s` | Install K3s | `k3s` | all_nodes | Installs K3s control plane + workers |
+| `k3s` | Install K3s | `k3s`, `etcd_backup` | all_nodes | Installs K3s control plane + workers, and the control plane's nightly etcd backup timer |
+| `etcd_backup` | Install K3s | `etcd_backup` | control plane | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
 | `cluster` | Deploy services | `cluster` | localhost | Installs ArgoCD, bootstraps services |
 
 ## Running individual stages
