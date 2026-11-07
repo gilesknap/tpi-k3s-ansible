@@ -19,9 +19,11 @@
     mode: "0644"
   notify: Restart k3s
 
-- name: Install k3s control plane version {{ k3s_version | default('latest') }}
+# INSTALL_K3S_VERSION, when set, wins over the channel.
+- name: Install k3s control plane {{ k3s_version | default('from release channel ' ~ k3s_minor) }}
   ansible.builtin.shell:
     cmd: >
+      INSTALL_K3S_CHANNEL="{{ k3s_minor }}"
       INSTALL_K3S_VERSION="{{ k3s_version | default('') }}"
       INSTALL_K3S_EXEC="server"
       /usr/local/bin/k3s-install.sh

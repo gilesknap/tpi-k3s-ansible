@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kured
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kured
+  project: kubernetes
+  sources:
+    # kured (Kubernetes Reboot Daemon) — reboots nodes after unattended-upgrades
+    # writes /var/run/reboot-required. One node at a time (the default lock),
+    # drained first, only inside the window below.
+    # https://github.com/kubereboot/charts/blob/main/charts/kured/values.yaml
+    - chart: kured
+      repoURL: https://kubereboot.github.io/charts
+      targetRevision: 6.1.0
+      helm:
+        valuesObject:
+          configuration:
+            rebootSentinel: /var/run/reboot-required
+            # Window shared with system-upgrade-controller: see `kured` and
+            # `k3s` in values.yaml.
+            timeZone: {{ .Values.kured.time_zone }}
+            startTime: {{ .Values.kured.start_time | quote }}
+            endTime: {{ .Values.kured.end_time | quote }}
+            # How often each node checks the sentinel; short enough to fit
+            # several reboots into one window.
+            period: 10m
+            concurrency: 1
+            # Drain respects PodDisruptionBudgets. If it cannot finish in
+            # time, kured skips the reboot and retries next period.
+            drainTimeout: 15m
+            forceReboot: false
+            # Let rescheduled pods settle before the next node is drained.
+            lockReleaseDelay: 5m
+            # Never reboot a node while a k3s upgrade Job runs on it.
+            # system-upgrade-controller only starts a round inside its own
+            # window, but finishes a round it has started even after the
+            # window closes, so a slow round can reach this window.
+            blockingPodSelector:
+              - upgrade.cattle.io/controller=system-upgrade-controller
+            annotateNodes: true
+          # Run on the control plane too. Do NOT tolerate the workstation
+          # taint: workstation nodes are rebooted by their owner.
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          # kured_reboot_required gauge, scraped by kube-prometheus-stack.
+          service:
+            create: true
+          metrics:
+            create: true
+            labels:
+              release: grafana-prometheus
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # On a fresh bootstrap the ServiceMonitor CRD arrives with
+    # kube-prometheus-stack; keep retrying until it exists.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true

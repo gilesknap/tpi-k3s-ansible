@@ -1,0 +1,100 @@
+# Automatic k3s patch upgrades. Both plans follow the k3s release channel
+# for one minor version, so new patches arrive on their own and a minor
+# bump only happens when `k3s_minor` is changed in the repo.
+#
+# A round of upgrades only starts inside `window`, which ends before the
+# kured reboot window starts. Once started, a round carries on node by node
+# until every selected node is done, even past the end of the window; kured
+# will not reboot a node while an upgrade Job runs on it (its
+# blockingPodSelector), and PodDisruptionBudgets keep the shared services up
+# if both drain at once. Both plans are `exclusive`, so the server and agent
+# plans never run together.
+#
+# Workstation nodes are never selected: they are upgraded by hand
+# (docs/explanations/upgrade-model.md).
+{{- $channel := printf "https://update.k3s.io/v1-release/channels/%s" .Values.k3s_minor }}
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server
+  namespace: system-upgrade
+spec:
+  channel: {{ $channel }}
+  concurrency: 1
+  exclusive: true
+  cordon: true
+  serviceAccountName: system-upgrade
+  window:
+    {{- toYaml .Values.window | nindent 4 }}
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values:
+          - "true"
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: CriticalAddonsOnly
+      operator: Exists
+  # Take an on-demand etcd snapshot before replacing the k3s binary. It
+  # lands with the scheduled snapshots in
+  # /var/lib/rancher/k3s/server/db/snapshots on the server.
+  prepare:
+    image: busybox:1.38
+    command:
+      - sh
+      - -c
+    args:
+      - >-
+        chroot /host /usr/local/bin/k3s etcd-snapshot save
+        --name "pre-upgrade-${SYSTEM_UPGRADE_PLAN_LATEST_VERSION%%+*}"
+    securityContext:
+      privileged: true
+  upgrade:
+    image: rancher/k3s-upgrade
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-agent
+  namespace: system-upgrade
+spec:
+  channel: {{ $channel }}
+  concurrency: 1
+  exclusive: true
+  serviceAccountName: system-upgrade
+  # Drain plus k3s restart. A Job that misses this deadline fails and leaves
+  # its node cordoned; system-upgrade-controller deletes it 15 minutes later
+  # and starts a new one.
+  jobActiveDeadlineSecs: 1800
+  window:
+    {{- toYaml .Values.window | nindent 4 }}
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+      - key: node-role
+        operator: NotIn
+        values:
+          - workstation
+  drain:
+    # Evictions respect PodDisruptionBudgets.
+    force: true
+    ignoreDaemonSets: true
+    deleteEmptydirData: true
+    skipWaitForDeleteTimeout: 60
+    timeout: 15m
+  # Standard k3s pattern: wait until the server plan has upgraded the
+  # control plane, so agents never run ahead of the server.
+  prepare:
+    image: rancher/k3s-upgrade
+    args:
+      - prepare
+      - k3s-server
+  upgrade:
+    image: rancher/k3s-upgrade
