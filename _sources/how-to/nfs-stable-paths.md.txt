@@ -22,7 +22,7 @@ re-creates its worlds from its registry on the store ({doc}`minecraft`), and
 their PVCs bind to the old folders.
 
 `nfs-rwx` stays as it was, because other workloads re-create PVCs under the
-same names on purpose to start empty (a beamline's teardown, for example).
+same names on purpose to start empty.
 On `nfs-stable` they would get the old data back.
 
 **Each cluster needs its own stable share and its own Minecraft store.** Two
