@@ -91,6 +91,12 @@ cluster_install_list:
 # UID/GID notes: grafana (472) and prometheus (1000/2000) come from
 # the live cluster's effective securityContext.
 #
+# Modes: every pod here has an fsGroup, so kubelet makes the volume's root
+# setgid and group-writable (0755 becomes 2775, 0750 becomes 2770; with
+# fsGroupChangePolicy OnRootMismatch, only if it is not so already). Each
+# mode here is that result, so Ansible and kubelet agree and the task
+# stays unchanged on re-runs.
+#
 # Removing an entry here only stops Ansible creating the directory; it
 # never deletes existing data.
 k8s_data_dirs:
@@ -99,24 +105,24 @@ k8s_data_dirs:
     path: /var/lib/k8s-data/prometheus
     owner: "1000"
     group: "2000"
-    mode: "0755"
+    mode: "2775"
   - name: grafana
     node: node03
     path: /var/lib/k8s-data/grafana
     owner: "472"
     group: "472"
-    mode: "0755"
+    mode: "2775"
   # scrap's pre-Litestream data, now a frozen copy (ADR 0013).
   - name: scrap
     node: nuc2
     path: /home/k8s-data/scrap
     owner: "10001"
     group: "10001"
-    mode: "0750"
+    mode: "2770"
   # Nightly copy of scrap's newest backup run off the NAS.
   - name: scrap-backup-copy
     node: nuc2
     path: /home/k8s-data/scrap-backup-copy
     owner: "10001"
     group: "10001"
-    mode: "0750"
+    mode: "2770"
