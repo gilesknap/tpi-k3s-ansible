@@ -97,7 +97,9 @@ folder is not the expected `nfs-rwx` one.
    ```
 
 2. Dry run. It changes nothing and lists each world PVC, its old and new
-   folder, and any pod still using it:
+   folder, and any pod that references it, in any phase. A `Succeeded` or
+   `Failed` pod blocks the move too (pvc-protection holds the PVC while it
+   exists): save its spec with `kubectl get pod -o yaml`, then delete it.
 
    ```bash
    scripts/nfs-stable-paths                          # every world
