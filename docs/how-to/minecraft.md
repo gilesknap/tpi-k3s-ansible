@@ -26,7 +26,8 @@ This repository only provides the cluster wiring:
 | Dashboard Deployment, Service, ServiceAccount, namespace-scoped Role | OCI chart, namespace `minecraft` | The dashboard runs `helm` against the itzg Minecraft chart inside its own namespace only |
 | Archive of precious world backups | NAS `<archive_path>` (default `/bigdisk/minecraft-archive`) | Read-only twice over: `a-w` on the NAS **and** a read-only mount |
 | Store: promoted backups, rolling snapshots, dashboard state | NAS `<nfs.cluster_share_path>/minecraft` | Written by the dashboard as uid/gid 1000 |
-| Live world data | One dynamic `nfs-rwx` PVC per world | Created by the dashboard; deleted with the world (after a snapshot) |
+| Live world data | One dynamic `nfs-stable` PVC per world, in `<nfs_csi.stable_share>/minecraft/<world>-data` on the NAS | Created by the dashboard; archived when the world is deleted (after a snapshot) |
+| World registry | NAS `<nfs.cluster_share_path>/minecraft/dashboard/registry/` | The dashboard's copy of each world, to re-create it after a rebuild |
 | Game ports | NodePorts `30565`–`30584` on the pinned node | 20 slots; one per world for the world's lifetime |
 | RCON ports | NodePorts `30600`–`30619` on the pinned node | LAN only (NetworkPolicy); one per world, for build tools |
 | Game hostname `mc.<domain>` | Cloudflare **DNS-only** A record | The VPS's static IP (relay) |
@@ -42,8 +43,9 @@ record that points straight at the VPS.
 ## Prerequisites
 
 - A NAS reachable over NFS, already set up as in {doc}`nas-setup`.
-- The `nfs-csi` storage class (`nfs_csi.storage_class`, default `nfs-rwx`)
-  working — world data is provisioned from it.
+- The `nfs-stable` storage class (`nfs_csi.stable_storage_class`), and its
+  share root created on the NAS ({ref}`nfs-csi-nas-share`) — world data is
+  provisioned from it, and the dashboard mounts the share read-only.
 - oauth2-proxy working ({doc}`oauth-setup`) and the Cloudflare web tunnel set
   up ({doc}`cloudflare-web-tunnel`).
 - The {doc}`VPS relay <vps-relay>`.
@@ -181,8 +183,9 @@ minecraft:
           - 192.168.1.81/32
 ```
 
-The chart also takes its NFS server from `nfs.server` and the world storage
-class from `nfs_csi.storage_class`.
+The chart also takes its NFS server from `nfs.server`, the world storage
+class from `nfs_csi.stable_storage_class`, and the share it mounts read-only
+from `nfs_csi.server` and `nfs_csi.stable_share`.
 
 The ArgoCD AppProject must allow the chart registry. `argo-cd/argo-project.yaml`
 lists `ghcr.io/gilesknap/charts` (bare, with no `oci://` prefix); apply the
@@ -231,6 +234,34 @@ precious one.
 Only after all of that works, try a modded (Forge) world, and only then a
 precious one.
 
+## Cluster rebuilds
+
+A rebuild wipes the dashboard's world records and Helm releases with etcd,
+but not the world data on the NAS. The dashboard keeps a copy of each world
+in its registry on the store, and re-creates every world it does not find
+(`worlds.restore`, on in this repo's chart values). Each world comes back
+with the same name, game and RCON ports, settings, whitelist and admins, and
+running or stopped as it was. Its `<world>-data` PVC binds to the world's
+folder on the NAS. The world page says "restored after the cluster lost it"
+until the next start or stop.
+
+Each world gets a new RCON password: reveal it again on the world page for
+RCON clients.
+
+This needs the `nfs-stable` class ({doc}`nfs-stable-paths`), which keeps
+each world's data in a folder named after its PVC. Worlds created before it
+are on `nfs-rwx` and must be moved once first; that page has the per-world
+steps. A world not moved is skipped on restore, and its data stays in its old
+folder.
+
+The stable share and the store belong to one cluster. Give each cluster its
+own, or each restores the other's worlds.
+
+Deleting a world archives its volume as `archived-minecraft/<world>-data` in
+the stable share. The dashboard mounts that share read-only and refuses a new
+world of the same name until the archive is removed or renamed on the NAS,
+because a second archive of one name would fail.
+
 ## Troubleshooting
 
 ### The `minecraft` app shows `InvalidSpecError` or a 403/404
@@ -251,8 +282,11 @@ is not published. See the ArgoCD notes in `.claude/skills/argocd/SKILL.md`.
 
 First **delete every world from the dashboard** — each delete takes a final
 snapshot. Worlds are Helm releases and PVCs created by the dashboard at
-runtime, not by ArgoCD, so ArgoCD will not clean them up, and deleting a
-world PVC by hand loses its data (`nfs-rwx` uses `reclaimPolicy: Delete`).
+runtime, not by ArgoCD, so ArgoCD will not clean them up. Deleting a world
+PVC by hand leaves the world without a volume. On `nfs-stable` it moves the
+data to the archive folder on the NAS ({doc}`nfs-stable-paths`). On
+`nfs-rwx`, where worlds made before `nfs-stable` stay until they are moved,
+it deletes the data (`reclaimPolicy: Delete`).
 
 Then set `enable_minecraft: false` and push. ArgoCD prunes the dashboard
 and its ingress. The NAS archive and store directories are

@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+# One-off: move Minecraft world volumes from nfs-rwx to nfs-stable.
+#
+# Worlds made before the nfs-stable class have their data in an nfs-rwx
+# folder, <share>/minecraft/<pvc>-<pv>, which a world re-created after a
+# cluster rebuild never finds again. nfs-stable keeps each PVC in
+# <stable_share>/minecraft/<pvc>. For each selected world PVC this script:
+#
+#   1. refuses if any pod still uses the PVC (stop the world first);
+#   2. sets the PV's reclaim policy to Retain, so deleting the PVC can never
+#      delete the folder (nfs-rwx volumes delete their data with the PVC);
+#   3. checks the PVC is still unused, then runs a Job that mounts the
+#      nfs-rwx share root and renames minecraft/<pvc>-<pv> to
+#      <stable subfolder>/minecraft/<pvc> (a rename on the NAS: no copy);
+#   4. checks the PVC is still unused, deletes the PVC and the old PV, and
+#      re-creates the PVC with the same name, labels and size in the
+#      nfs-stable class, which provisions it in the moved folder;
+#   5. checks the new PV points at that folder and runs a Job that counts
+#      the files through the new PVC: the count must match step 3's.
+#
+# Only Minecraft world PVCs (namespace minecraft, made by the dashboard) are
+# moved. Other nfs-rwx PVCs (scrap, t11-beamline, ...) are refused: they stay
+# on nfs-rwx.
+#
+# Usage:
+#   scripts/nfs-stable-paths [minecraft/PVC]...          dry run
+#   scripts/nfs-stable-paths --apply minecraft/PVC...    move these
+#
+# The dry run changes nothing and prints the plan; with no PVC it lists
+# every world PVC. --apply needs the PVCs named explicitly. Copies of each
+# PVC and PV (and the PVC it re-creates) are saved under $BACKUP_DIR first.
+#
+# The expected classes, server and shares are read from
+# kubernetes-services/values.yaml (nfs_csi.*). Environment:
+#   IMAGE       image for the Jobs (default busybox:1.37.0)
+#   BACKUP_DIR  where to save the manifests
+#               (default ~/nfs-stable-paths-<UTC time>)
+#
+# See docs/how-to/nfs-stable-paths.md.
+set -euo pipefail
+shopt -s inherit_errexit
+
+NS=minecraft
+IMAGE=${IMAGE:-busybox:1.37.0}
+BACKUP_DIR=${BACKUP_DIR:-$HOME/nfs-stable-paths-$(date -u +%Y%m%dT%H%M%SZ)}
+STABLE_SUBDIR="\${pvc.metadata.namespace}/\${pvc.metadata.name}"
+VALUES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/kubernetes-services/values.yaml"
+APPLY=false
+targets=()
+
+die() { echo "error: $*" >&2; exit 1; }
+usage() { sed -n '2,/^set -euo/{/^set -euo/d;s/^# \{0,1\}//;p}' "$0"; exit "${1:-0}"; }
+
+for a in "$@"; do
+  case $a in
+    --apply) APPLY=true ;;
+    -h|--help) usage 0 ;;
+    -*) echo "unknown option $a" >&2; usage 2 ;;
+    *) targets+=("$a") ;;
+  esac
+done
+command -v jq >/dev/null || die "jq is required"
+command -v yq >/dev/null || die "yq is required"
+if $APPLY && ((${#targets[@]} == 0)); then
+  die "--apply needs the PVCs to move, e.g. --apply $NS/<world>-data"
+fi
+
+# ------------------------------------------------------------------ expected
+val() {
+  local v
+  v=$(yq -r ".nfs_csi.$1" "$VALUES") || die "cannot read nfs_csi.$1 from $VALUES"
+  [[ -n $v && $v != null ]] || die "nfs_csi.$1 is not set in $VALUES"
+  echo "$v"
+}
+SERVER=$(val server)
+SRC_SC=$(val storage_class)
+SRC_SHARE=$(val share)
+DST_SC=$(val stable_storage_class)
+DST_SHARE=$(val stable_share)
+# the stable share as a folder of the nfs-rwx share: the rename Job mounts
+# the nfs-rwx share root and moves the folder across within it
+[[ $DST_SHARE == "$SRC_SHARE"/?* ]] \
+  || die "stable_share $DST_SHARE is not a folder under share $SRC_SHARE: the volumes cannot be moved by rename"
+DST_REL=${DST_SHARE#"$SRC_SHARE"/}
+
+# ------------------------------------------------------------------ the class
+sc_ok=true
+sc_json=$(kubectl get storageclass "$DST_SC" -o json 2>/dev/null) || sc_json=
+if [[ -z $sc_json ]]; then
+  sc_ok=false
+  echo "WARNING: no storage class $DST_SC yet: merge and sync it first" >&2
+else
+  got=$(jq -r '[.provisioner, .parameters.server, .parameters.share,
+                .parameters.subDir, .parameters.onDelete] | join(" ")' <<<"$sc_json")
+  want="nfs.csi.k8s.io $SERVER $DST_SHARE $STABLE_SUBDIR archive"
+  if [[ $got != "$want" ]]; then
+    sc_ok=false
+    echo "WARNING: class $DST_SC is '$got', expected '$want'" >&2
+  fi
+fi
+$APPLY && ! $sc_ok && die "class $DST_SC is not ready; nothing changed"
+
+# ------------------------------------------------------------------ helpers
+# pods (not finished) that mount the claim; fails if pods cannot be listed
+users() {  # ns pvc
+  local json
+  json=$(kubectl get pods -n "$1" -o json) || return 1
+  jq -r --arg c "$2" '
+    .items[]
+    | select(.status.phase != "Succeeded" and .status.phase != "Failed")
+    | select(any(.spec.volumes[]?; .persistentVolumeClaim.claimName == $c))
+    | .metadata.name' <<<"$json"
+}
+
+assert_unused() {  # ns pvc before-what
+  local u
+  u=$(users "$1" "$2") || die "cannot list the pods in $1; stopping before $3"
+  [[ -z $u ]] || die "PVC $1/$2 is in use by pod(s) ${u//$'\n'/ }; stopping before $3"
+}
+
+job_name() {  # prefix ns pvc -> a valid, unique Job name
+  echo "$1-$(printf '%s' "$2/$3" | sha1sum | cut -c1-10)"
+}
+
+# Run a Job and wait for it. Prints its log on success; on failure prints
+# the log to stderr and fails.
+run_job() {  # ns name manifest
+  local ns=$1 name=$2 manifest=$3 i s='' f='' logs
+  kubectl delete job -n "$ns" "$name" --ignore-not-found --wait=true >/dev/null \
+    || die "cannot delete an old Job $ns/$name"
+  kubectl create -f - <<<"$manifest" >/dev/null || die "cannot create Job $ns/$name"
+  for ((i = 0; i < 300; i++)); do
+    s=$(kubectl get job -n "$ns" "$name" -o jsonpath='{.status.succeeded}')
+    f=$(kubectl get job -n "$ns" "$name" -o jsonpath='{.status.failed}')
+    [[ ${s:-0} -ge 1 || ${f:-0} -ge 1 ]] && break
+    sleep 2
+  done
+  logs=$(kubectl logs -n "$ns" "job/$name" 2>&1) || true
+  if [[ ${s:-0} -ge 1 ]]; then
+    printf '%s\n' "$logs"
+  else
+    echo "Job $ns/$name log:" >&2
+    printf '%s\n' "$logs" | sed 's/^/      /' >&2
+    die "Job $ns/$name did not succeed (kubectl -n $ns describe job $name)"
+  fi
+}
+
+job_manifest() {  # ns name volume-yaml script [OLD NEW]
+  cat <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: $2
+  namespace: $1
+  labels:
+    app.kubernetes.io/name: nfs-stable-paths
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nfs-stable-paths
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: run
+          image: $IMAGE
+          command: ["/bin/sh", "-ec", $(jq -Rs . <<<"$4")]
+          env:
+            - {name: OLD, value: $(jq -n --arg v "${5:-}" '$v')}
+            - {name: NEW, value: $(jq -n --arg v "${6:-}" '$v')}
+          volumeMounts:
+            - name: vol
+              mountPath: /vol
+      volumes:
+        - name: vol
+$3
+EOF
+}
+
+# Renames $OLD to $NEW under the nfs-rwx share root mounted at /vol.
+# Re-runnable: a folder already moved (and not empty) is only counted.
+# mv -T renames onto an empty folder or a missing path in one rename(2), and
+# fails if the target has gained files since the check; the device check
+# keeps mv from falling back to copy-then-delete across filesystems.
+RENAME_SCRIPT=$(cat <<'EOF'
+cd /vol
+if [ ! -e "$OLD" ] && [ -d "$NEW" ] && [ -n "$(ls -A "$NEW")" ]; then
+  echo "already moved: $NEW"
+elif [ ! -d "$OLD" ]; then
+  echo "no folder $OLD (and $NEW is missing or empty)" >&2; exit 1
+else
+  # only an empty folder (made by a PVC of the stable class) may be replaced
+  if [ -e "$NEW" ] && ! { [ -d "$NEW" ] && [ -z "$(ls -A "$NEW")" ]; }; then
+    echo "$NEW exists and is not an empty folder" >&2; exit 1
+  fi
+  mkdir -p "$(dirname "$NEW")"
+  old_dev=$(stat -c %d "$(dirname "$OLD")")
+  new_dev=$(stat -c %d "$(dirname "$NEW")")
+  if [ "$old_dev" != "$new_dev" ]; then
+    echo "$(dirname "$OLD") and $(dirname "$NEW") are on different filesystems ($old_dev, $new_dev): mv would copy, not rename" >&2
+    exit 1
+  fi
+  mv -T "$OLD" "$NEW"
+  echo "moved $OLD to $NEW"
+fi
+echo "entries=$(find "$NEW" | wc -l)"
+EOF
+)
+
+COUNT_SCRIPT=$(cat <<'EOF'
+echo "entries=$(find /vol | wc -l)"
+EOF
+)
+
+# ------------------------------------------------------------------ migrate
+migrate() {  # pvc pv old new
+  local ns=$NS pvc=$1 pv=$2 old=$3 new=$4
+  local base="$BACKUP_DIR/$ns.$pvc" job out moved counted new_pv got
+
+  mkdir -p "$BACKUP_DIR"
+  local f
+  for f in "$base.pvc.json" "$base.pv.json" "$base.pvc.new.json"; do
+    [[ ! -e $f ]] || die "backup $f already exists; not overwriting it (set BACKUP_DIR)"
+  done
+  kubectl get pvc -n "$ns" "$pvc" -o json >"$base.pvc.json"
+  kubectl get pv "$pv" -o json >"$base.pv.json"
+  # the claim to re-create: same name, labels, annotations (less the binding
+  # ones), size and access modes, in the stable class; no volumeName, so the
+  # class provisions it afresh in <ns>/<pvc>, the folder moved below
+  jq --arg sc "$DST_SC" '{apiVersion, kind,
+       metadata: {name: .metadata.name, namespace: .metadata.namespace,
+                  labels: (.metadata.labels // {}),
+                  annotations: ((.metadata.annotations // {})
+                    | with_entries(select(.key | test("^(pv\\.kubernetes\\.io/|volume\\.(beta\\.)?kubernetes\\.io/)") | not)))},
+       spec: (.spec | del(.volumeName, .dataSource, .dataSourceRef)
+              | .storageClassName = $sc)}' \
+    "$base.pvc.json" >"$base.pvc.new.json"
+  echo "  saved $base.{pvc,pv,pvc.new}.json"
+
+  echo "  1/5 PV $pv: reclaim policy Retain"
+  kubectl patch pv "$pv" --type=merge \
+    -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}' >/dev/null
+  [[ $(kubectl get pv "$pv" -o jsonpath='{.spec.persistentVolumeReclaimPolicy}') == Retain ]] \
+    || die "PV $pv is not Retain; stopping"
+
+  echo "  2/5 rename $SRC_SHARE/$old -> $SRC_SHARE/$DST_REL/$new"
+  assert_unused "$ns" "$pvc" "the rename"
+  job=$(job_name nfs-mv "$ns" "$pvc")
+  out=$(run_job "$ns" "$job" "$(job_manifest "$ns" "$job" "          nfs:
+            server: $SERVER
+            path: $SRC_SHARE" "$RENAME_SCRIPT" "$old" "$DST_REL/$new")") \
+    || die "the rename Job failed; the PVC and PV are unchanged (PV now Retain)"
+  printf '%s\n' "$out" | sed 's/^/      /'
+  moved=$(sed -n 's/^entries=//p' <<<"$out")
+  [[ -n $moved ]] || die "no file count from the rename Job"
+
+  echo "  3/5 delete PVC $ns/$pvc and PV $pv (Retain: nothing on the NAS changes)"
+  assert_unused "$ns" "$pvc" "deleting the PVC"
+  kubectl delete pvc -n "$ns" "$pvc" --wait=true --timeout=120s >/dev/null \
+    || die "cannot delete PVC $ns/$pvc"
+  kubectl delete pv "$pv" --wait=true --timeout=120s >/dev/null \
+    || die "cannot delete PV $pv (Released, Retain): delete it by hand, then kubectl create -f $base.pvc.new.json"
+
+  echo "  4/5 re-create PVC $ns/$pvc in class $DST_SC"
+  if ! kubectl create -f "$base.pvc.new.json" >/dev/null 2>&1; then
+    got=$(kubectl get pvc -n "$ns" "$pvc" -o jsonpath='{.spec.storageClassName}') \
+      || die "could not re-create the PVC: kubectl create -f $base.pvc.new.json"
+    [[ $got == "$DST_SC" ]] \
+      || die "PVC $ns/$pvc was re-created by something else, in class '$got'; the data is in $DST_SHARE/$new"
+    echo "      (it already exists again, in $DST_SC)"
+  fi
+  kubectl wait pvc -n "$ns" "$pvc" --for=jsonpath='{.status.phase}'=Bound --timeout=180s >/dev/null \
+    || die "PVC $ns/$pvc did not bind (kubectl -n $ns describe pvc $pvc)"
+
+  echo "  5/5 verify"
+  new_pv=$(kubectl get pvc -n "$ns" "$pvc" -o jsonpath='{.spec.volumeName}')
+  got=$(kubectl get pv "$new_pv" -o jsonpath='{.spec.csi.volumeAttributes.server} {.spec.csi.volumeAttributes.share} {.spec.csi.volumeAttributes.subDir}')
+  [[ $got == "$SERVER $DST_SHARE $new" ]] \
+    || die "new PV $new_pv is '$got', not '$SERVER $DST_SHARE $new'"
+  echo "      PV $new_pv -> $DST_SHARE/$new"
+  job=$(job_name nfs-verify "$ns" "$pvc")
+  out=$(run_job "$ns" "$job" "$(job_manifest "$ns" "$job" "          persistentVolumeClaim:
+            claimName: $pvc
+            readOnly: true" "$COUNT_SCRIPT")") \
+    || die "the count Job failed"
+  counted=$(sed -n 's/^entries=//p' <<<"$out")
+  [[ $counted == "$moved" ]] \
+    || die "file count through the new PVC is '$counted', the rename Job counted $moved"
+  echo "      $counted entries, as before"
+  echo "  done: start the world again"
+}
+
+# ------------------------------------------------------------------ plan
+$APPLY && echo "APPLY: changes will be made" || echo "DRY RUN: nothing will be changed"
+echo "from $SRC_SC ($SERVER:$SRC_SHARE) to $DST_SC ($SERVER:$DST_SHARE)"
+echo
+
+# world PVCs: made by the dashboard, one per world, named <world>-data
+pvcs_json=$(kubectl get pvc -n "$NS" -o json) || die "cannot list the PVCs in $NS"
+mapfile -t worlds < <(jq -r '.items[]
+  | select(.metadata.labels["app.kubernetes.io/managed-by"] == "mcdash"
+           and .metadata.name == ((.metadata.labels["mcdash/world"] // "") + "-data"))
+  | .metadata.name' <<<"$pvcs_json")
+
+in_list() { local x=$1 w; shift; for w in "$@"; do [[ $w == "$x" ]] && return 0; done; return 1; }
+is_world() { in_list "$1" "${worlds[@]}"; }
+
+# every target must be a world PVC, named as minecraft/<pvc>; each is
+# moved once, however often it is named
+selection=()
+if ((${#targets[@]} == 0)); then
+  selection=("${worlds[@]}")
+else
+  for t in "${targets[@]}"; do
+    [[ $t == "$NS"/* ]] \
+      || die "refused '$t': only Minecraft world PVCs ($NS/<world>-data) move to $DST_SC; other PVCs stay on $SRC_SC"
+    is_world "${t#"$NS"/}" \
+      || die "refused '$t': not a Minecraft world PVC (managed by the dashboard, named <world>-data)"
+    in_list "${t#"$NS"/}" "${selection[@]}" || selection+=("${t#"$NS"/}")
+  done
+fi
+
+todo=0 stable=0 blocked=0 bad=0
+moves=()
+for pvc in "${selection[@]}"; do
+  pvc_json=$(jq --arg n "$pvc" '.items[] | select(.metadata.name == $n)' <<<"$pvcs_json")
+  sc=$(jq -r '.spec.storageClassName // ""' <<<"$pvc_json")
+  phase=$(jq -r '.status.phase' <<<"$pvc_json")
+  pv=$(jq -r '.spec.volumeName // ""' <<<"$pvc_json")
+  if [[ $phase != Bound || -z $pv ]]; then
+    echo "$NS/$pvc: $phase, not bound; skipped"; bad=$((bad + 1)); continue
+  fi
+  pv_json=$(kubectl get pv "$pv" -o json) || die "cannot read PV $pv"
+  attrs=$(jq -r '[.spec.csi.driver // "", .spec.csi.volumeAttributes.server // "",
+                  .spec.csi.volumeAttributes.share // "",
+                  .spec.csi.volumeAttributes.subDir // ""] | join(" ")' <<<"$pv_json")
+  reclaim=$(jq -r '.spec.persistentVolumeReclaimPolicy' <<<"$pv_json")
+  new="$NS/$pvc"
+  if [[ $sc == "$DST_SC" ]]; then
+    if [[ $attrs == "nfs.csi.k8s.io $SERVER $DST_SHARE $new" ]]; then
+      echo "$NS/$pvc: stable ($DST_SHARE/$new)"; stable=$((stable + 1))
+    else
+      echo "$NS/$pvc: class $DST_SC but PV $pv is '$attrs'; skipped"; bad=$((bad + 1))
+    fi
+    continue
+  fi
+  old="$NS/$pvc-$pv"
+  if [[ $sc != "$SRC_SC" ]]; then
+    echo "$NS/$pvc: class '$sc', not $SRC_SC; skipped"; bad=$((bad + 1)); continue
+  fi
+  if [[ $attrs != "nfs.csi.k8s.io $SERVER $SRC_SHARE $old" ]]; then
+    echo "$NS/$pvc: PV $pv is '$attrs', expected 'nfs.csi.k8s.io $SERVER $SRC_SHARE $old'; skipped"
+    bad=$((bad + 1)); continue
+  fi
+  in_use=$(users "$NS" "$pvc") || die "cannot list the pods in $NS"
+  todo=$((todo + 1))
+  echo "$NS/$pvc: PV $pv (reclaim $reclaim)"
+  echo "  folder $SRC_SHARE/$old -> $DST_SHARE/$new"
+  if [[ -n $in_use ]]; then
+    echo "  BLOCKED: in use by pod(s) ${in_use//$'\n'/ }; stop the world first"
+    blocked=$((blocked + 1))
+    continue
+  fi
+  moves+=("$pvc $pv $old $new")
+done
+
+echo
+echo "$stable stable, $todo to move ($blocked blocked by running pods), $bad skipped"
+if ! $APPLY; then
+  echo "Dry run: nothing changed. Move each world with --apply $NS/<world>-data."
+  exit 0
+fi
+((bad == 0 && blocked == 0)) || die "not every PVC named can be moved (see above); nothing changed"
+
+# ------------------------------------------------------------------ apply
+for m in "${moves[@]}"; do
+  read -r pvc pv old new <<<"$m"
+  echo
+  echo "$NS/$pvc:"
+  migrate "$pvc" "$pv" "$old" "$new"
+done

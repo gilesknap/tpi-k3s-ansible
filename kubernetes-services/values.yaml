@@ -70,12 +70,21 @@ nfs_csi:
   storage_class: nfs-rwx
   server: 192.168.1.3
   share: /k8s-dynamic
+  # A second class, used only by Minecraft worlds: one fixed folder per PVC,
+  # <namespace>/<pvc-name>, beneath stable_share, so a world re-created after
+  # a cluster rebuild gets its data back. Deleting a PVC moves its folder to
+  # archived-<namespace>/<pvc-name> there. Create the share root on the NAS
+  # first (docs/how-to/nas-setup.md). Keep it a subfolder of `share` (the
+  # same export and filesystem), so scripts/nfs-stable-paths can move old
+  # worlds by rename, and give each cluster its own.
+  stable_storage_class: nfs-stable
+  stable_share: /k8s-dynamic/stable
 # Minecraft dashboard (github.com/gilesknap/k3s-minecraft) — an admin web UI
 # at minecraft.<cluster_domain> that launches, stops, snapshots and restores
 # Minecraft worlds from backups. Deployed from the published OCI Helm chart,
 # which creates the dashboard Deployment/Service/RBAC plus the archive
 # (read-only) and store NFS PV/PVC pairs. Each world the dashboard launches
-# gets its own dynamic `nfs_csi.storage_class` PVC and a NodePort from the
+# gets its own dynamic `nfs_csi.stable_storage_class` PVC and a NodePort from the
 # port range below. See docs/how-to/minecraft.md.
 # Set to true AFTER the NAS directories exist (docs/how-to/nas-setup.md),
 # `chart_version` below is published, and the AppProject change in
@@ -86,7 +95,7 @@ minecraft:
   # defaults to the chart's appVersion, so this is the only version pin.
   # Check the tag exists before bumping (see the /argocd skill):
   #   helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <ver>
-  chart_version: "0.4.4"
+  chart_version: "0.5.0"
   image:
     repository: ghcr.io/gilesknap/k3s-minecraft
   # Precious world archive — mounted read-only. Deliberately OUTSIDE
