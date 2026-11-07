@@ -62,9 +62,13 @@ spec:
           # chart default) and every replica shares the cookie secret, so
           # replicas need no shared state.
           replicaCount: 2
+          # The chart defaults minAvailable to 1, and a PDB cannot set both.
+          # minAvailable: null does not work here: the API server prunes nulls
+          # from the Application's valuesObject, so the chart default comes
+          # back. 0 overrides it and the chart's `with` omits the field.
           podDisruptionBudget:
             enabled: true
-            minAvailable: null
+            minAvailable: 0
             maxUnavailable: 1
           topologySpreadConstraints:
             - maxSkew: 1
