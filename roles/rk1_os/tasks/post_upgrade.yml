@@ -1,0 +1,131 @@
+# Runs once do-release-upgrade has exited, including on a re-run after
+# a failure between the upgrade and its reboot. Also runs, with no exit
+# status file, for an upgrade that was interrupted (its start record
+# remains, rk1_os_upgrade_interrupted): the checks below decide whether
+# it is safe to finish it with GRUB and a reboot.
+- name: Gather facts for the upgraded release
+  ansible.builtin.setup:
+    gather_subset:
+      - min
+
+- name: Check for the release upgrade exit status
+  ansible.builtin.stat:
+    path: "{{ rk1_os_upgrade_rc_file }}"
+  register: rk1_os_upgrade_rc_stat
+
+- name: Read the release upgrade exit status
+  ansible.builtin.slurp:
+    src: "{{ rk1_os_upgrade_rc_file }}"
+  register: rk1_os_upgrade_rc_content
+  when: rk1_os_upgrade_rc_stat.stat.exists
+
+- name: Set the release upgrade exit status
+  ansible.builtin.set_fact:
+    rk1_os_upgrade_exit: >-
+      {{ rk1_os_upgrade_rc_content.content | b64decode | trim
+         if rk1_os_upgrade_rc_stat.stat.exists else 'interrupted' }}
+
+# Still on the old release: the upgrade can simply be run again.
+- name: Fail if the node is still on the old release
+  ansible.builtin.assert:
+    that: ansible_facts.distribution_version == rk1_os_target_release
+    fail_msg: >-
+      {{ inventory_hostname }} is still on {{ ansible_facts.distribution_version }}
+      (/etc/os-release) after do-release-upgrade
+      {{ 'exited ' ~ rk1_os_upgrade_exit if rk1_os_upgrade_rc_stat.stat.exists
+         else 'was interrupted' }}; see /var/log/dist-upgrade/main.log. Fix the
+      cause, check that the enabled apt sources name
+      {{ ansible_facts.distribution_release }} and that dpkg --audit is clean,
+      then delete
+      {{ rk1_os_upgrade_rc_file if rk1_os_upgrade_rc_stat.stat.exists
+         else rk1_os_upgrade_started_file }}
+      and re-run to retry the upgrade.
+    quiet: true
+
+# do-release-upgrade restores the old sources when it aborts, possibly
+# after it has upgraded some packages; apt must not then work against
+# the old release.
+- name: Check the apt sources name the upgraded release
+  ansible.builtin.include_tasks: check_sources.yml
+  vars:
+    rk1_os_sources_codename: "{{ rk1_os_codenames[rk1_os_target_release] }}"
+    rk1_os_sources_reason: the node is on {{ rk1_os_target_release }}
+
+- name: Configure packages the release upgrade left unconfigured
+  ansible.builtin.command:
+    cmd: dpkg --configure -a
+  register: rk1_os_dpkg_configure
+  changed_when: rk1_os_dpkg_configure.stdout | length > 0
+
+- name: Audit the package database
+  ansible.builtin.command:
+    cmd: dpkg --audit
+  register: rk1_os_dpkg_audit
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: List packages not fully installed
+  ansible.builtin.shell:
+    cmd: set -o pipefail && dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 !~ /^.[ic]$/'
+    executable: /bin/bash
+  register: rk1_os_dpkg_incomplete
+  changed_when: false
+  check_mode: false
+
+# After a failed or interrupted upgrade, also check it left nothing to
+# install or remove. No cache update: against the upgrade's own package
+# lists, a finished upgrade has nothing left.
+- name: List what the release upgrade left undone
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      { apt-get --simulate dist-upgrade 2>&1 || echo "E: apt-get exited $?"; } |
+      { grep -E '^(Inst|Remv|Purg|E:)' || true; }
+    executable: /bin/bash
+  register: rk1_os_upgrade_undone
+  changed_when: false
+  check_mode: false
+  when: rk1_os_upgrade_exit != '0'
+
+- name: Fail rather than reboot with broken packages
+  ansible.builtin.assert:
+    that:
+      - rk1_os_dpkg_audit.stdout | trim | length == 0
+      - rk1_os_dpkg_incomplete.stdout | trim | length == 0
+      - rk1_os_upgrade_undone.stdout | default('') | trim | length == 0
+    fail_msg: |-
+      The release upgrade to {{ rk1_os_target_release }} on {{ inventory_hostname }}
+      (do-release-upgrade: {{ rk1_os_upgrade_exit }}) left packages unfinished;
+      see /var/log/dist-upgrade/main.log:
+      {{ rk1_os_dpkg_audit.stdout }}
+      {{ rk1_os_dpkg_incomplete.stdout }}
+      {{ rk1_os_upgrade_undone.stdout | default('') }}
+      Do not delete {{ rk1_os_upgrade_rc_file }}: the node is on the new
+      release. Run dpkg --configure -a and apt -f install (apt full-upgrade
+      for anything left on the old release), check the node, then re-run;
+      the role then reinstalls GRUB and reboots.
+    quiet: true
+
+# Switch to the GA kernel and refresh grub.cfg before the reboot.
+- name: Install the generic kernel for the target release
+  ansible.builtin.include_tasks: kernel.yml
+
+# The release upgrade installs a newer GRUB package but leaves the old
+# binary on the ESP, so reinstall it.
+- name: Refresh GRUB for the target release
+  ansible.builtin.include_tasks: grub.yml
+  vars:
+    rk1_os_grub_reinstall: true
+
+# reboot.yml removes the exit status and start records once the node
+# is back through EFI, before it waits for k3s: a re-run after a k3s
+# failure must not reboot again.
+- name: Reboot into the upgraded release
+  ansible.builtin.include_tasks: reboot.yml
+  vars:
+    rk1_os_reboot_ends_upgrade: true
+
+- name: Clear the interrupted upgrade
+  ansible.builtin.set_fact:
+    rk1_os_upgrade_interrupted: false

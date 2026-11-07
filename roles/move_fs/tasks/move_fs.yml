@@ -2,14 +2,15 @@
   ansible.builtin.set_fact:
     move_fs_curr_root_dev: "{{ ansible_facts['mounts'] | json_query('[?mount == `/`].device') | first }}"
 
-# ubuntu-rockchip-install copies the OS to the target device and updates
-# extlinux.conf on the eMMC to point root= at the NVME partition UUID.
-# It does NOT change the boot device — eMMC remains the bootloader.
-# (Changing boot device would require also running u-boot-install-mtd for SPI.)
+# ubuntu-rockchip-install copies the OS to the target device, which gets
+# p1, a 4 MB vfat CIDATA partition holding the cloud-init seed, and p2,
+# the ext4 root, whose own /boot/extlinux/extlinux.conf is the one that
+# boots. U-Boot (on the eMMC) tries boot_targets "mmc1 nvme scsi usb
+# mmc0 ...", and the RK1 has no mmc1, so the NVMe always boots before
+# the eMMC. rk1_os later replaces extlinux with GRUB on p1.
 #
-# This means tpi flash still works: re-flashing eMMC writes a fresh image
-# with extlinux.conf pointing root= back to eMMC, fully restoring the node.
-# The previous comment claiming flash was broken was incorrect.
+# tpi flash rewrites only the eMMC (U-Boot plus the vendor OS), so it
+# does not take over a node whose NVMe is bootable.
 
 - name: Move the root partition for the node to {{ move_fs_root_dev }}
   when: not move_fs_curr_root_dev.startswith(move_fs_root_dev)

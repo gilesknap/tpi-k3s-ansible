@@ -1,0 +1,30 @@
+# Sets rk1_os_vendor_installed (the installed packages to purge, one per
+# line), rk1_os_vendor_only (those of them from the vendor PPA) and
+# rk1_os_ppa_files (enabled sources and pins for the vendor PPAs).
+- name: Find installed vendor packages
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      { dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n'
+      {% for p in rk1_os_vendor_packages + rk1_os_vendor_extra_packages %}'{{ p }}' {% endfor %}
+      2>/dev/null || true; } | awk 'substr($1, 2, 1) != "n" {print $2}'
+    executable: /bin/bash
+  register: rk1_os_vendor_installed
+  changed_when: false
+  check_mode: false
+
+- name: Set the installed packages from the vendor PPA
+  ansible.builtin.set_fact:
+    rk1_os_vendor_only: "{{ rk1_os_vendor_installed.stdout_lines | difference(rk1_os_vendor_extra_packages) }}"
+
+- name: Find enabled sources and pins for the ubuntu-rockchip PPAs
+  ansible.builtin.find:
+    paths:
+      - /etc/apt/sources.list.d
+      - /etc/apt/preferences.d
+    recurse: true
+    file_type: file
+    patterns: "*"
+    excludes: "*.disabled"
+    contains: ".*jjriek"
+  register: rk1_os_ppa_files

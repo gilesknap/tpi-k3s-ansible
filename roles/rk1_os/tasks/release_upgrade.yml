@@ -1,0 +1,89 @@
+# Upgrades the node to rk1_os_target_release. By now it boots GRUB
+# through EFI with the generic kernel, so the upgrade needs no extlinux
+# handling. Safe to re-run: a running upgrade is waited for, not restarted.
+- name: Check the node booted through EFI before the release upgrade
+  ansible.builtin.assert:
+    that: rk1_os_efi.stat.exists or (rk1_os_efi_after.stat.exists | default(false))
+    fail_msg: Not upgrading the release until the node boots through EFI.
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Install the release upgrader
+  ansible.builtin.apt:
+    name: ubuntu-release-upgrader-core
+    state: present
+
+# do-release-upgrade refuses to run with updates pending.
+- name: Upgrade the packages of the current release
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: true
+
+- name: Check if a reboot is required before the release upgrade
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: rk1_os_reboot_required
+
+- name: Reboot before the release upgrade
+  ansible.builtin.include_tasks: reboot.yml
+  when: rk1_os_reboot_required.stat.exists
+
+- name: Check whether the release upgrade has already finished
+  ansible.builtin.stat:
+    path: "{{ rk1_os_upgrade_rc_file }}"
+  register: rk1_os_upgrade_rc_now
+
+- name: Create the rk1_os state directory
+  ansible.builtin.file:
+    path: "{{ rk1_os_upgrade_rc_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The node stays cordoned through the upgrade; the reboot after it
+# uncordons it.
+- name: Drain the node before the release upgrade
+  ansible.builtin.include_tasks: drain.yml
+  when: not rk1_os_upgrade_rc_now.stat.exists
+
+# Ansible discovered a versioned interpreter (python3.12 on 24.04) when
+# the play started and reuses it; the upgrade removes it. The unversioned
+# path exists on both releases, so use it for the rest of the play.
+- name: Use an interpreter that survives the release upgrade
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: /usr/bin/python3
+
+# Kept until the post-upgrade reboot: if the upgrade dies before it
+# writes its exit status, a re-run still finds the upgrade unfinished.
+- name: Record that the release upgrade has started
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ rk1_os_upgrade_started_file }}"
+    force: false
+    owner: root
+    group: root
+    mode: "0644"
+  when: not rk1_os_upgrade_rc_now.stat.exists
+
+# Run outside the SSH session: sshd stops for several minutes while
+# openssh moves to socket activation. systemd-run refuses a second unit
+# of the same name, which means an upgrade is already running.
+- name: Start the release upgrade
+  ansible.builtin.command:
+    cmd: >-
+      systemd-run --unit={{ rk1_os_upgrade_unit }} --collect
+      --setenv=DEBIAN_FRONTEND=noninteractive
+      /bin/sh -c 'do-release-upgrade -f DistUpgradeViewNonInteractive;
+      echo $? > {{ rk1_os_upgrade_rc_file }}'
+  args:
+    creates: "{{ rk1_os_upgrade_rc_file }}"
+  register: rk1_os_upgrade_start
+  changed_when: rk1_os_upgrade_start.rc == 0
+  failed_when:
+    - rk1_os_upgrade_start.rc != 0
+    - "'already' not in rk1_os_upgrade_start.stderr"
+
+- name: Wait for the release upgrade to finish
+  ansible.builtin.include_tasks: upgrade_wait.yml
+  when: not ansible_check_mode

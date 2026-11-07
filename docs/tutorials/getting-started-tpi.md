@@ -160,7 +160,8 @@ This single command:
 1. **`tools`** — installs helm, kubectl, kubeseal in the devcontainer
 2. **`flash`** — flashes Ubuntu 24.04 to each compute module via the BMC
 3. **`known_hosts`** — updates SSH known_hosts for all nodes
-4. **`servers`** — migrates OS to NVMe (if configured), dist-upgrades, installs dependencies
+4. **`servers`** — migrates OS to NVMe (if configured), converts RK1s to stock Ubuntu 26.04,
+   dist-upgrades, installs dependencies
 5. **`k3s`** — installs K3s control plane and worker nodes
 6. **`cluster`** — installs ArgoCD and deploys all cluster services
 

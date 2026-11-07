@@ -1,0 +1,23 @@
+# Waits up to two hours for do-release-upgrade to write its exit status,
+# reconnecting whenever SSH drops (sshd stops for several minutes while
+# openssh moves to socket activation), then fails if it has not.
+- name: Set the release upgrade deadline
+  ansible.builtin.set_fact:
+    rk1_os_upgrade_finished: false
+    rk1_os_upgrade_deadline: "{{ (lookup('ansible.builtin.pipe', 'date +%s') | int) + 7200 }}"
+
+# Each round ends after ten minutes or when SSH drops; rounds past the
+# deadline are skipped, so the rounds only bound the reconnects.
+- name: Wait for the release upgrade to finish
+  ansible.builtin.include_tasks: upgrade_wait_round.yml
+  loop: "{{ range(60) | list }}"
+  loop_control:
+    loop_var: rk1_os_upgrade_wait_round
+
+- name: Fail if the release upgrade did not finish
+  ansible.builtin.assert:
+    that: rk1_os_upgrade_finished | bool
+    fail_msg: >-
+      do-release-upgrade had not finished after two hours; see
+      /var/log/dist-upgrade/main.log on {{ inventory_hostname }}, then re-run.
+    quiet: true

@@ -1,0 +1,28 @@
+# Fails if the enabled apt sources name another release the role handles
+# than rk1_os_sources_codename. do-release-upgrade rewrites them to the
+# new release before it upgrades any package, and restores them if it
+# aborts, so a killed or aborted upgrade can leave them on a different
+# release from /etc/os-release; apt would then upgrade across releases.
+- name: List the suites of the enabled apt sources
+  ansible.builtin.shell:
+    cmd: set -o pipefail && apt-get indextargets --no-release-info --format '$(RELEASE)' | sort -u
+    executable: /bin/bash
+  register: rk1_os_apt_suites
+  changed_when: false
+  check_mode: false
+
+- name: Check the apt sources name {{ rk1_os_sources_codename }}
+  vars:
+    rk1_os_other_codenames: >-
+      {{ rk1_os_apt_suites.stdout_lines | map('regex_replace', '-.*$', '') | unique
+         | intersect(rk1_os_codenames.values() | list) | difference([rk1_os_sources_codename]) }}
+  ansible.builtin.assert:
+    that: rk1_os_other_codenames | length == 0
+    fail_msg: >-
+      The enabled apt sources on {{ inventory_hostname }} name
+      {{ rk1_os_other_codenames | join(', ') }}, but {{ rk1_os_sources_codename }}
+      is expected ({{ rk1_os_sources_reason }}). An interrupted or aborted
+      do-release-upgrade leaves them like this. Check /etc/apt/sources.list and
+      /etc/apt/sources.list.d (do-release-upgrade keeps the old files as
+      *.distUpgrade) and the state of the packages, then re-run.
+    quiet: true

@@ -1,0 +1,17 @@
+- name: Read the boot files
+  ansible.builtin.include_tasks: boot_facts.yml
+
+- name: Check GRUB and its menu entry are in place
+  ansible.builtin.assert:
+    that:
+      - rk1_os_bootaa64.matched > 0
+      - rk1_os_grub_ok | bool
+    fail_msg: >-
+      Not safe to reboot: /boot/efi/EFI/BOOT/BOOTAA64.EFI is
+      {{ 'present' if rk1_os_bootaa64.matched > 0 else 'missing' }}, and
+      grub.cfg {{ 'boots' if rk1_os_grub_ok | bool else 'does not boot' }} its first
+      menu entry by default, loading {{ rk1_os_target_kernel.stdout | trim }}
+      with a devicetree line.
+    quiet: true
+  # In check mode the steps that would fix these were skipped.
+  ignore_errors: "{{ ansible_check_mode }}"

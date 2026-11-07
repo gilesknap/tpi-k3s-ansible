@@ -1,0 +1,103 @@
+# Runs on the target release, after the node boots through EFI.
+
+# The vendor settings package shipped this NoCloud setting; keep it so
+# cloud-init still finds its seed on the CIDATA partition.
+- name: Keep cloud-init looking only at the CIDATA seed
+  ansible.builtin.copy:
+    src: 99-rk1-nocloud.cfg
+    dest: /etc/cloud/cloud.cfg.d/99-rk1-nocloud.cfg
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Find Ubuntu packages to keep that are marked auto-installed
+  ansible.builtin.command:
+    cmd: apt-mark showauto {{ rk1_os_keep_packages | join(' ') }}
+  register: rk1_os_keep_auto
+  changed_when: false
+  check_mode: false
+
+- name: Mark the Ubuntu packages to keep as manually installed
+  ansible.builtin.command:
+    cmd: apt-mark manual {{ rk1_os_keep_auto.stdout_lines | join(' ') }}
+  when: rk1_os_keep_auto.stdout_lines | length > 0
+  changed_when: true
+
+- name: Find the vendor packages
+  ansible.builtin.include_tasks: find_vendor.yml
+
+- name: Purge the vendor packages
+  when: rk1_os_vendor_installed.stdout_lines | length > 0
+  block:
+    - name: Check the purge removes no protected package
+      ansible.builtin.include_tasks: check_removals.yml
+      vars:
+        rk1_os_removal_args: purge --autoremove {{ rk1_os_vendor_installed.stdout_lines | join(' ') }}
+
+    - name: Purge the vendor packages and what only they needed
+      ansible.builtin.apt:
+        name: "{{ rk1_os_vendor_installed.stdout_lines }}"
+        state: absent
+        purge: true
+        autoremove: true
+
+# The release upgrade leaves some old-release libraries marked manual;
+# marking them auto lets autoremove take those nothing depends on.
+- name: Find manually installed libraries that no repository provides
+  ansible.builtin.command:
+    cmd: >-
+      python3 -c 'import apt;
+      print("\n".join(p.name for p in apt.Cache()
+      if p.is_installed and not p.is_auto_installed
+      and not p.installed.downloadable
+      and p.installed.section.split("/")[-1] in ("libs", "oldlibs")))'
+  register: rk1_os_obsolete_libs
+  changed_when: false
+  check_mode: false
+
+- name: Mark the obsolete libraries auto-installed
+  ansible.builtin.command:
+    cmd: apt-mark auto {{ rk1_os_obsolete_libs.stdout_lines | join(' ') }}
+  when: rk1_os_obsolete_libs.stdout_lines | length > 0
+  changed_when: true
+
+- name: Check the autoremove removes no protected package
+  ansible.builtin.include_tasks: check_removals.yml
+  vars:
+    rk1_os_removal_args: autoremove --purge
+
+- name: Remove packages that are no longer required
+  ansible.builtin.apt:
+    autoremove: true
+    purge: true
+
+- name: Find release upgrade and dpkg leftovers
+  ansible.builtin.find:
+    paths: /etc
+    recurse: true
+    hidden: true
+    patterns:
+      - "*.dpkg-bak"
+      - "*.distUpgrade"
+  register: rk1_os_leftovers
+
+# extlinux.conf on the root partition is dead once GRUB boots, and the
+# packaged EFI kernels it would name cannot be booted by U-Boot anyway.
+- name: Find extlinux configurations
+  ansible.builtin.find:
+    paths: /boot/extlinux
+    patterns: "extlinux.conf*"
+  register: rk1_os_extlinux_files
+
+# The vendor-kernel hardening is redundant on the generic kernel: it
+# keeps receiving security fixes, and it builds with
+# CONFIG_BPF_UNPRIV_DEFAULT_OFF, so kernel.unprivileged_bpf_disabled is 2.
+- name: Remove the leftovers, the extlinux configuration and the vendor hardening
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ (rk1_os_leftovers.files + rk1_os_extlinux_files.files) | map(attribute='path') | list
+       + ['/boot/extlinux-raw', '/etc/u-boot-menu',
+          '/etc/modprobe.d/disable-esp.conf',
+          '/etc/sysctl.d/90-disable-unpriv-bpf.conf'] }}

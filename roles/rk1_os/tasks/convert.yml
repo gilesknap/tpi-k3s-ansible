@@ -1,0 +1,98 @@
+# Converts a node from the vendor layout, once main.yml has found it is
+# not a standard install. Nothing before the apt tasks changes the node.
+- name: Check that the release is one the role can convert
+  ansible.builtin.assert:
+    that: ansible_facts.distribution_version in rk1_os_kernel_packages
+    fail_msg: >-
+      Ubuntu {{ ansible_facts.distribution_version }} is not supported;
+      expected one of {{ rk1_os_kernel_packages.keys() | list }}.
+    quiet: true
+
+# Before the first change, so an unrecognised layout changes nothing.
+- name: Check the disk layout is the vendor image's
+  ansible.builtin.include_tasks: check_esp.yml
+
+# Before any apt task. Matches /etc/os-release before and after the
+# release upgrade, but not in between.
+- name: Check the apt sources name the running release
+  ansible.builtin.include_tasks: check_sources.yml
+  vars:
+    rk1_os_sources_codename: "{{ ansible_facts.distribution_release }}"
+    rk1_os_sources_reason: "/etc/os-release says {{ ansible_facts.distribution_version }}"
+
+# Only the role's own records show that it started a release upgrade.
+# The start record without an exit status means the upgrade died, on
+# either release, before it finished.
+- name: Set whether a release upgrade was interrupted
+  ansible.builtin.set_fact:
+    rk1_os_upgrade_interrupted: >-
+      {{ rk1_os_upgrade_started.stat.exists and not rk1_os_upgrade_rc_start.stat.exists }}
+
+- name: Check the package database is consistent
+  when: not (rk1_os_upgrade_rc_start.stat.exists or rk1_os_upgrade_interrupted | bool)
+  block:
+    # unattended-upgrades (apt-daily-upgrade.service) can be mid-run, as
+    # on a freshly booted node; let it finish before auditing.
+    - name: Wait up to five minutes for apt and dpkg to be idle, then audit
+      ansible.builtin.shell:
+        cmd: |
+          for _ in $(seq 60); do
+            systemctl is-active --quiet apt-daily.service ||
+              systemctl is-active --quiet apt-daily-upgrade.service ||
+              fuser -s /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock ||
+              break
+            sleep 5
+          done
+          dpkg --audit
+        executable: /bin/bash
+      register: rk1_os_dpkg_audit_start
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Fail on an inconsistent package database
+      ansible.builtin.assert:
+        that: rk1_os_dpkg_audit_start.stdout | trim | length == 0
+        fail_msg: |-
+          dpkg --audit on {{ inventory_hostname }} reports unfinished packages,
+          and no release upgrade by this role is unfinished:
+          {{ rk1_os_dpkg_audit_start.stdout }}
+          Run dpkg --configure -a (or wait for unattended-upgrades to finish)
+          and re-run.
+        quiet: true
+
+# Before the apt tasks below, which fail on a broken package database,
+# and instead of going straight to the cleanup.
+- name: Finish a release upgrade an earlier run left unfinished
+  ansible.builtin.include_tasks: post_upgrade.yml
+  when: rk1_os_upgrade_rc_start.stat.exists or rk1_os_upgrade_interrupted | bool
+
+- name: Remove the vendor apt configuration
+  ansible.builtin.include_tasks: apt.yml
+
+- name: Install the generic kernel
+  ansible.builtin.include_tasks: kernel.yml
+
+- name: Install GRUB on the EFI system partition
+  ansible.builtin.include_tasks: grub.yml
+
+- name: Reboot into GRUB through EFI
+  ansible.builtin.include_tasks: reboot.yml
+  when: not rk1_os_efi.stat.exists
+
+- name: Upgrade to Ubuntu {{ rk1_os_target_release }}
+  ansible.builtin.include_tasks: release_upgrade.yml
+  when: ansible_facts.distribution_version != rk1_os_target_release
+
+- name: Check for a release upgrade awaiting its reboot
+  ansible.builtin.stat:
+    path: "{{ rk1_os_upgrade_rc_file }}"
+  register: rk1_os_upgrade_rc
+
+- name: Check and reboot the upgraded release
+  ansible.builtin.include_tasks: post_upgrade.yml
+  when: rk1_os_upgrade_rc.stat.exists
+
+- name: Remove the vendor packages and leftovers
+  ansible.builtin.include_tasks: cleanup.yml
+  when: ansible_facts.distribution_version == rk1_os_target_release
