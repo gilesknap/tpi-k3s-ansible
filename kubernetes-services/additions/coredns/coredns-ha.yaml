@@ -1,0 +1,46 @@
+# Two CoreDNS replicas for K3s's bundled CoreDNS.
+#
+# K3s owns the `coredns` Deployment and re-applies its packaged manifest on
+# every server restart, so edits to the Deployment do not stick. That
+# manifest leaves `spec.replicas` unset, so the replica count is free for
+# an HPA to own: with minReplicas == maxReplicas the HPA simply holds the
+# Deployment at 2 and never scales on load. The packaged pod spec already
+# spreads replicas across nodes (topologySpreadConstraints on
+# kubernetes.io/hostname, DoNotSchedule), so the two replicas never share a
+# node, and does not tolerate the control plane's
+# node-role.kubernetes.io/master taint (roles/cluster), so they run on
+# workers.
+#
+# This keeps CoreDNS in K3s's hands, so a fresh bootstrap still has DNS
+# before ArgoCD starts; these objects only add the second replica later.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coredns
+  minReplicas: 2
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# Lets drains evict one CoreDNS pod at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns

@@ -11,6 +11,13 @@ metadata:
   namespace: cloudflared
 spec:
   replicas: 2
+  # The anti-affinity below needs a free node for every pod, so replace pods
+  # one at a time instead of surging a third.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: cloudflared
@@ -19,6 +26,14 @@ spec:
       labels:
         app: cloudflared
     spec:
+      # The two tunnel connectors never share a node.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: cloudflared
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -56,3 +71,15 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+---
+# Drains evict one connector at a time; the other keeps the tunnel up.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: cloudflared
