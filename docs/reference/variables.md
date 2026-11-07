@@ -19,6 +19,7 @@ All configurable variables, their defaults, and where they are used.
 | `domain_email` | `your.email@...` | Email for Let's Encrypt certificate registration |
 | `repo_remote` | `https://github.com/gilesknap/tpi-k3s-ansible.git` | Git repo URL for ArgoCD |
 | `repo_branch` | `main` | Git branch for ArgoCD (also in `kubernetes-services/values.yaml`) |
+| `k3s_minor` | `k3s.minor` from `kubernetes-services/values.yaml` | k3s minor line the cluster follows (e.g. `v1.34`). Edit it in `values.yaml`, not here. |
 | `cluster_install_list` | `[argocd]` | List of services installed directly by Ansible |
 
 ## Role-specific variables
@@ -58,6 +59,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 |----------|---------|-------------|
 | `k3s_force` | `false` | Force K3s reinstall (uninstall first) |
 | `k3s_install_occurred` | `false` | Internal flag tracking if install happened this run |
+| `k3s_version` | unset | Exact release to install (e.g. `v1.34.6+k3s1`), on the `k3s_minor` line. Unset: the control plane takes the channel's newest patch and workers the control plane's version. |
 
 ### `etcd_backup` role (`roles/etcd_backup/defaults/main.yml`)
 

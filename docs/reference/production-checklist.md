@@ -22,7 +22,7 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] Tunnel created in Cloudflare dashboard
 - [ ] Tunnel token SealedSecret committed to Git
-- [ ] cloudflared deployment running (2 replicas)
+- [ ] cloudflared deployment running (2 replicas, on different nodes)
 - [ ] Public hostnames configured for tunnel-exposed services
 - [ ] WAF skip rule for SSH hostname (if using SSH tunnel)
 

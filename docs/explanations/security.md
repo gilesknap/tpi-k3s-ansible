@@ -145,6 +145,6 @@ All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
 
 1. **Rotate SealedSecrets periodically** — re-seal with fresh values.
 3. **Back up the sealed-secrets key** — without it, a cluster rebuild requires re-creating all secrets.
-4. **Keep nodes updated** — `unattended-upgrades` handles security patches automatically.
+4. **Keep nodes updated** — unattended-upgrades, kured and system-upgrade-controller patch and reboot nodes nightly (see {doc}`/explanations/upgrade-model`).
 5. **Monitor for alerts** — Prometheus Alertmanager captures security-relevant events.
 6. **Review the production checklist** — see {doc}`/reference/production-checklist`.
