@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# Restore the k3s control plane from a decrypted etcd backup bundle onto a
+# freshly provisioned control-plane node. See
+# docs/how-to/recover-control-plane.md.
+#
+# Usage: scripts/restore-control-plane SNAPSHOT TOKEN_FILE [K3S_VERSION] [NODE_PASSWORD_FILE]
+#
+#   SNAPSHOT            decrypted etcd snapshot (bundle: snapshot/<name>)
+#   TOKEN_FILE          server token from the same bundle (bundle: token)
+#   K3S_VERSION         k3s version to install, e.g. v1.34.6+k3s1. Defaults
+#                       to k3s_version in the bundle's MANIFEST, found next
+#                       to TOKEN_FILE.
+#   NODE_PASSWORD_FILE  the node's k3s node password (bundle: node-password).
+#                       Defaults to node-password next to TOKEN_FILE.
+#
+# Environment:
+#   NODE      target node (default: control_plane in group_vars/all.yml)
+#   SSH_USER  SSH user (default: ansible)
+#   SSH_OPTS  extra ssh/scp options, e.g. "-i ~/.ssh/other_key"
+#   DRY_RUN=1 print the remote script instead of running it
+#   FORCE=1   skip the second confirmation asked for when k3s is running
+#             on the node or it already has etcd data
+set -euo pipefail
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 1; }
+[[ $# -ge 2 && $# -le 4 ]] || usage
+
+snapshot=$1
+token_file=$2
+k3s_version=${3:-}
+node_password=${4:-}
+bundle_dir=$(dirname "$token_file")
+
+repo_root=$(cd "$(dirname "$0")/.." && pwd)
+node=${NODE:-$(awk '/^control_plane:/ {print $2}' "$repo_root/group_vars/all.yml")}
+ssh_user=${SSH_USER:-ansible}
+read -r -a ssh_opts <<< "${SSH_OPTS:-}"
+config_template="$repo_root/roles/k3s/templates/k3s-server-config.yml.j2"
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+# --- Local checks -----------------------------------------------------------
+[[ -n $node ]] || die "could not determine the control-plane node; set NODE"
+[[ -s $snapshot ]] || die "snapshot '$snapshot' is missing or empty"
+[[ -s $token_file ]] || die "token file '$token_file' is missing or empty"
+if [[ -z $k3s_version && -r $bundle_dir/MANIFEST ]]; then
+    k3s_version=$(awk '/^k3s_version:/ {print $2}' "$bundle_dir/MANIFEST")
+fi
+[[ $k3s_version =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$ ]] \
+    || die "k3s version '${k3s_version}' not recognised; pass it as the third argument (e.g. v1.34.6+k3s1)"
+if [[ -z $node_password && -s $bundle_dir/node-password ]]; then
+    node_password=$bundle_dir/node-password
+fi
+[[ -z $node_password || -s $node_password ]] || die "node password file '$node_password' is empty"
+# The server config is copied verbatim, so the template must stay static.
+if grep -qE '\{\{|\{%' "$config_template"; then
+    die "$config_template now uses Jinja; render it with ansible instead of copying it"
+fi
+if [[ -r $bundle_dir/MANIFEST ]]; then
+    (cd "$bundle_dir" && grep -E '^  [0-9a-f]{64}  ' MANIFEST | sed 's/^  //' | sha256sum --quiet -c -) \
+        || die "bundle files do not match the checksums in $bundle_dir/MANIFEST"
+fi
+
+target="$ssh_user@$node"
+ssh_cmd() { ssh "${ssh_opts[@]}" "$target" "$@"; }
+
+# --- Remote state -----------------------------------------------------------
+echo "Checking $target ..."
+remote_state=$(ssh_cmd 'hostname; . /etc/os-release; echo "$PRETTY_NAME";
+    if command -v k3s >/dev/null; then k3s --version | head -n 1; else echo "k3s not installed"; fi;
+    systemctl is-active k3s 2>/dev/null || true;
+    sudo -n test -d /var/lib/rancher/k3s/server/db && echo "existing etcd data: yes" || echo "existing etcd data: no"') \
+    || die "cannot reach $target over SSH"
+
+cat <<EOF
+
+Control-plane restore
+  target node   : $node ($target)
+  snapshot      : $snapshot
+  token         : $token_file
+  node password : ${node_password:-<none: delete the old node-password secret afterwards>}
+  k3s version   : $k3s_version
+
+Node reports:
+$(sed 's/^/  /' <<< "$remote_state")
+
+This replaces ALL cluster state on $node with the snapshot. Anything
+changed since the snapshot was taken is lost. Any existing etcd data on
+$node is moved aside to db/etcd-old-<timestamp> by k3s.
+EOF
+
+node_in_use=false
+if grep -qx active <<< "$remote_state"; then
+    node_in_use=true
+    echo
+    echo "WARNING: k3s is running on $node. If the cluster is healthy you do"
+    echo "not want this; see docs/how-to/recover-control-plane.md."
+fi
+if grep -qx 'existing etcd data: yes' <<< "$remote_state"; then
+    node_in_use=true
+    echo
+    echo "WARNING: $node already has etcd data, which this restore replaces."
+fi
+
+# --- Remote script (runs as root) --------------------------------------------
+remote_script=$(cat <<'REMOTE'
+set -euo pipefail
+dir=$1 version=$2
+log() { echo "[$(hostname -s)] $*"; }
+
+# The snapshot and token in $dir are plaintext: remove them however this
+# script ends.
+cleanup() {
+    local rc=$?
+    shred -u "$dir/snapshot" "$dir/token" 2>/dev/null || true
+    rm -rf "$dir"
+    if [[ $rc != 0 ]]; then
+        log "FAILED (exit $rc); removed the plaintext snapshot and token in $dir"
+    fi
+}
+trap cleanup EXIT
+
+if [[ "$(k3s --version 2>/dev/null | head -n 1 | awk '{print $3}')" != "$version" ]]; then
+    log "Installing k3s $version (not started)"
+    curl -sfL https://get.k3s.io -o /usr/local/bin/k3s-install.sh
+    chmod 0755 /usr/local/bin/k3s-install.sh
+    INSTALL_K3S_VERSION="$version" INSTALL_K3S_SKIP_START=true INSTALL_K3S_EXEC=server \
+        /usr/local/bin/k3s-install.sh
+fi
+
+log "Stopping k3s"
+systemctl stop k3s 2>/dev/null || true
+
+log "Writing /etc/rancher/k3s/config.yaml"
+install -d -m 0755 /etc/rancher/k3s
+install -m 0644 "$dir/config.yaml" /etc/rancher/k3s/config.yaml
+
+if [[ -s $dir/node-password ]]; then
+    log "Restoring /etc/rancher/node/password"
+    install -d -m 0755 /etc/rancher/node
+    install -m 0600 "$dir/node-password" /etc/rancher/node/password
+fi
+
+log "Restoring etcd from $(basename "$dir/snapshot")"
+# Runs in the foreground and exits once the reset is done. Judge success
+# by its log message rather than its exit status.
+k3s server --cluster-reset \
+    --cluster-reset-restore-path="$dir/snapshot" \
+    --token-file="$dir/token" > "$dir/cluster-reset.log" 2>&1 || true
+tail -n 20 "$dir/cluster-reset.log"
+if ! grep -q 'cluster membership has been reset' "$dir/cluster-reset.log"; then
+    cp "$dir/cluster-reset.log" /root/k3s-cluster-reset.log
+    log "cluster-reset did not report success; log saved to /root/k3s-cluster-reset.log"
+    exit 1
+fi
+
+log "Starting k3s"
+systemctl enable --now k3s
+
+log "Waiting for the API server"
+for _ in $(seq 60); do
+    if k3s kubectl get --raw /readyz > /dev/null 2>&1; then break; fi
+    sleep 5
+done
+k3s kubectl get --raw /readyz > /dev/null || { log "API server not ready after 5 minutes"; exit 1; }
+k3s kubectl get nodes -o wide
+
+log "Restore finished"
+REMOTE
+)
+
+if [[ ${DRY_RUN:-} == 1 ]]; then
+    echo
+    echo "DRY_RUN=1: would copy the files to $target and run, as root:"
+    echo "$remote_script"
+    exit 0
+fi
+
+echo
+read -r -p "Type the node name ($node) to restore it: " answer || answer=""
+[[ $answer == "$node" ]] || die "confirmation did not match; nothing was changed"
+if $node_in_use && [[ ${FORCE:-} != 1 ]]; then
+    echo
+    echo "$node is running k3s or holds etcd data. --cluster-reset will replace"
+    echo "it with the snapshot."
+    read -r -p "Type 'RESET $node' to go ahead (or re-run with FORCE=1): " answer || answer=""
+    [[ $answer == "RESET $node" ]] || die "confirmation did not match; nothing was changed"
+fi
+
+# --- Copy files and run -----------------------------------------------------
+# Until the remote script takes over (its own trap removes $remote_dir),
+# remove the plaintext copies if anything fails.
+remote_dir="" staging=""
+remove_remote_copies() {
+    local rc=$?
+    [[ $rc == 0 ]] && return
+    [[ -n $remote_dir || -n $staging ]] || return
+    echo "Removing the copied snapshot and token from $node after the failure ..." >&2
+    if ! ssh_cmd "sudo -n rm -rf ${remote_dir:-/nonexistent} ${staging:-/nonexistent}"; then
+        echo "WARNING: could not clean up. Plaintext snapshot and token may remain on" >&2
+        echo "$node in: ${remote_dir:-} ${staging:-}" >&2
+        echo "Delete them: ssh $target sudo rm -rf ${remote_dir:-} ${staging:-}" >&2
+    fi
+}
+trap remove_remote_copies EXIT
+
+remote_dir=$(ssh_cmd 'sudo -n mktemp -d /root/k3s-restore.XXXXXX')
+staging=$(ssh_cmd 'mktemp -d')
+scp -q "${ssh_opts[@]}" "$snapshot" "$target:$staging/snapshot"
+scp -q "${ssh_opts[@]}" "$token_file" "$target:$staging/token"
+scp -q "${ssh_opts[@]}" "$config_template" "$target:$staging/config.yaml"
+if [[ -n $node_password ]]; then
+    scp -q "${ssh_opts[@]}" "$node_password" "$target:$staging/node-password"
+fi
+ssh_cmd "sudo -n sh -c 'chmod 0600 $staging/* && mv $staging/* $remote_dir/ && rmdir $staging'"
+staging=""
+
+ssh_cmd "sudo -n bash -s -- $remote_dir $k3s_version" <<< "$remote_script"
+
+cat <<EOF
+
+The control plane is back. Next steps (docs/how-to/recover-control-plane.md):
+  ansible-playbook pb_all.yml --limit $node --tags k3s     # kubeconfig + backup timer
+  just status
+EOF
+if [[ -z $node_password ]]; then
+    cat <<EOF
+No node password was restored. If $node shows NotReady with "Node password
+rejected" in 'journalctl -u k3s', delete the stale entry:
+  kubectl -n kube-system delete secret $node.node-password.k3s
+EOF
+fi

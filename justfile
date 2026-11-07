@@ -58,6 +58,22 @@ headlamp-token:
 seal-argocd-dex target:
     scripts/seal-argocd-dex {{ target }}
 
+# Asks you to type the node name (and `RESET <node>` if the node is in use)
+# before changing anything; DRY_RUN=1 previews, FORCE=1 skips the second prompt.
+# See docs/how-to/recover-control-plane.md.
+# Restore the control plane from a decrypted etcd backup onto a fresh node
+restore-control-plane snapshot token_file k3s_version="" node_password="":
+    scripts/restore-control-plane "{{ snapshot }}" "{{ token_file }}" "{{ k3s_version }}" "{{ node_password }}"
+
+# Run the encrypted etcd backup on the control plane now and show the result
+etcd-backup-now:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    node=$(awk '/^control_plane:/ {print $2}' group_vars/all.yml)
+    ssh ansible@"$node" 'sudo systemctl start k3s-etcd-backup.service; \
+        sudo journalctl -u k3s-etcd-backup.service -n 20 --no-pager; \
+        cat /var/lib/node_exporter/textfile_collector/k3s_etcd_backup.prom | grep -v "^#"'
+
 ################################################################################
 # bootstrap / rebuild — initial install and full teardown/rebuild
 ################################################################################
