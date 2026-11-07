@@ -96,11 +96,15 @@ k3s-api-dns ip:
     name=$(awk '/^k3s_api_name:/ {print $2}' group_vars/all.yml)
     router=$(awk '/^dns_router:/ {print $2}' group_vars/all.yml)
     [[ -n $name && -n $router ]] || { echo "set k3s_api_name and dns_router in group_vars/all.yml" >&2; exit 1; }
+    ip={{ quote(ip) }}
+    # Validate here too: the value is spliced into the router's command line.
+    [[ $ip =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || { echo "ERROR: '$ip' is not an IPv4 address" >&2; exit 1; }
+    [[ $name =~ ^[A-Za-z0-9.-]+$ ]] || { echo "ERROR: k3s_api_name '$name' is not a plain DNS name" >&2; exit 1; }
     echo "before: $(getent hosts "$name" || echo "$name does not resolve")"
-    ssh "$router" "NAME='$name' IP='{{ ip }}' sh -s" < scripts/k3s-api-dns
+    ssh "$router" "NAME='$name' IP='$ip' sh -s" < scripts/k3s-api-dns
     after=$(getent hosts "$name" || true)
     echo "after:  ${after:-$name does not resolve}"
-    [[ $after == "{{ ip }} "* ]] || { echo "ERROR: $name does not resolve to {{ ip }} here yet" >&2; exit 1; }
+    [[ $after == "$ip "* ]] || { echo "ERROR: $name does not resolve to $ip here yet" >&2; exit 1; }
 
 ################################################################################
 # bootstrap / rebuild — initial install and full teardown/rebuild

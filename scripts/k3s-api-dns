@@ -17,9 +17,19 @@ set -eu
 NAME=${NAME:-}
 IP=${IP:-}
 [ -n "$NAME" ] || { echo "ERROR: NAME is not set" >&2; exit 1; }
+bad_ip() { echo "ERROR: IP '$IP' is not an IPv4 address" >&2; exit 1; }
 case $IP in
-    *[!0-9.]* | "") echo "ERROR: IP '$IP' is not an IPv4 address" >&2; exit 1 ;;
+    *[!0-9.]* | "" | *..* | .* | *.) bad_ip ;;
 esac
+old_ifs=$IFS
+IFS=.
+# shellcheck disable=SC2086 # split on dots on purpose
+set -- $IP
+IFS=$old_ifs
+[ $# -eq 4 ] || bad_ip
+for octet in "$@"; do
+    [ "$octet" -le 255 ] || bad_ip
+done
 
 # Find an existing dhcp 'domain' record for NAME.
 idx=""
