@@ -2,10 +2,12 @@
 # token, written to the NAS by a systemd timer on the control plane.
 # See docs/how-to/backup-restore.md and docs/how-to/recover-control-plane.md.
 
-# age public key (age1...) the bundles are encrypted to. Set it in
-# group_vars/all.yml. Empty means the job fails on every run and uploads
-# nothing: plaintext never leaves the node.
-etcd_backup_age_recipient: ""
+# age public key (age1...) the bundles are encrypted to. Defaults to the
+# shared backup_age_recipient in group_vars/all.yml (also used by the
+# secrets backup CronJob); set this only to use a different key for etcd.
+# Empty means the job fails on every run and uploads nothing: plaintext
+# never leaves the node.
+etcd_backup_age_recipient: "{{ backup_age_recipient | default('') }}"
 
 # NAS export and the cluster-owned directory on it, read from
 # kubernetes-services/values.yaml (nfs.*) so there is one source of truth.

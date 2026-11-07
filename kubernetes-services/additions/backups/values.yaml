@@ -13,3 +13,58 @@ local_storage:
   grafana:
     node: node03
     path: /var/lib/k8s-data/grafana
+# age public key (age1...) the secrets backup is encrypted to. In-cluster
+# it comes from backup_age_recipient in group_vars/all.yml, via the root
+# app. Empty makes every run fail without writing anything.
+backup_age_recipient: ""
+# Mirror of enable_minecraft from kubernetes-services/values.yaml: the
+# minecraft source below (and its Role) only exists while it is true.
+enable_minecraft: true
+# Nightly age-encrypted export of the Secrets that are not in git, to
+# backups/secrets/ on the NAS. See docs/how-to/backup-restore.md.
+secrets_backup:
+  # Outside the 00:00-05:00 apt / k3s / kured upgrade windows.
+  schedule: "30 22 * * *"
+  time_zone: Europe/London
+  # Number of nightly bundles kept on the NAS (by mtime).
+  keep: 30
+  # age release binary, fetched by an initContainer and checked against
+  # these sha256 sums before use. To upgrade, pick a release from
+  # https://github.com/FiloSottile/age/releases and update the version and
+  # BOTH sums (of age-<version>-linux-<arch>.tar.gz).
+  age:
+    version: v1.3.2
+    sha256:
+      amd64: cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+      arm64: 6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4
+  # What is exported. Each source becomes one YAML file in the bundle and
+  # one Role for the job's ServiceAccount:
+  #   names    get, restricted to exactly these resourceNames
+  #   selector list in the namespace (RBAC cannot restrict list by label,
+  #            so the Role allows listing every Secret in that namespace)
+  #   neither  list in the namespace, filtered by name_suffix
+  # min fails the run if fewer Secrets are found; enabled_by names a
+  # top-level boolean value that must be true for the source to exist.
+  sources:
+    # The sealed-secrets controller's private keys (a new one every 30
+    # days). Without them no SealedSecret in git can be decrypted.
+    - file: sealed-secrets-keys.yaml
+      namespace: kube-system
+      selector: sealedsecrets.bitnami.com/sealed-secrets-key
+      min: 1
+    # The Let's Encrypt wildcard certificate and the ACME account key, so a
+    # rebuild need not re-register or re-issue (rate limits).
+    - file: cert-manager.yaml
+      namespace: cert-manager
+      names:
+        - wildcard-tls
+        - letsencrypt-prod
+      min: 2
+    # CurseForge API keys rendered by the Minecraft dashboard's itzg chart,
+    # one per world (<world>-curseforge), so the names are not known ahead.
+    - file: minecraft-curseforge.yaml
+      namespace: minecraft
+      selector: app.kubernetes.io/name=minecraft
+      name_suffix: -curseforge
+      min: 0
+      enabled_by: enable_minecraft

@@ -201,15 +201,20 @@ client), and `SCRAP_PUBLISH_TOKEN`. scrap's secrets are sealed only when
 `SCRAP_ANTHROPIC_API_KEY` is set.
 
 :::{tip}
-Back up the sealed-secrets controller's private key if you want to preserve the ability
-to re-use existing SealedSecrets after a rebuild:
+A re-seal is only needed when the controller's private keys are lost. The
+`secrets-backup` CronJob exports them every night, age-encrypted to your
+offline key, to `backups/secrets/` on the NAS ({ref}`secrets-backup`).
+Restore them before the controller starts on the new cluster, and the
+SealedSecrets in git decrypt unchanged.
+
+For a one-off copy, export them yourself and encrypt them straight away (the
+keys can decrypt every SealedSecret, so never keep them in plaintext or in
+git):
 
 ```bash
 kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  -o yaml > sealed-secrets-key-backup.yaml
+  -o yaml | age -r age1... -o sealed-secrets-keys.yaml.age
 ```
-
-Store this backup **securely** (not in Git!) — it can decrypt all your SealedSecrets.
 :::
 
 ## Gotchas

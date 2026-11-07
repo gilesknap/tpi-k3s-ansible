@@ -13,7 +13,9 @@ What is **not** in Git and needs separate backup:
 |------|-----------------|-----------------|
 | Stateful app data | static local-nvme PVs on worker nodes | nightly CronJob → NFS NAS |
 | scrap | NFS NAS, database replicated by Litestream | scrap chart's CronJobs → NFS NAS, nightly copy off the NAS |
-| Sealed Secrets private key | `kube-system` namespace | manual export |
+| Sealed Secrets private keys | `kube-system` namespace | nightly age-encrypted CronJob → NFS NAS |
+| Let's Encrypt wildcard certificate and ACME account key | `cert-manager` namespace | nightly age-encrypted CronJob → NFS NAS |
+| Minecraft CurseForge API keys (`<world>-curseforge`) | `minecraft` namespace | nightly age-encrypted CronJob → NFS NAS |
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
 | ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
@@ -164,33 +166,177 @@ See scrap's
 [restore with Litestream](https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#k8s-restore-litestream)
 for the details and the refusals you may meet.
 
-## Sealed Secrets key backup
+(secrets-backup)=
+## Secrets that are not in git
 
-If you rebuild the cluster, the sealed-secrets controller generates a new keypair.
-Existing SealedSecret YAML files in the repo will become undecryptable.
+Most Secrets come from SealedSecrets in git, or are generated on a rebuild.
+A few cannot be: the sealed-secrets controller's own private keys (without
+them no SealedSecret in git can be decrypted), and Secrets that controllers
+create at run time. The `secrets-backup` CronJob in the `backups` app exports
+these every night, encrypted with [age](https://github.com/FiloSottile/age)
+to the same **public** key as the etcd backup (`backup_age_recipient` in
+`group_vars/all.yml`).
 
-### Export the key
+### What is backed up
+
+Each bundle is a tar of one re-appliable YAML file per source, plus a
+`MANIFEST` listing every Secret and the files' sha256 sums. The sources are
+set in `secrets_backup.sources` in
+`kubernetes-services/additions/backups/values.yaml`:
+
+| File in the bundle | Secrets | Why they are not in git |
+|--------------------|---------|-------------------------|
+| `sealed-secrets-keys.yaml` | `kube-system`, label `sealedsecrets.bitnami.com/sealed-secrets-key` (the controller adds a key every 30 days and keeps the old ones) | The keys that decrypt every SealedSecret |
+| `cert-manager.yaml` | `cert-manager/wildcard-tls`, `cert-manager/letsencrypt-prod` | The issued wildcard certificate, and the ACME account key of the `letsencrypt-prod` ClusterIssuer. Restoring them avoids a re-issue, and Let's Encrypt's rate limits |
+| `minecraft-curseforge.yaml` | `minecraft/<world>-curseforge` (only while `enable_minecraft` is true) | Rendered by the Minecraft dashboard's itzg chart for each world |
+
+The YAML has `managedFields`, `uid`, `resourceVersion`,
+`creationTimestamp`, `ownerReferences` and the last-applied annotation
+removed, so `kubectl apply` puts it straight into a new cluster.
+
+### How it works
+
+Every night at 22:30 Europe/London, before the upgrade windows, the Job:
+
+1. reads the Secrets with `kubectl` and strips them to re-appliable YAML in
+   a RAM-backed (`medium: Memory`) `emptyDir`, so no plaintext reaches a
+   disk;
+2. pipes a tar of them through `age -r <backup_age_recipient>`;
+3. copies the result to `backups/secrets/.<name>.partial` on the NAS, reads
+   it back to check its sha256, then renames it to
+   `secrets-<UTC time>.tar.age`, with a `.sha256` file beside it;
+4. keeps the newest 30 bundles (by mtime), deletes `.partial` files over a
+   day old, and rewrites `LATEST` (bundle name, time, sha256 and counts).
+
+It fails, and writes nothing, if `backup_age_recipient` is not an age
+public key, if a Secret cannot be read, if no sealed-secrets key or either
+cert-manager Secret is found, or if `backups/secrets/` is missing.
+
+**Access.** The `secrets-backup` ServiceAccount has one Role per
+namespace, and nothing else:
+
+| Namespace | Verbs | Scope |
+|-----------|-------|-------|
+| `cert-manager` | `get` | `resourceNames: [wildcard-tls, letsencrypt-prod]` |
+| `kube-system` | `list` | all Secrets: RBAC cannot restrict by label, and the key names change every 30 days |
+| `minecraft` | `list` | all Secrets: the names depend on the worlds |
+
+`list` returns the Secrets' data, so in `kube-system` and `minecraft` the
+job could read every Secret, not only the ones it keeps. That is as narrow
+as RBAC goes for Secrets selected by label or name pattern; it is limited to
+`list` (no `get` or `watch`) in those two namespaces. The API token is
+mounted only into the backup container, not into the initContainer that
+downloads age.
+
+**Image.** Both containers use `alpine/k8s`, pinned by tag and digest
+(kubectl, jq, yq and bash, for amd64 and arm64). age is not in it, so an
+initContainer downloads the pinned age release for the node's architecture
+and refuses it unless it matches the sha256 in `secrets_backup.age`.
+
+### One-time setup
+
+1. Create `backups/secrets/` on the NAS ({ref}`secrets-backup-nas-directory`).
+2. Set `backup_age_recipient` in `group_vars/all.yml` (see
+   {ref}`etcd-offsite-backup`), then run
+   `ansible-playbook pb_all.yml --tags cluster`: the root app passes the
+   key down to the `backups` app.
+3. Take a backup now, and check it:
+
+   ```bash
+   kubectl -n backups create job --from=cronjob/secrets-backup secrets-backup-now
+   kubectl -n backups logs -f job/secrets-backup-now
+   ssh nas sudo cat /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/secrets/LATEST
+   kubectl -n backups delete job secrets-backup-now
+   ```
+
+4. Prove that you can decrypt it (next section), with `tar -t` in place of
+   `tar -x`.
+
+### Decrypt a bundle
+
+Only the private key can decrypt a bundle, so do this on the machine that
+holds it. The directory on the NAS is readable only by uid 65534, hence
+`sudo`:
 
 ```bash
-kubectl get secret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  -o yaml > sealed-secrets-key-backup.yaml
+D=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/secrets
+b=$(ssh nas sudo cat "$D/LATEST" | awk '/^bundle:/ {print $2}')
+ssh nas sudo cat "$D/$b" > "$b"
+ssh nas sudo cat "$D/$b.sha256" | sha256sum -c -
+
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -t           # list
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -xO ./MANIFEST
 ```
 
-:::{warning}
-Store this file **securely** (e.g. password manager, encrypted drive) — never in Git.
-It can decrypt all your SealedSecrets.
-:::
-
-### Restore after rebuild
-
-Before ArgoCD deploys the sealed-secrets controller on a new cluster:
+To extract everything, use a private directory on a RAM disk and delete it
+afterwards: the files are plaintext Secrets.
 
 ```bash
-kubectl apply -f sealed-secrets-key-backup.yaml
+mkdir -m 700 /dev/shm/secrets
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -x -C /dev/shm/secrets
 ```
 
-The new controller will pick up the restored key and can decrypt existing SealedSecrets.
+### Alerts
+
+Three alerts in the `backups` app (`secrets-backup-rules.yaml`), from
+kube-state-metrics' Job and CronJob metrics:
+
+- `SecretsBackupFailed`: a `secrets-backup` Job failed, and no run has
+  succeeded since it started.
+- `SecretsBackupStale`: no successful run for 36 hours
+  (`kube_cronjob_status_last_successful_time`).
+- `SecretsBackupNeverSucceeded`: no successful run recorded at all, for 36
+  hours.
+
+### Restore after a rebuild
+
+Restore the sealed-secrets keys **before the controller starts**: a
+controller that starts with no key generates a new one, and the
+SealedSecrets in git stay undecryptable until it is restarted. The
+controller is deployed by Argo CD, so the window is after k3s is installed
+and before the `cluster` tag runs:
+
+```bash
+ansible-playbook pb_all.yml --skip-tags cluster    # nodes and k3s, no Argo CD yet
+
+# Straight from the bundle into the cluster: no plaintext on disk.
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -xO ./sealed-secrets-keys.yaml \
+  | kubectl apply -f -
+kubectl -n kube-system get secret -l sealedsecrets.bitnami.com/sealed-secrets-key
+
+ansible-playbook pb_all.yml --tags cluster          # Argo CD, then everything else
+```
+
+The controller loads every labelled key when it starts and decrypts with any
+of them, so the SealedSecrets in git decrypt as they are and need no re-seal.
+(The restored keys all look new to it, so its 30-day key rotation counts from
+the restore.)
+
+If the controller is already running (for example after a full
+`pb_all.yml` run), apply the keys anyway and restart it so it loads them:
+
+```bash
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -xO ./sealed-secrets-keys.yaml \
+  | kubectl apply -f -
+kubectl -n kube-system rollout restart deployment/sealed-secrets
+```
+
+The cert-manager Secrets go in before cert-manager first issues a
+certificate, so it finds a valid one and re-uses the ACME account:
+
+```bash
+kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -xO ./cert-manager.yaml \
+  | kubectl apply -f -
+```
+
+The CurseForge Secrets are re-rendered when the dashboard starts each
+world. If the API key itself has been lost, read it from the bundle:
+
+```bash
+age -d -i ~/k3s-etcd-backup.agekey "$b" | tar -xO ./minecraft-curseforge.yaml \
+  | yq '.items[0].data["cf-api-key"]' | base64 -d
+```
 
 ## etcd backup and restore
 
@@ -215,7 +361,7 @@ upgrade windows, it:
 2. streams the snapshot, the server token (needed to restore it), the node
    password and the k3s config through
    [age](https://github.com/FiloSottile/age) to the **public** key in
-   `etcd_backup_age_recipient`, so no plaintext is written to disk;
+   `backup_age_recipient`, so no plaintext is written to disk;
 3. mounts the NAS share, copies the result to
    `backups/etcd/k3s-etcd-<node>-<UTC time>.tar.age`, checks the copy's
    checksum, updates `LATEST`, and keeps the newest 14;
@@ -225,8 +371,10 @@ upgrade windows, it:
    collector.
 
 Nothing on the cluster holds the private key, so the cluster can make and
-check backups but cannot decrypt them. If `etcd_backup_age_recipient` is
-empty the job fails on every run and uploads nothing.
+check backups but cannot decrypt them. If `backup_age_recipient` is
+empty the job fails on every run and uploads nothing. The same key encrypts
+the {ref}`secrets-backup`; to use a different key for etcd alone, set
+`etcd_backup_age_recipient`.
 
 #### One-time setup
 
@@ -236,7 +384,7 @@ empty the job fails on every run and uploads nothing.
 2. Set the public key in `group_vars/all.yml`:
 
    ```yaml
-   etcd_backup_age_recipient: age1...
+   backup_age_recipient: age1...
    ```
 
 3. Create `backups/etcd/` on the NAS ({doc}`nas-setup`). On an existing
@@ -308,8 +456,12 @@ To rebuild a cluster from scratch:
 1. Flash and provision nodes (see tutorials).
 2. Run the one-time NAS setup (`docs/how-to/nas-setup.md`) so the
    cluster-owned `/bigdisk/k8s-cluster` share exists on the NAS.
-3. Run `ansible-playbook pb_all.yml -e do_flash=true`.
-4. Restore the sealed-secrets key (if backed up).
+3. Run `ansible-playbook pb_all.yml -e do_flash=true --skip-tags cluster`.
+4. Restore the sealed-secrets keys and the cert-manager Secrets from the
+   newest secrets bundle ({ref}`secrets-backup`), then run
+   `ansible-playbook pb_all.yml --tags cluster`, which deploys Argo CD and
+   the sealed-secrets controller. Without the old keys, every SealedSecret
+   must be re-sealed ({doc}`manage-sealed-secrets`).
 5. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
 6. ArgoCD auto-syncs all services from Git.
 7. If `wipe_local_data=true` was used on decommission, restore stateful

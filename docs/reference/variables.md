@@ -14,7 +14,7 @@ All configurable variables, their defaults, and where they are used.
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
 | `local_domain` | `.lan` | Local domain suffix for mDNS |
 | `control_plane` | `node01` | Hostname of the K3s control plane node |
-| `etcd_backup_age_recipient` | `""` | age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading. |
+| `backup_age_recipient` | `""` | age public key the nightly etcd backup and secrets backup are encrypted to (the root app passes it to the `backups` app). Empty makes both fail without uploading. `etcd_backup_age_recipient` defaults to it. |
 | `cluster_domain` | `<domain>` | Domain name for ingress hosts |
 | `domain_email` | `your.email@...` | Email for Let's Encrypt certificate registration |
 | `repo_remote` | `https://github.com/gilesknap/tpi-k3s-ansible.git` | Git repo URL for ArgoCD |
@@ -63,6 +63,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `etcd_backup_age_recipient` | `backup_age_recipient` | age public key for the etcd bundles; set only to use a different key from the secrets backup |
 | `etcd_backup_nfs_server` / `etcd_backup_nfs_path` | `nfs.server` / `nfs.cluster_share_path` from `kubernetes-services/values.yaml` | NAS export the bundles are written to |
 | `etcd_backup_mount_point` | `/mnt/k8s-cluster` | Where the share is mounted while the job runs |
 | `etcd_backup_dest_subdir` | `backups/etcd` | Destination directory below the mount point |

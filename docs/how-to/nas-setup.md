@@ -34,6 +34,9 @@ the cluster reads or writes over NFS:
 - `backups/etcd/` — the control plane's nightly age-encrypted etcd backup
   ({ref}`etcd-offsite-backup`), written by root on the control plane and
   so arriving as the root-squashed uid
+- `backups/secrets/` — the nightly age-encrypted backup of the Secrets that
+  are not in git ({ref}`secrets-backup`), written by a CronJob running as
+  uid 65534 and readable by nobody else
 - `scrap-data/` and `backups/scrap/` — scrap's data volume (files and the
   database's Litestream replica) and its backups (see
   {ref}`scrap-nas-directories` below)
@@ -95,6 +98,12 @@ chmod 0755 "$ROOT"
 chmod 0755 "$ROOT/backups"
 chmod -R 0777 "$ROOT/backups"/*
 
+# The secrets backup is private to the uid its CronJob runs as (65534).
+# Created after the chmod above so it keeps mode 0700.
+mkdir -p "$ROOT/backups/secrets"
+chown 65534:65534 "$ROOT/backups/secrets"
+chmod 0700 "$ROOT/backups/secrets"
+
 # 2. Verify.
 ls -la "$ROOT" "$ROOT/backups"
 ```
@@ -147,6 +156,29 @@ rm -rf /share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 - Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`
   (the optional Minecraft archive and the dynamic volume share's `stable/`
   folder below are separate, deliberate steps).
+
+(secrets-backup-nas-directory)=
+## Secrets backup directory
+
+The `secrets-backup` CronJob ({ref}`secrets-backup`) mounts
+`backups/secrets/` with a `subPath`. The pod cannot create it: `backups/` is
+`0755`, owned by the NAS admin, and the export squashes root. Until it exists
+the pod cannot start and the Job fails. On an existing share, run this on the
+NAS once:
+
+```bash
+# SSH to the QNAP as admin, then:
+
+set -eu
+D=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/secrets
+sudo mkdir -p "$D"
+sudo chown 65534:65534 "$D"
+sudo chmod 0700 "$D"
+ls -ldn "$D"
+```
+
+Only uid 65534 (and root on the NAS) can list or read it. The bundles are
+encrypted anyway, but the names and dates are nobody else's business.
 
 ## Adding new cluster-owned subfolders later
 

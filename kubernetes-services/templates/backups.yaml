@@ -11,7 +11,8 @@ spec:
     namespace: backups
   project: kubernetes
   sources:
-    # Per-app backup CronJobs writing to the single cluster-owned NFS share.
+    # Per-app backup CronJobs writing to the single cluster-owned NFS share,
+    # and the nightly age-encrypted backup of the Secrets not in git.
     # The chart creates one static NFS PV; each CronJob uses subPath to see
     # only its own backups/<app>/ subdirectory. The NFS share itself is
     # created manually on the NAS — see docs/how-to/nas-setup.md.
@@ -25,9 +26,22 @@ spec:
             cluster_share_path: {{ .Values.nfs.cluster_share_path | quote }}
           local_storage:
 {{ toYaml .Values.local_storage | indent 12 }}
+          # The secrets backup's age public key, from group_vars/all.yml via
+          # the root app (kubernetes-services/values.yaml has the default).
+          backup_age_recipient: {{ .Values.backup_age_recipient | quote }}
+          enable_minecraft: {{ .Values.enable_minecraft }}
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+    # The secrets backup's Roles live in other apps' namespaces (and its
+    # PrometheusRule needs grafana-prometheus' CRD), which may not exist
+    # yet on a fresh cluster: retry rather than stay failed.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
