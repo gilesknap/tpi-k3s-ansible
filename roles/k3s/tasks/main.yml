@@ -64,6 +64,12 @@
       {{ (k3s_installed_version.stdout.split()[2] | regex_replace('^v', '')).split('.')[:2] | join('.') }}
   when: k3s_installed_version.rc == 0
 
+# Before the k3s install, so containerd's first container already gets the
+# corrected profile. Tagged so it can run alone: --tags apparmor.
+- name: Install the containerd AppArmor profile
+  ansible.builtin.import_tasks: apparmor.yml
+  tags: apparmor
+
 - name: Execute control plane tasks
   ansible.builtin.include_tasks: control.yml
   when: k3s_is_control_plane
