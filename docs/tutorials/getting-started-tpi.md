@@ -18,7 +18,7 @@ all services.
 - Compute modules in each slot: **RK1** (8GB+) or **CM4** (4GB+)
 - Network cable connecting each Turing Pi to your router
 - **SD card** (≥8GB, ext4) inserted in each Turing Pi's BMC SD slot
-- Optional: NVMe drives in the M.2 slots for OS migration
+- Optional, recommended for RK1s: an NVMe drive in each RK1's M.2 slot to install the OS on
 
 ```{include} common-setup.md
 :start-after: <!-- begin:software-prereqs -->
@@ -138,7 +138,8 @@ Key points:
   host `turingpi`). The flash role uses this naming convention to discover nodes.
 - `slot_num` maps each node to its physical slot on the Turing Pi board.
 - `type` determines which OS image to flash (`rk1` or `pi4`).
-- `root_dev` is optional — set it to migrate the OS from eMMC to NVMe after flashing.
+- `root_dev` is optional, for RK1s only — set it to install the OS on the NVMe. The
+  eMMC then holds only U-Boot. Without it, an RK1 runs Ubuntu from its eMMC.
 
 ## Step 5: Configure the cluster
 
@@ -158,15 +159,29 @@ ansible-playbook pb_all.yml -e do_flash=true
 This single command:
 
 1. **`tools`** — installs helm, kubectl, kubeseal in the devcontainer
-2. **`flash`** — flashes Ubuntu 24.04 to each compute module via the BMC
+2. **`flash`** — flashes each compute module via the BMC: Ubuntu 24.04 on CM4s, and on
+   RK1s mainline U-Boot plus a staging copy of Ubuntu 26.04 on the eMMC
 3. **`known_hosts`** — updates SSH known_hosts for all nodes
-4. **`servers`** — migrates OS to NVMe (if configured), converts RK1s to stock Ubuntu 26.04,
+4. **`servers`** — installs Ubuntu 26.04 on each RK1's NVMe (if `root_dev` is set),
    dist-upgrades, installs dependencies
 5. **`k3s`** — installs K3s control plane and worker nodes
 6. **`cluster`** — installs ArgoCD and deploys all cluster services
 
-The full process takes approximately 15–30 minutes depending on network speed and
-number of nodes.
+The full process takes approximately 30–60 minutes depending on network speed and
+number of nodes. An RK1 takes about 25 minutes: 10 to flash its eMMC, a few to boot
+the staging OS, and about 5 to install the NVMe and reboot into it.
+
+:::{note}
+**How an RK1 is installed.** The controller downloads two pinned artifacts, Ubuntu's
+official `ubuntu-26.04.1-preinstalled-server-arm64.img.xz` and Armbian's build of
+mainline U-Boot, and builds an eMMC image from them (U-Boot, then the Ubuntu
+partitions moved past it). This needs about 3 GB of space in `/tmp` and `xz`, but no
+other tools. The node boots that copy from the eMMC, writes the same Ubuntu image to
+its NVMe, removes the eMMC's partition table so that U-Boot boots the NVMe, and
+reboots. The result is stock Ubuntu, updated by `apt` like any other machine. See
+[](../explanations/ansible-roles.md) for the details and for how to bump the two
+artifacts.
+:::
 
 :::{note}
 The `-e do_flash=true` flag is required for the initial flash. On subsequent runs, omit it
