@@ -81,7 +81,6 @@ Subsequent Dex services reuse the session.
 | Service | URL | Logged-in indicator |
 |---------|-----|---------------------|
 | Headlamp | `https://headlamp.<cluster_domain>` | Token login page (after OAuth gate) |
-| Longhorn | `https://longhorn.<cluster_domain>` | Page title "Longhorn" |
 
 #### Step 4: OAuth flow procedure
 
@@ -156,7 +155,6 @@ Return a summary table:
 | Grafana        | PASS   | Home page loaded            |
 | ArgoCD Monitor | PASS   | Monitor page                |
 | Headlamp       | PASS   | Token login page            |
-| Longhorn       | PASS   | Dashboard loaded            |
 ```
 
 Any FAIL entries must include:

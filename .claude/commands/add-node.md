@@ -2,8 +2,8 @@
 
 Guide the user through adding a new worker node to an existing cluster. Ask
 questions, update the inventory, run the appropriate playbooks, and adjust
-cluster-wide settings that depend on node count (Longhorn replicas, control
-plane taint, cloudflared replicas).
+cluster-wide settings that depend on node count (control plane taint,
+cloudflared replicas).
 
 ## Important rules
 
@@ -120,21 +120,11 @@ kubectl get nodes
 After the node joins, check whether cluster-wide settings need updating.
 Count total nodes with `kubectl get nodes` and compare to current settings.
 
-### Longhorn replica count
+### Storage
 
-Read `kubernetes-services/templates/longhorn.yaml` and check
-`defaultClassReplicaCount`. Update if the new node count changes the
-appropriate value:
-
-| Total nodes | Replica count |
-|-------------|---------------|
-| 1           | 1             |
-| 2           | 2             |
-| 3+          | 3             |
-
-Only change upward (e.g. going from 2 to 3 nodes). Existing volumes keep
-their original replica count — only new volumes use the updated default.
-Warn the user about this.
+There is no replicated block storage to rebalance. A new node holds no
+volumes until a workload is given a `local-nvme` PV pinned to it (see the
+`/ansible` skill, "Storage placement"); shared volumes stay on NFS.
 
 ### Control plane taint
 
@@ -159,14 +149,13 @@ If the new node enables features that weren't previously available, inform the
 user:
 
 - **First GPU node added** → GPU workloads are now possible
-- **Third node added** → Longhorn now has full 3-replica redundancy
 
 Point the user to the relevant how-to guide or suggest running
 `/bootstrap-cluster` for the initial setup of any newly unlocked feature.
 
 ## Phase 6: Commit and deploy
 
-If any files were changed (hosts.yml, longhorn.yaml, values.yaml), ask the
+If any files were changed (hosts.yml, values.yaml), ask the
 user if they want to commit. If topology changes were made to ArgoCD-managed
 templates, they need to be pushed and synced:
 

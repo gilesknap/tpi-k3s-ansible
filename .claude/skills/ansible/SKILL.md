@@ -84,28 +84,30 @@ plugins, etc.).
 
 ### Workstation taint (ws03)
 Workstation nodes carry `workstation=true:NoSchedule` because they may
-reboot unexpectedly. This has three consequences you must design for:
+reboot unexpectedly. This has these consequences you must design for:
 
 - **DaemonSets that need ws03** must tolerate the taint. The
   `nvidia-device-plugin` template already does; audit any new DaemonSet
   that needs to run there.
-- **Longhorn does not tolerate the taint** — no Longhorn storage runs
-  on ws03. Anything with a Longhorn PVC must not be scheduled there.
 - **Monitoring statefulsets** (Grafana, Prometheus) tolerate the taint
-  so they can scrape workstation metrics, but must have a `nodeAffinity`
-  rule **excluding** ws03. Otherwise their Longhorn PVCs get provisioned
-  on ws03 and fail to attach.
+  so they can scrape workstation metrics. Their data stays off ws03
+  because their `local-nvme` PVs pin them (see below).
 - **amd64-only workloads land on nuc2 by default.** ws03 and nuc2 are the
   only amd64 nodes; ws03's taint means a chart with
   `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any
   explicit hostname selector. Useful for charts whose schema forbids
   `kubernetes.io/hostname` overrides.
 
-### Longhorn replica count vs node count
-Replica counts in `kubernetes-services/values.yaml` must match the
-number of Longhorn-capable nodes (i.e. excluding ws03). Going too high
-leaves volumes permanently Degraded; going too low under-replicates on
-adds. Update after any `/add-node` run.
+### Storage placement
+There is no replicated block storage (Longhorn was dropped, ADR 0012):
+- **RWO `local-nvme`**: static PVs in `additions/local-storage/`, each
+  with `spec.nodeAffinity` pinning its pod (prometheus→node02,
+  grafana→node03; scrap's off-NAS backup copy and frozen pre-NFS copy
+  →nuc2). A new workload gets its own PV and node, never ws03. Losing
+  the node takes the workload offline until it's back.
+- **Shared volumes**: `nfs-stable` is the default StorageClass (one fixed
+  NAS folder per PVC, so a rebuild gets the data back). `nfs-rwx` is a
+  scratch class, only when named: its folder is deleted with the PVC.
 
 ## BMC power operations
 
@@ -173,8 +175,7 @@ Notes:
   decommission playbook deletes ArgoCD Applications (orphan cascade)
   *before* scaling down workloads. Doing it in the other order means
   ArgoCD reconciliation re-creates pods faster than you can remove
-  them. After controller uninstall, strip finalizers from Longhorn
-  CRD resources (volumes, engines, etc.) since the controller is gone.
+  them.
 - **`gh pr edit` fails on this repo** — classic projects warning
   causes a GraphQL error. Use
   `gh api repos/OWNER/REPO/pulls/N -X PATCH -f body=...` instead.

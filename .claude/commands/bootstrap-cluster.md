@@ -26,8 +26,8 @@ user what was decided and why — don't silently skip features.
 | 3+    | **Enabled by default** | **2** |
 
 Storage replication: the cluster uses static local hostPath PVs (defined
-in `kubernetes-services/values.yaml` under `local_storage`), not a
-replicated CSI like Longhorn. Each stateful workload lives on a single
+in `kubernetes-services/values.yaml` under `local_storage`) and NFS, with
+no replicated block storage. Each local-PV workload lives on a single
 pinned node — warn the user that node loss takes that workload offline
 until the node is recovered.
 
