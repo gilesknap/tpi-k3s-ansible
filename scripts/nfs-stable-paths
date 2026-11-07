@@ -73,7 +73,7 @@ val() {
   echo "$v"
 }
 SERVER=$(val server)
-SRC_SC=$(val storage_class)
+SRC_SC=$(val fresh_storage_class)
 SRC_SHARE=$(val share)
 DST_SC=$(val stable_storage_class)
 DST_SHARE=$(val stable_share)
@@ -101,21 +101,25 @@ fi
 $APPLY && ! $sc_ok && die "class $DST_SC is not ready; nothing changed"
 
 # ------------------------------------------------------------------ helpers
-# pods (not finished) that mount the claim; fails if pods cannot be listed
+# every pod whose spec references the claim, as name(phase), whatever its
+# phase: pvc-protection keeps a deleted PVC Terminating while any such pod
+# exists, Succeeded and Failed ones included. Fails if pods cannot be listed.
 users() {  # ns pvc
   local json
   json=$(kubectl get pods -n "$1" -o json) || return 1
   jq -r --arg c "$2" '
     .items[]
-    | select(.status.phase != "Succeeded" and .status.phase != "Failed")
     | select(any(.spec.volumes[]?; .persistentVolumeClaim.claimName == $c))
-    | .metadata.name' <<<"$json"
+    | "\(.metadata.name)(\(.status.phase))"' <<<"$json"
 }
+
+# what to do about the pods users() found
+USERS_HINT="stop running pods first; delete a Succeeded or Failed pod after saving its spec (kubectl get pod -n <ns> <pod> -o yaml > <file>)"
 
 assert_unused() {  # ns pvc before-what
   local u
   u=$(users "$1" "$2") || die "cannot list the pods in $1; stopping before $3"
-  [[ -z $u ]] || die "PVC $1/$2 is in use by pod(s) ${u//$'\n'/ }; stopping before $3"
+  [[ -z $u ]] || die "PVC $1/$2 is referenced by pod(s) ${u//$'\n'/ }; stopping before $3. $USERS_HINT"
 }
 
 job_name() {  # prefix ns pvc -> a valid, unique Job name
@@ -361,7 +365,7 @@ for pvc in "${selection[@]}"; do
   echo "$NS/$pvc: PV $pv (reclaim $reclaim)"
   echo "  folder $SRC_SHARE/$old -> $DST_SHARE/$new"
   if [[ -n $in_use ]]; then
-    echo "  BLOCKED: in use by pod(s) ${in_use//$'\n'/ }; stop the world first"
+    echo "  BLOCKED: referenced by pod(s) ${in_use//$'\n'/ }; $USERS_HINT"
     blocked=$((blocked + 1))
     continue
   fi
@@ -369,7 +373,7 @@ for pvc in "${selection[@]}"; do
 done
 
 echo
-echo "$stable stable, $todo to move ($blocked blocked by running pods), $bad skipped"
+echo "$stable stable, $todo to move ($blocked blocked by pods), $bad skipped"
 if ! $APPLY; then
   echo "Dry run: nothing changed. Move each world with --apply $NS/<world>-data."
   exit 0
