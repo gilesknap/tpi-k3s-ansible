@@ -8,7 +8,10 @@
   `logs`, `exec`, `port-forward`) is fine.
   Exceptions: `kubeseal` (reads the cluster key; output is committed);
   `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
-  `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch).
+  `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch);
+  `just node-fence <node>` / `just node-unfence <node>` (the
+  `out-of-service` taint), only for a node the user has confirmed is
+  powered off (see `docs/how-to/node-operations.md`).
 - **Never commit to `main`** — work in branches, merge when verified. Use
   `/pr-squash` to tidy history before merging, then merge with
   `gh pr merge --merge` to preserve the curated commits. Only use

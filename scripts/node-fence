@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Fence or unfence a node with the non-graceful node shutdown taint
+# (node.kubernetes.io/out-of-service). Kubernetes then force-deletes the
+# node's pods and detaches their volumes, so a Recreate Deployment such as
+# scrap's can start its pod on another node. Without it the pod stays
+# Terminating on the dead node for ever.
+#
+# Only for a node that is really powered off: if it is still running, its
+# pods keep running too, and two copies of a single-writer app (scrap's
+# Litestream replica) can corrupt their data.
+#
+# Usage: node-fence fence|unfence <node>
+set -euo pipefail
+
+taint_key=node.kubernetes.io/out-of-service
+taint="${taint_key}=nodeshutdown:NoExecute"
+
+usage() {
+    echo "Usage: $0 fence|unfence <node>" >&2
+    exit 1
+}
+
+[ $# -eq 2 ] || usage
+action=$1
+node=$2
+
+ready=$(kubectl get node "$node" \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+
+case "$action" in
+fence)
+    if [ "$ready" = "True" ]; then
+        echo "Refusing: $node is Ready. Fence only a node that is NotReady and powered off." >&2
+        exit 1
+    fi
+    cat >&2 <<EOF
+WARNING: $node is NotReady (Ready=$ready), but that alone does not mean it is off.
+A node that lost its network or its k3s agent can still be running its pods.
+Fencing a running node lets its single-writer pods run twice and corrupt their data.
+Make sure $node is POWERED OFF (BMC power off, or unplug it) before going on.
+EOF
+    read -r -p "Type the node name to confirm $node is powered off: " answer
+    if [ "$answer" != "$node" ]; then
+        echo "Not confirmed; nothing changed." >&2
+        exit 1
+    fi
+    kubectl taint node "$node" "$taint" --overwrite
+    echo "Fenced $node. Its pods are being removed; they restart on other nodes."
+    echo "When $node is back and Ready, run: just node-unfence $node"
+    ;;
+unfence)
+    if [ "$ready" != "True" ]; then
+        echo "Note: $node is not Ready yet (Ready=$ready)." >&2
+    fi
+    kubectl taint node "$node" "${taint}-"
+    echo "Unfenced $node."
+    ;;
+*)
+    usage
+    ;;
+esac
