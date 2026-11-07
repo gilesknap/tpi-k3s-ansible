@@ -101,7 +101,8 @@ Restores: {doc}`backup-restore`.
 ### Moving an existing install off a local volume
 
 An install that started on a `local-nvme` PV (`local_storage.scrap`) moves in
-one Argo CD sync:
+one Argo CD sync, with `legacy.migrate: true` in `templates/scrap.yaml`
+(`false` in this repository, whose own move is done):
 
 1. The NFS PVs and PVCs (sync wave -2).
 2. The Job `scrap-migrate-to-nfs` (wave -1), on the old volume's node:
