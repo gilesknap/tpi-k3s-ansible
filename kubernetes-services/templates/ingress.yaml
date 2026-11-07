@@ -43,6 +43,19 @@ spec:
                   app.kubernetes.io/name: ingress-nginx
                   app.kubernetes.io/instance: ingress
                   app.kubernetes.io/component: controller
+          # TEMPORARY WORKAROUND: run the controller AppArmor-unconfined.
+          # On Ubuntu 26.04 nodes (kernel 7.0, AppArmor 5.x) container
+          # processes run under the stacked label
+          # cri-containerd.apparmor.d//&unconfined, and containerd's default
+          # cri-containerd.apparmor.d profile denies signals to that peer, so
+          # nginx's reload (kill -HUP to its own workers) fails with EACCES
+          # and the pod never becomes ready. Set at pod level so the chart's
+          # hardened container securityContext defaults are kept.
+          # Follow-up: fix the containerd AppArmor profile at node level for
+          # Ubuntu 26.04, then remove this.
+          podSecurityContext:
+            appArmorProfile:
+              type: Unconfined
           admissionWebhooks:
             # Disabled: hook jobs (admission-create/patch) delete themselves before
             # ArgoCD records Succeeded, causing every sync to get permanently stuck.
