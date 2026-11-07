@@ -154,7 +154,7 @@ there by its local PV, and the sync cannot pass wave -1 without it. As soon as
 the check passes, set `legacy.migrate: false` in `templates/scrap.yaml` and
 let Argo CD sync. The old dynamic backups claim, `scrap-backups`, is rendered
 only so that the Job can mount it. Deleting it deletes its NAS directory
-(it was provisioned by the default `nfs-rwx` class: reclaim policy `Delete`,
+(it was provisioned by the `nfs-rwx` class, then the default: reclaim policy `Delete`,
 `onDelete: delete`), so do that only once
 its runs are confirmed in `backups/scrap`.
 

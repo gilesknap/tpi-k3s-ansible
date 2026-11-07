@@ -164,7 +164,7 @@ QNAP it is a separate shared folder exported over NFS to the cluster subnet,
 for example `/share/CACHEDEV1_DATA/k8s-dynamic` on the NAS. The driver
 creates one folder per volume in it.
 
-The `nfs-stable` class, used by Minecraft worlds ({doc}`nfs-stable-paths`),
+The `nfs-stable` class, the default ({doc}`nfs-stable-paths`),
 has its own share root inside it, `nfs_csi.stable_share` (default
 `/k8s-dynamic/stable`). Create it once, before Argo CD syncs the class,
 with the same owner and mode as the share root, since the driver creates the

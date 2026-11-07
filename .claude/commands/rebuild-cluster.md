@@ -28,8 +28,9 @@ Minecraft worlds live on the `nfs-stable` class, in
 re-creates its worlds (and their PVCs) from its registry on the store, and
 the PVCs bind to those folders. Worlds still on `nfs-rwx` (made before
 `nfs-stable`) are skipped and come back missing: the Phase 1 gate below
-checks there are none. Other `nfs-rwx` volumes come back empty, in new
-folders (`docs/how-to/nfs-stable-paths.md`).
+checks there are none. Other claims on `nfs-stable` (the default class)
+also come back with their data; other `nfs-rwx` volumes come back empty, in
+new folders (`docs/how-to/nfs-stable-paths.md`).
 
 **Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
 decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`

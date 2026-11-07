@@ -1,29 +1,31 @@
-# Stable NFS Volumes for Minecraft Worlds
+# Stable NFS Volumes
 
 The cluster has two NFS CSI storage classes on the same NAS export:
 
 | Class | Value | Folder per PVC | On PVC delete | Used by |
 |-------|-------|----------------|---------------|---------|
-| `nfs-rwx` (default) | `nfs_csi.storage_class`, share `nfs_csi.share` | `<namespace>/<pvc>-<pv>` | data deleted | everything else |
-| `nfs-stable` | `nfs_csi.stable_storage_class`, share `nfs_csi.stable_share` | `<namespace>/<pvc>` | folder archived | Minecraft worlds only |
+| `nfs-stable` (default) | `nfs_csi.stable_storage_class`, share `nfs_csi.stable_share` | `<namespace>/<pvc>` | folder archived | every claim that names no class; Minecraft worlds |
+| `nfs-rwx` | `nfs_csi.fresh_storage_class`, share `nfs_csi.share` | `<namespace>/<pvc>-<pv>` | data deleted | scratch volumes that name it; claims made before `nfs-stable` was the default |
 
 In the `nfs-stable` share the folders look like this:
 
 ```text
-<stable_share>/minecraft/<world>-data             live world data
-<stable_share>/archived-minecraft/<world>-data    data of a deleted world PVC
+<stable_share>/<namespace>/<pvc>             live data
+<stable_share>/archived-<namespace>/<pvc>    data of a deleted PVC
 ```
 
 Because the folder depends only on the PVC's namespace and name, a PVC
-re-created with the same name finds its data again. That is what carries the
-worlds across a cluster rebuild: the rebuild wipes etcd, so every PV and PVC
-object goes, but the folders stay on the NAS. The Minecraft dashboard
-re-creates its worlds from its registry on the store ({doc}`minecraft`), and
-their PVCs bind to the old folders.
+re-created with the same name finds its data again. That is what carries
+volumes across a cluster rebuild: the rebuild wipes etcd, so every PV and PVC
+object goes, but the folders stay on the NAS, and the re-created PVCs bind to
+them. The Minecraft dashboard, for example, re-creates its worlds from its
+registry on the store ({doc}`minecraft`).
 
-`nfs-rwx` stays as it was, because other workloads re-create PVCs under the
-same names on purpose to start empty.
-On `nfs-stable` they would get the old data back.
+A new claim with no `storageClassName` gets `nfs-stable`. Name `nfs-rwx`
+explicitly for a scratch volume that must start empty on every deploy: on
+`nfs-stable` a PVC re-created under the same name gets the old data back.
+Existing claims keep the class they were made with (`storageClassName` is
+immutable), so changing the default moves no data.
 
 **Each cluster needs its own stable share and its own Minecraft store.** Two
 clusters sharing either would see each other's worlds: the same
@@ -43,19 +45,20 @@ the migration below moves old worlds by renaming their folders, which only
 works within one filesystem. The script checks this and stops before the
 rename if the old and new folders are on different filesystems.
 
-## Deleting a world PVC
+## Deleting an `nfs-stable` PVC
 
 Deleting an `nfs-stable` PVC never deletes data: the driver
-(`onDelete: archive`) moves the folder to `archived-minecraft/<world>-data`.
-A new PVC with the same name then starts empty. Clear archives on the NAS
-when you no longer need them.
+(`onDelete: archive`) moves the folder to
+`<stable_share>/archived-<namespace>/<pvc>`. A new PVC with the same name then
+starts empty. Clear archives on the NAS when you no longer need them, and
+always clear the old archive before deleting a PVC whose name was used before.
 
 The driver keeps only one archive per name, and it does not overwrite one. If
 a PVC is deleted while an archive of the same name still exists, the second
 archive fails. The PV then stays `Released`, the driver retries its delete,
 and the folder stays where it is, so a third PVC of that name would bind to
-the second one's data. The dashboard refuses to create a world whose name
-still has an archive, so this only happens to PVCs deleted by hand. To
+the second one's data. The Minecraft dashboard refuses to create a world
+whose name still has an archive; other workloads have no such guard. To
 recover:
 
 1. Find the stuck PV: `kubectl get pv | grep Released`.
