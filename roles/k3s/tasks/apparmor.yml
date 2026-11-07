@@ -1,0 +1,61 @@
+# Pre-load a corrected copy of containerd's default AppArmor profile.
+#
+# Why: Ubuntu 25.04 and later set
+# kernel.apparmor_restrict_unprivileged_unconfined=1, so when runc switches
+# a container to cri-containerd.apparmor.d the kernel stacks it with
+# unconfined instead. Container processes then run as
+# cri-containerd.apparmor.d//&unconfined, and containerd's default profile
+# only allows signals and ptrace to the plain cri-containerd.apparmor.d
+# peer. Every signal sent inside a container is denied: Go's SIGURG
+# preemption, nginx reloads, dumb-init's SIGTERM forwarding.
+#   https://github.com/containerd/containerd/issues/12886
+#   https://github.com/containerd/containerd/issues/14485
+#   https://github.com/k3s-io/k3s/issues/13625
+#
+# containerd skips generating its profile when one of the same name is
+# already loaded, so we ship its template plus the stacked peer in
+# files/cri-containerd.apparmor.d. apparmor.service loads it at boot,
+# before k3s starts. Replacing it updates running containers in place.
+#
+# On nodes without the sysctl (Ubuntu 24.04) the extra rules never match,
+# so it is harmless there.
+#
+# Maintenance: diff files/cri-containerd.apparmor.d against containerd's
+# contrib/apparmor/template.go at each k3s bump, since this copy shadows
+# whatever containerd would generate. Delete this file, the profile and
+# /etc/apparmor.d/cri-containerd.apparmor.d once a k3s release bundles a
+# containerd with the fix.
+
+- name: Check whether AppArmor is enabled
+  ansible.builtin.slurp:
+    src: /sys/module/apparmor/parameters/enabled
+  register: k3s_apparmor_enabled
+  failed_when: false
+
+- name: Install and load the containerd default AppArmor profile
+  when: (k3s_apparmor_enabled.content | default('') | b64decode | trim) == 'Y'
+  block:
+    - name: Install the containerd default AppArmor profile
+      ansible.builtin.copy:
+        src: cri-containerd.apparmor.d
+        dest: /etc/apparmor.d/cri-containerd.apparmor.d
+        owner: root
+        group: root
+        mode: "0644"
+
+    # A plain task, not a handler, so the profile is loaded before k3s is
+    # installed later in the same run. It runs every time: the kernel skips
+    # a replace whose policy matches the loaded one, so comparing the loaded
+    # profile's sha256 before and after tells us whether anything changed.
+    # That also repairs a node where containerd's own profile got loaded.
+    - name: Load the containerd default AppArmor profile
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          p=/sys/kernel/security/apparmor/policy/profiles
+          before=$(cat $p/cri-containerd.apparmor.d.*/sha256 2>/dev/null || true)
+          apparmor_parser --replace --write-cache /etc/apparmor.d/cri-containerd.apparmor.d
+          after=$(cat $p/cri-containerd.apparmor.d.*/sha256)
+          [ "$before" = "$after" ] || echo replaced
+      register: k3s_apparmor_load
+      changed_when: "'replaced' in k3s_apparmor_load.stdout"
