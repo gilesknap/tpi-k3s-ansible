@@ -88,11 +88,17 @@ Edit `group_vars/all.yml` — the primary Ansible configuration:
 ```yaml
 # Change these to match your environment
 control_plane: node01              # Which node is the K3s control plane
+k3s_api_name: k3s.lan              # DNS record for the API, -> control plane IP
 cluster_domain: example.com        # Your domain name
 domain_email: you@example.com      # For Let's Encrypt certificates
 repo_remote: https://github.com/<your-username>/tpi-k3s-ansible.git
 repo_branch: main                  # Git branch for ArgoCD to track
 ```
+
+Add a DNS record for `k3s_api_name` on your router (or other LAN DNS),
+pointing at the control plane's IP. The workers join the cluster through
+that name, so the control plane can later move to another node. Without LAN
+DNS, set `k3s_api_name` to the control plane's IP.
 
 Then edit `kubernetes-services/values.yaml` — the ArgoCD runtime configuration:
 

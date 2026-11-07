@@ -31,6 +31,23 @@
   when: k3s_is_control_plane
   register: k3s_installed
 
+# Restart now if the config changed (e.g. a new tls-san), not at the end of
+# the play: the workers below switch to k3s_api_name, which the serving
+# certificate must already carry.
+- name: Apply a changed k3s server configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the API server
+  ansible.builtin.command:
+    cmd: k3s kubectl get --raw /readyz
+  register: k3s_readyz
+  until: k3s_readyz.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
+
 - name: Set the k3s_install_occurred fact
   ansible.builtin.set_fact:
     k3s_install_occurred: "{{ k3s_installed is changed }}"

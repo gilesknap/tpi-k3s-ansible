@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Restore the k3s control plane from a decrypted etcd backup bundle onto a
-# freshly provisioned control-plane node. See
-# docs/how-to/recover-control-plane.md.
+# freshly provisioned node: the old control plane rebuilt, or any spare
+# node. See docs/how-to/recover-control-plane.md.
 #
 # Usage: scripts/restore-control-plane SNAPSHOT TOKEN_FILE [K3S_VERSION] [NODE_PASSWORD_FILE]
 #
@@ -11,7 +11,9 @@
 #                       to k3s_version in the bundle's MANIFEST, found next
 #                       to TOKEN_FILE.
 #   NODE_PASSWORD_FILE  the node's k3s node password (bundle: node-password).
-#                       Defaults to node-password next to TOKEN_FILE.
+#                       Defaults to node-password next to TOKEN_FILE, but
+#                       only when the target is the node the bundle came
+#                       from (MANIFEST's node:); another node keeps its own.
 #
 # Environment:
 #   NODE      target node (default: control_plane in group_vars/all.yml)
@@ -36,6 +38,7 @@ node=${NODE:-$(awk '/^control_plane:/ {print $2}' "$repo_root/group_vars/all.yml
 ssh_user=${SSH_USER:-ansible}
 read -r -a ssh_opts <<< "${SSH_OPTS:-}"
 config_template="$repo_root/roles/k3s/templates/k3s-server-config.yml.j2"
+api_name=$(awk '/^k3s_api_name:/ {print $2}' "$repo_root/group_vars/all.yml")
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -48,13 +51,24 @@ if [[ -z $k3s_version && -r $bundle_dir/MANIFEST ]]; then
 fi
 [[ $k3s_version =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$ ]] \
     || die "k3s version '${k3s_version}' not recognised; pass it as the third argument (e.g. v1.34.6+k3s1)"
+bundle_node=""
+if [[ -r $bundle_dir/MANIFEST ]]; then
+    bundle_node=$(awk '/^node:/ {print $2}' "$bundle_dir/MANIFEST")
+fi
 if [[ -z $node_password && -s $bundle_dir/node-password ]]; then
-    node_password=$bundle_dir/node-password
+    if [[ -z $bundle_node || $bundle_node == "$node" ]]; then
+        node_password=$bundle_dir/node-password
+    else
+        echo "Not restoring the bundle's node-password: it belongs to $bundle_node, not $node."
+    fi
 fi
 [[ -z $node_password || -s $node_password ]] || die "node password file '$node_password' is empty"
-# The server config is copied verbatim, so the template must stay static.
-if grep -qE '\{\{|\{%' "$config_template"; then
-    die "$config_template now uses Jinja; render it with ansible instead of copying it"
+# The server config is rendered here by substituting k3s_api_name, the
+# template's only variable. Anything more needs rendering with ansible.
+[[ -n $api_name ]] || die "could not read k3s_api_name from group_vars/all.yml"
+rendered_config=$(sed "s/{{ k3s_api_name }}/$api_name/g" "$config_template")
+if grep -qE '\{\{|\{%' <<< "$rendered_config"; then
+    die "$config_template uses Jinja beyond k3s_api_name; render it with ansible instead"
 fi
 if [[ -r $bundle_dir/MANIFEST ]]; then
     (cd "$bundle_dir" && grep -E '^  [0-9a-f]{64}  ' MANIFEST | sed 's/^  //' | sha256sum --quiet -c -) \
@@ -69,8 +83,16 @@ echo "Checking $target ..."
 remote_state=$(ssh_cmd 'hostname; . /etc/os-release; echo "$PRETTY_NAME";
     if command -v k3s >/dev/null; then k3s --version | head -n 1; else echo "k3s not installed"; fi;
     systemctl is-active k3s 2>/dev/null || true;
-    sudo -n test -d /var/lib/rancher/k3s/server/db && echo "existing etcd data: yes" || echo "existing etcd data: no"') \
+    sudo -n test -d /var/lib/rancher/k3s/server/db && echo "existing etcd data: yes" || echo "existing etcd data: no";
+    test -e /usr/local/bin/k3s-agent-uninstall.sh && echo "k3s agent installed: yes" || echo "k3s agent installed: no"') \
     || die "cannot reach $target over SSH"
+
+# A spare node that was a worker must drop its agent first: the server
+# install would share its data directory and it would keep running.
+if grep -qx 'k3s agent installed: yes' <<< "$remote_state"; then
+    die "$node runs the k3s agent. Remove it first: ssh $target sudo k3s-agent-uninstall.sh
+(this keeps /etc/rancher/node/password and the local PV data directories)"
+fi
 
 cat <<EOF
 
@@ -80,6 +102,7 @@ Control-plane restore
   token         : $token_file
   node password : ${node_password:-<none: delete the old node-password secret afterwards>}
   k3s version   : $k3s_version
+  API name      : $api_name (point this DNS record at $node afterwards)
 
 Node reports:
 $(sed 's/^/  /' <<< "$remote_state")
@@ -208,7 +231,7 @@ remote_dir=$(ssh_cmd 'sudo -n mktemp -d /root/k3s-restore.XXXXXX')
 staging=$(ssh_cmd 'mktemp -d')
 scp -q "${ssh_opts[@]}" "$snapshot" "$target:$staging/snapshot"
 scp -q "${ssh_opts[@]}" "$token_file" "$target:$staging/token"
-scp -q "${ssh_opts[@]}" "$config_template" "$target:$staging/config.yaml"
+ssh_cmd "cat > $staging/config.yaml" <<< "$rendered_config"
 if [[ -n $node_password ]]; then
     scp -q "${ssh_opts[@]}" "$node_password" "$target:$staging/node-password"
 fi
@@ -220,6 +243,7 @@ ssh_cmd "sudo -n bash -s -- $remote_dir $k3s_version" <<< "$remote_script"
 cat <<EOF
 
 The control plane is back. Next steps (docs/how-to/recover-control-plane.md):
+  point the $api_name DNS record at $node, if it is not already
   ansible-playbook pb_all.yml --limit $node --tags k3s     # kubeconfig + backup timer
   just status
 EOF

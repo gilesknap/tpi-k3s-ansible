@@ -16,6 +16,55 @@
     k3s_is_control_plane: "{{ control_plane == inventory_hostname }}"
     k3s_control_plane_ip: "{{ hostvars[control_plane]['ansible_facts']['default_ipv4']['address'] }}"
 
+# k3s_api_name is what agents join and kubectl uses, so it must resolve to
+# the control plane before the role switches anything to it. Checked on
+# every node and on the controller. In check mode a mismatch only warns,
+# so a preview still runs before the DNS record exists.
+- name: Resolve the API name {{ k3s_api_name }}
+  ansible.builtin.command:
+    cmd: getent ahostsv4 {{ k3s_api_name }}
+  register: k3s_api_name_lookup
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check the API name resolves to the control plane
+  ansible.builtin.assert:
+    that:
+      - k3s_api_name_lookup.rc == 0
+      - k3s_api_name_lookup.stdout.split()[0] == k3s_control_plane_ip
+    fail_msg: >-
+      {{ k3s_api_name }} resolves to
+      '{{ (k3s_api_name_lookup.stdout.split() + ['nothing'])[0] }}' on
+      {{ inventory_hostname }}, not to {{ control_plane }}
+      ({{ k3s_control_plane_ip }}). Point the {{ k3s_api_name }} DNS record
+      at the control plane first (see k3s_api_name in group_vars/all.yml).
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Resolve the API name on the controller
+  ansible.builtin.command:
+    cmd: getent ahostsv4 {{ k3s_api_name }}
+  register: k3s_api_name_lookup_local
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Check the API name resolves to the control plane on the controller
+  ansible.builtin.assert:
+    that:
+      - k3s_api_name_lookup_local.rc == 0
+      - k3s_api_name_lookup_local.stdout.split()[0] == k3s_control_plane_ip
+    fail_msg: >-
+      {{ k3s_api_name }} does not resolve to {{ k3s_control_plane_ip }} on
+      the controller, so the kubeconfig written for it would not work.
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+  run_once: true
+
 - name: Output control plane status
   ansible.builtin.debug:
     var: k3s_is_control_plane
@@ -47,6 +96,8 @@
   ansible.builtin.command: k3s --version
   register: k3s_installed_version
   changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
   failed_when: false
 
 - name: Refuse to downgrade k3s to an older minor version
@@ -95,6 +146,8 @@
     - local-path-provisioner
     - metrics-server
   changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
 
 - name: Wait for all pods become ready
   ansible.builtin.command:
@@ -103,3 +156,5 @@
   run_once: true
   register: k3s_control_plane_pods_ready
   changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false

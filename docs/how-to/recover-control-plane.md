@@ -2,8 +2,11 @@
 
 This runbook rebuilds a lost single-server control plane from the nightly
 encrypted etcd backup on the NAS ({ref}`etcd-offsite-backup`). The workers
-and their data are untouched. The examples use `node01`, a Raspberry Pi CM4
-in Turing Pi slot 1, as the control plane.
+and their data are untouched. The restore can go onto the old control-plane
+node, rebuilt, or onto any spare node. The examples use `node01`, a
+Raspberry Pi CM4 in Turing Pi slot 1, as the lost control plane and `node03`
+as the spare. The same procedure, planned, moves a healthy control plane to
+another node: see [](#move-the-control-plane).
 
 A restore takes the cluster back to the moment of the snapshot. Most
 changes after that point come back by themselves, since ArgoCD re-syncs
@@ -19,10 +22,34 @@ from Git. Objects created by hand after the snapshot, such as a rotated
 | Control-plane OS or storage lost: dead eMMC/SD, failed upgrade, accidental reflash | **This runbook.** |
 | No usable backup, or several nodes lost | Full rebuild from Git: {doc}`reflash-rebuild` and {doc}`bootstrap-cluster`. |
 
-The control plane must come back with the **same hostname and IP**
-(192.168.1.81 for node01), because the workers connect to that address.
-Keep a DHCP reservation for it; a replacement module needs the reservation
-moved to its MAC address.
+The workers, the API server certificate and your kubeconfig all reach the
+API through `k3s_api_name` in `group_vars/all.yml` (e.g. `k3s.lan`), a DNS
+record on your router that points at the control plane. Wherever the control
+plane comes back, point that record at it and the workers follow; nothing
+has to keep the old node's IP. The `k3s` role refuses to run until the name
+resolves to the `control_plane` node.
+
+## Choose the target node
+
+- **The old node, rebuilt.** Keeps its hostname and IP, so the DNS record
+  needs no change. Use this when the hardware is fine and only its OS or
+  disk was lost.
+- **A spare node** (`node03` here). Use this when the old hardware is dead
+  or slow to replace. A worker serves, but it loses its workloads while it
+  changes role, and the `cluster` tag later taints it `NoSchedule`. Prefer a
+  node that holds no `local-nvme` PV (`local_storage` in
+  `kubernetes-services/values.yaml`): a pod pinned there by its PV cannot
+  restart on it once it is tainted. `node03` holds Grafana's, which is
+  acceptable while you recover, not as a permanent home.
+
+For a spare node, set it as the control plane first, on a branch:
+
+```yaml
+# group_vars/all.yml
+control_plane: node03
+```
+
+`just restore-control-plane` and the `k3s` role both read it.
 
 ## What you need
 
@@ -71,8 +98,15 @@ upgrade.
 
 ## 2. Reflash and provision the node
 
-Power the node off if it is half-alive, then flash and prepare it, but stop
-before k3s:
+**A spare node** needs no reflash. Remove its k3s agent instead; this keeps
+`/etc/rancher/node/password` and the local PV data directories:
+
+```bash
+ssh ansible@node03 sudo k3s-agent-uninstall.sh
+```
+
+**The old node:** power it off if it is half-alive, then flash and prepare
+it, but stop before k3s:
 
 ```bash
 ansible-playbook pb_all.yml --limit turingpi,node01 \
@@ -93,8 +127,10 @@ just restore-control-plane ~/k3s-restore/snapshot/<name> ~/k3s-restore/token
 # without just: scripts/restore-control-plane <snapshot> <token>
 ```
 
-The recipe reads the k3s version from `MANIFEST` and picks up
-`node-password` from the same directory. Run it with `DRY_RUN=1` first to
+The recipe restores onto `control_plane` (or `NODE=<node>`). It reads the
+k3s version from `MANIFEST` and picks up `node-password` from the same
+directory when the target is the node the bundle came from; a spare node
+keeps its own. It refuses a node that still runs the k3s agent. Run it with `DRY_RUN=1` first to
 see exactly what it will do. It shows what it found on the node, then asks
 you to type the node name. If k3s is running there or the node already
 has etcd data, it also asks you to type `RESET <node>` (or set `FORCE=1`
@@ -104,8 +140,9 @@ to skip that second prompt). After that it:
    (`INSTALL_K3S_SKIP_START=true`). k3s requires the snapshot's token
    and advises restoring onto the same minor version, so matching the
    exact version is the safe choice;
-2. writes the server config from `roles/k3s/templates/k3s-server-config.yml.j2`
-   and restores `/etc/rancher/node/password`;
+2. writes the server config from `roles/k3s/templates/k3s-server-config.yml.j2`,
+   with `k3s_api_name` as its `tls-san`, and restores
+   `/etc/rancher/node/password`;
 3. runs `k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
    --token-file=<token>`, which restores the snapshot, makes this node the
    only etcd member and exits. Any existing etcd data is moved to
@@ -117,19 +154,36 @@ to skip that second prompt). After that it:
 On a single server there are no etcd peers, so there is no `db` directory to
 remove on other servers.
 
+## 4. Point the API name at the new control plane
+
+On a spare node, change the `k3s_api_name` DNS record on your router to the
+new node's IP, and check it from the controller and a worker:
+
+```bash
+getent hosts k3s.lan
+ssh ansible@node04 getent hosts k3s.lan
+```
+
 Then refresh your kubeconfig and reinstall the backup timer:
 
 ```bash
-ansible-playbook pb_all.yml --limit node01 --tags k3s
+ansible-playbook pb_all.yml --limit node03 --tags k3s
 ```
 
 This is safe now: the role sees the restored server and skips the install.
+It stops if the DNS record does not point at the new node yet.
 
-## 4. Check the cluster
+## 5. Check the cluster
 
 The workers have kept running their pods throughout. Their k3s agents
-reconnect to the same IP and trust the restored CA, so they rejoin by
-themselves within a minute or two.
+reconnect through `k3s_api_name` and trust the restored CA, so they rejoin
+by themselves within a minute or two of the DNS change (allow for the
+record's TTL). An agent that stays `NotReady` needs
+`sudo systemctl restart k3s-agent`, or a reboot.
+
+On a spare node, the restored cluster still lists the old control plane:
+delete its Node object once it is not coming back as itself,
+`kubectl delete node node01`.
 
 ```bash
 just status                                   # nodes, ArgoCD apps, failing pods
@@ -144,18 +198,64 @@ just etcd-backup-now                          # a new bundle reaches the NAS
 
 If something is off:
 
-- **A worker stays `NotReady`:** run `sudo systemctl restart k3s-agent` on it.
+- **A worker stays `NotReady`:** check `getent hosts k3s.lan` on it, then
+  run `sudo systemctl restart k3s-agent` on it.
+- **A worker still dials the old IP:** it joined before `k3s_api_name`
+  existed. `ansible-playbook pb_all.yml --tags k3s --limit <worker>`
+  rewrites its `K3S_URL` and restarts the agent.
 - **The control plane stays `NotReady` with "Node password rejected"** (no
-  `node-password` in the bundle): run
-  `kubectl -n kube-system delete secret node01.node-password.k3s`.
+  `node-password` restored): run
+  `kubectl -n kube-system delete secret <node>.node-password.k3s`.
 - **SealedSecrets fail with `no key could decrypt secret`:** the sealing key
   was rotated after the snapshot. Restore the key from your sealed-secrets
   key backup ({doc}`backup-restore`) or re-seal ({doc}`manage-sealed-secrets`).
 - **An ArgoCD app is stuck:** `just argocd-sync`.
 
-## 5. Fallback: rebuild from Git
+## 6. Fallback: rebuild from Git
 
 If no bundle decrypts, or the restore fails, rebuild the cluster from Git
 ({doc}`reflash-rebuild`, {doc}`bootstrap-cluster`) and restore stateful data
 from the NAS ({doc}`backup-restore`). The `local-nvme` data directories on
 the workers survive a rebuild.
+
+## Move the control plane
+
+Moving a healthy control plane to another node is the same restore, planned:
+a fresh snapshot, then a short API outage while the new node takes over.
+Workloads keep running throughout. Before you start, the `k3s_api_name`
+record must exist and every agent must already use it (run
+`ansible-playbook pb_all.yml --tags k3s` once and check with
+`sudo grep K3S_URL /etc/systemd/system/k3s-agent.service.env`).
+
+1. Pick the new node as in [](#choose-the-target-node); a node with no
+   `local-nvme` PV is best. Move any PV it holds first (re-pin it in
+   `local_storage` and `k8s_data_dirs`).
+2. Drain it and remove its agent:
+
+   ```bash
+   kubectl drain node03 --ignore-daemonsets --delete-emptydir-data
+   ssh ansible@node03 sudo k3s-agent-uninstall.sh
+   kubectl delete node node03
+   ```
+
+3. Take a backup, then stop the old server at once, so nothing changes
+   after the snapshot:
+
+   ```bash
+   just etcd-backup-now
+   ssh ansible@node01 'sudo systemctl disable --now k3s-etcd-backup.timer k3s'
+   ```
+
+4. Fetch and decrypt that bundle ([step 1](#1-get-and-decrypt-the-latest-backup)).
+5. Set `control_plane: node03` in `group_vars/all.yml` and restore
+   ([step 3](#3-restore-etcd)).
+6. Point the DNS record at node03 and run the `k3s` tag on it
+   ([step 4](#4-point-the-api-name-at-the-new-control-plane)), then check the
+   cluster ([step 5](#5-check-the-cluster)).
+7. Retire the old control plane: `kubectl delete node node01`, then
+   `ssh ansible@node01 sudo k3s-uninstall.sh`. To keep it as a worker, run
+   `ansible-playbook pb_all.yml --tags k3s --limit node01`.
+8. Taint the new control plane with
+   `ansible-playbook pb_all.yml --tags cluster`, and update anything else
+   that names the old node's IP, such as a Cloudflare SSH tunnel route.
+9. Commit the `control_plane` change and merge it.

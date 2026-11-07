@@ -486,7 +486,7 @@ on its target node (guarded by `inventory_hostname`).
 
 | Node   | Directory                         | Owner / mode         | Consumed by |
 |--------|-----------------------------------|----------------------|-------------|
-| node02 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
+| node04 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
 | node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
 | nuc2   | `/home/k8s-data/scrap`            | 10001:10001 / 0750   | scrap (frozen pre-Litestream copy) |
 | nuc2   | `/home/k8s-data/scrap-backup-copy` | 10001:10001 / 0750  | scrap (off-NAS backup copy) |
@@ -520,15 +520,19 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 ### Control plane (`control.yml`)
 
 - Downloads the K3s install script.
-- Runs: `k3s server --disable=traefik --cluster-init`
+- Writes `/etc/rancher/k3s/config.yaml` and runs `k3s server` with it.
 - Traefik is disabled because this project uses NGINX Ingress.
-- `--cluster-init` enables embedded etcd.
+- `cluster-init` enables embedded etcd.
+- `tls-san` adds `k3s_api_name` to the API server certificate. A config
+  change restarts k3s before the workers are touched.
 
 ### Workers (`worker.yml`)
 
 - Checks if the node is already in the cluster (skip if so, unless force).
 - Gets the join token from the control plane.
-- Runs the K3s agent installer.
+- Runs the K3s agent installer with `K3S_URL=https://<k3s_api_name>:6443`.
+- Rewrites `K3S_URL` in `/etc/systemd/system/k3s-agent.service.env` on
+  agents that joined by IP, and restarts `k3s-agent` if it changed.
 - Labels NVIDIA GPU nodes with `nvidia.com/gpu.present=true` (when `nvidia_gpu_node: true`
   in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
   then takes over and advertises `nvidia.com/gpu` allocatable resources to the scheduler.
@@ -536,7 +540,11 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 ### Kubeconfig (`kubeconfig.yml`)
 
 - Copies `k3s.yaml` from the control plane to `~/.kube/config` on the devcontainer.
-- Replaces `127.0.0.1` with the control plane's actual IP.
+- Replaces `https://127.0.0.1:6443` with `https://<k3s_api_name>:6443`.
+
+Before any of this, the role checks that `k3s_api_name` resolves to the
+control plane's IP on every node and on the controller, and stops if it does
+not (in `--check` mode it only warns).
 
 ### Force reinstall
 

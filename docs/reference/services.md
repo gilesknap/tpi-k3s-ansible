@@ -42,7 +42,7 @@ workloads you add. Useful as a standalone observability cluster.
 
 **Hardware prerequisites:**
 
-- Two x86 nodes — one for Prometheus (pinned to `node02`), one for Grafana
+- Two x86 nodes — one for Prometheus (pinned to `node04`), one for Grafana
   (pinned to `node03`)
 
 **Storage prerequisites:**
@@ -87,7 +87,7 @@ hardware and want the full experience out of the box.
 
 **Minimum hardware:**
 
-- 2× x86 nodes for Prometheus and Grafana pinning (`node02`, `node03`)
+- 2× x86 nodes for Prometheus and Grafana pinning (`node04`, `node03`)
 - A NAS with an NFS export for backups
 
 **Other prerequisites:**
@@ -154,7 +154,7 @@ Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards
 Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
 emails in `admin_emails` get Admin role, all other authenticated users get Viewer. Uses
 static `local-nvme` PVs pinned by node affinity (Grafana → node03 30Gi,
-Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
+Prometheus → node04 40Gi). Grafana resource limits: 100m/256Mi request,
 500m/512Mi limit. Alertmanager, the Prometheus operator and kube-state-metrics
 do not tolerate the workstation taint, so they stay off workstation nodes;
 node-exporter runs on every node.

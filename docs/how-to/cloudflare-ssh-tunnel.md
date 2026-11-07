@@ -273,8 +273,8 @@ Once the SSH tunnel is working, you can use it to reach the Kubernetes API remot
 # Copy kubeconfig from the control plane
 scp ssh.example.com:~/.kube/config ~/.kube/k3s-remote.yaml
 
-# Patch the server address to use a local forwarded port
-sed -i 's|https://<node01-ip>:6443|https://127.0.0.1:6443|' \
+# Patch the server address (k3s_api_name or an IP) to use a local forwarded port
+sed -i 's|https://[^/]*:6443|https://127.0.0.1:6443|' \
     ~/.kube/k3s-remote.yaml
 ```
 
@@ -282,7 +282,7 @@ sed -i 's|https://<node01-ip>:6443|https://127.0.0.1:6443|' \
 
 ```bash
 # Start the port forward in the background
-ssh -fNL 6443:<node01-ip>:6443 ssh.example.com
+ssh -fNL 6443:k3s.lan:6443 ssh.example.com   # k3s_api_name, or <node01-ip>
 
 # Use the remote kubeconfig
 export KUBECONFIG=~/.kube/k3s-remote.yaml

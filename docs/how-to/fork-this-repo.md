@@ -83,7 +83,11 @@ domain_email: <your-email>  # for letsencrypt
 admin_emails:
   - <your-email>
 control_plane: <your-control-plane-node>  # must match a host in hosts.yml
+k3s_api_name: k3s.lan  # LAN DNS record -> the control plane's IP (or the IP itself)
 ```
+
+Create the `k3s_api_name` DNS record on your router before the first
+playbook run: the `k3s` role checks it resolves to the control plane.
 
 In `kubernetes-services/values.yaml`, mirror the admin emails:
 
