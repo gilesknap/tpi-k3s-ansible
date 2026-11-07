@@ -1,0 +1,60 @@
+# Alerts for the control plane's nightly encrypted etcd backup
+# (roles/etcd_backup). The job writes node-exporter textfile metrics on
+# the control plane; see docs/how-to/backup-restore.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: k3s-etcd-backup
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  groups:
+    - name: k3s-etcd-backup
+      rules:
+        - alert: K3sEtcdBackupFailed
+          expr: k3s_etcd_backup_last_run_success == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The k3s etcd backup job failed on {{ $labels.instance }}.
+            description: >-
+              The last run of k3s-etcd-backup.service did not upload an
+              encrypted bundle to the NAS. Check
+              `journalctl -u k3s-etcd-backup` on the control plane.
+        # last_success is 0 until the first bundle reaches the NAS; that
+        # case is K3sEtcdBackupNeverSucceeded, not a 56-year-old backup.
+        - alert: K3sEtcdBackupStale
+          expr: >-
+            time() - max(k3s_etcd_backup_last_success_timestamp_seconds > 0)
+            > 36 * 3600
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: No encrypted etcd backup has reached the NAS for over 36 hours.
+            description: >-
+              The newest off-node etcd backup is
+              {{ $value | humanizeDuration }} old.
+        - alert: K3sEtcdBackupNeverSucceeded
+          expr: max(k3s_etcd_backup_last_success_timestamp_seconds) == 0
+          for: 36h
+          labels:
+            severity: warning
+          annotations:
+            summary: The k3s etcd backup job has never uploaded a bundle.
+            description: >-
+              The job runs but no encrypted bundle has reached the NAS yet.
+              Check `journalctl -u k3s-etcd-backup` on the control plane.
+        - alert: K3sEtcdBackupMetricsMissing
+          expr: absent(k3s_etcd_backup_last_run_timestamp_seconds)
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: The k3s etcd backup job reports no metrics.
+            description: >-
+              Either the control plane's node-exporter is down or the
+              etcd_backup role has not been applied
+              (`ansible-playbook pb_all.yml --limit <control-plane> --tags etcd_backup`).

@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# Encrypted, off-node backup of the k3s control plane.
+#
+# Takes an etcd snapshot, bundles it with the server token, the node
+# password and the k3s config into a tar stream, encrypts the stream with
+# age to the public key(s) in /etc/k3s-etcd-backup/recipients, and copies
+# the result to the NAS. Plaintext is only ever piped into age, never
+# written to disk or to the NAS. This host cannot decrypt the bundles.
+#
+# Run by k3s-etcd-backup.timer. Writes node-exporter textfile metrics so
+# a failed or stale backup raises an alert.
+set -euo pipefail
+umask 077
+
+RECIPIENTS=/etc/k3s-etcd-backup/recipients
+STATE_DIR=/var/lib/k3s-etcd-backup
+WORK_DIR="$STATE_DIR/work"
+SNAP_DIR=/var/lib/rancher/k3s/server/db/snapshots
+SERVER_DIR=/var/lib/rancher/k3s/server
+MOUNT={{ etcd_backup_mount_point }}
+DEST="$MOUNT/{{ etcd_backup_dest_subdir }}"
+KEEP={{ etcd_backup_keep }}
+EXTRA_PREFIXES=({{ etcd_backup_extra_prefixes | map('quote') | join(' ') }})
+EXTRA_KEEP={{ etcd_backup_extra_keep }}
+TEXTFILE_DIR={{ etcd_backup_textfile_dir }}
+NODE=$(hostname -s)
+
+log() { echo "k3s-etcd-backup: $*" >&2; }
+
+mounted_here=false
+fresh=0
+size=0
+
+write_metrics() {
+    local success=$1 now last_success=0 prom tmp
+    now=$(date +%s)
+    if [[ $success == 1 ]]; then
+        echo "$now" > "$STATE_DIR/last_success"
+    fi
+    [[ -r $STATE_DIR/last_success ]] && last_success=$(cat "$STATE_DIR/last_success")
+    [[ -d $TEXTFILE_DIR ]] || return 0
+    prom="$TEXTFILE_DIR/k3s_etcd_backup.prom"
+    tmp=$(mktemp "$prom.XXXXXX")
+    cat > "$tmp" <<EOF
+# HELP k3s_etcd_backup_last_run_timestamp_seconds When the k3s etcd backup job last ran.
+# TYPE k3s_etcd_backup_last_run_timestamp_seconds gauge
+k3s_etcd_backup_last_run_timestamp_seconds $now
+# HELP k3s_etcd_backup_last_run_success 1 if the last k3s etcd backup run succeeded.
+# TYPE k3s_etcd_backup_last_run_success gauge
+k3s_etcd_backup_last_run_success $success
+# HELP k3s_etcd_backup_last_success_timestamp_seconds When an encrypted bundle last reached the NAS.
+# TYPE k3s_etcd_backup_last_success_timestamp_seconds gauge
+k3s_etcd_backup_last_success_timestamp_seconds $last_success
+# HELP k3s_etcd_backup_last_snapshot_fresh 1 if the last bundle used a snapshot taken by this run, 0 if it fell back to an existing one.
+# TYPE k3s_etcd_backup_last_snapshot_fresh gauge
+k3s_etcd_backup_last_snapshot_fresh $fresh
+# HELP k3s_etcd_backup_last_size_bytes Size of the last encrypted bundle.
+# TYPE k3s_etcd_backup_last_size_bytes gauge
+k3s_etcd_backup_last_size_bytes $size
+EOF
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$prom"
+}
+
+# Partial copy on the NAS for the current ship(), removed if the run dies.
+partial=""
+
+cleanup() {
+    local rc=$?
+    rm -rf "$WORK_DIR"
+    if [[ -n $partial ]]; then
+        rm -f "$partial" || log "warning: could not remove $partial"
+    fi
+    if $mounted_here; then
+        umount "$MOUNT" || log "warning: could not unmount $MOUNT"
+    fi
+    if [[ $rc != 0 ]]; then
+        log "FAILED (exit $rc)"
+        write_metrics 0
+    fi
+    exit "$rc"
+}
+trap cleanup EXIT
+
+die() { log "ERROR: $*"; exit 1; }
+
+# 1. Refuse to run without a recipient: never produce anything unencrypted.
+if ! grep -qE '^age1[0-9a-z]+$' "$RECIPIENTS" 2>/dev/null; then
+    die "no age recipient in $RECIPIENTS; set etcd_backup_age_recipient" \
+        "in group_vars/all.yml and re-run ansible --tags etcd_backup." \
+        "Nothing was uploaded."
+fi
+command -v age > /dev/null || die "age is not installed"
+[[ -s $SERVER_DIR/token ]] || die "$SERVER_DIR/token is missing"
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+
+# newest_snapshot PREFIX: path of the newest local snapshot named PREFIX-*
+newest_snapshot() {
+    find "$SNAP_DIR" -maxdepth 1 -type f -name "$1-*" -printf '%T@ %p\n' \
+        | sort -n | tail -n 1 | cut -d' ' -f2-
+}
+
+# 2. Take a fresh snapshot. If the k3s server cannot do that (API or etcd
+#    trouble), fall back to the newest snapshot already on disk so a copy
+#    still leaves the node.
+if k3s etcd-snapshot save --name nightly > "$WORK_DIR/save.log" 2>&1; then
+    snapshot=$(newest_snapshot nightly)
+    fresh=1
+    # Keep only a couple of nightly snapshots locally; the NAS holds history.
+    k3s etcd-snapshot prune --name nightly --snapshot-retention 2 > /dev/null 2>&1 \
+        || log "warning: could not prune local nightly snapshots"
+else
+    log "warning: 'k3s etcd-snapshot save' failed, using the newest existing snapshot:"
+    cat "$WORK_DIR/save.log" >&2
+    snapshot=$(find "$SNAP_DIR" -maxdepth 1 -type f -printf '%T@ %p\n' \
+        | sort -n | tail -n 1 | cut -d' ' -f2-)
+fi
+[[ -n $snapshot && -s $snapshot ]] || die "no etcd snapshot found in $SNAP_DIR"
+log "snapshot: $snapshot"
+
+# 3. Mount the NAS share for the duration of the run.
+if ! mountpoint -q "$MOUNT"; then
+    mount "$MOUNT" || die "could not mount $MOUNT"
+    mounted_here=true
+fi
+[[ -d $DEST && -w $DEST ]] \
+    || die "$DEST does not exist or is not writable (see docs/how-to/nas-setup.md)"
+
+# bundle SNAPSHOT OUT: encrypt snapshot + token + node password + config.
+bundle() {
+    local snap=$1 out=$2 stage
+    stage="$WORK_DIR/stage"
+    rm -rf "$stage"
+    mkdir -p "$stage/snapshot"
+    # Hard links / small copies inside root-only 0700 dirs; the tar stream
+    # is what gets encrypted, and only ciphertext is written out.
+    ln "$snap" "$stage/snapshot/" 2> /dev/null || cp -p "$snap" "$stage/snapshot/"
+    cp -p "$SERVER_DIR/token" "$stage/token"
+    [[ -r /etc/rancher/node/password ]] && cp -p /etc/rancher/node/password "$stage/node-password"
+    [[ -r /etc/rancher/k3s/config.yaml ]] && cp -p /etc/rancher/k3s/config.yaml "$stage/config.yaml"
+    {
+        echo "node: $NODE"
+        echo "created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "k3s_version: $(k3s --version | head -n 1 | awk '{print $3}')"
+        echo "snapshot: $(basename "$snap")"
+        echo "sha256:"
+        (cd "$stage" && find . -type f ! -name MANIFEST -printf '%P\n' | sort | xargs sha256sum | sed 's/^/  /')
+    } > "$stage/MANIFEST"
+    tar -C "$stage" -cf - . | age -R "$RECIPIENTS" -o "$out"
+    rm -rf "$stage"
+}
+
+# read_back FILE: sha256 of FILE as stored on the NAS. O_DIRECT bypasses
+# the local page cache, so the check reads what the server holds rather
+# than what was just written. Some mounts refuse O_DIRECT; a one-block
+# probe detects that, and then this file's cached pages are dropped and
+# it is read normally instead. A read error after a good probe fails.
+read_back() {
+    if dd if="$1" of=/dev/null iflag=direct bs=1M count=1 status=none 2> /dev/null; then
+        dd if="$1" iflag=direct bs=1M status=none | sha256sum | cut -d' ' -f1
+    else
+        log "warning: $MOUNT does not support O_DIRECT reads, verifying via a normal read"
+        dd if="$1" of=/dev/null iflag=nocache count=0 status=none 2> /dev/null || true
+        sha256sum < "$1" | cut -d' ' -f1
+    fi
+}
+
+# ship LOCAL DIR NAME: copy to DIR/NAME via a .partial file, verify, rename.
+ship() {
+    local local_file=$1 dir=$2 name=$3 want got
+    want=$(sha256sum "$local_file" | cut -d' ' -f1)
+    partial="$dir/.$name.partial"
+    cp "$local_file" "$partial"
+    sync -f "$partial"
+    got=$(read_back "$partial")
+    [[ $want == "$got" ]] || die "checksum mismatch writing $dir/$name"
+    mv -f "$partial" "$dir/$name"
+    partial=""
+    echo "$want  $name" > "$dir/$name.sha256"
+}
+
+# prune DIR KEEP: keep the newest KEEP bundles by mtime (not by name,
+# which starts with the node name), and drop stray .partial files from
+# failed runs once they are a day old.
+prune() {
+    local dir=$1 keep=$2 old
+    find "$dir" -maxdepth 1 -type f -name '*.tar.age' -printf '%T@ %f\n' \
+        | sort -n | cut -d' ' -f2- \
+        | head -n -"$keep" | while read -r old; do
+            rm -f "$dir/$old" "$dir/$old.sha256"
+        done
+    find "$dir" -maxdepth 1 -type f -name '.*.partial' -mmin +1440 -delete
+}
+
+# 4. Nightly bundle.
+name="k3s-etcd-$NODE-$(date -u +%Y%m%dT%H%M%SZ).tar.age"
+bundle "$snapshot" "$WORK_DIR/$name"
+size=$(stat -c %s "$WORK_DIR/$name")
+ship "$WORK_DIR/$name" "$DEST" "$name"
+prune "$DEST" "$KEEP"
+printf 'bundle: %s\ncreated: %s\nsnapshot: %s\nfresh: %s\n' \
+    "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$snapshot")" "$fresh" \
+    > "$DEST/.LATEST.tmp"
+mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
+log "uploaded $DEST/$name ($size bytes)"
+
+# 5. Ship the newest snapshot of each extra prefix once (e.g. pre-upgrade).
+for prefix in "${EXTRA_PREFIXES[@]}"; do
+    snap=$(newest_snapshot "$prefix")
+    [[ -n $snap ]] || continue
+    extra_dir="$DEST/$prefix"
+    mkdir -p "$extra_dir"
+    extra_name="$(basename "$snap").tar.age"
+    [[ -e $extra_dir/$extra_name ]] && continue
+    bundle "$snap" "$WORK_DIR/$extra_name"
+    ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
+    prune "$extra_dir" "$EXTRA_KEEP"
+    log "uploaded $extra_dir/$extra_name"
+done
+
+write_metrics 1
