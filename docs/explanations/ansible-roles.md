@@ -435,7 +435,10 @@ Prepares each node for K3s:
      runtime set as the default containerd runtime. k3s regenerates `config.toml` on
      every agent restart from this template, so the configuration persists across reboots.
    - Restart `k3s-agent` to apply the new containerd config
-   - Ask for a reboot (`/var/run/reboot-required`) to load a newly installed driver
+   - Ask for a reboot (`/var/run/reboot-required`) to load a newly installed driver. On a
+     workstation node (`workstation: true`) nothing reboots it automatically, neither the role
+     nor kured, so reboot it by hand after the first driver install, or GPU pods fail until it
+     is rebooted.
 
 After the dist-upgrade, it removes `/etc/apt/apt.conf.d/99rk1-install-hold`, which a fresh RK1
 install's cloud-init seed writes to hold unattended-upgrades until this role's own

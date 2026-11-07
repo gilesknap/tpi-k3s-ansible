@@ -49,8 +49,8 @@
   ansible.builtin.debug:
     msg: >-
       {{ inventory_hostname }} needs a reboot. kured will drain and reboot it
-      in the next nightly reboot window, {{ update_packages_kured.start_time }} to
-      {{ update_packages_kured.end_time }} {{ update_packages_kured.time_zone }}.
+      in the next nightly reboot window, {{ update_packages_kured.start_time | default('?') }} to
+      {{ update_packages_kured.end_time | default('?') }} {{ update_packages_kured.time_zone | default('') }}.
       To reboot it now, drained and one node at a time, re-run with
       -e reboot_now=true.
   when:
@@ -60,7 +60,7 @@
   vars:
     update_packages_kured: >-
       {{ (lookup('ansible.builtin.file', playbook_dir ~ '/kubernetes-services/values.yaml')
-      | from_yaml).kured }}
+      | from_yaml).kured | default({}) }}
 
 - name: Warn that workstation node requires a manual reboot
   ansible.builtin.debug:

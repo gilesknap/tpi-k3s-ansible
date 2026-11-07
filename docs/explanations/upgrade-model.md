@@ -65,7 +65,9 @@ cordoned before the drain. The drain, wait and uncordon logic is the
 A node without k3s, being provisioned for the first time, is rebooted at
 the end of `update_packages` if the dist-upgrade asks for it, so k3s is
 installed on the new kernel. It has nothing to drain. Workstations are
-never rebooted, even with `reboot_now`; the play warns instead.
+never rebooted, even with `reboot_now`; the play warns instead. That includes
+a GPU workstation after its first NVIDIA driver install: reboot it by hand
+before relying on GPU pods.
 
 ## What stays up during a reboot
 
