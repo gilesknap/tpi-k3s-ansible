@@ -19,6 +19,11 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - `servers` — system packages, workstation taint/label tasks, NVIDIA
   container runtime on GPU nodes. **Not `update_packages`** — that
   tag silently does nothing.
+  Safe to run at any time: `update_packages` never reboots a node that
+  runs k3s; it leaves `/var/run/reboot-required` for kured. Add
+  `-e reboot_now=true` for a drained reboot now, one node at a time
+  (`node_reboot` role, `serial: 1` play). Only a node without k3s yet
+  (first provisioning) is rebooted at once; workstations never are.
 - `cluster` — ArgoCD root app + all child apps (branch switching,
   service toggles). Sanctioned path for touching ArgoCD-managed state.
 - `k3s` — K3s install/configure.
@@ -97,7 +102,7 @@ reboot unexpectedly. This has these consequences you must design for:
   anything that must survive a workstation reboot.
 - **No automatic maintenance on workstations**: kured and the k3s
   upgrade Plans skip them, and `update_packages` leaves their
-  unattended-upgrades config alone.
+  unattended-upgrades config alone and never reboots them.
 - **amd64-only workloads land on nuc2 by default.** ws03 and nuc2 are the
   only amd64 nodes; ws03's taint means a chart with
   `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any

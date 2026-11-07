@@ -1,0 +1,44 @@
+# After a reboot of a node that drain.yml found in the cluster: waits for
+# its k3s unit and for the Node to be Ready with the new boot ID, then
+# uncordons it if drain.yml cordoned it.
+- name: Wait for the node to rejoin the cluster
+  when: node_reboot_in_cluster
+  block:
+    - name: Wait for the k3s unit to be running
+      ansible.builtin.service_facts:
+      register: node_reboot_services
+      until: >-
+        node_reboot_services.ansible_facts.services[node_reboot_k3s_unit].state | default('') == 'running'
+      retries: 30
+      delay: 10
+
+    - name: Read the boot ID
+      ansible.builtin.slurp:
+        src: /proc/sys/kernel/random/boot_id
+      register: node_reboot_boot_id
+
+    # A quick reboot can leave the node Ready from before it went down;
+    # the kubelet reports the new boot ID once it is back.
+    - name: Wait for the node to be Ready after this boot
+      kubernetes.core.k8s_info:
+        kind: Node
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      register: node_reboot_k8s_node_after
+      # An API error while the node rejoins is retried, not fatal; the
+      # task still fails once the retries run out.
+      failed_when: false
+      until: >-
+        (node_reboot_k8s_node_after.resources | default([])) | length > 0
+        and node_reboot_k8s_node_after.resources[0].status.nodeInfo.bootID
+        == node_reboot_boot_id.content | b64decode | trim
+        and (node_reboot_k8s_node_after.resources[0].status.conditions
+        | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | list) == ['True']
+      retries: 60
+      delay: 10
+
+    - name: Uncordon the node if node_reboot cordoned it
+      ansible.builtin.include_tasks: uncordon.yml

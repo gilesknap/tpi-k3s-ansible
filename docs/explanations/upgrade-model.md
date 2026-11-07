@@ -47,6 +47,28 @@ kured window, so kured never reboots a node while an upgrade Job runs on it
 Both drain through the eviction API, so PodDisruptionBudgets are respected
 even if they ever drain two nodes at once.
 
+## Running the servers play by hand
+
+`ansible-playbook pb_all.yml --tags servers` dist-upgrades every node in
+parallel, but it never reboots a node that is in the cluster (its k3s unit
+is installed). It leaves `/var/run/reboot-required` in place and reports
+that kured will reboot the node in its next window, so the play is safe to
+run at any time.
+
+To reboot such nodes straight away, add `-e reboot_now=true`. A later play
+in `pb_all.yml` then takes the nodes that need it one at a time
+(`serial: 1`): it drains the node, reboots it, waits until the Node is
+Ready with its new boot ID and uncordons it, unless it was already
+cordoned before the drain. The drain, wait and uncordon logic is the
+`node_reboot` role, which the `rk1_os` conversion shares.
+
+A node without k3s, being provisioned for the first time, is rebooted at
+the end of `update_packages` if the dist-upgrade asks for it, so k3s is
+installed on the new kernel. It has nothing to drain. Workstations are
+never rebooted, even with `reboot_now`; the play warns instead. That includes
+a GPU workstation after its first NVIDIA driver install: reboot it by hand
+before relying on GPU pods.
+
 ## What stays up during a reboot
 
 Shared services run two replicas on different nodes, each with a
@@ -86,7 +108,7 @@ needs DNS to reach Git) is running, so the rebuild path is unchanged.
 ## Workstation nodes
 
 Workstation nodes (`workstation: true`) are rebooted and upgraded by their
-owner. Neither kured nor system-upgrade-controller runs there, and
+owner. Neither kured, system-upgrade-controller nor Ansible reboots them, and
 unattended-upgrades keeps Ubuntu's default (security-only) policy. Upgrade
 K3s on them by hand after a minor upgrade.
 

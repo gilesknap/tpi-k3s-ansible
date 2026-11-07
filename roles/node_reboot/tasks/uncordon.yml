@@ -1,0 +1,65 @@
+# Uncordons the node if drain.yml cordoned it, once k3s is running and
+# the Node is Ready. Runs after each reboot, and callers may run it again
+# at the end of their role, so a re-run that needs no reboot still
+# uncordons a node that a failed run left cordoned. A node cordoned by
+# hand has no marker.
+- name: Check whether node_reboot cordoned the node
+  ansible.builtin.stat:
+    path: "{{ node_reboot_drain_marker }}"
+  register: node_reboot_drain_marker_file
+
+- name: Uncordon the node if node_reboot cordoned it
+  when: node_reboot_drain_marker_file.stat.exists
+  block:
+    - name: Check whether the k3s unit is active
+      ansible.builtin.systemd_service:
+        name: "{{ node_reboot_k3s_unit }}"
+      register: node_reboot_k3s_active
+      failed_when: false
+
+    - name: Set the state of the k3s unit
+      ansible.builtin.set_fact:
+        node_reboot_k3s_state: "{{ node_reboot_k3s_active.status.ActiveState | default('unknown') }}"
+
+    - name: Look up the node in the cluster
+      kubernetes.core.k8s_info:
+        kind: Node
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      register: node_reboot_k8s_node_now
+      when: node_reboot_k3s_state == 'active'
+
+    - name: Set whether the node is Ready
+      ansible.builtin.set_fact:
+        node_reboot_node_ready: >-
+          {{ node_reboot_k3s_state == 'active'
+             and (node_reboot_k8s_node_now.resources | default([]) | length > 0)
+             and ((node_reboot_k8s_node_now.resources | default([]) | first).status.conditions | default([])
+                  | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | list) == ['True'] }}
+
+    - name: Uncordon the node
+      kubernetes.core.k8s_drain:
+        name: "{{ inventory_hostname }}"
+        state: uncordon
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      when: node_reboot_node_ready | bool
+
+    - name: Remove the cordon record
+      ansible.builtin.file:
+        path: "{{ node_reboot_drain_marker }}"
+        state: absent
+      when: node_reboot_node_ready | bool
+
+    - name: Warn that the node stays cordoned
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} stays cordoned: it was cordoned for a reboot, but
+          {{ node_reboot_k3s_unit }} is {{ node_reboot_k3s_state }} or the
+          Node is not Ready. Re-run the play once it is Ready.
+      when: not node_reboot_node_ready | bool

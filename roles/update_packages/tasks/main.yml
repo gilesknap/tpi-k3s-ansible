@@ -15,27 +15,6 @@
     path: /etc/apt/apt.conf.d/99rk1-install-hold
     state: absent
 
-- name: Check if a reboot is required
-  ansible.builtin.stat:
-    path: /var/run/reboot-required
-    get_checksum: false
-  register: update_packages_reboot_required_file
-
-- name: Reboot the server (if required)
-  ansible.builtin.reboot:
-  when:
-    - update_packages_reboot_required_file.stat.exists
-    - not (workstation | default(false))
-
-- name: Warn that workstation node requires a manual reboot
-  ansible.builtin.debug:
-    msg: >-
-      WARNING: {{ inventory_hostname }} needs a reboot but is marked as a
-      workstation. Reboot it manually when convenient.
-  when:
-    - update_packages_reboot_required_file.stat.exists
-    - workstation | default(false)
-
 - name: Remove dependencies that are no longer required
   ansible.builtin.apt:
     autoremove: true
@@ -108,7 +87,8 @@
   args:
     creates: /usr/bin/nvidia-smi  # skip if driver already installed
   when: nvidia_gpu_node | default(false)
-  notify: Reboot node
+  # The driver loads at the next boot; reboot.yml below decides when.
+  notify: Ask for a reboot to load the NVIDIA driver
 
 - name: Download NVIDIA container toolkit GPG key
   ansible.builtin.get_url:
@@ -168,3 +148,11 @@
     mode: "0644"
   when: nvidia_gpu_node | default(false)
   notify: Restart k3s-agent
+
+# Last, so everything above is in place when a fresh node reboots, and
+# after the handlers, which may ask for a reboot.
+- name: Run the handlers before deciding whether to reboot
+  ansible.builtin.meta: flush_handlers
+
+- name: Decide whether to reboot now
+  ansible.builtin.include_tasks: reboot.yml
