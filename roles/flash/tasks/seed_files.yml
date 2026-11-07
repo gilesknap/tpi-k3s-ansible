@@ -1,0 +1,10 @@
+# Renders an RK1's cloud-init NoCloud seed into flash_seed_dir on the
+# current host: bootstrap.yml applies delegate_to localhost and copies it
+# to the eMMC staging image; rk1_install_nvme.yml renders it on the node
+# for the NVMe. flash_seed_stage is staging or nvme.
+- name: Render the cloud-init seed for {{ flash_seed_hostname }}
+  ansible.builtin.template:
+    src: rk1-seed/{{ item }}.j2
+    dest: "{{ flash_seed_dir }}/{{ item }}"
+    mode: "0644"
+  loop: "{{ flash_seed_files }}"

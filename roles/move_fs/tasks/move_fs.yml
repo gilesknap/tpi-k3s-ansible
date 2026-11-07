@@ -2,34 +2,72 @@
   ansible.builtin.set_fact:
     move_fs_curr_root_dev: "{{ ansible_facts['mounts'] | json_query('[?mount == `/`].device') | first }}"
 
-# ubuntu-rockchip-install copies the OS to the target device, which gets
-# p1, a 4 MB vfat CIDATA partition holding the cloud-init seed, and p2,
-# the ext4 root, whose own /boot/extlinux/extlinux.conf is the one that
-# boots. U-Boot (on the eMMC) tries boot_targets "mmc1 nvme scsi usb
-# mmc0 ...", and the RK1 has no mmc1, so the NVMe always boots before
-# the eMMC. rk1_os later replaces extlinux with GRUB on p1.
+# An RK1 that the flash role has just flashed runs Ubuntu's preinstalled
+# server image from the eMMC (the staging OS). It installs the same image on
+# root_dev (the NVMe), clears the eMMC's partition table so U-Boot boots the
+# NVMe, and reboots into it. See roles/flash/tasks/rk1_install_nvme.yml.
 #
-# tpi flash rewrites only the eMMC (U-Boot plus the vendor OS), so it
-# does not take over a node whose NVMe is bootable.
-
-- name: Move the root partition for the node to {{ move_fs_root_dev }}
+# Once the root is on root_dev, this only checks that the eMMC no longer
+# holds the staging OS: re-flashing the node (flash_force) is the only way
+# to reinstall it.
+- name: Move the root filesystem of the node to {{ move_fs_root_dev }}
   when: not move_fs_curr_root_dev.startswith(move_fs_root_dev)
-  become: true
   block:
-    - name: Update ubuntu-rockchip-settings
-      ansible.builtin.apt:
-        name: ubuntu-rockchip-settings
-        state: present
-        update_cache: true
-      become: true
+    - name: Fail for a node type move_fs cannot install
+      ansible.builtin.fail:
+        msg: >-
+          {{ inventory_hostname }} has root_dev {{ move_fs_root_dev }} but type
+          {{ type | default('unset') }}: move_fs only installs RK1 nodes.
+      when: type | default('') != 'rk1'
 
-    - name: Execute ubuntu-rockchip-install
+    - name: Install Ubuntu on the NVMe of the RK1
+      ansible.builtin.include_role:
+        name: flash
+        tasks_from: rk1_install_nvme.yml
+      vars:
+        flash_rk1_target_dev: "{{ move_fs_root_dev }}"
+
+# An install that stopped between writing the NVMe and clearing the eMMC
+# (a reboot or power cut) leaves the staging OS on the eMMC. U-Boot boots
+# the eMMC first, and the staging OS and the NVMe share the root's label
+# and UUID, so the node may come up with its root on the NVMe and look
+# installed. Only the staging layout counts (root, cloudimg-rootfs, on
+# eMMC p1): RK1s converted in place by rk1_os keep a vendor layout with
+# CIDATA on eMMC p1, and are left alone.
+- name: Check the eMMC no longer holds the staging OS
+  when:
+    - move_fs_curr_root_dev.startswith(move_fs_root_dev)
+    - type | default('') == 'rk1'
+  block:
+    - name: Read the eMMC's partition table type and first label
       ansible.builtin.shell:
-        cmd: set -o pipefail && yes | ubuntu-rockchip-install {{ move_fs_root_dev }}
+        cmd: |
+          set -o pipefail
+          emmc=$(lsblk --noheadings --nodeps --paths --output NAME | grep -E '^/dev/mmcblk[0-9]+$' | head -n 1 || true)
+          echo "emmc=$emmc"
+          [ -n "$emmc" ] || exit 0
+          echo "pttype=$(lsblk --noheadings --nodeps --output PTTYPE "$emmc" | tr -d ' ')"
+          label=""
+          if [ -b "${emmc}p1" ]; then label=$(blkid --match-tag LABEL --output value "${emmc}p1" || true); fi
+          echo "label=$label"
         executable: /bin/bash
-      become: true
-      changed_when: true
+      register: move_fs_emmc
+      changed_when: false
+      check_mode: false
 
-    - name: Reboot the node
-      ansible.builtin.reboot:
-      become: true
+    - name: Fail if the eMMC still holds the staging OS
+      vars:
+        move_fs_emmc_info: "{{ dict(move_fs_emmc.stdout_lines | map('split', '=', 1)) }}"
+      ansible.builtin.assert:
+        that: >-
+          move_fs_emmc_info.pttype | default('') | length == 0
+          or move_fs_emmc_info.label | default('') != 'cloudimg-rootfs'
+        fail_msg: >-
+          {{ inventory_hostname }} has its root on {{ move_fs_curr_root_dev }}, but
+          its eMMC ({{ move_fs_emmc_info.emmc }}) still has a
+          {{ move_fs_emmc_info.pttype }} partition table with the staging OS's
+          root on p1: the NVMe install stopped before it cleared the eMMC. U-Boot
+          boots the eMMC first, and either copy of the root may be mounted.
+          Re-flash the node: ansible-playbook pb_all.yml --limit
+          <bmc>,{{ inventory_hostname }} -e flash_force=true
+        quiet: true
