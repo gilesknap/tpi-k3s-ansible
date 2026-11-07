@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Export external credentials (GitHub OAuth, Cloudflare, Slack,
-# VPS relay) from the running cluster into a .env file at the repo root
-# (gitignored).
+# VPS relay, scrap) from the running cluster into a .env file at the repo
+# root (gitignored). scrap's MCP and publish tokens are not external, but
+# they are exported too so that a rebuild keeps them: every MCP client
+# holds a copy of SCRAP_MCP_TOKEN.
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
@@ -16,6 +18,15 @@ OAUTH2_PROXY_CLIENT_SECRET=$(get_key oauth2-proxy-credentials oauth2-proxy clien
 SLACK_WEBHOOK_URL=$(get_key_opt alertmanager-slack-secret monitoring webhook-url)
 VPS_RELAY_TS_OAUTH_CLIENT_SECRET=$(get_key_opt vps-relay-credentials vps-relay ts-oauth-client-secret)
 VPS_RELAY_FRP_TOKEN=$(get_key_opt vps-relay-credentials vps-relay frp-token)
+SCRAP_ANTHROPIC_API_KEY=$(get_key_opt scrap-secrets scrap ANTHROPIC_API_KEY)
+SCRAP_MCP_TOKEN=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN)
+SCRAP_PUBLISH_TOKEN=$(get_key_opt scrap-publish scrap token)
 EOF
+# The publish token must match in both namespaces. Compare the two copies
+# without printing either.
+if [ "$(get_key_opt scrap-publish scrap token)" != "$(get_key_opt scrap-publish scrap-public token)" ]; then
+    echo "WARNING: scrap-publish differs between the scrap and scrap-public namespaces." >&2
+    echo "  Exported the scrap copy; the rebuild seals it into both." >&2
+fi
 echo "Wrote .env (gitignored)"
 echo "Source with: set -a && source .env && set +a"

@@ -18,9 +18,11 @@ if [ -z "$JSON" ] || [ ! -f "$JSON" ]; then
     exit 1
 fi
 
-# Helper: extract a key value from the JSON for a given secret name and namespace
+# Helper: extract a key value from the JSON for a given secret name and namespace.
+# It runs in a command substitution, so its `exit 1` leaves only the subshell:
+# always assign first, `v=$(get_key ...) || exit 1`, never inline it.
 get_key() {
-    local name="$1" ns="$2" key="$3"
+    local name="$1" ns="$2" key="$3" val
     val=$(jq -r --arg name "$name" --arg ns "$ns" --arg key "$key" \
         '.[] | select(.name == $name and .namespace == $ns) | .data[$key] // empty' "$JSON")
     if [ -z "$val" ]; then
@@ -39,36 +41,47 @@ has_secret() {
 
 # 1. cloudflare-api-token (cert-manager)
 echo "Sealing: cloudflare-api-token..."
+v_api_token=$(get_key cloudflare-api-token cert-manager api-token) || exit 1
 kubectl create secret generic cloudflare-api-token --namespace=cert-manager \
-    --from-literal=api-token="$(get_key cloudflare-api-token cert-manager api-token)" \
+    --from-literal=api-token="$v_api_token" \
     --dry-run=client -o yaml | seal_to "$BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
 echo "  -> $BASE/cert-manager/templates/cloudflare-api-token-secret.yaml"
 
 # 2. cloudflared-credentials (cloudflared)
 echo "Sealing: cloudflared-credentials..."
+v_tunnel_token=$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN) || exit 1
 kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
-    --from-literal=TUNNEL_TOKEN="$(get_key cloudflared-credentials cloudflared TUNNEL_TOKEN)" \
+    --from-literal=TUNNEL_TOKEN="$v_tunnel_token" \
     --dry-run=client -o yaml | seal_to "$BASE/cloudflared/tunnel-secret.yaml"
 echo "  -> $BASE/cloudflared/tunnel-secret.yaml"
 
 # 3. oauth2-proxy-credentials (oauth2-proxy)
 echo "Sealing: oauth2-proxy-credentials..."
+v_client_secret=$(get_key oauth2-proxy-credentials oauth2-proxy client-secret) || exit 1
+v_cookie_secret=$(get_key oauth2-proxy-credentials oauth2-proxy cookie-secret) || exit 1
+v_client_id=$(get_key oauth2-proxy-credentials oauth2-proxy client-id) || exit 1
 kubectl create secret generic oauth2-proxy-credentials --namespace=oauth2-proxy \
-    --from-literal=client-secret="$(get_key oauth2-proxy-credentials oauth2-proxy client-secret)" \
-    --from-literal=cookie-secret="$(get_key oauth2-proxy-credentials oauth2-proxy cookie-secret)" \
-    --from-literal=client-id="$(get_key oauth2-proxy-credentials oauth2-proxy client-id)" \
+    --from-literal=client-secret="$v_client_secret" \
+    --from-literal=cookie-secret="$v_cookie_secret" \
+    --from-literal=client-id="$v_client_id" \
     --dry-run=client -o yaml | seal_to "$BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
 echo "  -> $BASE/oauth2-proxy/oauth2-proxy-secret.yaml"
 
 # 4. argocd-dex-secret (argo-cd) — all Dex static client secrets
 echo "Sealing: argocd-dex-secret..."
+v_dex_github_clientid=$(get_key argocd-dex-secret argo-cd dex.github.clientID) || exit 1
+v_dex_github_clientsecret=$(get_key argocd-dex-secret argo-cd dex.github.clientSecret) || exit 1
+v_argo_cd_clientsecret=$(get_key argocd-dex-secret argo-cd argo-cd.clientSecret) || exit 1
+v_argocd_clientsecret=$(get_key argocd-dex-secret argo-cd argocd.clientSecret) || exit 1
+v_argocd_monitor_clientsecret=$(get_key argocd-dex-secret argo-cd argocd-monitor.clientSecret) || exit 1
+v_grafana_clientsecret=$(get_key argocd-dex-secret argo-cd grafana.clientSecret) || exit 1
 kubectl create secret generic argocd-dex-secret --namespace=argo-cd \
-    --from-literal=dex.github.clientID="$(get_key argocd-dex-secret argo-cd dex.github.clientID)" \
-    --from-literal=dex.github.clientSecret="$(get_key argocd-dex-secret argo-cd dex.github.clientSecret)" \
-    --from-literal=argo-cd.clientSecret="$(get_key argocd-dex-secret argo-cd argo-cd.clientSecret)" \
-    --from-literal=argocd.clientSecret="$(get_key argocd-dex-secret argo-cd argocd.clientSecret)" \
-    --from-literal=argocd-monitor.clientSecret="$(get_key argocd-dex-secret argo-cd argocd-monitor.clientSecret)" \
-    --from-literal=grafana.clientSecret="$(get_key argocd-dex-secret argo-cd grafana.clientSecret)" \
+    --from-literal=dex.github.clientID="$v_dex_github_clientid" \
+    --from-literal=dex.github.clientSecret="$v_dex_github_clientsecret" \
+    --from-literal=argo-cd.clientSecret="$v_argo_cd_clientsecret" \
+    --from-literal=argocd.clientSecret="$v_argocd_clientsecret" \
+    --from-literal=argocd-monitor.clientSecret="$v_argocd_monitor_clientsecret" \
+    --from-literal=grafana.clientSecret="$v_grafana_clientsecret" \
     --dry-run=client -o yaml | \
     yq '.metadata.labels["app.kubernetes.io/part-of"] = "argocd"' | \
     seal_to "$BASE/argocd/argocd-dex-secret.yaml"
@@ -76,36 +89,80 @@ echo "  -> $BASE/argocd/argocd-dex-secret.yaml"
 
 # 5. argocd-monitor-oauth (argocd-monitor)
 echo "Sealing: argocd-monitor-oauth..."
+v_client_secret=$(get_key argocd-monitor-oauth argocd-monitor client-secret) || exit 1
+v_cookie_secret=$(get_key argocd-monitor-oauth argocd-monitor cookie-secret) || exit 1
 kubectl create secret generic argocd-monitor-oauth --namespace=argocd-monitor \
-    --from-literal=client-secret="$(get_key argocd-monitor-oauth argocd-monitor client-secret)" \
-    --from-literal=cookie-secret="$(get_key argocd-monitor-oauth argocd-monitor cookie-secret)" \
+    --from-literal=client-secret="$v_client_secret" \
+    --from-literal=cookie-secret="$v_cookie_secret" \
     --dry-run=client -o yaml | seal_to "$BASE/argocd-monitor/argocd-monitor-oauth-secret.yaml"
 echo "  -> $BASE/argocd-monitor/argocd-monitor-oauth-secret.yaml"
 
 # 6. grafana-oauth-secret (monitoring)
 echo "Sealing: grafana-oauth-secret..."
+v_client_secret=$(get_key grafana-oauth-secret monitoring CLIENT_SECRET) || exit 1
 kubectl create secret generic grafana-oauth-secret --namespace=monitoring \
-    --from-literal=CLIENT_SECRET="$(get_key grafana-oauth-secret monitoring CLIENT_SECRET)" \
+    --from-literal=CLIENT_SECRET="$v_client_secret" \
     --dry-run=client -o yaml | seal_to "$BASE/grafana/grafana-oauth-secret.yaml"
 echo "  -> $BASE/grafana/grafana-oauth-secret.yaml"
 
 # 7. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
 if has_secret alertmanager-slack-secret monitoring; then
     echo "Sealing: alertmanager-slack-secret..."
+    v_webhook_url=$(get_key alertmanager-slack-secret monitoring webhook-url) || exit 1
     kubectl create secret generic alertmanager-slack-secret --namespace=monitoring \
-        --from-literal=webhook-url="$(get_key alertmanager-slack-secret monitoring webhook-url)" \
+        --from-literal=webhook-url="$v_webhook_url" \
         --dry-run=client -o yaml | seal_to "$BASE/grafana/alertmanager-slack-secret.yaml"
     echo "  -> $BASE/grafana/alertmanager-slack-secret.yaml"
 else
     echo "Skipping: alertmanager-slack-secret (not in JSON)"
 fi
 
+# 8. scrap-secrets (scrap) — optional, only if present in JSON
+if has_secret scrap-secrets scrap; then
+    echo "Sealing: scrap-secrets..."
+    v_anthropic_api_key=$(get_key scrap-secrets scrap ANTHROPIC_API_KEY) || exit 1
+    v_scrap_mcp_token=$(get_key scrap-secrets scrap SCRAP_MCP_TOKEN) || exit 1
+    kubectl create secret generic scrap-secrets --namespace=scrap \
+        --from-literal=ANTHROPIC_API_KEY="$v_anthropic_api_key" \
+        --from-literal=SCRAP_MCP_TOKEN="$v_scrap_mcp_token" \
+        --dry-run=client -o yaml | seal_to "$BASE/scrap/templates/scrap-secret.yaml"
+    echo "  -> $BASE/scrap/templates/scrap-secret.yaml"
+else
+    echo "Skipping: scrap-secrets (not in JSON)"
+fi
+
+# 9. scrap-publish (scrap and scrap-public) — optional, one token sealed into
+# each namespace. Refuse to seal two different tokens.
+if has_secret scrap-publish scrap && has_secret scrap-publish scrap-public; then
+    t_scrap=$(get_key scrap-publish scrap token) || exit 1
+    t_public=$(get_key scrap-publish scrap-public token) || exit 1
+    if [ "$t_scrap" != "$t_public" ]; then
+        echo "ERROR: scrap-publish token differs between scrap and scrap-public" >&2
+        exit 1
+    fi
+    for ns in scrap scrap-public; do
+        echo "Sealing: scrap-publish ($ns)..."
+        v_token=$(get_key scrap-publish "$ns" token) || exit 1
+        kubectl create secret generic scrap-publish --namespace="$ns" \
+            --from-literal=token="$v_token" \
+            --dry-run=client -o yaml | seal_to "$BASE/scrap/templates/$ns-publish-secret.yaml"
+        echo "  -> $BASE/scrap/templates/$ns-publish-secret.yaml"
+    done
+elif has_secret scrap-publish scrap || has_secret scrap-publish scrap-public; then
+    echo "ERROR: scrap-publish must be in the JSON for both scrap and scrap-public" >&2
+    exit 1
+else
+    echo "Skipping: scrap-publish (not in JSON)"
+fi
+
 # 10. vps-relay-credentials (vps-relay) — optional, only if present in JSON
 if has_secret vps-relay-credentials vps-relay; then
     echo "Sealing: vps-relay-credentials..."
+    v_ts_oauth_client_secret=$(get_key vps-relay-credentials vps-relay ts-oauth-client-secret) || exit 1
+    v_frp_token=$(get_key vps-relay-credentials vps-relay frp-token) || exit 1
     kubectl create secret generic vps-relay-credentials --namespace=vps-relay \
-        --from-literal=ts-oauth-client-secret="$(get_key vps-relay-credentials vps-relay ts-oauth-client-secret)" \
-        --from-literal=frp-token="$(get_key vps-relay-credentials vps-relay frp-token)" \
+        --from-literal=ts-oauth-client-secret="$v_ts_oauth_client_secret" \
+        --from-literal=frp-token="$v_frp_token" \
         --dry-run=client -o yaml | seal_to "$BASE/vps-relay/templates/vps-relay-secret.yaml"
     echo "  -> $BASE/vps-relay/templates/vps-relay-secret.yaml"
 else

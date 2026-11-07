@@ -40,6 +40,8 @@ These secrets are created during the setup guides:
 | `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
 | `alertmanager-slack-secret` | `monitoring` | Alertmanager Slack webhook URL | additions/grafana/alertmanager-slack-secret.yaml |
 | `vps-relay-credentials` | `vps-relay` | Tailscale OAuth client secret + frp token for the VPS relay (optional — see {doc}`vps-relay`) | additions/vps-relay/templates/vps-relay-secret.yaml |
+| `scrap-secrets` | `scrap` | Claude API key + `/mcp` bearer token for scrap (see {doc}`scrap`) | additions/scrap/templates/scrap-secret.yaml |
+| `scrap-publish` | `scrap`, `scrap-public` | scrap's public-pages upload token, the same in both namespaces | additions/scrap/templates/scrap-publish-secret.yaml, additions/scrap/templates/scrap-public-publish-secret.yaml |
 
 ## Prerequisites
 
@@ -187,6 +189,16 @@ SealedSecrets become undecryptable. You must re-seal every secret:
 1. Retrieve the original plain-text values.
 2. Re-run `kubeseal` against the new cluster.
 3. Commit and push the updated SealedSecret files.
+
+The rebuild path does this for every secret in the table above:
+`scripts/export-external-creds` saves the values that cannot be generated
+to `.env` while the old cluster is up, and `just generate-and-seal-all`
+(run by `pb_all.yml` with `GENERATE_SECRETS=true`) generates the rest and
+seals them all. Two generated values are exported and kept, not
+regenerated: `SCRAP_MCP_TOKEN`, because every scrap MCP client holds a copy
+(set `SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update every
+client), and `SCRAP_PUBLISH_TOKEN`. scrap's secrets are sealed only when
+`SCRAP_ANTHROPIC_API_KEY` is set.
 
 :::{tip}
 Back up the sealed-secrets controller's private key if you want to preserve the ability

@@ -116,6 +116,17 @@ The site is held in an `emptyDir`, so it starts empty when the pod moves;
 scrap checks the receiver's manifest at start and every 10 minutes and pushes
 what is missing.
 
+:::{tip}
+A cluster rebuild re-seals scrap's secrets. `scripts/export-external-creds`
+exports `SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN` and
+`SCRAP_PUBLISH_TOKEN` from the running cluster, and
+`just generate-and-seal-all` seals them into `scrap-secrets` and into
+`scrap-publish` in both namespaces. The MCP token is kept, so MCP clients
+keep working; set `SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update
+every client. Without `SCRAP_ANTHROPIC_API_KEY`, scrap's secrets are
+skipped.
+:::
+
 ### Cloudflare for the public site
 
 The wildcard Access application covers every subdomain, so without more
