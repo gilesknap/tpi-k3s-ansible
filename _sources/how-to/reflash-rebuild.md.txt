@@ -90,9 +90,10 @@ The `local-nvme` data directories are `/home/k8s-data/*` on nuc2 and
 decommission playbook is run with `-e wipe_local_data=true`.
 
 :::{note}
-eMMC always remains the bootloader for RK1 nodes. The `ubuntu-rockchip-install` tool
-(used by `move_fs`) copies the OS to NVMe but does not change the boot device. Re-flashing
-eMMC always restores the node to a bootable state.
+`tpi flash` rewrites only the eMMC. U-Boot tries the NVMe before the eMMC, so an RK1
+whose NVMe is bootable keeps booting its NVMe OS after a re-flash. To start such a
+node again from the vendor image, first make its NVMe unbootable (for example by
+wiping it, which also destroys its `local-nvme` data).
 :::
 
 ## Troubleshooting flash failures

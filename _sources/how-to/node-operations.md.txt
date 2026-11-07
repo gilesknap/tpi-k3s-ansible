@@ -17,7 +17,15 @@ ansible-playbook pb_all.yml --tags servers --limit node02,node03
 
 :::{note}
 `--tags update_packages` will silently do nothing — the correct tag is `servers`,
-which runs both the `move_fs` and `update_packages` roles.
+which runs the `move_fs`, `rk1_os`, `update_packages` and `k8s_data_dirs` roles.
+:::
+
+:::{warning}
+`--tags servers` also converts every RK1 node that is not yet on stock Ubuntu
+(the `rk1_os` role): it drains the node, reboots it into GRUB, runs a release
+upgrade of 15–20 minutes and reboots it again. Nodes are converted one at a time,
+but each is out of the cluster for the duration. Use `--limit` to choose which
+nodes are converted when. See [](../explanations/ansible-roles.md).
 :::
 
 ## Shutdown all nodes
