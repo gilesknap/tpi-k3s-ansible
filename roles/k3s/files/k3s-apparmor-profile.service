@@ -1,0 +1,19 @@
+# Installed by the k3s role (roles/k3s/tasks/apparmor.yml).
+# Load the corrected containerd AppArmor profile before k3s starts, so
+# containerd finds it loaded and does not generate its stock one. This does
+# not rely on apparmor.service, which some images (e.g. Turing RK1) mask.
+[Unit]
+Description=Load the containerd default AppArmor profile before k3s
+Documentation=https://github.com/containerd/containerd/issues/14485
+ConditionSecurity=apparmor
+ConditionPathExists=/etc/apparmor.d/cri-containerd.apparmor.d
+After=local-fs.target apparmor.service
+Before=k3s.service k3s-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/apparmor_parser --replace --write-cache /etc/apparmor.d/cri-containerd.apparmor.d
+
+[Install]
+WantedBy=multi-user.target

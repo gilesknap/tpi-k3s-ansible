@@ -14,17 +14,20 @@
 #
 # containerd skips generating its profile when one of the same name is
 # already loaded, so we ship its template plus the stacked peer in
-# files/cri-containerd.apparmor.d. apparmor.service loads it at boot,
-# before k3s starts. Replacing it updates running containers in place.
+# files/cri-containerd.apparmor.d. Replacing it updates running containers
+# in place. At boot, k3s-apparmor-profile.service loads it before k3s
+# starts: apparmor.service cannot be relied on, as some images (e.g. the
+# Turing RK1's) mask it, and containerd then generates its stock profile.
 #
 # On nodes without the sysctl (Ubuntu 24.04) the extra rules never match,
 # so it is harmless there.
 #
 # Maintenance: diff files/cri-containerd.apparmor.d against containerd's
 # contrib/apparmor/template.go at each k3s bump, since this copy shadows
-# whatever containerd would generate. Delete this file, the profile and
-# /etc/apparmor.d/cri-containerd.apparmor.d once a k3s release bundles a
-# containerd with the fix.
+# whatever containerd would generate. Delete this file and both files in
+# files/ (and, on nodes, /etc/apparmor.d/cri-containerd.apparmor.d and
+# k3s-apparmor-profile.service) once a k3s release bundles a containerd
+# with the fix.
 
 - name: Check whether AppArmor is enabled
   ansible.builtin.slurp:
@@ -59,3 +62,17 @@
           [ "$before" = "$after" ] || echo replaced
       register: k3s_apparmor_load
       changed_when: "'replaced' in k3s_apparmor_load.stdout"
+
+    - name: Install the unit that loads the profile at boot
+      ansible.builtin.copy:
+        src: k3s-apparmor-profile.service
+        dest: /etc/systemd/system/k3s-apparmor-profile.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable the unit that loads the profile at boot
+      ansible.builtin.systemd:
+        name: k3s-apparmor-profile.service
+        enabled: true
+        daemon_reload: true

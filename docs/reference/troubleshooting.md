@@ -450,8 +450,10 @@ peer ([containerd#14485](https://github.com/containerd/containerd/issues/14485))
 
 **Fix:** the `k3s` role installs a corrected `cri-containerd.apparmor.d`
 profile in `/etc/apparmor.d/` on every node with AppArmor enabled, and
-containerd uses it in place of its own. Running pods pick it up without a
-restart. To apply it to a node on its own:
+containerd uses it in place of its own. A small systemd unit,
+`k3s-apparmor-profile.service`, reloads it at boot before k3s starts, so it
+works even on images that mask `apparmor.service`. Running pods pick it up
+without a restart. To apply it to a node on its own:
 
 ```bash
 ansible-playbook pb_all.yml --tags apparmor --limit <node>
