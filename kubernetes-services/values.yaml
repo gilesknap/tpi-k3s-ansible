@@ -201,6 +201,12 @@ local_storage:
     # twice (chart name + STS name). Do not "simplify" — it must match
     # what the operator creates verbatim.
     claim_name: prometheus-grafana-prometheus-kube-pr-prometheus-db-prometheus-grafana-prometheus-kube-pr-prometheus-0
+  # scrap's data volume from before Litestream (ADR 0013), kept as a
+  # frozen copy: nothing mounts it now but the one-off migration Job.
+  # Keep the entry: removing it would prune the PV under its bound claim.
+  # A new install has nothing to move: drop this entry (and its
+  # k8s_data_dirs one in group_vars/all.yml). If kept, the Job finds no
+  # database on it and does nothing.
   scrap:
     node: nuc2
     path: /home/k8s-data/scrap
@@ -208,3 +214,11 @@ local_storage:
     claim_namespace: scrap
     # scrap chart data claim: <release>-data.
     claim_name: scrap-data
+  # Nightly copy of scrap's newest backup run off the NAS
+  # (additions/scrap/templates/backup-copy.yaml).
+  scrap_backup_copy:
+    node: nuc2
+    path: /home/k8s-data/scrap-backup-copy
+    capacity: 10Gi
+    claim_namespace: scrap
+    claim_name: scrap-backup-copy

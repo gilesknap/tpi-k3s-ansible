@@ -12,6 +12,7 @@ What is **not** in Git and needs separate backup:
 | Data | Where it lives | Backup approach |
 |------|-----------------|-----------------|
 | Stateful app data | static local-nvme PVs on worker nodes | nightly CronJob → NFS NAS |
+| scrap | NFS NAS, database replicated by Litestream | scrap chart's CronJobs → NFS NAS, nightly copy off the NAS |
 | Sealed Secrets private key | `kube-system` namespace | manual export |
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
@@ -65,6 +66,101 @@ kubectl scale -n monitoring sts/grafana-prometheus --replicas=1
 
 (If the NFS share is not pre-mounted on the node, run the copy in a
 debug pod that mounts the `k8s-cluster-nfs` PVC instead.)
+
+## scrap
+
+scrap's chart makes its own backups (see {doc}`scrap`):
+
+- **Daily:** `scrap-backup` runs at 03:30 and keeps 7 runs.
+- **Monthly:** `scrap-backup-monthly` keeps 12 runs in `monthly/`.
+- **Format:** each run is a directory named like `20261019T033000Z`, with the
+  database, the files and a `COMPLETE` marker.
+- **Location:** the `scrap-backups-nfs` volume, at
+  `/bigdisk/k8s-cluster/backups/scrap` on the NAS.
+- **Off-NAS copy:** at 05:00 `scrap-backup-copy` copies the newest complete
+  run to a `local-nvme` PV, keeping 3. It fails if that run is over 26 hours
+  old, so a stalled backup shows as a failed Job.
+
+Take one now:
+
+```bash
+kubectl -n scrap create job --from=cronjob/scrap-backup scrap-backup-now
+kubectl -n scrap logs -f job/scrap-backup-now
+```
+
+### Restore scrap
+
+scrap runs with Litestream: the database is restored from its replica at
+every start. A plain `scrap restore` would be undone, so a restore is
+**staged**. It is checked and migrated, then left at `/data/scrap.db.restored`.
+The next start takes it up in place of the replica, and keeps the old replica
+as `/data/litestream.retired-<time>`.
+
+1. Stop scrap through git. Argo CD would scale it straight back up, so
+   commit a pause in `kubernetes-services/templates/scrap.yaml`'s chart
+   values:
+
+   ```yaml
+   nodeSelector:
+     scrap-paused: "true"
+   ```
+
+   The old pod stops, and the new one stays `Pending`. The backup jobs wait
+   for it, then give up after an hour.
+2. Run the restore in a one-off pod (`kubectl apply -f restore.yaml`, then
+   `kubectl -n scrap logs -f pod/scrap-restore`). Use the image of the scrap
+   release that made the backup, or a newer one. `--force` is needed unless
+   `files/` is empty; files are only ever added.
+
+   ```yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: scrap-restore
+     namespace: scrap
+   spec:
+     restartPolicy: Never
+     automountServiceAccountToken: false
+     securityContext:
+       runAsNonRoot: true
+       runAsUser: 10001
+       runAsGroup: 10001
+       seccompProfile:
+         type: RuntimeDefault
+     containers:
+       - name: restore
+         image: ghcr.io/gilesknap/scrap:<version>
+         args: ["restore", "/backups/<run>", "--stage", "--force"]
+         securityContext:
+           allowPrivilegeEscalation: false
+           readOnlyRootFilesystem: true
+           capabilities:
+             drop: [ALL]
+         volumeMounts:
+           - {name: data, mountPath: /data}
+           - {name: backups, mountPath: /backups, readOnly: true}
+           - {name: tmp, mountPath: /tmp}
+     volumes:
+       - name: data
+         persistentVolumeClaim:
+           claimName: scrap-data-nfs
+       - name: backups
+         persistentVolumeClaim:
+           claimName: scrap-backups-nfs   # or scrap-backup-copy, for the off-NAS copy
+       - name: tmp
+         emptyDir: {}
+   ```
+
+3. Delete the pod and revert the pause commit. Then check
+   `kubectl -n scrap logs deploy/scrap -c db-init`, which should say it took
+   up the staged restore, and take a backup.
+
+Pages written since the backup are gone. Their files are still in `files/`,
+but nothing refers to them, so gc only counts for 14 days after a restore.
+The retired replica holds the lost rows, which can only be recovered by hand.
+See scrap's
+[restore with Litestream](https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#k8s-restore-litestream)
+for the details and the refusals you may meet.
 
 ## Sealed Secrets key backup
 
@@ -217,7 +313,9 @@ To rebuild a cluster from scratch:
 7. If `wipe_local_data=true` was used on decommission, restore stateful
    data from the latest NFS backup under `/bigdisk/k8s-cluster/backups/`
    using the restore recipes above. Otherwise, local PV data is still
-   intact from before the rebuild and re-binds automatically.
+   intact from before the rebuild and re-binds automatically. scrap's
+   static NFS volumes re-bind too, and its pod restores the database from
+   the replica.
 
 The cluster will be fully operational within minutes, with only persistent data
 requiring explicit restoration.

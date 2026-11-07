@@ -1,0 +1,46 @@
+{{- /*
+The claims scrap used before Litestream. The chart made them while its
+existingClaims were empty; they are rendered here now so Argo CD keeps them
+(same names, same tracking ids) and the migration Job finds them after a
+rebuild. Nothing else mounts them.
+
+- The local-nvme data claim: a frozen copy of the data at the cut-over.
+  Pre-bound by volumeName, so it binds at once, also after a rebuild.
+- The dynamic backups claim, while the Job still copies from it. Deleting it
+  deletes its NAS directory: it was provisioned by the default nfs-rwx class,
+  so its PV has reclaimPolicy Delete and the NFS CSI driver's onDelete: delete.
+*/}}
+{{- with .Values.legacy.claim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-nvme
+  volumeName: {{ required "legacy.volume is required with legacy.claim" $.Values.legacy.volume }}
+  resources:
+    requests:
+      storage: {{ $.Values.legacy.size }}
+{{- end }}
+{{- with .Values.legacy.backups.claim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ required "legacy.backups.storageClass is required with legacy.backups.claim" $.Values.legacy.backups.storageClass }}
+  resources:
+    requests:
+      storage: {{ $.Values.legacy.backups.size }}
+{{- end }}

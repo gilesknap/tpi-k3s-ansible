@@ -186,6 +186,8 @@ on its target node (guarded by `inventory_hostname`).
 |--------|-----------------------------------|----------------------|-------------|
 | node02 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
 | node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
+| nuc2   | `/home/k8s-data/scrap`            | 10001:10001 / 0750   | scrap (frozen pre-Litestream copy) |
+| nuc2   | `/home/k8s-data/scrap-backup-copy` | 10001:10001 / 0750  | scrap (off-NAS backup copy) |
 
 Data lives outside `/var/lib/rancher` deliberately: `pb_decommission.yml`
 wipes `/var/lib/rancher` to reset K3s, but these directories are preserved

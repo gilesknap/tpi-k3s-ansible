@@ -1,0 +1,156 @@
+{{- /*
+One-off: moves scrap from its local-nvme volume to the NFS data volume, for
+the switch to Litestream (ADR 0013). Wave -1, so Argo CD runs it after the
+volumes (-2) and before the chart (0) changes the Deployment. Until it
+completes the sync goes no further, and if it fails the sync stops there: the
+old pod keeps serving from the local volume, untouched.
+
+It runs on the old volume's node (its local PV pins it there), next to the
+live scrap pod, as the chart's own backup job did:
+
+1. It fails unless it can read both the old and the NFS data volume. Then,
+   if the NFS data volume already holds a database, a replica or Litestream's
+   state file, it does nothing (a re-run, or a rebuild after the move); nor
+   if the old volume has no database (a new install that kept
+   local_storage.scrap: drop that entry instead).
+2. It copies the complete runs from the old backups claim to the new one,
+   each under a temporary name until it is all there, skipping runs already
+   copied.
+3. `scrap backup` of the live database into a new run on the new backups
+   volume (SQLite's online backup API: safe while scrap serves).
+4. `scrap restore` of that run into the empty NFS data volume. The new pod's
+   db-init then brings /data/scrap.db across to its emptyDir and starts the
+   replica.
+
+The old volume is mounted read-write, though only read: scrap's database is
+in WAL mode, and SQLite cannot open it on a read-only mount (it needs the
+-shm and -wal files beside it, which the live server creates and deletes).
+
+A Job cannot be changed once created. To run it again after a failure, give
+it a new name in git; to retire it, set legacy.migrate to false.
+*/}}
+{{- if and .Values.legacy.migrate .Values.legacy.claim }}
+{{- $run := "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scrap-migrate-to-nfs
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1800
+  # No ttlSecondsAfterFinished: Argo CD would re-create a deleted Job.
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: scrap-migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          # Fixed, not the chart's version: a Job's spec cannot change.
+          image: ghcr.io/gilesknap/scrap:1.7.0
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # `[ -e ]` is false on any stat error too, so prove both volumes
+              # readable first: an unreadable one must fail, not look empty.
+              if ! ls /new >/dev/null || ! ls /old >/dev/null; then
+                echo "Cannot read /new or /old; nothing changed." >&2
+                exit 1
+              fi
+              for p in scrap.db scrap.db.restored litestream .scrap-db-state.json; do
+                if [ -e "/new/$p" ]; then
+                  echo "/new/$p exists: the NFS data volume is in use; nothing to do"
+                  exit 0
+                fi
+              done
+              if [ ! -e /old/scrap.db ]; then
+                echo "/old/scrap.db does not exist: no database to move (a new install); nothing to do"
+                exit 0
+              fi
+              # Not during a backup or gc (the chart's jobs take the same lock).
+              exec 9>/backups/.lock
+              flock 9
+              if [ -d /old-backups ]; then
+                for run in /old-backups/{{ $run }} /old-backups/monthly/{{ $run }}; do
+                  [ -f "$run/COMPLETE" ] || continue
+                  dest="/backups/${run#/old-backups/}"
+                  [ -e "$dest" ] && continue
+                  mkdir -p "$(dirname "$dest")"
+                  part="$(dirname "$dest")/.copying-$(basename "$dest")"
+                  rm -rf -- "$part"
+                  cp -a -- "$run" "$part"
+                  mv -- "$part" "$dest"
+                  echo "copied $run to $dest"
+                done
+              fi
+              run="/backups/$(date -u +%Y%m%dT%H%M%SZ)"
+              mkdir "$run"
+              if ! scrap backup --data-dir /old "$run"; then
+                rm -rf -- "$run"
+                echo "The backup of the old volume failed; the NFS data volume is untouched." >&2
+                exit 1
+              fi
+              echo "backed up the live database to $run"
+              # --force only lets a re-run finish after a restore that failed part
+              # way (files copied, no database): the loop above found no database
+              # here, and restore only ever adds files.
+              scrap restore --data-dir /new --force "$run"
+              echo "restored $run into the NFS data volume"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: old
+              mountPath: /old
+            {{- if .Values.legacy.backups.claim }}
+            - name: old-backups
+              mountPath: /old-backups
+              readOnly: true
+            {{- end }}
+            - name: new
+              mountPath: /new
+            - name: backups
+              mountPath: /backups
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: old
+          persistentVolumeClaim:
+            claimName: {{ .Values.legacy.claim }}
+        {{- with .Values.legacy.backups.claim }}
+        - name: old-backups
+          persistentVolumeClaim:
+            claimName: {{ . }}
+            readOnly: true
+        {{- end }}
+        - name: new
+          persistentVolumeClaim:
+            claimName: scrap-data-nfs
+        - name: backups
+          persistentVolumeClaim:
+            claimName: scrap-backups-nfs
+        - name: tmp
+          emptyDir: {}
+{{- end }}

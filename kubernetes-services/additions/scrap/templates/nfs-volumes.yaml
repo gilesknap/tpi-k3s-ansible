@@ -1,0 +1,57 @@
+{{- /*
+scrap's data volume (database replica, files, preview cache) and backups
+volume: static NFS PVs, each pre-bound to its claim both ways (claimRef and
+volumeName), so the claim binds at once and a rebuild re-binds the same NAS
+directory. The scrap chart uses them through persistence.existingClaim and
+backup.persistence.existingClaim. Wave -2: before the migration Job (-1) and
+the chart (0). Neither Argo CD prune nor an Application delete removes them.
+*/}}
+{{- $share := required "nfs.cluster_share_path is required" .Values.nfs.cluster_share_path | trimSuffix "/" }}
+{{- $server := required "nfs.server is required" .Values.nfs.server }}
+{{- $volumes := list
+  (dict "name" "scrap-data-nfs" "dir" .Values.storage.data_dir "size" .Values.storage.data_size)
+  (dict "name" "scrap-backups-nfs" "dir" .Values.storage.backups_dir "size" .Values.storage.backups_size) }}
+{{- range $v := $volumes }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $v.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  capacity:
+    storage: {{ $v.size }}
+  # States the intent: one scrap pod. NFS CSI and in-tree NFS do not enforce it
+  # across nodes, which is what lets scrap restart on another node.
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: {{ $.Release.Namespace }}
+    name: {{ $v.name }}
+  nfs:
+    server: {{ $server | quote }}
+    path: {{ printf "%s/%s" $share $v.dir | quote }}
+  mountOptions:
+    - vers=4.1
+    - hard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $v.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ""
+  volumeName: {{ $v.name }}
+  resources:
+    requests:
+      storage: {{ $v.size }}
+{{- end }}
