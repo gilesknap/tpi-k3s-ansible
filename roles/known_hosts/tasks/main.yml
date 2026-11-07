@@ -1,52 +1,84 @@
 # Update each host's ssh keys in every file listed in known_hosts_files.
 
-# IMPORTANT: the playbook that runs this must use serial: 1
-# to avoid race conditions with writing to the local known_hosts files.
-
-# Remove a hosts ip address from known_hosts file. Discover the ip address
-# with dig because we can't gather facts until ssh keys are updated.
-- name: Get node ip address with dig for {{ inventory_hostname }}
+# Everything runs on the controller: facts can't be gathered from the node
+# until its keys are in place. The lookups and scans run in parallel across
+# hosts; the tasks that write the files use throttle: 1 to avoid race
+# conditions with writing to the local known_hosts files.
+- name: Refresh the host's ssh keys in the known_hosts files
   delegate_to: localhost
-  ansible.builtin.command: dig +short {{ inventory_hostname }}{{ local_domain }}
-  register: known_hosts_node_ip
-  changed_when: false
+  vars:
+    known_hosts_keys: "{{ known_hosts_scan.stdout_lines | reject('match', '#') }}"
+    # Each key without its host name field: "<type> <base64 key>"
+    known_hosts_fresh: >-
+      {{ known_hosts_keys | map('regex_replace', '^[^ ]+ +', '') }}
+    known_hosts_ips: >-
+      {{ ansible_facts.getent_ahostsv4 | default({}) | dict2items
+         | selectattr('value') | map(attribute='key') }}
+  block:
+    - name: Look up the host's IP addresses
+      ansible.builtin.getent:
+        database: ahostsv4
+        key: "{{ inventory_hostname }}{{ local_domain }}"
+        fail_key: false
 
-- name: Remove old known_host entries for {{ known_hosts_node_ip.stdout }}
-  delegate_to: localhost
-  ansible.builtin.known_hosts:
-    path: "{{ item.1 }}"
-    name: "{{ item.0 }}"
-    state: absent
-  loop: "{{ known_hosts_node_ip.stdout_lines | product(known_hosts_files) | list }}"
-  changed_when: false # because this is clean-up on localhost only
+    - name: Scan the host's ssh keys
+      ansible.builtin.command: ssh-keyscan -T 5 {{ inventory_hostname }}
+      register: known_hosts_scan
+      changed_when: false
+      check_mode: false # read-only, so --check can show what would change
+      failed_when: false # an empty scan is reported clearly by the next task
 
-- name: Get ssh public keys of node {{ inventory_hostname }}
-  delegate_to: localhost
-  ansible.builtin.command:
-    cmd: "ssh-keyscan {{ inventory_hostname }}"
-  register: known_hosts_new_node_ssh_keys
-  changed_when: false
-  failed_when: false
+    - name: Check the scan found keys
+      ansible.builtin.assert:
+        that: known_hosts_keys | length > 0
+        fail_msg: >-
+          ssh-keyscan found no host keys for {{ inventory_hostname }}: is it
+          up and reachable on port 22? {{ known_hosts_scan.stderr }}
+        quiet: true
 
-- name: Add/update the host's public keys in known_hosts files
-  delegate_to: localhost
-  ansible.builtin.known_hosts:
-    path: "{{ item.1 }}"
-    name: "{{ inventory_hostname }}"
-    key: "{{ item.0 }}"
-    state: present
-  loop: "{{ known_hosts_new_node_ssh_keys.stdout_lines | product(known_hosts_files) | list }}"
-  when: known_hosts_new_node_ssh_keys.rc == 0 and not item.0.startswith('#')
-  register: known_hosts_update
+    # rc 0 = entries found, 1 = none, 255 = the file doesn't exist yet
+    - name: Find existing entries for the host name and IPs
+      ansible.builtin.command: ssh-keygen -F {{ item.0 }} -f {{ item.1 | expanduser }}
+      loop: "{{ ([inventory_hostname] + known_hosts_ips) | product(known_hosts_files) }}"
+      register: known_hosts_existing
+      changed_when: false
+      check_mode: false
+      failed_when: false
 
-# The system-wide file must stay world-readable: ssh reads it for every
-# user, and the Claude sandbox sees it read-only through its /etc bind.
-- name: Make the system-wide known_hosts file world-readable
-  delegate_to: localhost
-  ansible.builtin.file:
-    path: /etc/ssh/ssh_known_hosts
-    state: touch
-    mode: "0644"
-    modification_time: preserve
-    access_time: preserve
-  when: "'/etc/ssh/ssh_known_hosts' in known_hosts_files"
+    # Entries by IP always go, as keys are only recorded by host name.
+    # Entries by host name go when any of them is not a freshly scanned key,
+    # which catches key types the host no longer offers.
+    - name: Remove stale entries for the host name and IPs
+      ansible.builtin.known_hosts:
+        path: "{{ item.item.1 }}"
+        name: "{{ item.item.0 }}"
+        state: absent
+      loop: "{{ known_hosts_existing.results }}"
+      loop_control:
+        label: "{{ item.item.0 }} in {{ item.item.1 }}"
+      when: >-
+        item.rc == 0 and (item.item.0 != inventory_hostname or
+        item.stdout_lines | reject('match', '#') | map('regex_replace', '^[^ ]+ +', '')
+        | difference(known_hosts_fresh) | length > 0)
+      throttle: 1
+
+    - name: Add the host's keys by host name
+      ansible.builtin.known_hosts:
+        path: "{{ item.1 }}"
+        name: "{{ inventory_hostname }}"
+        key: "{{ item.0 }}"
+        state: present
+      loop: "{{ known_hosts_keys | product(known_hosts_files) }}"
+      throttle: 1
+
+    # The system-wide file must stay world-readable: ssh reads it for every
+    # user, and the Claude sandbox sees it read-only through its /etc bind.
+    - name: Make the system-wide known_hosts file world-readable
+      ansible.builtin.file:
+        path: /etc/ssh/ssh_known_hosts
+        state: touch
+        mode: "0644"
+        modification_time: preserve
+        access_time: preserve
+      when: "'/etc/ssh/ssh_known_hosts' in known_hosts_files"
+      run_once: true

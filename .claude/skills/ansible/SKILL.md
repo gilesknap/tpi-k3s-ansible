@@ -144,8 +144,8 @@ Notes:
 
 ## Foot-guns
 
-- **`known_hosts` task must run `serial: 1`** — parallel writes cause
-  race conditions on the shared file.
+- **`known_hosts` write tasks need `throttle: 1`** — parallel writes
+  race on the shared file. The scans run in parallel; don't add `serial`.
 - **Traefik is disabled** — `--disable=traefik` with NGINX Ingress. Do
   not assume Traefik CRDs exist.
 - **No automated tests** — validate by running playbook tags against

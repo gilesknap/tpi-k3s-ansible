@@ -9,7 +9,7 @@ combinations. Tags map to plays within the playbook.
 |-----|------|-------|---------|-------------|
 | `tools` | Install client tools | `tools` | localhost | Installs helm, kubectl, kubeseal, scripts |
 | `flash` | Bare metal provisioning | `flash` | turing_pis | Flashes Ubuntu to compute modules (BMC) |
-| `known_hosts` | Update known_hosts | `known_hosts` | all_nodes, turing_pis | Updates SSH known_hosts (serial: 1) |
+| `known_hosts` | Update known_hosts | `known_hosts` | all_nodes, turing_pis | Updates SSH known_hosts; fails a host whose key scan returns nothing |
 | `servers` | Prepare nodes | `move_fs`, `rk1_os`, `update_packages`, `k8s_data_dirs` | all_nodes | OS migration, RK1 OS conversion, dist-upgrade, dependencies |
 | `rk1_os` | Convert RK1 nodes | `rk1_os` | RK1 nodes, `serial: 1` | Stock Ubuntu 26.04, generic kernel, EFI/GRUB boot |
 | `k3s` | Install K3s | `k3s`, `etcd_backup` | all_nodes | Installs K3s control plane + workers, and the control plane's nightly etcd backup timer |

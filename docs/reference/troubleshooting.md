@@ -44,15 +44,22 @@ ansible-playbook pb_all.yml --tags known_hosts
 
 ## SSH / known_hosts
 
+### ssh-keyscan found no host keys
+
+**Symptom:** the `known_hosts` play fails one host with
+`ssh-keyscan found no host keys for <node>: is it up and reachable on port 22?`
+
+**Cause:** the node is down, its name does not resolve, or port 22 is not
+reachable from where ansible runs. The other hosts are still updated.
+
+**Fix:** check the node is up and `ssh-keyscan -T 5 <node>` returns keys,
+then re-run `ansible-playbook pb_all.yml --tags known_hosts --limit <node>`.
+
 ### Race condition writing known_hosts
 
-**Symptom:** `known_hosts` task fails with concurrent write errors.
-
-**Cause:** The `known_hosts` play must run `serial: 1`. Parallel writes to
-the known_hosts files corrupt them.
-
-**Fix:** This is already handled in the playbook. If you see this error, check
-that you haven't overridden `serial` in a custom run.
+Parallel writes to one known_hosts file lose entries. The role's write tasks
+use `throttle: 1`, so this is handled however the role is run; don't remove
+the throttle when changing the role.
 
 ## Ansible
 
