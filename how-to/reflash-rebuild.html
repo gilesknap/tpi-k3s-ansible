@@ -435,10 +435,10 @@ force flags to override this behaviour:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">flash_force=true</span></code></p></td>
-<td><p>Re-flash all nodes (erases eMMC even if OS is installed)</p></td>
+<td><p>Re-flash all nodes (erases eMMC even if OS is installed, and on RK1s with <code class="docutils literal notranslate"><span class="pre">root_dev</span></code> the NVMe)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code></p></td>
-<td><p>Enable flashing. But does not flash nodes with OS installed</p></td>
+<td><p>Enable flashing, but only of nodes that don’t answer SSH. On an RK1 with <code class="docutils literal notranslate"><span class="pre">root_dev</span></code> it never wipes an NVMe that has a partition table: the play stops and asks for <code class="docutils literal notranslate"><span class="pre">flash_force</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">k3s_force=true</span></code></p></td>
 <td><p>Uninstall and reinstall K3s on all nodes</p></td>
@@ -468,6 +468,18 @@ default, including Minecraft worlds) come back with their data (see
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>turingpi,node03<span class="w"> </span>-e<span class="w"> </span><span class="nv">flash_force</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>A re-flash is a fresh node.</strong> On an RK1 with <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>, the flash wipes the NVMe
+and installs Ubuntu on it again, so everything on it is lost, including the
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV data under <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> (for example Prometheus on node02 or
+Grafana on node03 in the default inventory). Back up or move that data before
+re-flashing the node.</p>
+</div>
+<p>An RK1 re-flash takes about 25 minutes. The node gets new SSH host keys, which the
+<code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play records. If the node’s old OS still answers SSH, the flash clears
+the NVMe through it first; otherwise the BMC clears it from the U-Boot prompt over
+the node’s UART. See <a class="reference internal" href="../explanations/ansible-roles.html"><span class="std std-doc">Ansible Roles in Detail</span></a> for the full sequence.</p>
 </section>
 <section id="reinstall-k3s-on-all-nodes">
 <h2>Reinstall K3s on all nodes<a class="headerlink" href="#reinstall-k3s-on-all-nodes" title="Link to this heading">#</a></h2>
@@ -520,21 +532,28 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Re-flash</p></td>
+<tr class="row-even"><td><p>Re-flash (CM4, or RK1 without <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>)</p></td>
 <td><p>Erased</p></td>
-<td><p>Preserved</p></td>
+<td><p>Unchanged</p></td>
 <td><p>Preserved (on host)</p></td>
 <td><p>Preserved (external)</p></td>
 <td><p>Redeployed from Git</p></td>
 </tr>
-<tr class="row-odd"><td><p>K3s reinstall</p></td>
+<tr class="row-odd"><td><p>Re-flash (RK1 with <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>)</p></td>
+<td><p>Erased (U-Boot only)</p></td>
+<td><p>Erased, fresh install</p></td>
+<td><p><strong>Lost</strong> on that node</p></td>
+<td><p>Preserved (external)</p></td>
+<td><p>Redeployed from Git</p></td>
+</tr>
+<tr class="row-even"><td><p>K3s reinstall</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Preserved</p></td>
 <td><p>Preserved</p></td>
 <td><p>Redeployed from Git</p></td>
 </tr>
-<tr class="row-even"><td><p>Cluster redeploy</p></td>
+<tr class="row-odd"><td><p>Cluster redeploy</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Unchanged</p></td>
 <td><p>Preserved</p></td>
@@ -545,15 +564,9 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 </table>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data directories are <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> on nuc2 and
-<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code> on RK1 nodes. They are only removed when the
-decommission playbook is run with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> rewrites only the eMMC. U-Boot tries the NVMe before the eMMC, so an RK1
-whose NVMe is bootable keeps booting its NVMe OS after a re-flash. To start such a
-node again from the vendor image, first make its NVMe unbootable (for example by
-wiping it, which also destroys its <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data).</p>
-</div>
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code> on RK1 nodes. The decommission playbook removes them only
+with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code>, and a re-flash of an RK1 with <code class="docutils literal notranslate"><span class="pre">root_dev</span></code> loses
+them along with the rest of its NVMe.</p>
 </section>
 <section id="troubleshooting-flash-failures">
 <h2>Troubleshooting flash failures<a class="headerlink" href="#troubleshooting-flash-failures" title="Link to this heading">#</a></h2>
@@ -563,6 +576,16 @@ wiping it, which also destroys its <code class="docutils literal notranslate"><s
 <li><p>Re-run the playbook.</p></li>
 </ol>
 <p>The BMC USB subsystem sometimes gets into a bad state that only a full power cycle resolves.</p>
+<p>If an RK1 does not come back after its flash, watch its console from the BMC with
+<code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">uart</span> <span class="pre">-n</span> <span class="pre">&lt;slot&gt;</span> <span class="pre">get</span></code>. If the U-Boot NVMe wipe failed (“NVMe zap FAILED”), the
+script powers the node off: re-run the flash.</p>
+<p>If the play stops with “The NVMe of <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;</span></code> has a partition table”, <code class="docutils literal notranslate"><span class="pre">do_flash</span></code>
+flashed a node that didn’t answer SSH but whose NVMe may hold a working install, and
+left that NVMe alone. The eMMC now holds the staging OS and the node is powered off.
+Re-run with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">flash_force=true</span></code> to reinstall the node, which wipes its NVMe. To
+keep the NVMe install instead, clear the eMMC’s partition table (<code class="docutils literal notranslate"><span class="pre">wipefs</span> <span class="pre">--all</span></code> on
+the eMMC, for example from the BMC with the slot in <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">advanced</span> <span class="pre">msd</span></code> mode): U-Boot
+then finds no partition table on the eMMC and boots the NVMe install again.</p>
 </section>
 </section>
 

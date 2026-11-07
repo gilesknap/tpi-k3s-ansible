@@ -419,7 +419,7 @@ combinations. Tags map to plays within the playbook.</p>
 <td><p>Bare metal provisioning</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">flash</span></code></p></td>
 <td><p>turing_pis</p></td>
-<td><p>Flashes Ubuntu to compute modules (BMC)</p></td>
+<td><p>Flashes Ubuntu to compute modules (BMC); on RK1s, mainline U-Boot plus an eMMC staging copy of Ubuntu 26.04</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code></p></td>
 <td><p>Update known_hosts</p></td>
@@ -431,13 +431,13 @@ combinations. Tags map to plays within the playbook.</p>
 <td><p>Prepare nodes</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 <td><p>all_nodes</p></td>
-<td><p>OS migration, RK1 OS conversion, dist-upgrade, dependencies</p></td>
+<td><p>Ubuntu install on RK1 NVMe, conversion of older RK1 installs, dist-upgrade, dependencies</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rk1_os</span></code></p></td>
 <td><p>Convert RK1 nodes</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rk1_os</span></code></p></td>
 <td><p>RK1 nodes, <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code></p></td>
-<td><p>Stock Ubuntu 26.04, generic kernel, EFI/GRUB boot</p></td>
+<td><p>Converts RK1s still on the old ubuntu-rockchip vendor layout to stock Ubuntu 26.04; skips standard installs</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
 <td><p>Install K3s</p></td>
@@ -528,7 +528,10 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limi
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>When using <code class="docutils literal notranslate"><span class="pre">--limit</span></code> with the <code class="docutils literal notranslate"><span class="pre">flash</span></code> tag, always include the Turing Pi BMC host
-(e.g. <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>) because the flash role runs on the BMC, not on the node itself.</p>
+(e.g. <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>) because the flash role runs on the BMC, not on the node itself.
+An RK1 flash is only complete after the <code class="docutils literal notranslate"><span class="pre">servers</span></code> tag’s <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> has installed its
+NVMe, so for an RK1 run the whole playbook (or at least
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">flash,known_hosts,servers</span></code>), not <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">flash</span></code> alone.</p>
 </div>
 </section>
 <section id="standalone-playbooks">

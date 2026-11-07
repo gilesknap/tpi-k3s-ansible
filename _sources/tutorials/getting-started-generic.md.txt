@@ -147,10 +147,10 @@ Docker volume, so they persist across container rebuilds.
 
 ### What about `move_fs`?
 
-The `move_fs` role (OS migration to NVMe) runs as part of the `servers` tag. It only
-activates if a node has `root_dev` defined in the inventory. If your servers are already
-running from their desired disk, simply omit `root_dev` from the inventory and the
-role does nothing.
+The `move_fs` role (installing the OS on a Turing Pi RK1's NVMe) runs as part of the
+`servers` tag. It only activates if a node has `root_dev` defined in the inventory, and
+only installs RK1 nodes. For servers that already run from their desired disk, simply
+omit `root_dev` from the inventory and the role does nothing.
 
 ## Step 7: Verify the cluster
 

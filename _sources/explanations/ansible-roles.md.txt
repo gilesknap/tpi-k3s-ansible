@@ -67,36 +67,147 @@ The role is split across multiple task files:
 **Tag:** `flash`
 **Guard:** only runs when `do_flash` is true (`-e do_flash=true` or `-e flash_force=true`)
 
-Flashes Ubuntu 24.04 LTS onto Turing Pi compute modules via the BMC's `tpi` CLI.
+Installs Ubuntu on Turing Pi compute modules via the BMC's `tpi` CLI: Ubuntu 24.04
+for Raspberry Pi on CM4s, and stock Ubuntu 26.04 with mainline U-Boot on RK1s
+(see [The RK1 install](#the-rk1-install)).
 
 ### How it works
 
 1. **Discover nodes** — looks for the inventory group `<bmc_hostname>_nodes`
    (e.g. `turingpi_nodes` for BMC host `turingpi`).
-2. **For each node:**
-   - Check if the node is already contactable via SSH (skip if so, unless force).
-   - Download the OS image (RK1 or CM4) to `/tmp` on the devcontainer.
-   - SCP the image to the BMC at `/mnt/sdcard/images/`.
-   - Power off the node.
-   - Run `tpi flash --node <slot>` (async, up to 600 seconds).
-   - Wait for flash to complete.
-3. **Bootstrap cloud-init:**
-   - Enter MSD mode (mount the node's eMMC as USB storage on the BMC).
-   - Render `cloud.cfg` with the node's hostname and the `ansible` user + SSH key.
-   - SCP the config to the node's filesystem.
-   - Clear cloud-init cache, reboot, and wait for SSH.
+2. **For each node** (skipped if it answers SSH, unless `flash_force` is set):
+   - **CM4:** download the OS image to the controller and copy it to the BMC at
+     `tpi_images_path` (`/mnt/sdcard/images/`).
+   - **RK1:** build the eMMC staging image on the controller and copy it to the BMC.
+   - Power off the node and run `tpi flash --sha256`. The controller runs it on the
+     BMC over `ssh` (async, up to 30 minutes; an RK1 image takes about 10), as
+     `raw` cannot run async. This and the `scp` copies to the BMC use the play's
+     SSH settings for it: `ansible_user`, `ansible_port`, the key from
+     `ansible_ssh_private_key_file` or `--private-key`, and
+     `ansible_ssh_common_args`.
+3. **Bootstrap cloud-init** with the node's eMMC in disk (msd) mode on the BMC:
+   - **CM4:** render `cloud.cfg` with the hostname and the `ansible` user and key
+     into the root filesystem, and clear the cloud-init cache.
+   - **RK1:** write a NoCloud seed (`meta-data`, `user-data`, `network-config`) to
+     the staging image's `CIDATA` partition (p14). The image itself is pristine.
+   - **RK1 with `root_dev`:** clear the NVMe's partition table from the U-Boot
+     prompt over the UART (see below). This happens only after the flash has
+     succeeded, so a failed flash leaves the node's old install as it was.
+   - Boot the node and wait for SSH.
+
+### The RK1 install
+
+The RK1 has no SPI flash, so U-Boot lives in the eMMC's raw area, from LBA 64
+(32 KiB) to about 9.5 MiB, where the Rockchip boot ROM loads it. `tpi flash` writes
+only the eMMC, and Ubuntu's official images start their EFI system partition at
+1 MiB, on top of U-Boot. So an RK1 is installed in two stages, from two artifacts:
+Ubuntu's `ubuntu-26.04.1-preinstalled-server-arm64.img.xz` and Armbian's build of
+mainline U-Boot.
+
+1. **eMMC staging image** (controller, `tasks/image_rk1.yml`).
+   `files/rk1_emmc_image.py` writes `u-boot-rockchip.bin` from Armbian's package
+   at LBA 64 and copies the Ubuntu image's partitions byte for byte to start at
+   16 MiB, keeping their GUIDs. The GPT's first usable LBA is that 16 MiB start,
+   so partitioning tools cannot place a partition over U-Boot. Nothing inside a
+   filesystem changes. It is Python's standard library only, so the controller
+   needs no `sfdisk`, just `xz`.
+   - The build is deterministic, so the uncompressed result is pinned
+     (`flash_rk1_emmc_sha256`): the build fails if it differs.
+   - Both downloads are checked against their sha256 on every run. The built
+     image is cached in `flash_rk1_cache_dir`, and is rebuilt only when the cached
+     copy does not decompress to the pinned checksum. A new build is compressed,
+     checked to decompress to the pin, and only then moved into place; each BMC
+     builds into its own temporary files, so two BMCs cannot mix their builds.
+   - The copy on the BMC is named after its checksums, so it is copied only once.
+2. **Flash and seed.** `tpi flash` writes the image to the eMMC; the seed goes on
+   its `CIDATA` partition, as above.
+3. **Clear the NVMe.** The staging OS mounts its root by label
+   (`cloudimg-rootfs`), as every Ubuntu cloud image does, and the staging copy and
+   an old install of the same image share their partition GUIDs and filesystem
+   UUID too, so an old Ubuntu install on the NVMe could be mounted in its place.
+   After the flash, `files/rk1_zap_nvme.sh` runs on the BMC: it stops U-Boot's
+   autoboot over `tpi uart`, runs `pci enum` and reads the NVMe's first two
+   sectors.
+   - With `flash_force`, it zeroes the NVMe's first 1 MiB with `nvme write`,
+     checks it reads back as zeros, and resets the node into the staging OS.
+   - Without it (`do_flash`, which flashes any node that doesn't answer SSH), a
+     blank NVMe is left as it is and the node reset. An NVMe with a partition table
+     (an MBR signature, or a GPT header) may hold a working install that was only
+     unreachable: the script writes nothing, powers the node off and the play
+     stops, asking for `flash_force`.
+   - On any failure the script powers the node off rather than leave it at the
+     U-Boot prompt.
+
+   The NVMe is cleared here, not from the old OS before the flash, so that it is
+   lost only once the new eMMC image is in place. Clearing it from the staging OS
+   instead is not possible: the label clash happens in its initramfs, before any
+   task can run.
+4. **Staging boot.** U-Boot boots the eMMC copy through EFI (shim, then GRUB).
+   `move_fs` then installs the NVMe from it (see `move_fs` below).
+5. **Final boot.** The eMMC now has no partition table, so U-Boot, which scans
+   the eMMC before the NVMe, boots the NVMe's EFI system partition.
+
+End state of an RK1:
+
+- The eMMC holds only U-Boot, with no partition table.
+- The NVMe holds Ubuntu's preinstalled server image as Ubuntu ships it: root on
+  p1, the cloud-init seed on p14, and the EFI system partition with shim and GRUB
+  on p15. cloud-init grows the root to the whole disk on first boot.
+- The generic kernel, updated by `apt` like any Ubuntu machine. It boots on
+  U-Boot's built-in device tree, with no GRUB `devicetree` line, and
+  `flash-kernel` skips itself under EFI.
+- `rk1_os` finds a standard install and skips it.
+- Every boot passes through U-Boot twice: U-Boot cannot store EFI variables
+  on the NVMe, so shim's fallback resets once before GRUB starts. This is
+  harmless.
+
+:::{warning}
+A re-flash is a fresh install. On an RK1 with `root_dev`, `flash_force` wipes the
+NVMe and everything on it is lost, including `local-nvme` PV data under
+`/var/lib/k8s-data`. Move or back
+up that node's local PV data first (see {doc}`/how-to/reflash-rebuild`).
+:::
 
 ### OS images
 
 | Type | Image | Source |
 |------|-------|--------|
-| RK1 | Ubuntu 24.04 (rockchip vendor image; `rk1_os` converts it to stock Ubuntu) | `github.com/Joshua-Riek/ubuntu-rockchip` |
+| RK1 | Ubuntu 26.04 preinstalled server (stock, generic kernel) | `cdimage.ubuntu.com` |
+| RK1 | Mainline U-Boot, `linux-u-boot-turing-rk1-current` | `apt.armbian.com` (third party) |
 | CM4 | Ubuntu 24.04 Server | `cdimage.ubuntu.com` |
+
+All RK1 artifacts are pinned by URL and sha256 in `roles/flash/vars/main.yml`.
+
+### Bumping the RK1 artifacts
+
+Armbian's U-Boot package is the one third-party artifact. It is maintained (Armbian
+rebuilds it from mainline U-Boot regularly), but the RK1 is a community-supported
+Armbian board, and the package's pool filename changes with every build. Once
+Armbian removes the pinned file from its pool, a controller without a cached image
+cannot download it, so bump it then (or before):
+
+1. Find the newest `linux-u-boot-turing-rk1-current` in the `Packages` index of
+   `apt.armbian.com`. Set `flash_rk1_uboot_deb_file` to its `Filename`'s last part
+   and `flash_rk1_uboot_deb.sha256` to its `SHA256`.
+2. Download it and set `member_sha256` to the checksum of `u-boot-rockchip.bin`:
+   `dpkg-deb --fsys-tarfile <deb> | tar -xO ./usr/lib/linux-u-boot-current-turing-rk1/u-boot-rockchip.bin | sha256sum`.
+   If the path inside the package changed, update `member` too.
+3. Run the flash once. The build fails and reports the new image's sha256: set
+   `flash_rk1_emmc_sha256` to it.
+4. Re-flash one RK1 and check it boots before re-flashing the rest.
+
+A new Ubuntu point release is the same: set `flash_rk1_os_vers` and
+`flash_rk1_os_image.sha256` (from the release's `SHA256SUMS`), and
+`flash_rk1_os_image.raw_sha256` and `raw_size` to the decompressed image's
+(`xz -dc <image> | sha256sum`, and the uncompressed size from `xz -l --robot`), then
+steps 3 and 4.
 
 ### Idempotency
 
 - Node is pinged first — if contactable and `flash_force` is not set, flashing is skipped.
-- Images are only downloaded if not already present.
+- CM4 images are only downloaded if not already on the BMC.
+- RK1 downloads are re-verified on every run; the eMMC image is rebuilt only when
+  the cached copy does not match the pinned checksum.
 
 ---
 
@@ -129,27 +240,54 @@ files cause race conditions and file corruption.
 
 ---
 
-## `move_fs` — OS migration to NVMe
+## `move_fs` — install the OS on the NVMe
 
 **Runs on:** `all_nodes`
 **Tag:** `servers`
-**Guard:** only activates for nodes with `root_dev` defined in the inventory
+**Guard:** only nodes with `root_dev` defined in the inventory whose root is not
+already on it; RK1 only
 
-Migrates the root filesystem from eMMC to NVMe using `ubuntu-rockchip-install`:
+On an RK1 that `flash` has just installed, which runs the staging OS from its eMMC,
+it runs `roles/flash/tasks/rk1_install_nvme.yml`:
 
-1. Check the current root device.
-2. If not already on the target device, run `ubuntu-rockchip-install` to the NVMe.
-3. Reboot.
+1. Check that the root is the staging OS (eMMC p1, booted through EFI) and that
+   nothing on the NVMe is mounted. Anything else stops the play with a message;
+   to reinstall such a node, re-flash it.
+2. Wait for the staging OS's cloud-init, and for NTP: the RK1 has no
+   battery-backed clock, so TLS downloads fail until the time is set.
+3. Download Ubuntu's preinstalled server image and check its sha256. Refuse a
+   target that already has signatures (`wipefs --no-act`) unless `flash_force` is
+   set. Write the image to the NVMe (`xz -dc | dd conv=fsync`, buffered) and read
+   it back: after dropping the page cache, as many bytes as the image has must hash
+   to the decompressed image's pinned sha256. A mismatch stops here, while the eMMC
+   still boots the staging OS. Neither step uses `O_DIRECT` (see
+   {doc}`/reference/troubleshooting`).
+4. Seed the NVMe's cloud-init (`CIDATA`, p14), and copy the staging OS's SSH host
+   keys onto the NVMe's root, with `ssh_deletekeys: false` in the seed. The node
+   keeps the host key that `known_hosts` has just recorded.
+5. Clear the eMMC's partition table with `wipefs`. This writes only the
+   partition table's signatures (LBA 0–1, and the backup GPT at the end of the
+   eMMC); U-Boot, from LBA 64, is untouched.
+6. Reboot with `systemctl reboot --check-inhibitors=no` (the staging OS is thrown
+   away, so no inhibitor lock may refuse the reboot), then check that the root is
+   NVMe p1 and the node booted through EFI.
+7. Check that unattended-upgrades is held (below), and wait for apt and dpkg to be
+   idle, so that `update_packages` can run apt.
 
-:::{note}
-`ubuntu-rockchip-install` gives the NVMe two partitions: p1, a 4 MB vfat `CIDATA`
-partition holding the cloud-init seed, and p2, the ext4 root. U-Boot stays on the
-eMMC, but its boot order (`mmc1 nvme scsi usb mmc0 ...`, and the RK1 has no `mmc1`)
-tries the NVMe before the eMMC.
+Both cloud-init seeds hold apt's periodic jobs: they write
+`/etc/apt/apt.conf.d/99rk1-install-hold` with `APT::Periodic::Enable "0"` before
+`network-online.target`, so `apt-daily*.service` never start an upgrade. Otherwise
+a fresh install's first-boot unattended-upgrades installs over a hundred packages one
+at a time and holds the dpkg lock for over half an hour, and on the staging OS it
+slows the NVMe write. `update_packages` then runs one `dist-upgrade` and removes the
+file as its last step, which re-enables unattended-upgrades.
 
-`tpi flash` rewrites only the eMMC (U-Boot plus the vendor OS), so it does not take
-over a node whose NVMe is bootable: the node keeps booting the NVMe OS.
-:::
+Once the root is on `root_dev`, the role only checks the eMMC: if it still has a
+partition table with the staging OS's root (`cloudimg-rootfs`) on p1, the install
+stopped between writing the NVMe and clearing the eMMC, and either copy of the root
+may be mounted, so the play stops and asks for a re-flash. RK1s converted in place
+by `rk1_os` keep their vendor eMMC layout (`CIDATA` on p1) and pass. Re-flashing the
+node is the only way to reinstall it.
 
 ---
 
@@ -160,12 +298,13 @@ over a node whose NVMe is bootable: the node keeps booting the NVMe OS.
 playbook for all hosts, including those not yet reached.
 **Tag:** `servers`, `rk1_os`
 **Guard:** only nodes with `type: rk1` whose root is not on the eMMC (`mmcblk`);
-`move_fs` moves it to the NVMe; standard Ubuntu installs are skipped (below)
+standard Ubuntu installs are skipped (below)
 
-Converts an RK1 from the archived ubuntu-rockchip vendor image (6.1 vendor kernel,
-U-Boot reading extlinux) to stock Ubuntu 26.04: Ubuntu's generic kernel, booted
-U-Boot → EFI → GRUB. It runs after `move_fs`, which needs the vendor PPA this role
-removes.
+Converts an RK1 installed from the archived ubuntu-rockchip vendor image (6.1 vendor
+kernel, U-Boot reading extlinux) to stock Ubuntu 26.04: Ubuntu's generic kernel,
+booted U-Boot → EFI → GRUB. `flash` and `move_fs` now install stock Ubuntu, which
+this role skips, so it only migrates RK1s installed before that, in place. To move
+such a node to the layout `flash` installs, re-flash it instead.
 
 Only the vendor layout is converted: root on an NVMe partition other than p1,
 and p1 the vendor image's vfat `CIDATA` partition. A standard Ubuntu install, such
@@ -287,6 +426,10 @@ Prepares each node for K3s:
      runtime set as the default containerd runtime. k3s regenerates `config.toml` on
      every agent restart from this template, so the configuration persists across reboots.
    - Restart `k3s-agent` to apply the new containerd config
+
+Last, it removes `/etc/apt/apt.conf.d/99rk1-install-hold`, which a fresh RK1
+install's cloud-init seed writes to hold unattended-upgrades until this role's own
+`dist-upgrade` has run (see `move_fs` above). On other nodes there is no such file.
 
 ---
 

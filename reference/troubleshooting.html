@@ -423,12 +423,32 @@ lsusb<span class="w">  </span><span class="c1"># should show device ID 2207:350b
 <p><strong>Symptom:</strong> SSH connection refused or timeout after <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> completes.</p>
 <p><strong>Possible causes:</strong></p>
 <ol class="arabic simple">
-<li><p>Node hasn’t finished booting — wait 60–90 seconds</p></li>
+<li><p>Node hasn’t finished booting — wait 60–90 seconds (an RK1’s first boot of its
+staging OS takes a few minutes; watch it with <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">uart</span> <span class="pre">-n</span> <span class="pre">&lt;slot&gt;</span> <span class="pre">get</span></code> on the BMC)</p></li>
 <li><p>IP address changed — check <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> matches the DHCP lease or static IP</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> entry stale — delete the old entry and re-run:</p></li>
 </ol>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-R<span class="w"> </span>&lt;node-ip&gt;
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>known_hosts
+</pre></div>
+</div>
+</section>
+<section id="wrong-data-from-dd-iflag-direct-on-an-rk1">
+<h3>Wrong data from <code class="docutils literal notranslate"><span class="pre">dd</span> <span class="pre">iflag=direct</span></code> on an RK1<a class="headerlink" href="#wrong-data-from-dd-iflag-direct-on-an-rk1" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> a checksum of a block device or file read with <code class="docutils literal notranslate"><span class="pre">dd</span> <span class="pre">iflag=direct</span></code> on an
+RK1 does not match, but a second read, a buffered read, or GNU dd gives the right
+answer. The bad bytes are the first 4 to 60 bytes of 128 KiB chunks.</p>
+<p><strong>Cause:</strong> a kernel bug on the RK3588 with kernel 7.0 (non-coherent PCIe DMA). An
+<code class="docutils literal notranslate"><span class="pre">O_DIRECT</span></code> read over 128 KiB into a buffer that is not 64-byte aligned loses a
+partial cache line at request boundaries to a swiotlb bounce and the cache
+maintenance after it. Ubuntu 26.04’s default <code class="docutils literal notranslate"><span class="pre">dd</span></code> is uutils, whose buffer is not
+aligned. <code class="docutils literal notranslate"><span class="pre">O_DIRECT</span></code> writes, buffered reads and page-cache I/O (filesystems,
+databases) are not affected: the data on disk is correct.</p>
+<p><strong>Fix:</strong> on RK1s, don’t read block devices with <code class="docutils literal notranslate"><span class="pre">dd</span> <span class="pre">iflag=direct</span></code> (uutils). Use
+GNU dd (<code class="docutils literal notranslate"><span class="pre">gnudd</span></code>, page-aligned buffers), or a buffered read after dropping the page
+cache:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sync<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/proc/sys/vm/drop_caches
+sudo<span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span>&lt;bytes&gt;<span class="w"> </span>/dev/nvme0n1<span class="w"> </span><span class="p">|</span><span class="w"> </span>sha256sum
 </pre></div>
 </div>
 </section>
@@ -894,6 +914,7 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flashing">Flashing</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#usb-error-during-tpi-flash">USB error during <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#node-not-reachable-after-flash">Node not reachable after flash</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#wrong-data-from-dd-iflag-direct-on-an-rk1">Wrong data from <code class="docutils literal notranslate"><span class="pre">dd</span> <span class="pre">iflag=direct</span></code> on an RK1</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ssh-known-hosts">SSH / known_hosts</a><ul class="nav section-nav flex-column">
