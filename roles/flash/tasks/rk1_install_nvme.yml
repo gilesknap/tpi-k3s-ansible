@@ -1,0 +1,274 @@
+# Installs stock Ubuntu on an RK1's NVMe from the eMMC staging OS that
+# flash wrote (image_rk1.yml). Included by move_fs with
+# flash_rk1_target_dev, the inventory's root_dev.
+#
+# 1. write Ubuntu's preinstalled server image to the NVMe, verbatim;
+# 2. seed its cloud-init (CIDATA, p14) and give it the staging OS's SSH
+#    host keys, so known_hosts stays valid;
+# 3. clear the eMMC's partition table, so U-Boot, which scans the eMMC
+#    before the NVMe, boots the NVMe's ESP (p15: shim, then GRUB);
+# 4. reboot and check the root is on the NVMe.
+#
+# U-Boot itself (eMMC LBA 64 to about 9.5 MiB) is never written: wipefs
+# clears only the partition table signatures at LBA 0-1 and the backup
+# GPT at the end of the eMMC.
+
+- name: Find the device holding the root filesystem
+  ansible.builtin.command:
+    cmd: findmnt --noheadings --output SOURCE --target /
+  register: flash_rk1_root
+  changed_when: false
+  check_mode: false
+
+- name: Find the disk holding the root filesystem
+  ansible.builtin.command:
+    cmd: lsblk --noheadings --nodeps --paths --output PKNAME {{ flash_rk1_root.stdout | trim }}
+  register: flash_rk1_root_disk
+  changed_when: false
+  check_mode: false
+
+- name: Check whether the node booted through EFI
+  ansible.builtin.stat:
+    path: /sys/firmware/efi
+  register: flash_rk1_efi
+
+- name: Set the install devices
+  ansible.builtin.set_fact:
+    flash_rk1_emmc: "{{ flash_rk1_root_disk.stdout | trim }}"
+    flash_rk1_part: "{{ flash_rk1_target_dev }}{{ 'p' if flash_rk1_target_dev is search('[0-9]$') else '' }}"
+
+# The staging OS is the preinstalled image on the eMMC: root on p1, booted
+# through EFI. Anything else (a vendor image, an install on the eMMC by
+# hand) is not something this task can replace safely.
+- name: Check the node runs the eMMC staging OS
+  ansible.builtin.assert:
+    that:
+      - flash_rk1_emmc is search('^/dev/mmcblk[0-9]+$')
+      - flash_rk1_root.stdout | trim == flash_rk1_emmc ~ 'p1'
+      - flash_rk1_efi.stat.exists
+      - flash_rk1_target_dev != flash_rk1_emmc
+    fail_msg: >-
+      {{ inventory_hostname }} has its root on {{ flash_rk1_root.stdout | trim }}
+      (EFI: {{ flash_rk1_efi.stat.exists }}), not on the eMMC staging OS the flash
+      role installs, so its NVMe is not installed. To reinstall the node, re-flash
+      it: ansible-playbook pb_all.yml --limit <bmc>,{{ inventory_hostname }}
+      -e flash_force=true
+    quiet: true
+
+- name: Find what is mounted from {{ flash_rk1_target_dev }}
+  ansible.builtin.command:
+    cmd: lsblk --noheadings --list --output MOUNTPOINTS {{ flash_rk1_target_dev }}
+  register: flash_rk1_target_mounts
+  changed_when: false
+  check_mode: false
+
+- name: Check nothing is mounted from {{ flash_rk1_target_dev }}
+  ansible.builtin.assert:
+    that: flash_rk1_target_mounts.stdout | trim | length == 0
+    fail_msg: >-
+      {{ flash_rk1_target_dev }} on {{ inventory_hostname }} has mounted
+      partitions ({{ flash_rk1_target_mounts.stdout_lines | select | join(', ') }}):
+      the staging OS may have mounted an old install there by label. Wipe the
+      NVMe and re-flash.
+    quiet: true
+
+- name: Report that check mode stops here
+  ansible.builtin.debug:
+    msg: >-
+      Check mode: {{ inventory_hostname }} would get Ubuntu
+      {{ flash_rk1_os_vers }} on {{ flash_rk1_target_dev }} and lose the
+      partition table of {{ flash_rk1_emmc }}.
+  when: ansible_check_mode
+
+- name: Install Ubuntu on {{ flash_rk1_target_dev }}
+  when: not ansible_check_mode
+  vars:
+    flash_rk1_image_path: /var/tmp/{{ flash_rk1_os_image.url | basename }}
+  block:
+    # A first boot's cloud-init is still installing packages and keys.
+    - name: Wait for cloud-init on the staging OS
+      ansible.builtin.command:
+        cmd: cloud-init status --wait
+      register: flash_rk1_staging_ci
+      changed_when: false
+      failed_when: flash_rk1_staging_ci.rc not in [0, 2]
+
+    # The RK1 has no battery-backed clock: TLS fails ("certificate is not
+    # yet valid") until NTP has set the time.
+    - name: Wait for the clock to be synchronised
+      ansible.builtin.command:
+        cmd: timedatectl show --property NTPSynchronized --value
+      register: flash_rk1_ntp
+      until: flash_rk1_ntp.stdout | trim == 'yes'
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: Download Ubuntu's preinstalled server image
+      ansible.builtin.get_url:
+        url: "{{ flash_rk1_os_image.url }}"
+        dest: "{{ flash_rk1_image_path }}"
+        checksum: "sha256:{{ flash_rk1_os_image.sha256 }}"
+        mode: "0644"
+
+    - name: Write the image to {{ flash_rk1_target_dev }}
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          wipefs --all {{ flash_rk1_target_dev }}
+          xz -dc {{ flash_rk1_image_path }} | dd of={{ flash_rk1_target_dev }} bs=4M oflag=direct status=none
+          sync
+          partprobe {{ flash_rk1_target_dev }}
+          udevadm settle
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Read the labels of the new partitions
+      ansible.builtin.command:
+        cmd: blkid --match-tag LABEL --output value {{ flash_rk1_part }}{{ item }}
+      loop: ["1", "14"]
+      register: flash_rk1_labels
+      changed_when: false
+
+    - name: Check the new partitions are the image's
+      ansible.builtin.assert:
+        that: flash_rk1_labels.results | map(attribute='stdout') | map('trim') | list == ['cloudimg-rootfs', 'CIDATA']
+        fail_msg: >-
+          {{ flash_rk1_part }}1 and {{ flash_rk1_part }}14 have labels
+          {{ flash_rk1_labels.results | map(attribute='stdout') | list }}, not
+          cloudimg-rootfs and CIDATA.
+        quiet: true
+
+    - name: Create a working directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: .rk1-install
+      register: flash_rk1_tmp
+
+    - name: Seed and key the new install
+      block:
+        - name: Create the seed and mount point directories
+          ansible.builtin.file:
+            path: "{{ flash_rk1_tmp.path }}/{{ item }}"
+            state: directory
+            mode: "0700"
+          loop: [seed, cidata, root]
+
+        - name: Render the NVMe seed
+          ansible.builtin.include_tasks: seed_files.yml
+          vars:
+            flash_seed_dir: "{{ flash_rk1_tmp.path }}/seed"
+            flash_seed_hostname: "{{ inventory_hostname }}"
+            flash_seed_stage: nvme
+
+        - name: Mount the NVMe CIDATA partition
+          ansible.posix.mount:
+            src: "{{ flash_rk1_part }}14"
+            path: "{{ flash_rk1_tmp.path }}/cidata"
+            fstype: vfat
+            state: ephemeral
+
+        # cp, not template or copy: vfat cannot take their chmod/chown.
+        - name: Copy the seed to the NVMe CIDATA partition
+          ansible.builtin.command:
+            argv: >-
+              {{ ['cp'] + flash_seed_files | map('regex_replace', '^', flash_rk1_tmp.path ~ '/seed/') | list
+                 + [flash_rk1_tmp.path ~ '/cidata/'] }}
+          changed_when: true
+
+        - name: Mount the NVMe root partition
+          ansible.posix.mount:
+            src: "{{ flash_rk1_part }}1"
+            path: "{{ flash_rk1_tmp.path }}/root"
+            fstype: ext4
+            state: ephemeral
+
+        # The image ships no host keys; with ssh_deletekeys false in the
+        # NVMe seed, cloud-init keeps these instead of generating new ones.
+        - name: Copy the SSH host keys to the NVMe root
+          ansible.builtin.shell:
+            cmd: cp -a /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub {{ flash_rk1_tmp.path }}/root/etc/ssh/
+            executable: /bin/bash
+          changed_when: true
+
+      always:
+        - name: Unmount the NVMe partitions
+          ansible.posix.mount:
+            path: "{{ flash_rk1_tmp.path }}/{{ item }}"
+            state: unmounted
+          loop: [cidata, root]
+
+        - name: Remove the working directory
+          ansible.builtin.file:
+            path: "{{ flash_rk1_tmp.path }}"
+            state: absent
+
+    # The last step: from here the eMMC no longer boots. --force because
+    # the staging OS runs from it.
+    - name: Clear the partition table of {{ flash_rk1_emmc }}
+      ansible.builtin.shell:
+        cmd: sync && wipefs --all --force {{ flash_rk1_emmc }}
+        executable: /bin/bash
+      changed_when: true
+
+    # The staging OS is thrown away, so don't wait for its first-boot
+    # unattended-upgrades, whose inhibitor lock refuses a plain reboot.
+    - name: Reboot into the NVMe install
+      ansible.builtin.reboot:
+        reboot_command: systemctl reboot --check-inhibitors=no
+        reboot_timeout: 900
+        msg: Rebooting into the NVMe install
+
+    - name: Wait for cloud-init on the NVMe install
+      ansible.builtin.command:
+        cmd: cloud-init status --wait
+      register: flash_rk1_nvme_ci
+      changed_when: false
+      failed_when: flash_rk1_nvme_ci.rc not in [0, 2]
+
+    # A fresh install's apt-daily-upgrade.service starts within a minute or
+    # so of boot (its timer has never fired) and unattended-upgrades holds
+    # the dpkg lock for several minutes, often installing a newer kernel.
+    # Let it finish before update_packages runs apt, which would fail on
+    # the lock. Up to 30 minutes; after 5 an idle apt counts even if the
+    # upgrade service never started (its timer may be disabled).
+    - name: Wait for the first-boot package upgrades to finish
+      ansible.builtin.shell:
+        cmd: |
+          for i in $(seq 360); do
+            busy=0
+            systemctl is-active --quiet apt-daily.service && busy=1
+            systemctl is-active --quiet apt-daily-upgrade.service && busy=1
+            fuser -s /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock && busy=1
+            started=$(systemctl show --property ExecMainStartTimestampMonotonic --value apt-daily-upgrade.service)
+            if [ "$busy" = 0 ] && { [ "${started:-0}" != 0 ] || [ "$i" -gt 60 ]; }; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "apt is still busy after 30 minutes" >&2
+          exit 1
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Find the device now holding the root filesystem
+      ansible.builtin.command:
+        cmd: findmnt --noheadings --output SOURCE --target /
+      register: flash_rk1_new_root
+      changed_when: false
+
+    - name: Check whether the NVMe install booted through EFI
+      ansible.builtin.stat:
+        path: /sys/firmware/efi
+      register: flash_rk1_new_efi
+
+    - name: Check the node booted the NVMe install through EFI
+      ansible.builtin.assert:
+        that:
+          - flash_rk1_new_root.stdout | trim == flash_rk1_part ~ '1'
+          - flash_rk1_new_efi.stat.exists
+        fail_msg: >-
+          After the install {{ inventory_hostname }} has its root on
+          {{ flash_rk1_new_root.stdout | trim }} (EFI:
+          {{ flash_rk1_new_efi.stat.exists }}), not {{ flash_rk1_part }}1.
+        quiet: true
