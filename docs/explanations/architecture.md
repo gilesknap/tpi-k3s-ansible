@@ -73,8 +73,8 @@ flowchart TB
 | `tools` | Install helm, kubectl, kubeseal in devcontainer | localhost |
 | `flash` | Flash Ubuntu to Turing Pi compute modules via BMC | BMC hosts |
 | `known_hosts` | Update SSH known_hosts (serial: 1) | All hosts |
-| `move_fs` | Migrate OS from eMMC to NVMe | Nodes with `root_dev` |
-| `rk1_os` | Convert RK1s to stock Ubuntu 26.04, booted through EFI and GRUB | RK1 nodes |
+| `move_fs` | Install Ubuntu on an RK1's NVMe from its eMMC staging OS | Nodes with `root_dev` |
+| `rk1_os` | Convert older vendor-image RK1 installs to stock Ubuntu 26.04 | RK1 nodes |
 | `update_packages` | dist-upgrade, install dependencies | All nodes |
 | `k3s` | Install K3s control plane and workers | All nodes |
 | `cluster` | Deploy ArgoCD, bootstrap services | localhost |

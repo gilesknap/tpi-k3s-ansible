@@ -33,6 +33,27 @@
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
   scrap's live data is on the NAS (`/bigdisk/k8s-cluster/scrap-data`,
   `/bigdisk/k8s-cluster/backups/scrap`): just as sacred.
+- **Never touch `/var/lib/k8s-data`** on an RK1: no ad-hoc command,
+  script or new task may write, move or delete anything under it. Only
+  the `k8s_data_dirs` role creates its directories (and sets their owner
+  and mode); only `pb_decommission.yml -e wipe_local_data=true` or a
+  re-flash removes them. A re-flash of an RK1 with `root_dev` wipes its
+  NVMe only with `flash_force`: plain `do_flash` flashes the eMMC of any
+  node that doesn't answer SSH, but refuses to wipe an NVMe that has a
+  partition table. That wipe is a fresh install that loses the node's
+  local PV data: say so to the user, and get their go-ahead,
+  before re-flashing an RK1 that carries a `local-nvme` PV.
+- **Never write to the first 16 MiB of an RK1's eMMC except via the
+  U-Boot image itself.** U-Boot lives there (LBA 64 to about 9.5 MiB;
+  there is no SPI flash), and only `tpi flash` of the eMMC staging image
+  built by `roles/flash` writes it. No `dd`, `mkfs`, partitioning or
+  `bmaptool` into that range. The only other writes are to the partition
+  table, never LBA 64+: cloud-init's growpart on the staging OS rewrites
+  the eMMC's GPT (LBA 0–33 and the backup at the far end) when it grows
+  the root, and the install's `wipefs --all` of the eMMC clears the
+  partition table signatures (LBA 0–1 and the backup GPT). The image's
+  GPT sets its first usable LBA to 32768 (16 MiB), so partitioning tools
+  cannot place a partition over U-Boot.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
   existing pinning is prometheus→node02, grafana→node03,
   scrap's off-NAS backup copy→nuc2. scrap itself is not pinned (ADR
