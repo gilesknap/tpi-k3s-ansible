@@ -6,10 +6,11 @@ rebuild. Nothing else mounts them.
 
 - The local-nvme data claim: a frozen copy of the data at the cut-over.
   Pre-bound by volumeName, so it binds at once, also after a rebuild.
-- The dynamic backups claim, while the Job still copies from it. Deleting it
-  deletes its NAS directory: it was provisioned by the nfs-rwx class (then the
-  default, and named explicitly since), so its PV has reclaimPolicy Delete and
-  the NFS CSI driver's onDelete: delete.
+- The dynamic backups claim, only while the Job still copies from it (with
+  legacy.backups.claim set). Once it is no longer rendered, Prune=false leaves
+  it in the cluster. Deleting it deletes its NAS directory: it was provisioned
+  by the nfs-rwx class, so its PV has reclaimPolicy Delete and the NFS CSI
+  driver's onDelete: delete.
 */}}
 {{- with .Values.legacy.claim }}
 apiVersion: v1
