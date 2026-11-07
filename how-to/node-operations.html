@@ -432,8 +432,17 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 
 <span class="c1"># Specific nodes only</span>
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>--limit<span class="w"> </span>node02,node03
+
+<span class="c1"># Also reboot now the nodes that need it: drained, one at a time</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>-e<span class="w"> </span><span class="nv">reboot_now</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> does not reboot a node that is in the cluster. If an upgrade
+needs a reboot it leaves <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> for kured, which drains and
+reboots the node in the nightly window, and says so in the output. With
+<code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">reboot_now=true</span></code> the nodes that need it are drained, rebooted and uncordoned
+one at a time instead. A node not yet running k3s is rebooted straight away, and
+workstations are never rebooted. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">update_packages</span></code> will silently do nothing — the correct tag is <code class="docutils literal notranslate"><span class="pre">servers</span></code>,
@@ -446,7 +455,8 @@ vendor image (the <code class="docutils literal notranslate"><span class="pre">r
 already stock Ubuntu and are skipped): it drains the node, reboots it into GRUB, runs a release
 upgrade of 15–20 minutes and reboots it again. Nodes are converted one at a time,
 but each is out of the cluster for the duration. Use <code class="docutils literal notranslate"><span class="pre">--limit</span></code> to choose which
-nodes are converted when. See <a class="reference internal" href="../explanations/ansible-roles.html"><span class="std std-doc">Ansible Roles in Detail</span></a>.</p>
+nodes are converted when. Apart from this conversion, <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code> reboots
+no node that is in the cluster unless you pass <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">reboot_now=true</span></code>. See <a class="reference internal" href="../explanations/ansible-roles.html"><span class="std std-doc">Ansible Roles in Detail</span></a>.</p>
 </div>
 </section>
 <section id="shutdown-all-nodes">

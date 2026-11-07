@@ -399,7 +399,8 @@ server has a Node of its name; with k3s installed, a failed API lookup fails the
 run rather than reboot an undrained node. Such a node is drained before each reboot
 and before the release upgrade; after the reboot the role waits for the k3s unit
 and the Ready node, then uncordons it, unless it was already cordoned before the
-role drained it. `/var/lib/rk1_os/drained` records that the role cordoned it; the
+role drained it. The drain, wait and uncordon tasks come from the shared
+`node_reboot` role. `/var/lib/node_reboot/drained` records that the role cordoned it; the
 role's last step uncordons such a node once k3s is active and the node Ready, so a
 re-run that needs no reboot does not leave it cordoned.
 
@@ -418,27 +419,58 @@ Prepares each node for K3s:
 
 1. `dpkg --configure -a` (fix any interrupted package operations)
 2. `apt dist-upgrade` (full OS upgrade)
-3. Reboot if required (kernel updates)
-4. `apt autoremove` (clean up)
-5. Install required packages:
+3. `apt autoremove` (clean up)
+4. Install required packages:
    - `unattended-upgrades` — automatic updates
    - `original-awk` — required by some K3s scripts
-6. **Non-workstation nodes only:** configure unattended-upgrades to install
+5. **Non-workstation nodes only:** configure unattended-upgrades to install
    from the `-updates` pocket as well as `-security` (so kernel updates are
    included), without rebooting, nightly at 00:00 Europe/London
    (`update_packages_upgrade_on_calendar`). kured does the reboot; see
    {doc}`/explanations/upgrade-model`.
-7. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
+6. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
    - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
    - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA
      runtime set as the default containerd runtime. k3s regenerates `config.toml` on
      every agent restart from this template, so the configuration persists across reboots.
    - Restart `k3s-agent` to apply the new containerd config
+   - Ask for a reboot (`/var/run/reboot-required`) to load a newly installed driver. On a
+     workstation node (`workstation: true`) nothing reboots it automatically, neither the role
+     nor kured, so reboot it by hand after the first driver install, or GPU pods fail until it
+     is rebooted.
 
-Last, it removes `/etc/apt/apt.conf.d/99rk1-install-hold`, which a fresh RK1
+After the dist-upgrade, it removes `/etc/apt/apt.conf.d/99rk1-install-hold`, which a fresh RK1
 install's cloud-init seed writes to hold unattended-upgrades until this role's own
 `dist-upgrade` has run (see `move_fs` above). On other nodes there is no such file.
+
+**Reboots.** The role's last step decides what to do when `/var/run/reboot-required`
+exists:
+
+- **In the cluster** (its k3s unit is installed): no reboot. The file stays for
+  kured, which drains and reboots the node in the nightly window, and the role
+  prints a message saying so. With `-e reboot_now=true` the next play in
+  `pb_all.yml` (`serial: 1`) drains, reboots and uncordons such nodes one at a
+  time, using the `node_reboot` role.
+- **Not in the cluster yet** (first-time provisioning, before the `k3s` play):
+  rebooted at once, so k3s starts on the new kernel. There is nothing to drain.
+- **Workstations:** never rebooted, even with `reboot_now`; the role warns that
+  the node needs a manual reboot.
+
+---
+
+## `node_reboot` — Drained reboot
+
+**Runs on:** nodes that need a reboot, from the `pb_all.yml` play after
+`update_packages`, only with `-e reboot_now=true`
+**Tag:** `servers`
+
+Drains the node if it is in the cluster (its k3s unit is installed and the API
+server has its Node), reboots it, waits for the k3s unit and for the Node to be
+Ready with its new boot ID, then uncordons it if the role cordoned it
+(`/var/lib/node_reboot/drained`; a node cordoned by hand stays cordoned). It does
+not serialise itself, so it runs from a `serial: 1` play. `rk1_os` includes its
+`drain`, `wait_ready` and `uncordon` task files around its own reboot.
 
 ---
 

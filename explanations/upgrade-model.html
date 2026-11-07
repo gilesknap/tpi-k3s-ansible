@@ -483,6 +483,26 @@ kured window, so kured never reboots a node while an upgrade Job runs on it
 <p>Both drain through the eviction API, so PodDisruptionBudgets are respected
 even if they ever drain two nodes at once.</p>
 </section>
+<section id="running-the-servers-play-by-hand">
+<h2>Running the servers play by hand<a class="headerlink" href="#running-the-servers-play-by-hand" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">servers</span></code> dist-upgrades every node in
+parallel, but it never reboots a node that is in the cluster (its k3s unit
+is installed). It leaves <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> in place and reports
+that kured will reboot the node in its next window, so the play is safe to
+run at any time.</p>
+<p>To reboot such nodes straight away, add <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">reboot_now=true</span></code>. A later play
+in <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> then takes the nodes that need it one at a time
+(<code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code>): it drains the node, reboots it, waits until the Node is
+Ready with its new boot ID and uncordons it, unless it was already
+cordoned before the drain. The drain, wait and uncordon logic is the
+<code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> role, which the <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> conversion shares.</p>
+<p>A node without k3s, being provisioned for the first time, is rebooted at
+the end of <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> if the dist-upgrade asks for it, so k3s is
+installed on the new kernel. It has nothing to drain. Workstations are
+never rebooted, even with <code class="docutils literal notranslate"><span class="pre">reboot_now</span></code>; the play warns instead. That includes
+a GPU workstation after its first NVIDIA driver install: reboot it by hand
+before relying on GPU pods.</p>
+</section>
 <section id="what-stays-up-during-a-reboot">
 <h2>What stays up during a reboot<a class="headerlink" href="#what-stays-up-during-a-reboot" title="Link to this heading">#</a></h2>
 <p>Shared services run two replicas on different nodes, each with a
@@ -520,7 +540,7 @@ needs DNS to reach Git) is running, so the rebuild path is unchanged.</p>
 <section id="workstation-nodes">
 <h2>Workstation nodes<a class="headerlink" href="#workstation-nodes" title="Link to this heading">#</a></h2>
 <p>Workstation nodes (<code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code>) are rebooted and upgraded by their
-owner. Neither kured nor system-upgrade-controller runs there, and
+owner. Neither kured, system-upgrade-controller nor Ansible reboots them, and
 unattended-upgrades keeps Ubuntu’s default (security-only) policy. Upgrade
 K3s on them by hand after a minor upgrade.</p>
 </section>
@@ -583,6 +603,7 @@ ArgoCD on merge.</p></li>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nightly-cycle">The nightly cycle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-servers-play-by-hand">Running the servers play by hand</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-stays-up-during-a-reboot">What stays up during a reboot</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coredns">CoreDNS</a></li>
 </ul>

@@ -1292,7 +1292,8 @@ server has a Node of its name; with k3s installed, a failed API lookup fails the
 run rather than reboot an undrained node. Such a node is drained before each reboot
 and before the release upgrade; after the reboot the role waits for the k3s unit
 and the Ready node, then uncordons it, unless it was already cordoned before the
-role drained it. <code class="docutils literal notranslate"><span class="pre">/var/lib/rk1_os/drained</span></code> records that the role cordoned it; the
+role drained it. The drain, wait and uncordon tasks come from the shared
+<code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> role. <code class="docutils literal notranslate"><span class="pre">/var/lib/node_reboot/drained</span></code> records that the role cordoned it; the
 role’s last step uncordons such a node once k3s is active and the node Ready, so a
 re-run that needs no reboot does not leave it cordoned.</p>
 <p>The release upgrade takes about 15–20 minutes, during which sshd is down for
@@ -1309,7 +1310,6 @@ most of it. A conversion can be followed on the node’s serial console with
 <ol class="arabic simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">dpkg</span> <span class="pre">--configure</span> <span class="pre">-a</span></code> (fix any interrupted package operations)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">apt</span> <span class="pre">dist-upgrade</span></code> (full OS upgrade)</p></li>
-<li><p>Reboot if required (kernel updates)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">apt</span> <span class="pre">autoremove</span></code> (clean up)</p></li>
 <li><p>Install required packages:</p>
 <ul class="simple">
@@ -1330,12 +1330,42 @@ included), without rebooting, nightly at 00:00 Europe/London
 runtime set as the default containerd runtime. k3s regenerates <code class="docutils literal notranslate"><span class="pre">config.toml</span></code> on
 every agent restart from this template, so the configuration persists across reboots.</p></li>
 <li><p>Restart <code class="docutils literal notranslate"><span class="pre">k3s-agent</span></code> to apply the new containerd config</p></li>
+<li><p>Ask for a reboot (<code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code>) to load a newly installed driver. On a
+workstation node (<code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code>) nothing reboots it automatically, neither the role
+nor kured, so reboot it by hand after the first driver install, or GPU pods fail until it
+is rebooted.</p></li>
 </ul>
 </li>
 </ol>
-<p>Last, it removes <code class="docutils literal notranslate"><span class="pre">/etc/apt/apt.conf.d/99rk1-install-hold</span></code>, which a fresh RK1
+<p>After the dist-upgrade, it removes <code class="docutils literal notranslate"><span class="pre">/etc/apt/apt.conf.d/99rk1-install-hold</span></code>, which a fresh RK1
 install’s cloud-init seed writes to hold unattended-upgrades until this role’s own
 <code class="docutils literal notranslate"><span class="pre">dist-upgrade</span></code> has run (see <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> above). On other nodes there is no such file.</p>
+<p><strong>Reboots.</strong> The role’s last step decides what to do when <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code>
+exists:</p>
+<ul class="simple">
+<li><p><strong>In the cluster</strong> (its k3s unit is installed): no reboot. The file stays for
+kured, which drains and reboots the node in the nightly window, and the role
+prints a message saying so. With <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">reboot_now=true</span></code> the next play in
+<code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> (<code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code>) drains, reboots and uncordons such nodes one at a
+time, using the <code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> role.</p></li>
+<li><p><strong>Not in the cluster yet</strong> (first-time provisioning, before the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> play):
+rebooted at once, so k3s starts on the new kernel. There is nothing to drain.</p></li>
+<li><p><strong>Workstations:</strong> never rebooted, even with <code class="docutils literal notranslate"><span class="pre">reboot_now</span></code>; the role warns that
+the node needs a manual reboot.</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="node-reboot-drained-reboot">
+<h2><code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> — Drained reboot<a class="headerlink" href="#node-reboot-drained-reboot" title="Link to this heading">#</a></h2>
+<p><strong>Runs on:</strong> nodes that need a reboot, from the <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> play after
+<code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, only with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">reboot_now=true</span></code>
+<strong>Tag:</strong> <code class="docutils literal notranslate"><span class="pre">servers</span></code></p>
+<p>Drains the node if it is in the cluster (its k3s unit is installed and the API
+server has its Node), reboots it, waits for the k3s unit and for the Node to be
+Ready with its new boot ID, then uncordons it if the role cordoned it
+(<code class="docutils literal notranslate"><span class="pre">/var/lib/node_reboot/drained</span></code>; a node cordoned by hand stays cordoned). It does
+not serialise itself, so it runs from a <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> play. <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> includes its
+<code class="docutils literal notranslate"><span class="pre">drain</span></code>, <code class="docutils literal notranslate"><span class="pre">wait_ready</span></code> and <code class="docutils literal notranslate"><span class="pre">uncordon</span></code> task files around its own reboot.</p>
 </section>
 <hr class="docutils" />
 <section id="k8s-data-dirs-local-pv-host-directories">
@@ -1524,6 +1554,7 @@ managed by ArgoCD once it’s running.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#update-packages-os-preparation"><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> — OS preparation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-reboot-drained-reboot"><code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> — Drained reboot</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k8s-data-dirs-local-pv-host-directories"><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> — Local PV host directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-kubernetes-installation"><code class="docutils literal notranslate"><span class="pre">k3s</span></code> — Kubernetes installation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#control-plane-control-yml">Control plane (<code class="docutils literal notranslate"><span class="pre">control.yml</span></code>)</a></li>
