@@ -90,6 +90,27 @@
         - { kind: StatefulSet, name: prometheus-grafana-prometheus-kube-pr-prometheus }
       failed_when: false
 
+    # Gracefully, so Litestream makes its last sync of the database (on the
+    # pod's emptyDir) to the NFS replica before the pod goes (ADR 0013).
+    # Deleting the namespace instead would still stop it gracefully, but
+    # nothing would wait for it.
+    - name: Scale down scrap
+      kubernetes.core.k8s_scale:
+        api_version: apps/v1
+        kind: Deployment
+        name: scrap
+        namespace: scrap
+        replicas: 0
+      failed_when: false
+
+    - name: Wait for the scrap pod to stop
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n scrap wait --for=delete pod
+          -l app.kubernetes.io/name=scrap --timeout=120s
+      changed_when: false
+      failed_when: false
+
     - name: Wait for pods to terminate
       ansible.builtin.pause:
         seconds: 30

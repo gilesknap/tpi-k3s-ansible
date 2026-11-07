@@ -1,0 +1,117 @@
+{{- /*
+scrap's live data, its replica and its backups are all on the NAS. This
+CronJob copies the newest complete backup run off it every night, to a
+local-nvme PV (which pins the job to that PV's node), keeping the newest
+backup_copy.keep runs. A failed or stalled backup shows here as a failed Job.
+*/}}
+{{- with .Values.backup_copy.claim }}
+{{- $c := $.Values.backup_copy }}
+{{- $run := "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-nvme
+  volumeName: {{ required "backup_copy.volume is required with backup_copy.claim" $c.volume }}
+  resources:
+    requests:
+      storage: {{ $c.size }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scrap-backup-copy
+spec:
+  schedule: {{ $c.schedule | quote }}
+  timeZone: {{ $c.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: scrap-backup-copy
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: copy
+              image: alpine:3.24
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  newest=
+                  for run in /backups/{{ $run }}; do
+                    [ -f "$run/COMPLETE" ] && newest=$run
+                  done
+                  if [ -z "$newest" ]; then
+                    echo "No complete backup run in /backups." >&2
+                    exit 1
+                  fi
+                  name=$(basename "$newest")
+                  if [ -e "/copy/$name" ]; then
+                    echo "already have $name"
+                  else
+                    rm -rf -- /copy/.copying
+                    cp -a -- "$newest" /copy/.copying
+                    mv -- /copy/.copying "/copy/$name"
+                    echo "copied $name"
+                  fi
+                  set -- /copy/{{ $run }}
+                  drop=$(( $# - {{ int $c.keep }} ))
+                  while [ "$drop" -gt 0 ]; do
+                    rm -rf -- "$1"
+                    echo "removed $1"
+                    shift
+                    drop=$(( drop - 1 ))
+                  done
+                  if [ -z "$(find "$newest/COMPLETE" -mmin -1560)" ]; then
+                    echo "The newest backup run, $name, is over 26 hours old." >&2
+                    exit 1
+                  fi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  readOnly: true
+                - name: copy
+                  mountPath: /copy
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: scrap-backups-nfs
+                readOnly: true
+            - name: copy
+              persistentVolumeClaim:
+                claimName: {{ . }}
+{{- end }}

@@ -42,15 +42,29 @@ spec:
             # SCRAP_BUDGET_DAY_USD: the day's Claude spend cap (app default $3)
             budgetDayUSD: "20"
 
-          # SQLite needs a local filesystem: static local-nvme PV pinned to
-          # nuc2 (additions/local-storage), pre-bound to scrap-data.
+          # Node-agnostic (ADR 0013): the database is on the pod's emptyDir,
+          # replicated by Litestream to /data/litestream; /data is a static
+          # NFS PV on the NAS (additions/scrap), so the pod runs on any node.
+          # No nodeSelector or affinity on purpose: after `just node-fence`
+          # the pod restarts on another node and restores the replica.
           persistence:
-            storageClass: local-nvme
-            size: 5Gi
+            existingClaim: scrap-data-nfs
+          litestream:
+            enabled: true
 
-          # Nightly `scrap backup` to the NFS-backed default StorageClass.
+          # Nightly `scrap backup --from-replica` to a static NFS PV.
           backup:
             enabled: true
+            timeZone: Europe/London
+            persistence:
+              existingClaim: scrap-backups-nfs
+          # gc and the Claude passes run in the pod's jobs container, where an
+          # empty timeZone means UTC, not the controller's zone.
+          gc:
+            timeZone: Europe/London
+          enrichRelated:
+            timeZone: Europe/London
+          enrichTopics:
             timeZone: Europe/London
 
           # Only ingress-nginx may reach scrap, so clients inside the cluster
@@ -93,14 +107,36 @@ spec:
                     matchLabels:
                       kubernetes.io/metadata.name: ingress-nginx
 
-    # /mcp-only Ingress (no oauth2-proxy), the SealedSecrets and the
-    # scrap-public namespace.
+    # /mcp-only Ingress (no oauth2-proxy), the SealedSecrets, the
+    # scrap-public namespace, the static NFS volumes, the off-NAS backup copy
+    # and the one-off move from the local volume.
     - path: ./kubernetes-services/additions/scrap
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
       helm:
         valuesObject:
           cluster_domain: {{ .Values.cluster_domain }}
+          nfs:
+            server: {{ .Values.nfs.server | quote }}
+            cluster_share_path: {{ .Values.nfs.cluster_share_path | quote }}
+          {{- with .Values.local_storage.scrap_backup_copy }}
+          backup_copy:
+            claim: {{ .claim_name }}
+            volume: scrap-backup-copy-local
+            size: {{ .capacity }}
+          {{- end }}
+          {{- with .Values.local_storage.scrap }}
+          # The pre-Litestream local volume, kept as a frozen copy.
+          legacy:
+            claim: {{ .claim_name }}
+            volume: scrap-local
+            size: {{ .capacity }}
+            # One-off move to NFS (additions/scrap/templates/migrate-job.yaml).
+            migrate: true
+            backups:
+              claim: scrap-backups
+              storageClass: {{ $.Values.nfs_csi.storage_class }}
+          {{- end }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           # Only enable with a scrap release that supports SCRAP_MCP_TOKEN
           # (>= 0.2.0) and mcp.tokenSecret set above; otherwise /mcp would

@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# After scrap's move to Litestream on NFS (ADR 0013), compare the frozen old
+# database on the old node's local volume with the live one, and list any rows
+# the old copy has that the live one lacks: writes made between the migration
+# Job's backup and the old pod stopping.
+#
+# Both sides are only read. The old database is opened with immutable=1 (it
+# is frozen: nothing mounts it); if it was left with a non-empty WAL, a
+# temporary copy of it is opened instead, so the WAL is not ignored and the
+# original is not touched. The live one is opened read-only inside the scrap
+# pod. Neither host has the sqlite3 CLI, so both sides use python3's sqlite3.
+#
+# Usage: scrap-cutover-check [node] [old-db-path]
+#   node         the old volume's node (default nuc2), reached as
+#                ansible@<node> with sudo
+#   old-db-path  default /home/k8s-data/scrap/scrap.db
+# Exit status: 0 nothing newer in the old copy, 1 some rows are, 2 an error.
+set -euo pipefail
+
+node=${1:-nuc2}
+old_db=${2:-/home/k8s-data/scrap/scrap.db}
+namespace=scrap
+
+ssh_opts=(-o BatchMode=yes)
+# Inside claude-sandbox nothing passes its key automatically.
+claude_key=/root/.config/claude-ssh/id_ed25519
+if [ -r "$claude_key" ]; then
+    ssh_opts+=(-i "$claude_key")
+fi
+
+# Prints one database's figures and keys as JSON. Argument: the database's
+# path, or "live" to find it in the scrap pod.
+read -r -d '' dump_py <<'EOF' || true
+import json, os, shutil, sqlite3, sys, tempfile
+
+arg = sys.argv[1]
+tmp = None
+note = ""
+if arg == "live":
+    path = "/db/scrap.db"
+    if not os.path.exists(path):
+        path = os.path.join(os.environ.get("SCRAP_DATA_DIR", "/data"), "scrap.db")
+        note = "not on Litestream yet: the cut-over has not happened"
+    uri = "file:%s?mode=ro" % path
+else:
+    path = arg
+    if not os.path.isfile(path):
+        sys.exit("%s does not exist" % path)
+    wal = path + "-wal"
+    if os.path.exists(wal) and os.path.getsize(wal) > 0:
+        # immutable=1 would ignore the WAL: open a copy that can replay it.
+        tmp = tempfile.mkdtemp()
+        shutil.copy2(path, os.path.join(tmp, "scrap.db"))
+        shutil.copy2(wal, os.path.join(tmp, "scrap.db-wal"))
+        uri = "file:%s?mode=rw" % os.path.join(tmp, "scrap.db")
+        note = "had a non-empty WAL: read from a temporary copy"
+    else:
+        uri = "file:%s?mode=ro&immutable=1" % path
+try:
+    db = sqlite3.connect(uri, uri=True)
+    one = lambda q: db.execute(q).fetchone()[0]
+    out = {
+        "path": path,
+        "note": note,
+        "max_rowid_page_rev": one("SELECT max(rowid) FROM page_rev"),
+        "count_capture": one("SELECT count(*) FROM capture"),
+        "max_page_updated_at": one("SELECT max(updated_at) FROM page"),
+        "page_rev": db.execute(
+            "SELECT page_id, rev, created_at FROM page_rev").fetchall(),
+        "capture": db.execute(
+            "SELECT id, received_at, page_id FROM capture").fetchall(),
+        "page": db.execute(
+            "SELECT id, updated_at, slug FROM page").fetchall(),
+    }
+    db.close()
+finally:
+    if tmp:
+        shutil.rmtree(tmp)
+json.dump(out, sys.stdout)
+EOF
+
+# Compares the two dumps. Arguments: old.json live.json.
+read -r -d '' compare_py <<'EOF' || true
+import json, sys
+
+old = json.load(open(sys.argv[1]))
+live = json.load(open(sys.argv[2]))
+
+for side, d in (("old ", old), ("live", live)):
+    print("%s  %s%s" % (side, d["path"], "  (%s)" % d["note"] if d["note"] else ""))
+print()
+print("%-28s %-26s %-26s" % ("", "old (frozen)", "live"))
+for k, q in (("max_rowid_page_rev", "max(rowid) FROM page_rev"),
+             ("count_capture", "count(*) FROM capture"),
+             ("max_page_updated_at", "max(updated_at) FROM page")):
+    print("%-28s %-26s %-26s" % (q, old[k], live[k]))
+print()
+
+live_revs = {(p, r) for p, r, _ in live["page_rev"]}
+revs = sorted((c, p, r) for p, r, c in old["page_rev"] if (p, r) not in live_revs)
+live_caps = {i for i, _, _ in live["capture"]}
+caps = sorted((t, i, p) for i, t, p in old["capture"] if i not in live_caps)
+live_pages = {i: u for i, u, _ in live["page"]}
+pages = sorted((u, s, i) for i, u, s in old["page"]
+               if i not in live_pages or u > live_pages[i])
+
+if revs:
+    print("page_rev rows only in the old copy (created_at, page_id, rev):")
+    for row in revs:
+        print("  %s  %s  %s" % row)
+if caps:
+    print("capture rows only in the old copy (received_at, id, page_id):")
+    for row in caps:
+        print("  %s  %s  %s" % row)
+if pages:
+    print("page rows newer in the old copy, or missing from the live one "
+          "(updated_at, slug, id):")
+    for row in pages:
+        print("  %s  %s  %s" % row)
+newer = len(revs) + len(caps) + len(pages)
+if newer:
+    print()
+    print("%d row(s) newer in the old copy. Re-enter them in scrap by hand "
+          "(fix forward); the frozen copy keeps them." % newer)
+    sys.exit(1)
+print("Nothing newer in the old copy: the cut-over lost no writes.")
+EOF
+
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+
+remote_db=$(printf '%q' "$old_db")
+# ssh joins its arguments into one remote command line: hence the %q.
+if ! ssh "${ssh_opts[@]}" "ansible@$node" sudo -n python3 - "$remote_db" \
+    <<<"$dump_py" >"$work/old.json"; then
+    echo "Could not read $old_db on $node." >&2
+    exit 2
+fi
+if ! kubectl -n "$namespace" exec -i deploy/scrap -c scrap -- python3 - live \
+    <<<"$dump_py" >"$work/live.json"; then
+    echo "Could not read the live database in the scrap pod." >&2
+    exit 2
+fi
+
+rc=0
+python3 - "$work/old.json" "$work/live.json" <<<"$compare_py" || rc=$?
+# 1 means rows newer in the old copy; anything else is a crash, so report 2.
+case $rc in
+0 | 1) exit "$rc" ;;
+*) echo "The comparison failed (exit $rc)." >&2; exit 2 ;;
+esac

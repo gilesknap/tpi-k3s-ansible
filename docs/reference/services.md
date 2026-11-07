@@ -213,16 +213,21 @@ See {doc}`/how-to/minecraft` for setup.
 
 Personal knowledge store ([gilesknap/scrap](https://github.com/gilesknap/scrap)).
 The Argo CD Application deploys the chart from a git tag into the `scrap`
-namespace with a SQLite data volume on a static `local-nvme` PV pinned to
-`nuc2` (`/home/k8s-data/scrap`, created by the `k8s_data_dirs` role under
-`--tags servers`), a nightly backup CronJob, a NetworkPolicy admitting only
-`ingress-nginx`, and Claude ingest enabled. The PWA is protected by
+namespace in its Litestream mode, so it runs on any node. The database is on
+the pod's emptyDir, replicated to a static NFS data volume, and the backups
+are on a second static NFS volume. There is also a nightly copy of the newest
+backup to a `local-nvme` PV, a NetworkPolicy admitting only `ingress-nginx`,
+and Claude ingest enabled. The PWA is protected by
 Cloudflare Access plus oauth2-proxy. A separate `/mcp` Ingress (`mcp_ingress_enabled: true`)
 bypasses oauth2-proxy and is protected by a Cloudflare Access service token
 plus scrap's own bearer token (`SCRAP_MCP_TOKEN`, from `scrap-secrets`).
 
 **Additional manifests:** `additions/scrap/`
 - `templates/mcp-ingress.yaml` — `/mcp`-only Ingress without oauth2-proxy
+- `templates/nfs-volumes.yaml` — static NFS PVs and PVCs for data and backups
+- `templates/backup-copy.yaml` — the nightly off-NAS backup copy
+- `templates/legacy-pvc.yaml`, `templates/migrate-job.yaml` — the pre-Litestream
+  claims, kept as a frozen copy, and the one-off move to NFS
 - `templates/scrap-secret.yaml` — SealedSecret `scrap-secrets` holding the
   Claude API key (created by you; not shipped)
 

@@ -44,6 +44,20 @@ switch-branch branch:
 argocd-sync:
     scripts/argocd-sync
 
+# Fence a dead node so its pods restart elsewhere (out-of-service taint).
+# Refuses a Ready node; the node must be powered off.
+node-fence node:
+    scripts/node-fence fence {{ node }}
+
+# Remove the fence once the node is back
+node-unfence node:
+    scripts/node-fence unfence {{ node }}
+
+# After scrap's move to NFS: list writes in the frozen old database
+# that the live one lacks (read-only on both sides)
+scrap-cutover-check node="nuc2":
+    scripts/scrap-cutover-check {{ node }}
+
 # Restart Dex and ArgoCD server (use after changing dex.config or secrets)
 restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd

@@ -13,7 +13,11 @@ Default behaviour: **local PV data is preserved.** Grafana sqlite and
 Prometheus TSDB live on on-disk directories
 that `pb_decommission.yml` does NOT touch:
 - `/var/lib/k8s-data/{grafana,prometheus}` (RK1s)
-- `/home/k8s-data/*` (nuc2) — scrap
+- `/home/k8s-data/*` (nuc2) — scrap's frozen pre-Litestream copy and its
+  off-NAS backup copy
+
+scrap's live data is on static NFS PVs (`/bigdisk/k8s-cluster/scrap-data`,
+`backups/scrap`), which re-bind after the rebuild.
 
 NFS-backed data on the NAS (nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
@@ -32,7 +36,8 @@ explicitly requests a clean-slate wipe in the prompt arguments.
 Before the FIRST rebuild on this plan, the user must run
 `docs/how-to/nas-setup.md` on the NAS by hand. This creates
 `/bigdisk/k8s-cluster/` with the `backups/*` subtree
-that the backup CronJobs mount. **This command does NOT touch the NAS** —
+that the backup CronJobs mount, and scrap's `scrap-data/` and
+`backups/scrap/`. **This command does NOT touch the NAS** —
 Ansible has zero trust boundary with it. If the setup has already been
 done (check with `showmount -e <nas>`), no action is needed.
 
@@ -356,6 +361,8 @@ If any SealedSecrets show `False` with "no key could decrypt":
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
 - [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)
+- [ ] scrap restored its data: `kubectl -n scrap logs deploy/scrap -c db-init`
+      says it restored the replica, never that it made a new database
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash

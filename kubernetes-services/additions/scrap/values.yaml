@@ -1,0 +1,42 @@
+# Defaults for the scrap extras. The scrap Application
+# (kubernetes-services/templates/scrap.yaml) sets the real values in its
+# valuesObject.
+
+# scrap's data and backups volumes: static NFS PVs at fixed directories under
+# the cluster share, so a rebuild re-binds the same directories instead of
+# provisioning empty ones (ADR 0013). Create the directories on the NAS first
+# (docs/how-to/nas-setup.md).
+nfs:
+  server: ""
+  cluster_share_path: ""
+storage:
+  data_dir: scrap-data
+  data_size: 5Gi
+  backups_dir: backups/scrap
+  backups_size: 20Gi
+
+# A nightly copy of the newest complete backup run off the NAS, onto a
+# local-nvme PV pre-bound to this claim. Empty claim: no copy.
+backup_copy:
+  claim: ""
+  volume: ""
+  size: 10Gi
+  schedule: "0 5 * * *"
+  timeZone: Europe/London
+  keep: 3
+
+# The local-nvme volume scrap used before Litestream, kept as a frozen copy.
+# Empty claim: none (an install that started on NFS).
+legacy:
+  claim: ""
+  volume: ""
+  size: 5Gi
+  # The one-off Job that moves the data from it to the NFS volume. Turn it
+  # off once the move is verified.
+  migrate: false
+  # The backups claim from before (dynamic): the Job copies its runs over.
+  # Empty claim: no runs to copy.
+  backups:
+    claim: ""
+    storageClass: ""
+    size: 20Gi

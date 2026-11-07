@@ -44,7 +44,7 @@ Stateful workload data under `/home/k8s-data/*` (nuc2) and `/var/lib/k8s-data/*`
 (RK1 nodes) is preserved by default — these host directories back the static
 `local-nvme` PVs and are left untouched unless `-e wipe_local_data=true` is
 passed. NFS backups on the NAS are always preserved (they live outside the
-cluster).
+cluster), and so is scrap's data, which is on static NFS volumes there.
 
 ## Reinstall K3s on a single worker
 
