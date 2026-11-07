@@ -438,23 +438,27 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">node01</span></code></p></td>
 <td><p>Hostname of the K3s control plane node</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code></p></td>
+<td><p>age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&lt;domain&gt;</span></code></p></td>
 <td><p>Domain name for ingress hosts</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">domain_email</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">domain_email</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">your.email&#64;...</span></code></p></td>
 <td><p>Email for Let’s Encrypt certificate registration</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">repo_remote</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">repo_remote</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">https://github.com/gilesknap/tpi-k3s-ansible.git</span></code></p></td>
 <td><p>Git repo URL for ArgoCD</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">main</span></code></p></td>
 <td><p>Git branch for ArgoCD (also in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_install_list</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_install_list</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[argocd]</span></code></p></td>
 <td><p>List of services installed directly by Ansible</p></td>
 </tr>
@@ -572,6 +576,52 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_install_occurred</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Internal flag tracking if install happened this run</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="etcd-backup-role-roles-etcd-backup-defaults-main-yml">
+<h3><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults/main.yml</span></code>)<a class="headerlink" href="#etcd-backup-role-roles-etcd-backup-defaults-main-yml" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_nfs_server</span></code> / <code class="docutils literal notranslate"><span class="pre">etcd_backup_nfs_path</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> / <code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code> from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+<td><p>NAS export the bundles are written to</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_mount_point</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/mnt/k8s-cluster</span></code></p></td>
+<td><p>Where the share is mounted while the job runs</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_dest_subdir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/etcd</span></code></p></td>
+<td><p>Destination directory below the mount point</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_keep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">14</span></code></p></td>
+<td><p>Nightly bundles kept on the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_extra_prefixes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[pre-upgrade]</span></code></p></td>
+<td><p>Snapshot name prefixes also shipped, once each, to <code class="docutils literal notranslate"><span class="pre">&lt;dest&gt;/&lt;prefix&gt;/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_extra_keep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
+<td><p>Bundles kept per extra prefix</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_on_calendar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*-*-*</span> <span class="pre">23:15:00</span> <span class="pre">Europe/London</span></code></p></td>
+<td><p>systemd <code class="docutils literal notranslate"><span class="pre">OnCalendar</span></code> schedule</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_textfile_dir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/node_exporter/textfile_collector</span></code></p></td>
+<td><p>node-exporter textfile directory for the job’s metrics</p></td>
 </tr>
 </tbody>
 </table>
@@ -783,6 +833,7 @@ variable is needed because Ansible does not create the PersistentVolume.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tools-role-roles-tools-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">tools</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/tools/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#flash-role-roles-flash-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">flash</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/flash/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-role-roles-k3s-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">k3s</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/k3s/vars/main.yml</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-role-roles-etcd-backup-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-role-roles-cluster-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">cluster</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/cluster/vars/main.yml</span></code>)</a></li>
 </ul>
 </li>

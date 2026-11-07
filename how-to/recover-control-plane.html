@@ -1,0 +1,722 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Recover the Control Plane &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/recover-control-plane';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Manage Sealed Secrets" href="manage-sealed-secrets.html" />
+    <link rel="prev" title="Backup and Restore" href="backup-restore.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Recover the Control Plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Recover the Control Plane</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="recover-the-control-plane">
+<h1>Recover the Control Plane<a class="headerlink" href="#recover-the-control-plane" title="Link to this heading">#</a></h1>
+<p>This runbook rebuilds a lost single-server control plane from the nightly
+encrypted etcd backup on the NAS (<a class="reference internal" href="backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>). The workers
+and their data are untouched. The examples use <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a Raspberry Pi CM4
+in Turing Pi slot 1, as the control plane.</p>
+<p>A restore takes the cluster back to the moment of the snapshot. Most
+changes after that point come back by themselves, since ArgoCD re-syncs
+from Git. Objects created by hand after the snapshot, such as a rotated
+<code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> Secret, are lost.</p>
+<section id="when-to-use-it">
+<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Symptom</p></th>
+<th class="head"><p>Action</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>API down, node boots and its disk is fine</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">k3s</span></code> on the node and read <code class="docutils literal notranslate"><span class="pre">journalctl</span> <span class="pre">-u</span> <span class="pre">k3s</span></code>. No restore.</p></td>
+</tr>
+<tr class="row-odd"><td><p>etcd data damaged, OS fine</p></td>
+<td><p>Restore from a local snapshot in <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/db/snapshots</span></code> (see <a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>). No reflash.</p></td>
+</tr>
+<tr class="row-even"><td><p>Control-plane OS or storage lost: dead eMMC/SD, failed upgrade, accidental reflash</p></td>
+<td><p><strong>This runbook.</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>No usable backup, or several nodes lost</p></td>
+<td><p>Full rebuild from Git: <a class="reference internal" href="reflash-rebuild.html"><span class="doc">Re-flash and Rebuild</span></a> and <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The control plane must come back with the <strong>same hostname and IP</strong>
+(192.168.1.81 for node01), because the workers connect to that address.
+Keep a DHCP reservation for it; a replacement module needs the reservation
+moved to its MAC address.</p>
+</section>
+<section id="what-you-need">
+<h2>What you need<a class="headerlink" href="#what-you-need" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>The age private key for the backups, which you keep offline.</p></li>
+<li><p>SSH access to the NAS, or any machine that can mount the NFS share.</p></li>
+<li><p>A machine with this repository checked out and SSH access to the nodes
+as the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user. Your own machine is best, because the decrypted
+bundle holds every cluster Secret in plaintext.</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Do not run the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> tag, or <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> without <code class="docutils literal notranslate"><span class="pre">--tags</span></code>, against the
+control plane before the restore. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role installs a brand-new
+cluster with a new token and CA, and the workers would then refuse it.</p>
+</div>
+</section>
+<section id="get-and-decrypt-the-latest-backup">
+<h2>1. Get and decrypt the latest backup<a class="headerlink" href="#get-and-decrypt-the-latest-backup" title="Link to this heading">#</a></h2>
+<p>The bundles are in <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> of the cluster share on the NAS, named
+<code class="docutils literal notranslate"><span class="pre">k3s-etcd-&lt;node&gt;-&lt;UTC</span> <span class="pre">time&gt;.tar.age</span></code>. <code class="docutils literal notranslate"><span class="pre">LATEST</span></code> names the newest one.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-m<span class="w"> </span><span class="m">700</span><span class="w"> </span>~/k3s-restore<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/k3s-restore
+<span class="nv">NAS_DIR</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
+ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span>
+<span class="nv">bundle</span><span class="o">=</span><span class="k">$(</span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sed -n &#39;s/^bundle: //p&#39; </span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span><span class="k">)</span>
+scp<span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$bundle</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$bundle</span><span class="s2">.sha256&quot;</span><span class="w"> </span>.
+sha256sum<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">.sha256&quot;</span>
+
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/path/to/k3s-etcd-backup.agekey<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>-x<span class="w"> </span>-C<span class="w"> </span>~/k3s-restore
+cat<span class="w"> </span>MANIFEST
+</pre></div>
+</div>
+<p>The bundle unpacks to:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Contents</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">snapshot/&lt;name&gt;</span></code></p></td>
+<td><p>etcd snapshot</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">token</span></code></p></td>
+<td><p>k3s server token. A restore needs the token the snapshot was taken with.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node-password</span></code></p></td>
+<td><p>the control plane’s k3s node password, so it can re-register under its old name</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">config.yaml</span></code></p></td>
+<td><p>the server’s <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code>, for reference</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code></p></td>
+<td><p>node, time, k3s version and checksums</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code> holds the snapshot taken just before each automatic k3s
+upgrade. Use one of those if the latest nightly was taken after a bad
+upgrade.</p>
+</section>
+<section id="reflash-and-provision-the-node">
+<h2>2. Reflash and provision the node<a class="headerlink" href="#reflash-and-provision-the-node" title="Link to this heading">#</a></h2>
+<p>Power the node off if it is half-alive, then flash and prepare it, but stop
+before k3s:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>turingpi,node01<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tags<span class="w"> </span>flash,known_hosts,servers<span class="w"> </span>-e<span class="w"> </span><span class="nv">flash_force</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>This runs <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> through the BMC (<code class="docutils literal notranslate"><span class="pre">roles/flash</span></code>), bootstraps the
+<code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, refreshes the SSH host keys and installs the base
+packages. A node outside a Turing Pi is reinstalled by hand, then
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">known_hosts,servers</span></code>.</p>
+</section>
+<section id="restore-etcd">
+<h2>3. Restore etcd<a class="headerlink" href="#restore-etcd" title="Link to this heading">#</a></h2>
+<p>From the repository checkout:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>restore-control-plane<span class="w"> </span>~/k3s-restore/snapshot/&lt;name&gt;<span class="w"> </span>~/k3s-restore/token
+<span class="c1"># without just: scripts/restore-control-plane &lt;snapshot&gt; &lt;token&gt;</span>
+</pre></div>
+</div>
+<p>The recipe reads the k3s version from <code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code> and picks up
+<code class="docutils literal notranslate"><span class="pre">node-password</span></code> from the same directory. Run it with <code class="docutils literal notranslate"><span class="pre">DRY_RUN=1</span></code> first to
+see exactly what it will do. It shows what it found on the node, then asks
+you to type the node name. If k3s is running there or the node already
+has etcd data, it also asks you to type <code class="docutils literal notranslate"><span class="pre">RESET</span> <span class="pre">&lt;node&gt;</span></code> (or set <code class="docutils literal notranslate"><span class="pre">FORCE=1</span></code>
+to skip that second prompt). After that it:</p>
+<ol class="arabic simple">
+<li><p>installs the same k3s version as the snapshot without starting it
+(<code class="docutils literal notranslate"><span class="pre">INSTALL_K3S_SKIP_START=true</span></code>). k3s requires the snapshot’s token
+and advises restoring onto the same minor version, so matching the
+exact version is the safe choice;</p></li>
+<li><p>writes the server config from <code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>
+and restores <code class="docutils literal notranslate"><span class="pre">/etc/rancher/node/password</span></code>;</p></li>
+<li><p>runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span> <span class="pre">--cluster-reset</span> <span class="pre">--cluster-reset-restore-path=&lt;snapshot&gt;</span> <span class="pre">--token-file=&lt;token&gt;</span></code>, which restores the snapshot, makes this node the
+only etcd member and exits. Any existing etcd data is moved to
+<code class="docutils literal notranslate"><span class="pre">db/etcd-old-&lt;timestamp&gt;</span></code>;</p></li>
+<li><p>starts k3s normally, waits for the API server, and deletes its copy of
+the plaintext files. It deletes them on failure too; if even that
+cleanup fails, it prints the remote paths to delete by hand.</p></li>
+</ol>
+<p>On a single server there are no etcd peers, so there is no <code class="docutils literal notranslate"><span class="pre">db</span></code> directory to
+remove on other servers.</p>
+<p>Then refresh your kubeconfig and reinstall the backup timer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node01<span class="w"> </span>--tags<span class="w"> </span>k3s
+</pre></div>
+</div>
+<p>This is safe now: the role sees the restored server and skips the install.</p>
+</section>
+<section id="check-the-cluster">
+<h2>4. Check the cluster<a class="headerlink" href="#check-the-cluster" title="Link to this heading">#</a></h2>
+<p>The workers have kept running their pods throughout. Their k3s agents
+reconnect to the same IP and trust the restored CA, so they rejoin by
+themselves within a minute or two.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>status<span class="w">                                   </span><span class="c1"># nodes, ArgoCD apps, failing pods</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w">                             </span><span class="c1"># all Ready</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>get<span class="w"> </span>applications<span class="w">           </span><span class="c1"># Synced / Healthy</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>sealedsecrets<span class="w"> </span>-A<span class="w">                  </span><span class="c1"># every SYNCED is True</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>deploy<span class="w"> </span>coredns<span class="w">     </span><span class="c1"># available</span>
+kubectl<span class="w"> </span>run<span class="w"> </span>dnstest<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span>--image<span class="o">=</span>busybox:1.36<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>nslookup<span class="w"> </span>kubernetes.default
+just<span class="w"> </span>etcd-backup-now<span class="w">                          </span><span class="c1"># a new bundle reaches the NAS</span>
+</pre></div>
+</div>
+<p>If something is off:</p>
+<ul class="simple">
+<li><p><strong>A worker stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code>:</strong> run <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">k3s-agent</span></code> on it.</p></li>
+<li><p><strong>The control plane stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> with “Node password rejected”</strong> (no
+<code class="docutils literal notranslate"><span class="pre">node-password</span></code> in the bundle): run
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">delete</span> <span class="pre">secret</span> <span class="pre">node01.node-password.k3s</span></code>.</p></li>
+<li><p><strong>SealedSecrets fail with <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">key</span> <span class="pre">could</span> <span class="pre">decrypt</span> <span class="pre">secret</span></code>:</strong> the sealing key
+was rotated after the snapshot. Restore the key from your sealed-secrets
+key backup (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>) or re-seal (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
+<li><p><strong>An ArgoCD app is stuck:</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">argocd-sync</span></code>.</p></li>
+</ul>
+</section>
+<section id="fallback-rebuild-from-git">
+<h2>5. Fallback: rebuild from Git<a class="headerlink" href="#fallback-rebuild-from-git" title="Link to this heading">#</a></h2>
+<p>If no bundle decrypts, or the restore fails, rebuild the cluster from Git
+(<a class="reference internal" href="reflash-rebuild.html"><span class="doc">Re-flash and Rebuild</span></a>, <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>) and restore stateful data
+from the NAS (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>). The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data directories on
+the workers survive a rebuild.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="backup-restore.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Backup and Restore</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="manage-sealed-secrets.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Manage Sealed Secrets</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-it">When to use it</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-you-need">What you need</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#get-and-decrypt-the-latest-backup">1. Get and decrypt the latest backup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reflash-and-provision-the-node">2. Reflash and provision the node</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-etcd">3. Restore etcd</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-cluster">4. Check the cluster</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fallback-rebuild-from-git">5. Fallback: rebuild from Git</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/recover-control-plane.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/recover-control-plane.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

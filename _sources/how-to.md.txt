@@ -32,6 +32,7 @@ how-to/add-remove-services
 
 how-to/monitoring
 how-to/backup-restore
+how-to/recover-control-plane
 how-to/manage-sealed-secrets
 how-to/node-operations
 how-to/upgrade-k3s

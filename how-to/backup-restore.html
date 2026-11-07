@@ -51,7 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Manage Sealed Secrets" href="manage-sealed-secrets.html" />
+    <link rel="next" title="Recover the Control Plane" href="recover-control-plane.html" />
     <link rel="prev" title="Monitoring with Grafana and Prometheus" href="monitoring.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -347,6 +347,7 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
@@ -441,11 +442,15 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace</p></td>
 <td><p>manual export</p></td>
 </tr>
-<tr class="row-even"><td><p>Admin passwords</p></td>
+<tr class="row-even"><td><p>etcd snapshot + k3s token</p></td>
+<td><p>control plane</p></td>
+<td><p>nightly age-encrypted bundle → NFS NAS</p></td>
+</tr>
+<tr class="row-odd"><td><p>Admin passwords</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (manual)</p></td>
 <td><p>re-create from password manager</p></td>
 </tr>
-<tr class="row-odd"><td><p>ArgoCD initial admin secret</p></td>
+<tr class="row-even"><td><p>ArgoCD initial admin secret</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace</p></td>
 <td><p>regenerated on install</p></td>
 </tr>
@@ -538,37 +543,89 @@ It can decrypt all your SealedSecrets.</p>
 </section>
 <section id="etcd-backup-and-restore">
 <h2>etcd backup and restore<a class="headerlink" href="#etcd-backup-and-restore" title="Link to this heading">#</a></h2>
-<p>K3s uses an embedded etcd (or SQLite for single-node) datastore. Backing up
-etcd preserves the full cluster state including all Kubernetes objects.</p>
-<section id="create-an-etcd-snapshot">
-<h3>Create an etcd snapshot<a class="headerlink" href="#create-an-etcd-snapshot" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>
+<p>K3s runs an embedded etcd datastore on the control plane. A snapshot holds
+the full cluster state, including every Secret, unencrypted.</p>
+<p>K3s takes its own snapshots every 12 hours (00:00 and 12:00 UTC, keeping 5)
+into <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/db/snapshots/</span></code>, but only on the control
+plane: losing that node loses them too. The nightly off-node backup below
+covers that case.</p>
+<section id="nightly-encrypted-off-node-backup">
+<span id="etcd-offsite-backup"></span><h3>Nightly encrypted off-node backup<a class="headerlink" href="#nightly-encrypted-off-node-backup" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role installs a systemd timer, <code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup.timer</span></code>, on
+the control plane. It runs outside Kubernetes, so it keeps working when the
+API server does not. Every night at 23:15 Europe/London, before the
+upgrade windows, it:</p>
+<ol class="arabic simple">
+<li><p>takes a snapshot with <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">etcd-snapshot</span> <span class="pre">save</span> <span class="pre">--name</span> <span class="pre">nightly</span></code>, or uses the
+newest existing snapshot if the server cannot take one;</p></li>
+<li><p>streams the snapshot, the server token (needed to restore it), the node
+password and the k3s config through
+<a class="reference external" href="https://github.com/FiloSottile/age">age</a> to the <strong>public</strong> key in
+<code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>, so no plaintext is written to disk;</p></li>
+<li><p>mounts the NAS share, copies the result to
+<code class="docutils literal notranslate"><span class="pre">backups/etcd/k3s-etcd-&lt;node&gt;-&lt;UTC</span> <span class="pre">time&gt;.tar.age</span></code>, checks the copy’s
+checksum, updates <code class="docutils literal notranslate"><span class="pre">LATEST</span></code>, and keeps the newest 14;</p></li>
+<li><p>ships the newest <code class="docutils literal notranslate"><span class="pre">pre-upgrade-*</span></code> snapshot (taken by an automatic k3s
+upgrade) once to <code class="docutils literal notranslate"><span class="pre">backups/etcd/pre-upgrade/</span></code>, keeping 4;</p></li>
+<li><p>writes <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics for node-exporter’s textfile
+collector.</p></li>
+</ol>
+<p>Nothing on the cluster holds the private key, so the cluster can make and
+check backups but cannot decrypt them. If <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code> is
+empty the job fails on every run and uploads nothing.</p>
+<section id="one-time-setup">
+<h4>One-time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h4>
+<ol class="arabic">
+<li><p>On your own machine, create the key pair. <code class="docutils literal notranslate"><span class="pre">age-keygen</span> <span class="pre">-o</span> <span class="pre">~/k3s-etcd-backup.agekey</span></code> prints the public key (<code class="docutils literal notranslate"><span class="pre">age1...</span></code>). Keep the key
+file offline, in two places; without it no backup can be decrypted.</p></li>
+<li><p>Set the public key in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">etcd_backup_age_recipient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">age1...</span>
 </pre></div>
 </div>
-<p>Snapshots are stored at <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/db/snapshots/</span></code> on the
-control plane node.</p>
+</li>
+<li><p>Create <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> on the NAS (<a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>). On an existing
+share, run this on the NAS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">D</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/pre-upgrade&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0777</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Install the timer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node01<span class="w"> </span>--tags<span class="w"> </span>etcd_backup
+just<span class="w"> </span>etcd-backup-now
+</pre></div>
+</div>
+</li>
+<li><p>Prove that you can decrypt a bundle: copy it to your machine and run
+<code class="docutils literal notranslate"><span class="pre">age</span> <span class="pre">-d</span> <span class="pre">-i</span> <span class="pre">~/k3s-etcd-backup.agekey</span> <span class="pre">&lt;bundle&gt;</span> <span class="pre">|</span> <span class="pre">tar</span> <span class="pre">-t</span></code>.</p></li>
+</ol>
 </section>
-<section id="list-snapshots">
-<h3>List snapshots<a class="headerlink" href="#list-snapshots" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>list
+<section id="alerts-and-manual-checks">
+<h4>Alerts and manual checks<a class="headerlink" href="#alerts-and-manual-checks" title="Link to this heading">#</a></h4>
+<p>Four alerts in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/etcd-backup-rules.yaml</span></code>
+cover this backup: <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code> (the last run failed),
+<code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupStale</span></code> (no bundle for 36 hours),
+<code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupNeverSucceeded</span></code> (no bundle yet, 36 hours after the job
+first reported) and <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code>. To check by hand:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>systemctl<span class="w"> </span>list-timers<span class="w"> </span>k3s-etcd-backup.timer
+ssh<span class="w"> </span>node01<span class="w"> </span>journalctl<span class="w"> </span>-u<span class="w"> </span>k3s-etcd-backup<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span>
+ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd/LATEST
 </pre></div>
 </div>
 </section>
-<section id="configure-automatic-snapshots">
-<h3>Configure automatic snapshots<a class="headerlink" href="#configure-automatic-snapshots" title="Link to this heading">#</a></h3>
-<p>K3s supports automatic etcd snapshots. Add to <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code>
-on the control plane:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">etcd-snapshot-schedule-cron</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0</span><span class="nv"> </span><span class="s">*/6</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*&quot;</span><span class="w">  </span><span class="c1"># every 6 hours</span>
-<span class="nt">etcd-snapshot-retention</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-</pre></div>
-</div>
-<p>Restart K3s to apply:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s
+</section>
+<section id="take-or-list-snapshots-by-hand">
+<h3>Take or list snapshots by hand<a class="headerlink" href="#take-or-list-snapshots-by-hand" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual
+ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>list
 </pre></div>
 </div>
 </section>
-<section id="restore-from-snapshot">
-<h3>Restore from snapshot<a class="headerlink" href="#restore-from-snapshot" title="Link to this heading">#</a></h3>
+<section id="restore">
+<h3>Restore<a class="headerlink" href="#restore" title="Link to this heading">#</a></h3>
+<p>If the control plane is gone, follow <a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the Control Plane</span></a>.</p>
+<p>If the node is healthy but its etcd data is damaged, restore a local
+snapshot in place:</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Restoring replaces the entire cluster state. All changes since the snapshot
@@ -576,7 +633,8 @@ are lost.</p>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01
 sudo<span class="w"> </span>systemctl<span class="w"> </span>stop<span class="w"> </span>k3s
-sudo<span class="w"> </span>k3s<span class="w"> </span>server<span class="w"> </span>--cluster-reset<span class="w"> </span>--cluster-reset-restore-path<span class="o">=</span>/var/lib/rancher/k3s/server/db/snapshots/&lt;snapshot-name&gt;
+sudo<span class="w"> </span>k3s<span class="w"> </span>server<span class="w"> </span>--cluster-reset<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cluster-reset-restore-path<span class="o">=</span>/var/lib/rancher/k3s/server/db/snapshots/&lt;snapshot-name&gt;
 sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>k3s
 </pre></div>
 </div>
@@ -584,6 +642,8 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w
 </section>
 <section id="disaster-recovery">
 <h2>Disaster recovery<a class="headerlink" href="#disaster-recovery" title="Link to this heading">#</a></h2>
+<p>If only the control plane is lost, restore it from the nightly etcd backup
+instead: <a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the Control Plane</span></a>.</p>
 <p>To rebuild a cluster from scratch:</p>
 <ol class="arabic simple">
 <li><p>Flash and provision nodes (see tutorials).</p></li>
@@ -623,11 +683,11 @@ requiring explicit restoration.</p>
       </div>
     </a>
     <a class="right-next"
-       href="manage-sealed-secrets.html"
+       href="recover-control-plane.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Manage Sealed Secrets</p>
+        <p class="prev-next-title">Recover the Control Plane</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -663,10 +723,13 @@ requiring explicit restoration.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-and-restore">etcd backup and restore</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-etcd-snapshot">Create an etcd snapshot</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#list-snapshots">List snapshots</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-automatic-snapshots">Configure automatic snapshots</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-snapshot">Restore from snapshot</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nightly-encrypted-off-node-backup">Nightly encrypted off-node backup</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#one-time-setup">One-time setup</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#alerts-and-manual-checks">Alerts and manual checks</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#take-or-list-snapshots-by-hand">Take or list snapshots by hand</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore">Restore</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a></li>
