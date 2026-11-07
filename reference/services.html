@@ -460,7 +460,8 @@ defaults to 4Gi of memory, so size the node for the worlds you run at once.</p><
 </ul>
 <p><strong>Storage prerequisites:</strong></p>
 <ul class="simple">
-<li><p>The NFS CSI storage class (<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>) for per-world data</p></li>
+<li><p>The NFS CSI storage class <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> for per-world data, and its share
+root on the NAS</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">minecraft-archive/</span></code> (read-only) and <code class="docutils literal notranslate"><span class="pre">k8s-cluster/minecraft/</span></code> on the NAS —
 see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a></p></li>
 </ul>
@@ -697,11 +698,12 @@ container. Set <code class="docutils literal notranslate"><span class="pre">head
 <p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code>). Deployed from the OCI chart published by
 <a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">gilesknap/k3s-minecraft</a>, which
 creates the dashboard Deployment, Service, a namespace-scoped
-ServiceAccount/Role, and two static NFS volumes: the world archive
-(mounted read-only) and the writable store. The dashboard itself installs
+ServiceAccount/Role, and three static NFS volumes: the world archive
+(mounted read-only), the writable store, and the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> share (mounted
+read-only, to check world folders and archives). The dashboard itself installs
 one <a class="reference external" href="https://github.com/itzg/minecraft-server-charts">itzg Minecraft</a>
 Helm release per world in the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> namespace, each with a dynamic
-<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> PVC and a NodePort from <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code>, pinned to one node.
+<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC and a NodePort from <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code>, pinned to one node.
 Protected by oauth2-proxy (admin-only, same as Headlamp).</p>
 <p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
 </section>

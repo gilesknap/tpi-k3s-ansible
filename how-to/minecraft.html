@@ -353,6 +353,7 @@
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes for Minecraft Worlds</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
 <ul class="nav bd-sidenav">
@@ -461,22 +462,26 @@ only, the same as Headlamp).</p></li>
 <td><p>Written by the dashboard as uid/gid 1000</p></td>
 </tr>
 <tr class="row-odd"><td><p>Live world data</p></td>
-<td><p>One dynamic <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> PVC per world</p></td>
-<td><p>Created by the dashboard; deleted with the world (after a snapshot)</p></td>
+<td><p>One dynamic <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC per world, in <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/minecraft/&lt;world&gt;-data</span></code> on the NAS</p></td>
+<td><p>Created by the dashboard; archived when the world is deleted (after a snapshot)</p></td>
 </tr>
-<tr class="row-even"><td><p>Game ports</p></td>
+<tr class="row-even"><td><p>World registry</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">&lt;nfs.cluster_share_path&gt;/minecraft/dashboard/registry/</span></code></p></td>
+<td><p>The dashboard’s copy of each world, to re-create it after a rebuild</p></td>
+</tr>
+<tr class="row-odd"><td><p>Game ports</p></td>
 <td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> on the pinned node</p></td>
 <td><p>20 slots; one per world for the world’s lifetime</p></td>
 </tr>
-<tr class="row-odd"><td><p>RCON ports</p></td>
+<tr class="row-even"><td><p>RCON ports</p></td>
 <td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code> on the pinned node</p></td>
 <td><p>LAN only (NetworkPolicy); one per world, for build tools</p></td>
 </tr>
-<tr class="row-even"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
+<tr class="row-odd"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare <strong>DNS-only</strong> A record</p></td>
 <td><p>The VPS’s static IP (relay)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
+<tr class="row-even"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare tunnel route</p></td>
 <td><p>Cloudflare Access + oauth2-proxy</p></td>
 </tr>
@@ -495,8 +500,9 @@ record that points straight at the VPS.</p>
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul>
 <li><p>A NAS reachable over NFS, already set up as in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>.</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code> storage class (<code class="docutils literal notranslate"><span class="pre">nfs_csi.storage_class</span></code>, default <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>)
-working — world data is provisioned from it.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> storage class (<code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code>), and its
+share root created on the NAS (<a class="reference internal" href="nas-setup.html#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>) — world data is
+provisioned from it, and the dashboard mounts the share read-only.</p></li>
 <li><p>oauth2-proxy working (<a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>) and the Cloudflare web tunnel set
 up (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
 <li><p>The <a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>.</p></li>
@@ -631,8 +637,9 @@ hostname; no Access change is needed. Do <strong>not</strong> add a route for <c
 <span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.81/32</span>
 </pre></div>
 </div>
-<p>The chart also takes its NFS server from <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> and the world storage
-class from <code class="docutils literal notranslate"><span class="pre">nfs_csi.storage_class</span></code>.</p>
+<p>The chart also takes its NFS server from <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, the world storage
+class from <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code>, and the share it mounts read-only
+from <code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>.</p>
 <p>The ArgoCD AppProject must allow the chart registry. <code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>
 lists <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts</span></code> (bare, with no <code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix); apply the
 project change with:</p>
@@ -675,6 +682,30 @@ relay and DNS. The player must be on the world’s whitelist.</p></li>
 <p>Only after all of that works, try a modded (Forge) world, and only then a
 precious one.</p>
 </section>
+<section id="cluster-rebuilds">
+<h2>Cluster rebuilds<a class="headerlink" href="#cluster-rebuilds" title="Link to this heading">#</a></h2>
+<p>A rebuild wipes the dashboard’s world records and Helm releases with etcd,
+but not the world data on the NAS. The dashboard keeps a copy of each world
+in its registry on the store, and re-creates every world it does not find
+(<code class="docutils literal notranslate"><span class="pre">worlds.restore</span></code>, on in this repo’s chart values). Each world comes back
+with the same name, game and RCON ports, settings, whitelist and admins, and
+running or stopped as it was. Its <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-data</span></code> PVC binds to the world’s
+folder on the NAS. The world page says “restored after the cluster lost it”
+until the next start or stop.</p>
+<p>Each world gets a new RCON password: reveal it again on the world page for
+RCON clients.</p>
+<p>This needs the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> class (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes for Minecraft Worlds</span></a>), which keeps
+each world’s data in a folder named after its PVC. Worlds created before it
+are on <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> and must be moved once first; that page has the per-world
+steps. A world not moved is skipped on restore, and its data stays in its old
+folder.</p>
+<p>The stable share and the store belong to one cluster. Give each cluster its
+own, or each restores the other’s worlds.</p>
+<p>Deleting a world archives its volume as <code class="docutils literal notranslate"><span class="pre">archived-minecraft/&lt;world&gt;-data</span></code> in
+the stable share. The dashboard mounts that share read-only and refuses a new
+world of the same name until the archive is removed or renamed on the NAS,
+because a second archive of one name would fail.</p>
+</section>
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <section id="the-minecraft-app-shows-invalidspecerror-or-a-403-404">
@@ -698,8 +729,11 @@ problem from a relay/DNS problem.</p></li>
 <h2>Removing the dashboard<a class="headerlink" href="#removing-the-dashboard" title="Link to this heading">#</a></h2>
 <p>First <strong>delete every world from the dashboard</strong> — each delete takes a final
 snapshot. Worlds are Helm releases and PVCs created by the dashboard at
-runtime, not by ArgoCD, so ArgoCD will not clean them up, and deleting a
-world PVC by hand loses its data (<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> uses <code class="docutils literal notranslate"><span class="pre">reclaimPolicy:</span> <span class="pre">Delete</span></code>).</p>
+runtime, not by ArgoCD, so ArgoCD will not clean them up. Deleting a world
+PVC by hand leaves the world without a volume. On <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> it moves the
+data to the archive folder on the NAS (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes for Minecraft Worlds</span></a>). On
+<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>, where worlds made before <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> stay until they are moved,
+it deletes the data (<code class="docutils literal notranslate"><span class="pre">reclaimPolicy:</span> <span class="pre">Delete</span></code>).</p>
 <p>Then set <code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">false</span></code> and push. ArgoCD prunes the dashboard
 and its ingress. The NAS archive and store directories are
 static NFS volumes and are never deleted by the cluster; remove the <code class="docutils literal notranslate"><span class="pre">mc</span></code> DNS
@@ -766,6 +800,7 @@ record and the <code class="docutils literal notranslate"><span class="pre">mine
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-add-the-dashboard-tunnel-route">Step 4: Add the dashboard tunnel route</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-enable-the-dashboard">Step 5: Enable the dashboard</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-first-test-with-a-disposable-world">Step 6: First test with a disposable world</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-rebuilds">Cluster rebuilds</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-minecraft-app-shows-invalidspecerror-or-a-403-404">The <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> app shows <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> or a 403/404</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#players-cannot-connect">Players cannot connect</a></li>

@@ -353,6 +353,7 @@
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes for Minecraft Worlds</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
 <ul class="nav bd-sidenav">
@@ -570,7 +571,8 @@ pods are consuming the tree. On the QNAP:</p>
 <li><p>Create or modify any QNAP share or NFS export.</p></li>
 <li><p>Restart any NFS service.</p></li>
 <li><p>Touch any path outside <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code>
-(the optional Minecraft archive below is a separate, deliberate step).</p></li>
+(the optional Minecraft archive and the dynamic volume share’s <code class="docutils literal notranslate"><span class="pre">stable/</span></code>
+folder below are separate, deliberate steps).</p></li>
 </ul>
 </section>
 <section id="adding-new-cluster-owned-subfolders-later">
@@ -579,6 +581,31 @@ pods are consuming the tree. On the QNAP:</p>
 No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export.</p>
+</section>
+<section id="dynamic-volume-share-nfs-csi">
+<span id="nfs-csi-nas-share"></span><h2>Dynamic volume share (NFS CSI)<a class="headerlink" href="#dynamic-volume-share-nfs-csi" title="Link to this heading">#</a></h2>
+<p>The NFS CSI driver’s storage classes provision volumes in a share of their
+own, <code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code> (default <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>), not in <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code>. On a
+QNAP it is a separate shared folder exported over NFS to the cluster subnet,
+for example <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/k8s-dynamic</span></code> on the NAS. The driver
+creates one folder per volume in it.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> class, used by Minecraft worlds (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes for Minecraft Worlds</span></a>),
+has its own share root inside it, <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>). Create it once, before Argo CD syncs the class,
+with the same owner and mode as the share root, since the driver creates the
+same kind of folders in both. Give each cluster its own.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
+
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">D</span><span class="o">=</span>/share/CACHEDEV1_DATA/k8s-dynamic<span class="w">   </span><span class="c1"># where the k8s-dynamic share lives</span>
+sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
+sudo<span class="w"> </span>chown<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>stat<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;%u:%g&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
+sudo<span class="w"> </span>chmod<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>stat<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;%a&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
+ls<span class="w"> </span>-ldn<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
+</pre></div>
+</div>
+<p>Never delete or empty <code class="docutils literal notranslate"><span class="pre">stable/</span></code> while the Minecraft dashboard is deployed:
+it holds the live world data, and the archives of deleted worlds.</p>
 </section>
 <section id="scrap-directories">
 <span id="scrap-nas-directories"></span><h2>scrap directories<a class="headerlink" href="#scrap-directories" title="Link to this heading">#</a></h2>
@@ -622,7 +649,8 @@ start empty.)</p>
 <section id="minecraft-directories-optional">
 <span id="minecraft-nas-directories"></span><h2>Minecraft directories (optional)<a class="headerlink" href="#minecraft-directories-optional" title="Link to this heading">#</a></h2>
 <p>Only needed if you enable the Minecraft dashboard (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>). It uses
-two static NFS volumes, both on the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export:</p>
+two static NFS volumes on the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export (and a third, read-only,
+on the dynamic volume share: <a class="reference internal" href="#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>):</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Client-side path</p></th>
@@ -647,7 +675,9 @@ the cluster-owned subtree — backup tooling, a future cleanup script, a
 mistyped <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code> — can ever reach it. Moving a promoted backup into
 the archive is always a deliberate manual step on the NAS.</p>
 <p>Live world data does not live here: each world gets a dynamically
-provisioned <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volume from the NFS CSI driver.</p>
+provisioned <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volume from the NFS CSI driver, in
+<code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/minecraft/&lt;world&gt;-data</span></code>. Create that share root
+first (<a class="reference internal" href="#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
 
 <span class="nb">set</span><span class="w"> </span>-eu
@@ -742,6 +772,7 @@ the ingest script, and lock it again.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-runbook-explicitly-does-not-do">What this runbook explicitly DOES NOT do</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-new-cluster-owned-subfolders-later">Adding new cluster-owned subfolders later</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-volume-share-nfs-csi">Dynamic volume share (NFS CSI)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap-directories">scrap directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-directories-optional">Minecraft directories (optional)</a></li>
 </ul>

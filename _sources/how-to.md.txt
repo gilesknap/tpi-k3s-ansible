@@ -38,6 +38,7 @@ how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild
 how-to/alternative-storage
+how-to/nfs-stable-paths
 ```
 
 ```{toctree}

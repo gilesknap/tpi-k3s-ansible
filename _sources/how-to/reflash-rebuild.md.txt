@@ -23,6 +23,8 @@ ansible-playbook pb_all.yml -e flash_force=true
 
 This flashes every node with a fresh Ubuntu image, reinstalls K3s, and redeploys all
 services. This is the nuclear option — use it when you want a completely clean slate.
+Data on the NAS is untouched. Minecraft worlds on the `nfs-stable` class
+come back with their data (see {doc}`nfs-stable-paths`).
 
 ## Re-flash a single node
 
