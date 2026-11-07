@@ -12,7 +12,7 @@ All configurable variables, their defaults, and where they are used.
 | `vault_password_file` | `~/.ansible_vault_password` | Path to Ansible vault password file |
 | `bin_dir` | `$HOME/bin` (from `$BIN_DIR` env) | Directory for CLI tools (helm, kubectl, etc.) |
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
-| `local_domain` | `.lan` | Local domain suffix for mDNS |
+| `local_domain` | `.lan` | Local domain suffix; `known_hosts` looks up `<node>{{ local_domain }}` to find a node's IPs |
 | `control_plane` | `node01` | Hostname of the K3s control plane node |
 | `etcd_backup_age_recipient` | `""` | age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading. |
 | `cluster_domain` | `<domain>` | Domain name for ingress hosts |

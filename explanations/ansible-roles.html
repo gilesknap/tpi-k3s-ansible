@@ -1118,26 +1118,34 @@ the cached copy does not match the pinned checksum.</p></li>
 <h2><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> — SSH host key management<a class="headerlink" href="#known-hosts-ssh-host-key-management" title="Link to this heading">#</a></h2>
 <p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>, <code class="docutils literal notranslate"><span class="pre">turing_pis</span></code>
 <strong>Tag:</strong> <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>
-<strong>Constraint:</strong> <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> (must not run in parallel)</p>
+<strong>Constraint:</strong> the file writes use <code class="docutils literal notranslate"><span class="pre">throttle:</span> <span class="pre">1</span></code>; the scans run in parallel</p>
 <p>Updates every file in <code class="docutils literal notranslate"><span class="pre">known_hosts_files</span></code> (<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>) with fresh
 SSH host keys for each node. By default that is both <code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code> and
 the system-wide <code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code>:</p>
 <ol class="arabic simple">
-<li><p>Look up the node’s IP via <code class="docutils literal notranslate"><span class="pre">dig</span></code>.</p></li>
-<li><p>Remove old entries (by hostname and IP).</p></li>
-<li><p>Scan for current SSH host keys (<code class="docutils literal notranslate"><span class="pre">ssh-keyscan</span></code>).</p></li>
-<li><p>Add the new keys.</p></li>
+<li><p>Look up the node’s IPv4 addresses (<code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">ahostsv4</span></code> for
+<code class="docutils literal notranslate"><span class="pre">&lt;node&gt;{{</span> <span class="pre">local_domain</span> <span class="pre">}}</span></code>, run on the controller).</p></li>
+<li><p>Scan for current SSH host keys (<code class="docutils literal notranslate"><span class="pre">ssh-keyscan</span> <span class="pre">-T</span> <span class="pre">5</span></code>). A host that returns
+no keys fails with a message naming it; the other hosts carry on.</p></li>
+<li><p>Remove every entry recorded by the node’s IP, and the entries by hostname
+if any of them is not a freshly scanned key (this drops key types the node
+no longer offers).</p></li>
+<li><p>Add the new keys by hostname.</p></li>
 <li><p>Make <code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code> world-readable.</p></li>
 </ol>
+<p>Every step only changes a file when it is out of date, so a second run
+reports no changes.</p>
 <p>The system-wide file is what the Claude sandbox uses: its <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> is a fresh
 tmpfs with no <code class="docutils literal notranslate"><span class="pre">~/.ssh</span></code>, but it sees the devcontainer’s <code class="docutils literal notranslate"><span class="pre">/etc</span></code> read-only. The
 devcontainer’s <code class="docutils literal notranslate"><span class="pre">postCreate.sh</span></code> runs this tag so the file is repopulated on
 every rebuild. Because the sandbox cannot write <code class="docutils literal notranslate"><span class="pre">/etc</span></code>, run the tag from a
 regular devcontainer terminal, not from inside the sandbox.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>This role must run with <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code> because parallel writes to the known_hosts
-files cause race conditions and file corruption.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Parallel writes to one known_hosts file race and lose entries, so the tasks
+that write the files use <code class="docutils literal notranslate"><span class="pre">throttle:</span> <span class="pre">1</span></code> (one host at a time) while the lookups
+and scans run for all hosts at once. The role is therefore also safe to run
+ad hoc (<code class="docutils literal notranslate"><span class="pre">ansible</span> <span class="pre">all_nodes</span> <span class="pre">-m</span> <span class="pre">include_role</span> <span class="pre">-a</span> <span class="pre">name=known_hosts</span></code>).</p>
 </div>
 </section>
 <hr class="docutils" />

@@ -215,17 +215,24 @@ steps 3 and 4.
 
 **Runs on:** `all_nodes`, `turing_pis`
 **Tag:** `known_hosts`
-**Constraint:** `serial: 1` (must not run in parallel)
+**Constraint:** the file writes use `throttle: 1`; the scans run in parallel
 
 Updates every file in `known_hosts_files` (`group_vars/all.yml`) with fresh
 SSH host keys for each node. By default that is both `~/.ssh/known_hosts` and
 the system-wide `/etc/ssh/ssh_known_hosts`:
 
-1. Look up the node's IP via `dig`.
-2. Remove old entries (by hostname and IP).
-3. Scan for current SSH host keys (`ssh-keyscan`).
-4. Add the new keys.
+1. Look up the node's IPv4 addresses (`getent ahostsv4` for
+   `<node>{{ local_domain }}`, run on the controller).
+2. Scan for current SSH host keys (`ssh-keyscan -T 5`). A host that returns
+   no keys fails with a message naming it; the other hosts carry on.
+3. Remove every entry recorded by the node's IP, and the entries by hostname
+   if any of them is not a freshly scanned key (this drops key types the node
+   no longer offers).
+4. Add the new keys by hostname.
 5. Make `/etc/ssh/ssh_known_hosts` world-readable.
+
+Every step only changes a file when it is out of date, so a second run
+reports no changes.
 
 The system-wide file is what the Claude sandbox uses: its `$HOME` is a fresh
 tmpfs with no `~/.ssh`, but it sees the devcontainer's `/etc` read-only. The
@@ -233,9 +240,11 @@ devcontainer's `postCreate.sh` runs this tag so the file is repopulated on
 every rebuild. Because the sandbox cannot write `/etc`, run the tag from a
 regular devcontainer terminal, not from inside the sandbox.
 
-:::{warning}
-This role must run with `serial: 1` because parallel writes to the known_hosts
-files cause race conditions and file corruption.
+:::{note}
+Parallel writes to one known_hosts file race and lose entries, so the tasks
+that write the files use `throttle: 1` (one host at a time) while the lookups
+and scans run for all hosts at once. The role is therefore also safe to run
+ad hoc (`ansible all_nodes -m include_role -a name=known_hosts`).
 :::
 
 ---

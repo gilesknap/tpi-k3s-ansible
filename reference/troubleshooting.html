@@ -455,13 +455,20 @@ sudo<span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </spa
 </section>
 <section id="ssh-known-hosts">
 <h2>SSH / known_hosts<a class="headerlink" href="#ssh-known-hosts" title="Link to this heading">#</a></h2>
+<section id="ssh-keyscan-found-no-host-keys">
+<h3>ssh-keyscan found no host keys<a class="headerlink" href="#ssh-keyscan-found-no-host-keys" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play fails one host with
+<code class="docutils literal notranslate"><span class="pre">ssh-keyscan</span> <span class="pre">found</span> <span class="pre">no</span> <span class="pre">host</span> <span class="pre">keys</span> <span class="pre">for</span> <span class="pre">&lt;node&gt;:</span> <span class="pre">is</span> <span class="pre">it</span> <span class="pre">up</span> <span class="pre">and</span> <span class="pre">reachable</span> <span class="pre">on</span> <span class="pre">port</span> <span class="pre">22?</span></code></p>
+<p><strong>Cause:</strong> the node is down, its name does not resolve, or port 22 is not
+reachable from where ansible runs. The other hosts are still updated.</p>
+<p><strong>Fix:</strong> check the node is up and <code class="docutils literal notranslate"><span class="pre">ssh-keyscan</span> <span class="pre">-T</span> <span class="pre">5</span> <span class="pre">&lt;node&gt;</span></code> returns keys,
+then re-run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">known_hosts</span> <span class="pre">--limit</span> <span class="pre">&lt;node&gt;</span></code>.</p>
+</section>
 <section id="race-condition-writing-known-hosts">
 <h3>Race condition writing known_hosts<a class="headerlink" href="#race-condition-writing-known-hosts" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> task fails with concurrent write errors.</p>
-<p><strong>Cause:</strong> The <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play must run <code class="docutils literal notranslate"><span class="pre">serial:</span> <span class="pre">1</span></code>. Parallel writes to
-the known_hosts files corrupt them.</p>
-<p><strong>Fix:</strong> This is already handled in the playbook. If you see this error, check
-that you haven’t overridden <code class="docutils literal notranslate"><span class="pre">serial</span></code> in a custom run.</p>
+<p>Parallel writes to one known_hosts file lose entries. The role’s write tasks
+use <code class="docutils literal notranslate"><span class="pre">throttle:</span> <span class="pre">1</span></code>, so this is handled however the role is run; don’t remove
+the throttle when changing the role.</p>
 </section>
 </section>
 <section id="ansible">
@@ -918,6 +925,7 @@ tpi<span class="w"> </span>info
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ssh-known-hosts">SSH / known_hosts</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ssh-keyscan-found-no-host-keys">ssh-keyscan found no host keys</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#race-condition-writing-known-hosts">Race condition writing known_hosts</a></li>
 </ul>
 </li>
