@@ -426,13 +426,15 @@ tools. The application and its Helm chart live in the scrap repository. This
 repository provides the cluster wiring:</p>
 <ul class="simple">
 <li><p>An ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>) that
-deploys the chart from a git tag, with a NetworkPolicy, a local-disk data
-volume, a nightly backup CronJob and Claude ingest (enabled in this deployment).</p></li>
+deploys the chart from a git tag, with a NetworkPolicy, the chart’s
+Litestream mode on NFS volumes (so scrap runs on any node), a nightly backup
+CronJob and Claude ingest (enabled in this deployment).</p></li>
 <li><p>An ingress for <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code> gated by oauth2-proxy, plus a second
 <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only ingress without oauth2-proxy
 (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>), disabled by default (see below).</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">local_storage.scrap</span></code> volume and a <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry for the data
-directory.</p></li>
+<li><p>Static NFS volumes for the data and the backups, and a nightly copy of the
+newest backup off the NAS (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>); see
+<a class="reference internal" href="#data-backups-and-failover">Data, backups and failover</a>.</p></li>
 <li><p>Public pages: the chart’s <code class="docutils literal notranslate"><span class="pre">public</span></code> section serves the pages marked Public
 as a static site at <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code>, from its own <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace
 (see <a class="reference internal" href="#public-pages">Public pages</a>).</p></li>
@@ -487,9 +489,10 @@ in the cluster can reach the pod or forge identity headers.</p>
 <section id="deploy">
 <h2>Deploy<a class="headerlink" href="#deploy" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
-<li><p>Make sure the data directory exists on the pinned node:
+<li><p>Create scrap’s directories on the NAS (<a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>), and the
+directory for the off-NAS backup copy:
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">servers</span></code> runs the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>
-role, which creates <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code>.</p></li>
+role, which creates it (<code class="docutils literal notranslate"><span class="pre">local_storage.scrap_backup_copy</span></code>).</p></li>
 <li><p>Seal the Claude API key into the <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> SealedSecret (ingest is
 enabled, so this is required). Follow
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/README.md</span></code> and
@@ -502,6 +505,118 @@ it references the missing <code class="docutils literal notranslate"><span class
 <code class="docutils literal notranslate"><span class="pre">mcp.tokenSecret</span></code> at it and set <code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">true</span></code>. Use a scrap
 release of 0.2.0 or later.</p></li>
 </ol>
+</section>
+<section id="data-backups-and-failover">
+<h2>Data, backups and failover<a class="headerlink" href="#data-backups-and-failover" title="Link to this heading">#</a></h2>
+<p>scrap runs in its chart’s Litestream mode (ADR 0013, and scrap’s own ADR 46),
+with no node pinning:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>What</p></th>
+<th class="head"><p>Where</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>The database</p></td>
+<td><p>An emptyDir on the pod’s node, at <code class="docutils literal notranslate"><span class="pre">/db/scrap.db</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Its replica, about a second behind</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/data/litestream</span></code> on <code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code> (<code class="docutils literal notranslate"><span class="pre">&lt;cluster</span> <span class="pre">share&gt;/scrap-data</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p>Files and the preview cache</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/data</span></code> on <code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Backups: daily (keep 7) and monthly (keep 12)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> (<code class="docutils literal notranslate"><span class="pre">&lt;cluster</span> <span class="pre">share&gt;/backups/scrap</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p>The newest backup, copied nightly at 05:00 (keep 3)</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">local_storage.scrap_backup_copy</span></code> PV, off the NAS</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Each new pod’s <code class="docutils literal notranslate"><span class="pre">db-init</span></code> init container restores the database from the
+replica. It fails closed, rather than starting empty, when the volume looks
+wrong. gc and the Claude passes (related pages, topics) run on their usual
+schedules in the pod’s <code class="docutils literal notranslate"><span class="pre">jobs</span></code> container, not as CronJobs: see their runs with
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">logs</span> <span class="pre">deploy/scrap</span> <span class="pre">-c</span> <span class="pre">jobs</span></code>.</p>
+<ul class="simple">
+<li><p><strong>Node death:</strong> fence the node (<a class="reference internal" href="node-operations.html#fence-a-dead-node"><span class="std std-ref">Fail over from a dead node (fence)</span></a>). scrap restarts
+on another node in about 1–2 minutes and loses about a second of writes.</p></li>
+<li><p><strong>Planned moves</strong> (drain, reboot) lose nothing: Litestream does a last sync
+after scrap stops.</p></li>
+<li><p><strong>NAS down:</strong> files cannot be read and replication stalls. After 20 minutes
+the pod leaves its Service, so scrap stops taking writes it cannot protect.
+It recovers by itself when the NAS returns.</p></li>
+</ul>
+<p>Restores: <a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>.</p>
+<section id="moving-an-existing-install-off-a-local-volume">
+<h3>Moving an existing install off a local volume<a class="headerlink" href="#moving-an-existing-install-off-a-local-volume" title="Link to this heading">#</a></h3>
+<p>An install that started on a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV (<code class="docutils literal notranslate"><span class="pre">local_storage.scrap</span></code>) moves in
+one Argo CD sync:</p>
+<ol class="arabic simple">
+<li><p>The NFS PVs and PVCs (sync wave -2).</p></li>
+<li><p>The Job <code class="docutils literal notranslate"><span class="pre">scrap-migrate-to-nfs</span></code> (wave -1), on the old volume’s node:</p>
+<ul class="simple">
+<li><p>it fails unless it can read both the old and the NFS data volume;</p></li>
+<li><p>it does nothing if the NFS data volume already holds a database or a
+replica, or if the old volume holds no database;</p></li>
+<li><p>it copies the complete runs from the old backups claim;</p></li>
+<li><p>it runs <code class="docutils literal notranslate"><span class="pre">scrap</span> <span class="pre">backup</span></code> of the live database;</p></li>
+<li><p>it runs <code class="docutils literal notranslate"><span class="pre">scrap</span> <span class="pre">restore</span></code> into the NFS data volume.</p></li>
+</ul>
+</li>
+<li><p>The chart (wave 0). The new pod’s <code class="docutils literal notranslate"><span class="pre">db-init</span></code> brings the restored database
+across to its emptyDir.</p></li>
+</ol>
+<p>If the Job fails, the sync stops there and the old pod keeps serving. To
+retry, rename the Job in git. Don’t capture during the sync: writes made
+between the Job’s backup and the old pod stopping (about a minute) are not
+moved. Don’t sync between 03:30 and 05:00 either, when the old pod’s gc and
+the new one’s could overlap on their lock.</p>
+<p>Afterwards, the old claim and its PV stay as a frozen copy of the data:
+unmounted, <code class="docutils literal notranslate"><span class="pre">Retain</span></code>, at <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code> on the old node.</p>
+<section id="check-the-cut-over">
+<h4>Check the cut-over<a class="headerlink" href="#check-the-cut-over" title="Link to this heading">#</a></h4>
+<p>Once the new pod serves, compare the frozen copy with the live database:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>scrap-cutover-check<span class="w">          </span><span class="c1"># or: scripts/scrap-cutover-check nuc2</span>
+</pre></div>
+</div>
+<p>It reads both sides only: the old database over SSH (as <code class="docutils literal notranslate"><span class="pre">ansible</span></code>, with
+<code class="docutils literal notranslate"><span class="pre">sudo</span></code>) opened <code class="docutils literal notranslate"><span class="pre">immutable=1</span></code>, the live one read-only through <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">exec</span></code>
+into the scrap pod. It prints <code class="docutils literal notranslate"><span class="pre">max(rowid)</span> <span class="pre">FROM</span> <span class="pre">page_rev</span></code>,
+<code class="docutils literal notranslate"><span class="pre">count(*)</span> <span class="pre">FROM</span> <span class="pre">capture</span></code> and <code class="docutils literal notranslate"><span class="pre">max(updated_at)</span> <span class="pre">FROM</span> <span class="pre">page</span></code> for each, then lists
+every revision, capture and page that is newer in the old copy. Exit status 0
+means nothing was lost. Rows it lists were written in the cut-over window:
+re-enter them in scrap by hand.</p>
+</section>
+<section id="fix-forward">
+<h4>Fix forward<a class="headerlink" href="#fix-forward" title="Link to this heading">#</a></h4>
+<p>Once scrap has taken its first write after the cut-over, <strong>fix forward;
+revert only before the first write after cut-over.</strong> A revert of the PR goes
+back to the frozen copy and silently drops everything written since. Before
+that first write, reverting is safe: the old volume holds the same data.</p>
+</section>
+<section id="retire-the-job-straight-away">
+<h4>Retire the Job straight away<a class="headerlink" href="#retire-the-job-straight-away" title="Link to this heading">#</a></h4>
+<p>Until the Job is retired, a rebuild depends on the old node: the Job is pinned
+there by its local PV, and the sync cannot pass wave -1 without it. As soon as
+the check passes, set <code class="docutils literal notranslate"><span class="pre">legacy.migrate:</span> <span class="pre">false</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code> and
+let Argo CD sync. The old dynamic backups claim, <code class="docutils literal notranslate"><span class="pre">scrap-backups</span></code>, is rendered
+only so that the Job can mount it. Deleting it deletes its NAS directory
+(it was provisioned by the default <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class: reclaim policy <code class="docutils literal notranslate"><span class="pre">Delete</span></code>,
+<code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">delete</span></code>), so do that only once
+its runs are confirmed in <code class="docutils literal notranslate"><span class="pre">backups/scrap</span></code>.</p>
+</section>
+<section id="new-installs">
+<h4>New installs<a class="headerlink" href="#new-installs" title="Link to this heading">#</a></h4>
+<p>A new install starts on NFS and has nothing to move. Drop the <code class="docutils literal notranslate"><span class="pre">scrap</span></code> entry
+from <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (and from
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>), so neither the old claim nor the
+Job is rendered. If it is kept, the Job finds no database on the old volume,
+logs that, and exits successfully.</p>
+</section>
+</section>
 </section>
 <section id="cloudflare-configuration">
 <h2>Cloudflare configuration<a class="headerlink" href="#cloudflare-configuration" title="Link to this heading">#</a></h2>
@@ -598,10 +713,14 @@ header to trust.</p></li>
 <section id="verify">
 <h2>Verify<a class="headerlink" href="#verify" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>get<span class="w"> </span>pods,pvc,networkpolicy
+kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>logs<span class="w"> </span>deploy/scrap<span class="w"> </span>-c<span class="w"> </span>db-init
 </pre></div>
 </div>
 <ul class="simple">
-<li><p>The PVC is bound to the local volume on the pinned node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code> and <code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> are bound to their NFS PVs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">db-init</span></code> says it restored the replica, or on the first start, brought
+<code class="docutils literal notranslate"><span class="pre">/data/scrap.db</span></code> across. It never says it made a new database for an
+install that has data.</p></li>
 <li><p>A browser with no cookies is sent to Cloudflare, then GitHub.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code> without the Cloudflare headers is refused at the edge; with them but
 without the scrap token it returns 401; with both it works.</p></li>
@@ -670,6 +789,16 @@ the Ingress.</p></li>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication-layers">Authentication layers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy">Deploy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-backups-and-failover">Data, backups and failover</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#moving-an-existing-install-off-a-local-volume">Moving an existing install off a local volume</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-cut-over">Check the cut-over</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#fix-forward">Fix forward</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#retire-the-job-straight-away">Retire the Job straight away</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#new-installs">New installs</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-configuration">Cloudflare configuration</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#public-pages">Public pages</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-for-the-public-site">Cloudflare for the public site</a></li>

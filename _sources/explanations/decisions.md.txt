@@ -18,4 +18,5 @@ decisions/0009-longhorn-exclude-workstations
 decisions/0010-mcp-protocol-github-oauth
 decisions/0011-minio-file-attachments
 decisions/0012-drop-longhorn
+decisions/0013-scrap-litestream-on-nfs
 ```

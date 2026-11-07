@@ -451,6 +451,9 @@ CronJob backup output (empty on first setup)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> — the control plane’s nightly age-encrypted etcd backup
 (<a class="reference internal" href="backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>), written by root on the control plane and
 so arriving as the root-squashed uid</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scrap-data/</span></code> and <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code> — scrap’s data volume (files and the
+database’s Litestream replica) and its backups (see
+<a class="reference internal" href="#scrap-nas-directories"><span class="std std-ref">scrap directories</span></a> below)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> — optional; the Minecraft dashboard’s writable store (see
 <a class="reference internal" href="#minecraft-nas-directories"><span class="std std-ref">Minecraft directories (optional)</span></a> below)</p></li>
 </ul>
@@ -577,6 +580,45 @@ No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export.</p>
 </section>
+<section id="scrap-directories">
+<span id="scrap-nas-directories"></span><h2>scrap directories<a class="headerlink" href="#scrap-directories" title="Link to this heading">#</a></h2>
+<p>scrap’s two static NFS volumes (<a class="reference internal" href="scrap.html"><span class="doc">Deploy scrap</span></a>) mount these directories, so they
+must exist before scrap is deployed. They must be owned by the uid/gid scrap
+runs as (<code class="docutils literal notranslate"><span class="pre">10001</span></code>): the export squashes root, and NFS volumes ignore a pod’s
+<code class="docutils literal notranslate"><span class="pre">fsGroup</span></code>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Client-side path</p></th>
+<th class="head"><p>Volume</p></th>
+<th class="head"><p>Holds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/scrap-data/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">files/</span></code>, the preview cache, <code class="docutils literal notranslate"><span class="pre">litestream/</span></code> (the database’s replica)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code></p></td>
+<td><p>Daily backup runs, and <code class="docutils literal notranslate"><span class="pre">monthly/</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
+
+<span class="nb">set</span><span class="w"> </span>-eu
+<span class="nv">ROOT</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
+chown<span class="w"> </span><span class="m">10001</span>:10001<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
+chmod<span class="w"> </span><span class="m">0750</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
+</pre></div>
+</div>
+<p>Never delete or empty them while scrap is deployed: the replica in
+<code class="docutils literal notranslate"><span class="pre">scrap-data</span></code> is the only up-to-date copy of the database. (An emptied
+<code class="docutils literal notranslate"><span class="pre">scrap-data</span></code> beside existing backups makes scrap refuse to start, rather than
+start empty.)</p>
+</section>
 <section id="minecraft-directories-optional">
 <span id="minecraft-nas-directories"></span><h2>Minecraft directories (optional)<a class="headerlink" href="#minecraft-directories-optional" title="Link to this heading">#</a></h2>
 <p>Only needed if you enable the Minecraft dashboard (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>). It uses
@@ -700,6 +742,7 @@ the ingest script, and lock it again.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-runbook-explicitly-does-not-do">What this runbook explicitly DOES NOT do</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-new-cluster-owned-subfolders-later">Adding new cluster-owned subfolders later</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap-directories">scrap directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-directories-optional">Minecraft directories (optional)</a></li>
 </ul>
   </nav></div>

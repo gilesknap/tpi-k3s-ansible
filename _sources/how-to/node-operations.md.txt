@@ -79,6 +79,42 @@ power-cycle and let workloads reschedule (or come back, for DaemonSets
 pinned to the node).
 :::
 
+(fence-a-dead-node)=
+## Fail over from a dead node (fence)
+
+Kubernetes cannot tell a dead node from one that is only cut off, so it
+never force-removes the pods of a `NotReady` node. A `Recreate` Deployment
+such as scrap's waits for ever for its old pod to go, and does not start
+it anywhere else. Fencing tells Kubernetes the node is off. It uses the
+[non-graceful node shutdown](https://kubernetes.io/docs/concepts/cluster-administration/node-shutdown/#non-graceful-node-shutdown)
+taint, `node.kubernetes.io/out-of-service=nodeshutdown:NoExecute`.
+
+1. Make sure the node is **powered off**: `tpi power off -n <slot>` on
+   the BMC, or unplug it. `NotReady` alone is not enough. A node that
+   lost its network or its k3s agent may still be running its pods, and
+   two copies of a single-writer app such as scrap corrupt its data.
+2. Fence it. The recipe refuses a `Ready` node, warns, and asks you to
+   type the node name to confirm it is powered off:
+
+   ```bash
+   just node-fence nuc2
+   ```
+
+3. Kubernetes force-deletes the node's pods and they restart on other
+   nodes. scrap is serving again in about 1–2 minutes: its new pod
+   restores the database from its Litestream replica
+   (`kubectl -n scrap logs deploy/scrap -c db-init`). Nothing changes
+   in git.
+4. When the node is back and `Ready`, remove the fence. Pods that moved
+   stay where they are.
+
+   ```bash
+   just node-unfence nuc2
+   ```
+
+Workloads pinned to the dead node, such as those on its `local-nvme`
+PVs, stay `Pending` until it returns.
+
 ## Drain a node for maintenance
 
 Before taking a node offline for hardware maintenance:

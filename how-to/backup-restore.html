@@ -438,19 +438,23 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 <td><p>static local-nvme PVs on worker nodes</p></td>
 <td><p>nightly CronJob → NFS NAS</p></td>
 </tr>
-<tr class="row-odd"><td><p>Sealed Secrets private key</p></td>
+<tr class="row-odd"><td><p>scrap</p></td>
+<td><p>NFS NAS, database replicated by Litestream</p></td>
+<td><p>scrap chart’s CronJobs → NFS NAS, nightly copy off the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p>Sealed Secrets private key</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace</p></td>
 <td><p>manual export</p></td>
 </tr>
-<tr class="row-even"><td><p>etcd snapshot + k3s token</p></td>
+<tr class="row-odd"><td><p>etcd snapshot + k3s token</p></td>
 <td><p>control plane</p></td>
 <td><p>nightly age-encrypted bundle → NFS NAS</p></td>
 </tr>
-<tr class="row-odd"><td><p>Admin passwords</p></td>
+<tr class="row-even"><td><p>Admin passwords</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (manual)</p></td>
 <td><p>re-create from password manager</p></td>
 </tr>
-<tr class="row-even"><td><p>ArgoCD initial admin secret</p></td>
+<tr class="row-odd"><td><p>ArgoCD initial admin secret</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace</p></td>
 <td><p>regenerated on install</p></td>
 </tr>
@@ -513,6 +517,98 @@ kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> <
 </div>
 <p>(If the NFS share is not pre-mounted on the node, run the copy in a
 debug pod that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PVC instead.)</p>
+</section>
+</section>
+<section id="scrap">
+<h2>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h2>
+<p>scrap’s chart makes its own backups (see <a class="reference internal" href="scrap.html"><span class="doc">Deploy scrap</span></a>):</p>
+<ul class="simple">
+<li><p><strong>Daily:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> runs at 03:30 and keeps 7 runs.</p></li>
+<li><p><strong>Monthly:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> keeps 12 runs in <code class="docutils literal notranslate"><span class="pre">monthly/</span></code>.</p></li>
+<li><p><strong>Format:</strong> each run is a directory named like <code class="docutils literal notranslate"><span class="pre">20261019T033000Z</span></code>, with the
+database, the files and a <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker.</p></li>
+<li><p><strong>Location:</strong> the <code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> volume, at
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap</span></code> on the NAS.</p></li>
+<li><p><strong>Off-NAS copy:</strong> at 05:00 <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> copies the newest complete
+run to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV, keeping 3. It fails if that run is over 26 hours
+old, so a stalled backup shows as a failed Job.</p></li>
+</ul>
+<p>Take one now:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>--from<span class="o">=</span>cronjob/scrap-backup<span class="w"> </span>scrap-backup-now
+kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>job/scrap-backup-now
+</pre></div>
+</div>
+<section id="restore-scrap">
+<h3>Restore scrap<a class="headerlink" href="#restore-scrap" title="Link to this heading">#</a></h3>
+<p>scrap runs with Litestream: the database is restored from its replica at
+every start. A plain <code class="docutils literal notranslate"><span class="pre">scrap</span> <span class="pre">restore</span></code> would be undone, so a restore is
+<strong>staged</strong>. It is checked and migrated, then left at <code class="docutils literal notranslate"><span class="pre">/data/scrap.db.restored</span></code>.
+The next start takes it up in place of the replica, and keeps the old replica
+as <code class="docutils literal notranslate"><span class="pre">/data/litestream.retired-&lt;time&gt;</span></code>.</p>
+<ol class="arabic">
+<li><p>Stop scrap through git. Argo CD would scale it straight back up, so
+commit a pause in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>’s chart
+values:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nodeSelector</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">scrap-paused</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;true&quot;</span>
+</pre></div>
+</div>
+<p>The old pod stops, and the new one stays <code class="docutils literal notranslate"><span class="pre">Pending</span></code>. The backup jobs wait
+for it, then give up after an hour.</p>
+</li>
+<li><p>Run the restore in a one-off pod (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">apply</span> <span class="pre">-f</span> <span class="pre">restore.yaml</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">logs</span> <span class="pre">-f</span> <span class="pre">pod/scrap-restore</span></code>). Use the image of the scrap
+release that made the backup, or a newer one. <code class="docutils literal notranslate"><span class="pre">--force</span></code> is needed unless
+<code class="docutils literal notranslate"><span class="pre">files/</span></code> is empty; files are only ever added.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap-restore</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Never</span>
+<span class="w">  </span><span class="nt">automountServiceAccountToken</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">    </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">    </span><span class="nt">seccompProfile</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RuntimeDefault</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">restore</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/gilesknap/scrap:&lt;version&gt;</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;restore&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;/backups/&lt;run&gt;&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;--stage&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;--force&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">allowPrivilegeEscalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">        </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">capabilities</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">drop</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ALL</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">data</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/data</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">backups</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/backups</span><span class="p p-Indicator">,</span><span class="nt"> readOnly</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">tmp</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/tmp</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">      </span><span class="nt">persistentVolumeClaim</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap-data-nfs</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backups</span>
+<span class="w">      </span><span class="nt">persistentVolumeClaim</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap-backups-nfs</span><span class="w">   </span><span class="c1"># or scrap-backup-copy, for the off-NAS copy</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">      </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</pre></div>
+</div>
+</li>
+<li><p>Delete the pod and revert the pause commit. Then check
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">logs</span> <span class="pre">deploy/scrap</span> <span class="pre">-c</span> <span class="pre">db-init</span></code>, which should say it took
+up the staged restore, and take a backup.</p></li>
+</ol>
+<p>Pages written since the backup are gone. Their files are still in <code class="docutils literal notranslate"><span class="pre">files/</span></code>,
+but nothing refers to them, so gc only counts for 14 days after a restore.
+The retired replica holds the lost rows, which can only be recovered by hand.
+See scrap’s
+<a class="reference external" href="https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#k8s-restore-litestream">restore with Litestream</a>
+for the details and the refusals you may meet.</p>
 </section>
 </section>
 <section id="sealed-secrets-key-backup">
@@ -656,7 +752,9 @@ cluster-owned <code class="docutils literal notranslate"><span class="pre">/bigd
 <li><p>If <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> was used on decommission, restore stateful
 data from the latest NFS backup under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code>
 using the restore recipes above. Otherwise, local PV data is still
-intact from before the rebuild and re-binds automatically.</p></li>
+intact from before the rebuild and re-binds automatically. scrap’s
+static NFS volumes re-bind too, and its pod restores the database from
+the replica.</p></li>
 </ol>
 <p>The cluster will be fully operational within minutes, with only persistent data
 requiring explicit restoration.</p>
@@ -715,6 +813,10 @@ requiring explicit restoration.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#retention">Retention</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trigger-a-one-off-backup">Trigger a one-off backup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-grafana-sqlite">Restore — Grafana sqlite</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-scrap">Restore scrap</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets-key-backup">Sealed Secrets key backup</a><ul class="nav section-nav flex-column">

@@ -709,16 +709,21 @@ Protected by oauth2-proxy (admin-only, same as Headlamp).</p>
 <h3>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h3>
 <p>Personal knowledge store (<a class="reference external" href="https://github.com/gilesknap/scrap">gilesknap/scrap</a>).
 The Argo CD Application deploys the chart from a git tag into the <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
-namespace with a SQLite data volume on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV pinned to
-<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code>, created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role under
-<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code>), a nightly backup CronJob, a NetworkPolicy admitting only
-<code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, and Claude ingest enabled. The PWA is protected by
+namespace in its Litestream mode, so it runs on any node. The database is on
+the pod’s emptyDir, replicated to a static NFS data volume, and the backups
+are on a second static NFS volume. There is also a nightly copy of the newest
+backup to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV, a NetworkPolicy admitting only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>,
+and Claude ingest enabled. The PWA is protected by
 Cloudflare Access plus oauth2-proxy. A separate <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> Ingress (<code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">true</span></code>)
 bypasses oauth2-proxy and is protected by a Cloudflare Access service token
 plus scrap’s own bearer token (<code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code>, from <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code>).</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/scrap/</span></code></p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">templates/mcp-ingress.yaml</span></code> — <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only Ingress without oauth2-proxy</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/nfs-volumes.yaml</span></code> — static NFS PVs and PVCs for data and backups</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/backup-copy.yaml</span></code> — the nightly off-NAS backup copy</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/legacy-pvc.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/migrate-job.yaml</span></code> — the pre-Litestream
+claims, kept as a frozen copy, and the one-off move to NFS</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-secret.yaml</span></code> — SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> holding the
 Claude API key (created by you; not shipped)</p></li>
 </ul>

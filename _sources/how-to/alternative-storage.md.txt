@@ -54,9 +54,9 @@ StorageClass name:
 grep -rn local-nvme kubernetes-services/templates/
 ```
 
-Expect hits in `grafana.yaml` and `scrap.yaml`. For
-each, change `storageClassName: local-nvme` (or `storageClass: local-nvme`
-for scrap's chart) to your provider's class.
+Expect hits in `grafana.yaml`. Change `storageClassName: local-nvme` to
+your provider's class. scrap uses static NFS volumes instead ({doc}`scrap`);
+drop its `local_storage` entries (`scrap`, `scrap_backup_copy`) too.
 
 :::{tip}
 If your replacement storage provider registers itself as the **default**

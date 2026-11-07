@@ -495,6 +495,40 @@ power-cycle and let workloads reschedule (or come back, for DaemonSets
 pinned to the node).</p>
 </div>
 </section>
+<section id="fail-over-from-a-dead-node-fence">
+<span id="fence-a-dead-node"></span><h2>Fail over from a dead node (fence)<a class="headerlink" href="#fail-over-from-a-dead-node-fence" title="Link to this heading">#</a></h2>
+<p>Kubernetes cannot tell a dead node from one that is only cut off, so it
+never force-removes the pods of a <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> node. A <code class="docutils literal notranslate"><span class="pre">Recreate</span></code> Deployment
+such as scrap’s waits for ever for its old pod to go, and does not start
+it anywhere else. Fencing tells Kubernetes the node is off. It uses the
+<a class="reference external" href="https://kubernetes.io/docs/concepts/cluster-administration/node-shutdown/#non-graceful-node-shutdown">non-graceful node shutdown</a>
+taint, <code class="docutils literal notranslate"><span class="pre">node.kubernetes.io/out-of-service=nodeshutdown:NoExecute</span></code>.</p>
+<ol class="arabic">
+<li><p>Make sure the node is <strong>powered off</strong>: <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">power</span> <span class="pre">off</span> <span class="pre">-n</span> <span class="pre">&lt;slot&gt;</span></code> on
+the BMC, or unplug it. <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> alone is not enough. A node that
+lost its network or its k3s agent may still be running its pods, and
+two copies of a single-writer app such as scrap corrupt its data.</p></li>
+<li><p>Fence it. The recipe refuses a <code class="docutils literal notranslate"><span class="pre">Ready</span></code> node, warns, and asks you to
+type the node name to confirm it is powered off:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>node-fence<span class="w"> </span>nuc2
+</pre></div>
+</div>
+</li>
+<li><p>Kubernetes force-deletes the node’s pods and they restart on other
+nodes. scrap is serving again in about 1–2 minutes: its new pod
+restores the database from its Litestream replica
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">logs</span> <span class="pre">deploy/scrap</span> <span class="pre">-c</span> <span class="pre">db-init</span></code>). Nothing changes
+in git.</p></li>
+<li><p>When the node is back and <code class="docutils literal notranslate"><span class="pre">Ready</span></code>, remove the fence. Pods that moved
+stay where they are.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>node-unfence<span class="w"> </span>nuc2
+</pre></div>
+</div>
+</li>
+</ol>
+<p>Workloads pinned to the dead node, such as those on its <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code>
+PVs, stay <code class="docutils literal notranslate"><span class="pre">Pending</span></code> until it returns.</p>
+</section>
 <section id="drain-a-node-for-maintenance">
 <h2>Drain a node for maintenance<a class="headerlink" href="#drain-a-node-for-maintenance" title="Link to this heading">#</a></h2>
 <p>Before taking a node offline for hardware maintenance:</p>
@@ -637,6 +671,7 @@ ansible<span class="w"> </span>all_nodes<span class="w"> </span>-m<span class="w
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reboot-all-nodes">Reboot all nodes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shutdown-or-reboot-a-single-node">Shutdown or reboot a single node</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hard-power-cycle-a-turing-pi-node-via-the-bmc">Hard power-cycle a Turing Pi node via the BMC</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fail-over-from-a-dead-node-fence">Fail over from a dead node (fence)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drain-a-node-for-maintenance">Drain a node for maintenance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-extra-non-turing-pi-nodes">Add extra (non-Turing Pi) nodes</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-add-to-inventory">Step 1: Add to inventory</a></li>

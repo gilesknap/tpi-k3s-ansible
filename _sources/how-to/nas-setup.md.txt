@@ -34,6 +34,9 @@ the cluster reads or writes over NFS:
 - `backups/etcd/` — the control plane's nightly age-encrypted etcd backup
   ({ref}`etcd-offsite-backup`), written by root on the control plane and
   so arriving as the root-squashed uid
+- `scrap-data/` and `backups/scrap/` — scrap's data volume (files and the
+  database's Litestream replica) and its backups (see
+  {ref}`scrap-nas-directories` below)
 - `minecraft/` — optional; the Minecraft dashboard's writable store (see
   {ref}`minecraft-nas-directories` below)
 
@@ -150,6 +153,34 @@ Just `mkdir` under `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/` by hand.
 No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing `bigdisk` export.
+
+(scrap-nas-directories)=
+## scrap directories
+
+scrap's two static NFS volumes ({doc}`scrap`) mount these directories, so they
+must exist before scrap is deployed. They must be owned by the uid/gid scrap
+runs as (`10001`): the export squashes root, and NFS volumes ignore a pod's
+`fsGroup`.
+
+| Client-side path | Volume | Holds |
+|------------------|--------|-------|
+| `/bigdisk/k8s-cluster/scrap-data/` | `scrap-data-nfs` | `files/`, the preview cache, `litestream/` (the database's replica) |
+| `/bigdisk/k8s-cluster/backups/scrap/` | `scrap-backups-nfs` | Daily backup runs, and `monthly/` |
+
+```bash
+# SSH to the QNAP as admin, then:
+
+set -eu
+ROOT=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
+mkdir -p "$ROOT/scrap-data" "$ROOT/backups/scrap"
+chown 10001:10001 "$ROOT/scrap-data" "$ROOT/backups/scrap"
+chmod 0750 "$ROOT/scrap-data" "$ROOT/backups/scrap"
+```
+
+Never delete or empty them while scrap is deployed: the replica in
+`scrap-data` is the only up-to-date copy of the database. (An emptied
+`scrap-data` beside existing backups makes scrap refuse to start, rather than
+start empty.)
 
 (minecraft-nas-directories)=
 ## Minecraft directories (optional)
