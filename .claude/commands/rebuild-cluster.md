@@ -90,7 +90,7 @@ If the secret does not exist (first-ever build), skip this step.
 ### 1c. Collect external credentials
 
 Export the external credentials that cannot be generated (six required,
-plus the optional Slack webhook and VPS relay
+plus the optional Slack webhook, VPS relay and scrap
 credentials). Run this while the cluster is still up:
 
 ```bash
@@ -105,7 +105,19 @@ set -a && source .env && set +a
 ```
 
 Everything else (admin passwords, cookie secrets, Dex client secrets)
-is generated fresh.
+is generated fresh, with two exceptions that the export also captures so
+the rebuild keeps them:
+
+- `SCRAP_MCP_TOKEN` (scrap's `/mcp` bearer token): every Claude client
+  holds a copy in its scrap MCP headers, so it is never regenerated while
+  it is set. Only if the user explicitly asks to rotate it, also export
+  `SCRAP_ROTATE_MCP_TOKEN=true`; the new token is written to
+  `/tmp/cluster-secrets/scrap-mcp-token.txt` and every client must be
+  updated with it.
+- `SCRAP_PUBLISH_TOKEN` (scrap's public-pages upload token): sealed into
+  both `scrap` and `scrap-public`, generated if not set.
+
+scrap's secrets are sealed only when `SCRAP_ANTHROPIC_API_KEY` is set.
 
 ## Phase 2: Decommission
 
@@ -208,7 +220,10 @@ The playbook automatically:
 9. Applies the ArgoCD Dex sealed secret and labels it
 
 The admin password is printed in the output and saved to
-`/tmp/cluster-secrets/admin-password.txt`.
+`/tmp/cluster-secrets/admin-password.txt`. If
+`/tmp/cluster-secrets/scrap-mcp-token.txt` exists, a new scrap MCP token
+was generated (a rotation, or no token was exported): tell the user that
+every scrap MCP client needs it, without printing the value.
 
 ### Verify rebuild
 
@@ -429,6 +444,16 @@ Create a PR from the rebuild branch to `main`. Include:
 after they have tested the cluster manually.
 
 ### 8d. Clean up
+
+First, if `/tmp/cluster-secrets/scrap-mcp-token.txt` exists, a new scrap
+MCP token was generated and this is its only copy outside the cluster.
+Stop and ask the user to confirm that every scrap MCP client has been
+updated with it; do not delete anything until they do. Never print the
+value. (If the file is lost, the token can still be read back from the
+live secret:
+`kubectl get secret scrap-secrets -n scrap -o jsonpath='{.data.SCRAP_MCP_TOKEN}' | base64 -d`.)
+
+Then clean up:
 
 ```bash
 rm -rf /tmp/cluster-secrets/ /tmp/decommission.log /tmp/rebuild.log /tmp/argocd-sync.log /tmp/wildcard-tls-backup.yaml

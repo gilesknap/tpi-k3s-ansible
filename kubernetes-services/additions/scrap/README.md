@@ -11,15 +11,28 @@ This directory is a small Helm chart holding these things for scrap:
   `scrap-publish` sealed once for each namespace (below).
 
 This chart's `templates/` must contain a SealedSecret `scrap-secret.yaml` that unseals to a Secret named
-`scrap-secrets` in the `scrap` namespace with the key `ANTHROPIC_API_KEY`.
+`scrap-secrets` in the `scrap` namespace with two keys: `ANTHROPIC_API_KEY` (the
+Claude API key for ingest) and `SCRAP_MCP_TOKEN` (the `/mcp` bearer token). A
+rebuild seals both through `just generate-and-seal-all`. To reseal it by hand,
+for example to change the API key, keep the existing MCP token, since every MCP
+client holds a copy of it:
 
 ```bash
-read -rs KEY && printf %s "$KEY" | kubectl create secret generic scrap-secrets \
-  --namespace scrap --from-file=ANTHROPIC_API_KEY=/dev/stdin \
+bash -c 'set -euo pipefail
+read -rsp "Claude API key: " KEY; echo
+TOK=$(kubectl get secret scrap-secrets -n scrap -o jsonpath="{.data.SCRAP_MCP_TOKEN}" | base64 -d)
+[ -n "$TOK" ] || { echo "no SCRAP_MCP_TOKEN in the live secret" >&2; exit 1; }
+kubectl create secret generic scrap-secrets --namespace scrap \
+  --from-file=ANTHROPIC_API_KEY=<(printf %s "$KEY") \
+  --from-file=SCRAP_MCP_TOKEN=<(printf %s "$TOK") \
   --dry-run=client -o yaml | \
 kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  templates/scrap-secret.yaml; unset KEY
+  templates/scrap-secret.yaml'
 ```
+
+On a first install, with no live secret yet, set `TOK` to a new token
+(`python3 -c "import secrets; print(secrets.token_urlsafe(48))"`) instead and give
+it to the MCP clients.
 
 Run it from this directory. Do this before the first Argo sync, otherwise the pod stays in
 `CreateContainerConfigError`. Commit the sealed file (see `/sealed-secrets` and docs/how-to/manage-sealed-secrets.md).
