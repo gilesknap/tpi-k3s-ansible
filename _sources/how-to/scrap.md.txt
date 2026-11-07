@@ -153,10 +153,14 @@ Until the Job is retired, a rebuild depends on the old node: the Job is pinned
 there by its local PV, and the sync cannot pass wave -1 without it. As soon as
 the check passes, set `legacy.migrate: false` in `templates/scrap.yaml` and
 let Argo CD sync. The old dynamic backups claim, `scrap-backups`, is rendered
-only so that the Job can mount it. Deleting it deletes its NAS directory
-(it was provisioned by the `nfs-rwx` class, then the default: reclaim policy `Delete`,
-`onDelete: delete`), so do that only once
-its runs are confirmed in `backups/scrap`.
+only so that the Job can mount it: drop `legacy.backups` from
+`templates/scrap.yaml` at the same time. Its `Prune=false` keeps the claim in
+the cluster, so delete it by hand afterwards. Deleting it deletes its NAS
+directory (it was provisioned by the `nfs-rwx` class, then the default: reclaim
+policy `Delete`, `onDelete: delete`), so do that only once every run you want
+is confirmed in `backups/scrap`. The Job copies only complete runs named by
+timestamp: copy any run you renamed by hand (such as a `-curated` one) yourself,
+and note that the daily gc on the new claim may already have pruned older runs.
 
 #### New installs
 

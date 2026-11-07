@@ -605,10 +605,14 @@ that first write, reverting is safe: the old volume holds the same data.</p>
 there by its local PV, and the sync cannot pass wave -1 without it. As soon as
 the check passes, set <code class="docutils literal notranslate"><span class="pre">legacy.migrate:</span> <span class="pre">false</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code> and
 let Argo CD sync. The old dynamic backups claim, <code class="docutils literal notranslate"><span class="pre">scrap-backups</span></code>, is rendered
-only so that the Job can mount it. Deleting it deletes its NAS directory
-(it was provisioned by the <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class, then the default: reclaim policy <code class="docutils literal notranslate"><span class="pre">Delete</span></code>,
-<code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">delete</span></code>), so do that only once
-its runs are confirmed in <code class="docutils literal notranslate"><span class="pre">backups/scrap</span></code>.</p>
+only so that the Job can mount it: drop <code class="docutils literal notranslate"><span class="pre">legacy.backups</span></code> from
+<code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code> at the same time. Its <code class="docutils literal notranslate"><span class="pre">Prune=false</span></code> keeps the claim in
+the cluster, so delete it by hand afterwards. Deleting it deletes its NAS
+directory (it was provisioned by the <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class, then the default: reclaim
+policy <code class="docutils literal notranslate"><span class="pre">Delete</span></code>, <code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">delete</span></code>), so do that only once every run you want
+is confirmed in <code class="docutils literal notranslate"><span class="pre">backups/scrap</span></code>. The Job copies only complete runs named by
+timestamp: copy any run you renamed by hand (such as a <code class="docutils literal notranslate"><span class="pre">-curated</span></code> one) yourself,
+and note that the daily gc on the new claim may already have pruned older runs.</p>
 </section>
 <section id="new-installs">
 <h4>New installs<a class="headerlink" href="#new-installs" title="Link to this heading">#</a></h4>
