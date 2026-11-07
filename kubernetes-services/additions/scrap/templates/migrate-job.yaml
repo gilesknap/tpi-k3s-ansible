@@ -77,7 +77,13 @@ spec:
                 fi
               done
               if [ ! -e /old/scrap.db ]; then
-                echo "/old/scrap.db does not exist: no database to move (a new install); nothing to do"
+                # Only a truly empty volume is a new install: anything else
+                # (files/, a WAL, an unsearchable directory) must stop here.
+                if [ -n "$(ls -A /old)" ]; then
+                  echo "/old has content but no readable scrap.db; nothing changed." >&2
+                  exit 1
+                fi
+                echo "/old is empty: no database to move (a new install); nothing to do"
                 exit 0
               fi
               # Not during a backup or gc (the chart's jobs take the same lock).

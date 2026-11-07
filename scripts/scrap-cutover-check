@@ -142,4 +142,10 @@ if ! kubectl -n "$namespace" exec -i deploy/scrap -c scrap -- python3 - live \
     exit 2
 fi
 
-python3 - "$work/old.json" "$work/live.json" <<<"$compare_py"
+rc=0
+python3 - "$work/old.json" "$work/live.json" <<<"$compare_py" || rc=$?
+# 1 means rows newer in the old copy; anything else is a crash, so report 2.
+case $rc in
+0 | 1) exit "$rc" ;;
+*) echo "The comparison failed (exit $rc)." >&2; exit 2 ;;
+esac
