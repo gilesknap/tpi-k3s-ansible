@@ -461,6 +461,10 @@ ansible-playbook pb_all.yml --tags apparmor --limit <node>
 ssh <node> "sudo journalctl -k --since '-10 min' | grep -c 'apparmor=\"DENIED\" operation=\"signal\"'"
 ```
 
+If the denials come back after a reboot, check the boot unit: a failure in
+`systemctl status k3s-apparmor-profile` does not stop k3s, so containerd falls
+back to its stock profile silently.
+
 ## Hardware
 
 ### RK1 module not detected in slot
