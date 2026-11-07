@@ -142,12 +142,32 @@ spec:
                 - name: "null"
 
           prometheusOperator:
+            # TEMPORARY PIN to v0.94.2 (the appVersion of chart 92.22.0, the last
+            # release whose images are multi-arch). The v0.95.1 image indexes on
+            # quay.io and ghcr.io list only linux/amd64, so these images fail on
+            # arm64 nodes with "no match for platform in manifest":
+            # https://github.com/prometheus-operator/prometheus-operator/issues/8953
+            # REMOVE these tag pins (and the admissionWebhooks one below) once the chart's appVersion is a release
+            # whose index lists linux/arm64 again (v0.95.2 or later); check with
+            # the registry API before unpinning. Renovate cannot see these tags
+            # (they are split registry/repository/tag Helm values), and a
+            # kube-prometheus-stack bump does NOT override them, so the pin
+            # stays until someone removes it by hand. Recheck it on every bump.
+            image:
+              tag: v0.94.2
+            prometheusConfigReloader:
+              image:
+                tag: v0.94.2
             admissionWebhooks:
               # Disabled: hook jobs (admission-create/patch) delete themselves before
               # ArgoCD records Succeeded, causing every sync to get permanently stuck.
               # Same fix as ingress-nginx (eaaa0f1). The webhook validates CRD syntax
               # but is not required for operation.
               enabled: false
+              # Part of the v0.94.2 pin above: only used if webhooks are re-enabled.
+              deployment:
+                image:
+                  tag: v0.94.2
             tolerations:
               - key: workstation
                 operator: Equal
