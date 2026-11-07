@@ -21,10 +21,29 @@
     - role: known_hosts
   tags: known_hosts
 
-- name: Update all nodes in preparation for k3s
+- name: Move the root filesystem to its target device
   hosts: all_nodes # all nodes in all turing pi groups and outside
   roles:
     - role: move_fs
+  become: true
+  tags: servers
+
+# RK1 only: stock Ubuntu, generic kernel, U-Boot -> EFI -> GRUB. After
+# move_fs, which needs the vendor PPA this role removes. One node at a
+# time, as a conversion drains and reboots the node.
+- name: Convert RK1 nodes to stock Ubuntu
+  hosts: all_nodes
+  # The role gathers the facts it needs on RK1 nodes only.
+  gather_facts: false
+  serial: 1
+  roles:
+    - role: rk1_os
+  become: true
+  tags: [servers, rk1_os]
+
+- name: Update all nodes in preparation for k3s
+  hosts: all_nodes # all nodes in all turing pi groups and outside
+  roles:
     - role: update_packages
     # Creates /home/k8s-data/* (nuc2) and /var/lib/k8s-data/* (RK1s).
     # These back the local-nvme PVs and are preserved across rebuilds

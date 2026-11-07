@@ -1,0 +1,12 @@
+#!/bin/sh
+# Managed by Ansible (rk1_os).
+# Copy the kernel-shipped Turing RK1 device tree to /boot/dtb-<version> so
+# GRUB's 10_linux emits a "devicetree" line (flash-kernel would normally do
+# this, but it does not support the RK1 and is pinned out). Runs before
+# zz-update-grub.
+set -e
+v="$1"
+src="/usr/lib/firmware/$v/device-tree/rockchip/rk3588-turing-rk1.dtb"
+[ -f "$src" ] || exit 0
+install -m 0644 "$src" "/boot/dtb-$v.tmp"
+mv "/boot/dtb-$v.tmp" "/boot/dtb-$v"

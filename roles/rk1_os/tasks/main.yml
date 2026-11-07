@@ -1,0 +1,135 @@
+# Converts a Turing Pi RK1 from the archived ubuntu-rockchip vendor image
+# to stock Ubuntu: the generic kernel, booted U-Boot -> EFI -> GRUB from
+# the NVMe, on rk1_os_target_release. A standard Ubuntu install is left
+# alone. See docs/explanations/ansible-roles.md.
+
+- name: Convert RK1 nodes to stock Ubuntu booted through EFI
+  when: type | default('') == 'rk1'
+  block:
+    # A re-run while an earlier run's release upgrade is still going must
+    # not run apt alongside it. raw needs no Python, which the upgrade
+    # may be replacing.
+    - name: Check whether a release upgrade is running
+      ansible.builtin.raw: systemctl is-active --quiet {{ rk1_os_upgrade_unit }}
+      register: rk1_os_upgrade_running
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Wait for the running release upgrade
+      when: rk1_os_upgrade_running.rc == 0
+      block:
+        - name: Fail in check mode while a release upgrade is running
+          ansible.builtin.fail:
+            msg: >-
+              A release upgrade is running on {{ inventory_hostname }};
+              re-run once {{ rk1_os_upgrade_unit }} has finished.
+          when: ansible_check_mode
+
+        - name: Use an interpreter that survives the release upgrade
+          ansible.builtin.set_fact:
+            ansible_python_interpreter: /usr/bin/python3
+
+        - name: Wait for the release upgrade to finish
+          ansible.builtin.include_tasks: upgrade_wait.yml
+
+    # The rk1_os play does not gather facts, so that non-RK1 nodes are
+    # not contacted; gather only what the role needs.
+    - name: Gather distribution and kernel facts
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+
+    - name: Find the device holding the root filesystem
+      ansible.builtin.command:
+        cmd: findmnt --noheadings --output SOURCE --target /
+      register: rk1_os_root_dev
+      changed_when: false
+      check_mode: false
+
+    - name: Find the disk holding the root filesystem
+      ansible.builtin.command:
+        cmd: lsblk --noheadings --nodeps --paths --output PKNAME {{ rk1_os_root_dev.stdout | trim }}
+      register: rk1_os_root_disk
+      changed_when: false
+      check_mode: false
+
+    - name: Set the root disk and EFI system partition
+      ansible.builtin.set_fact:
+        rk1_os_root_source: "{{ rk1_os_root_dev.stdout | trim }}"
+        rk1_os_disk: "{{ rk1_os_root_disk.stdout | trim }}"
+        rk1_os_esp: >-
+          {{ rk1_os_root_disk.stdout | trim }}{{ 'p1' if rk1_os_root_disk.stdout | trim is search('[0-9]$') else '1' }}
+
+    # The eMMC holds U-Boot in its first 16 MiB, so the role never
+    # rewrites the eMMC partition table: the root must not be on the eMMC
+    # (mmcblk). move_fs puts it on the NVMe.
+    - name: Warn that RK1 nodes with root on the eMMC are not converted
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} has its root on {{ rk1_os_disk }}. Set
+          root_dev in the inventory so move_fs moves it to the NVMe first.
+      when: rk1_os_disk is search('mmcblk')
+
+    - name: Convert the node
+      when: rk1_os_disk is not search('mmcblk')
+      block:
+        - name: Check for a release upgrade awaiting its checks
+          ansible.builtin.stat:
+            path: "{{ rk1_os_upgrade_rc_file }}"
+          register: rk1_os_upgrade_rc_start
+
+        - name: Check for a release upgrade that was started
+          ansible.builtin.stat:
+            path: "{{ rk1_os_upgrade_started_file }}"
+          register: rk1_os_upgrade_started
+
+        - name: Check whether the node booted through EFI
+          ansible.builtin.stat:
+            path: /sys/firmware/efi
+          register: rk1_os_efi
+
+        - name: Find the partition mounted at /boot/efi
+          ansible.builtin.command:
+            cmd: findmnt --noheadings --output SOURCE /boot/efi
+          register: rk1_os_boot_efi_mount
+          changed_when: false
+          failed_when: false
+          check_mode: false
+
+        - name: Find the vendor packages and PPAs
+          ansible.builtin.include_tasks: find_vendor.yml
+
+        # A stock Ubuntu install, such as the preinstalled server image
+        # (root on p1, its own ESP on p15), already boots through EFI on
+        # the target release with nothing from the vendor image: the
+        # role has nothing to convert. A converted node mounts p1.
+        - name: Set whether the node is a standard install
+          ansible.builtin.set_fact:
+            rk1_os_standard_install: >-
+              {{ rk1_os_efi.stat.exists
+                 and ansible_facts.distribution_version == rk1_os_target_release
+                 and not rk1_os_upgrade_rc_start.stat.exists
+                 and not rk1_os_upgrade_started.stat.exists
+                 and rk1_os_boot_efi_mount.stdout | trim | length > 0
+                 and rk1_os_boot_efi_mount.stdout | trim != rk1_os_esp
+                 and rk1_os_vendor_only | length == 0
+                 and rk1_os_ppa_files.matched == 0 }}
+
+        - name: Skip a standard install
+          ansible.builtin.debug:
+            msg: >-
+              {{ inventory_hostname }} is a standard Ubuntu
+              {{ rk1_os_target_release }} install booting through EFI from
+              {{ rk1_os_boot_efi_mount.stdout | trim }}, with no vendor
+              packages or PPAs; rk1_os has nothing to convert.
+          when: rk1_os_standard_install | bool
+
+        - name: Convert the vendor layout
+          when: not rk1_os_standard_install | bool
+          ansible.builtin.include_tasks: convert.yml
+
+    # A re-run that needs no reboot still uncordons a node that a failed
+    # run left cordoned.
+    - name: Uncordon the node if the role left it cordoned
+      ansible.builtin.include_tasks: uncordon.yml

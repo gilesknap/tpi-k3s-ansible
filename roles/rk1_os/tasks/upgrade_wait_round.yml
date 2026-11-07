@@ -1,0 +1,36 @@
+# One wait round: reconnect, then poll for the exit-status file for up
+# to ten minutes, or until the deadline. Never fails: losing SSH ends the
+# round early, and the next one reconnects.
+- name: Set the time left before the deadline
+  ansible.builtin.set_fact:
+    rk1_os_upgrade_left: "{{ (rk1_os_upgrade_deadline | int) - (lookup('ansible.builtin.pipe', 'date +%s') | int) }}"
+  when: not rk1_os_upgrade_finished | bool
+
+- name: Poll the release upgrade
+  when:
+    - not rk1_os_upgrade_finished | bool
+    - rk1_os_upgrade_left | int > 0
+  block:
+    - name: Wait for the node to accept SSH
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ [900, rk1_os_upgrade_left | int] | min }}"
+      failed_when: false
+
+    # One raw command polls the whole round, so no until loop can fail
+    # the task when its retries run out. raw needs no Python, which the
+    # upgrade is replacing; it always exits 0 and reports by its output.
+    - name: Poll for the release upgrade exit status
+      ansible.builtin.raw: >-
+        n={{ [20, (rk1_os_upgrade_left | int) // 30 + 1] | min }};
+        while [ "$n" -gt 0 ]; do
+        if test -e {{ rk1_os_upgrade_rc_file }}; then echo rk1-os-upgrade-finished; break; fi;
+        n=$((n - 1)); [ "$n" -gt 0 ] && sleep 30;
+        done || true
+      register: rk1_os_upgrade_poll
+      changed_when: false
+      failed_when: false
+      ignore_unreachable: true
+
+    - name: Record whether the release upgrade finished
+      ansible.builtin.set_fact:
+        rk1_os_upgrade_finished: "{{ 'rk1-os-upgrade-finished' in rk1_os_upgrade_poll.stdout | default('') }}"

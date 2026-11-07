@@ -1,0 +1,124 @@
+# Needs the EFI system partition facts from check_esp.yml.
+
+# U-Boot tries the NVMe before the eMMC and scans its partitions in
+# order. On each it boots extlinux.conf if present, else the EFI
+# removable-path binary, so GRUB on p1 wins over anything on p2.
+- name: Read the type of the EFI system partition
+  ansible.builtin.command:
+    cmd: sfdisk --part-type {{ rk1_os_disk }} 1
+  register: rk1_os_esp_type_now
+  changed_when: false
+  check_mode: false
+
+# p1 is the vendor image's CIDATA partition, which holds the live
+# cloud-init seed: retype it, never reformat it.
+- name: Mark the first partition as an EFI system partition
+  ansible.builtin.command:
+    cmd: sfdisk --no-reread --no-tell-kernel --part-type {{ rk1_os_disk }} 1 {{ rk1_os_esp_type }}
+  when: rk1_os_esp_type_now.stdout | trim | upper != rk1_os_esp_type
+  changed_when: true
+
+- name: Mount the EFI system partition at /boot/efi
+  ansible.posix.mount:
+    path: /boot/efi
+    src: UUID={{ rk1_os_esp_uuid }}
+    fstype: vfat
+    opts: umask=0077,nofail,x-systemd.device-timeout=10s
+    dump: "0"
+    passno: "2"
+    state: mounted
+
+- name: Read the device links of the EFI system partition
+  ansible.builtin.command:
+    cmd: udevadm info --query=symlink --name={{ rk1_os_esp }}
+  register: rk1_os_esp_links
+  changed_when: false
+  check_mode: false
+
+# Prefer the model-and-serial by-id link: it survives a disk swap to
+# another slot and names the disk readably.
+- name: Choose a stable path for the EFI system partition
+  ansible.builtin.set_fact:
+    rk1_os_esp_by_id: >-
+      {{ rk1_os_esp_links.stdout.split()
+         | select('match', 'disk/by-id/')
+         | reject('search', '/(nvme-eui\.|wwn-)|_[0-9]+-part')
+         | sort | map('regex_replace', '^', '/dev/') | first
+         | default(rk1_os_esp, true) }}
+
+- name: Preseed GRUB for a removable-path install without NVRAM updates
+  ansible.builtin.debconf:
+    name: grub-efi-arm64
+    question: "{{ item.question }}"
+    value: "{{ item.value }}"
+    vtype: "{{ item.vtype }}"
+  loop:
+    - question: grub2/force_efi_extra_removable
+      value: "true"
+      vtype: boolean
+    - question: grub2/update_nvram
+      value: "false"
+      vtype: boolean
+    - question: grub-efi/install_devices
+      value: "{{ rk1_os_esp_by_id }}"
+      vtype: multiselect
+  loop_control:
+    label: "{{ item.question }}"
+
+# No recommends: no shim, signed GRUB or os-prober. U-Boot has no
+# secure boot, and there is no other OS to probe for.
+- name: Install GRUB for arm64 EFI
+  ansible.builtin.apt:
+    name: grub-efi-arm64
+    state: present
+    install_recommends: false
+  register: rk1_os_grub_pkg
+
+- name: Check removing secure boot and os-prober removes no protected package
+  ansible.builtin.include_tasks: check_removals.yml
+  vars:
+    rk1_os_removal_args: purge shim-signed grub-efi-arm64-signed os-prober
+
+- name: Remove secure boot and os-prober packages
+  ansible.builtin.apt:
+    name:
+      - shim-signed
+      - grub-efi-arm64-signed
+      - os-prober
+    state: absent
+    purge: true
+
+- name: Configure GRUB for the RK1
+  ansible.builtin.template:
+    src: 50-rk1.cfg.j2
+    dest: /etc/default/grub.d/50-rk1.cfg
+    owner: root
+    group: root
+    mode: "0644"
+  register: rk1_os_grub_cfg
+
+- name: Read the boot files
+  ansible.builtin.include_tasks: boot_facts.yml
+
+- name: Install GRUB to the removable EFI path
+  ansible.builtin.command:
+    cmd: >-
+      grub-install --target=arm64-efi --efi-directory=/boot/efi
+      --boot-directory=/boot --removable --no-nvram --no-uefi-secure-boot
+  when: >-
+    rk1_os_grub_pkg.changed or rk1_os_bootaa64.matched == 0
+    or rk1_os_grub_reinstall | default(false) | bool
+  register: rk1_os_grub_install
+  changed_when: true
+
+- name: Regenerate grub.cfg
+  ansible.builtin.command:
+    cmd: update-grub
+  when: >-
+    rk1_os_grub_cfg.changed or rk1_os_grub_install.changed
+    or rk1_os_dtb_copies.changed or rk1_os_modified_kernels.stdout_lines | length > 0
+    or not rk1_os_grub_ok
+  changed_when: true
+
+- name: Check that the node can boot
+  ansible.builtin.include_tasks: assert_bootable.yml

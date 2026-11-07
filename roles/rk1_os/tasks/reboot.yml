@@ -1,0 +1,85 @@
+# Drains the node, reboots it, checks it came back through EFI, waits
+# for k3s and uncordons it if the role cordoned it.
+- name: Check that the node can boot
+  ansible.builtin.include_tasks: assert_bootable.yml
+
+- name: Drain the node
+  ansible.builtin.include_tasks: drain.yml
+
+- name: Reboot the node
+  ansible.builtin.reboot:
+    msg: Rebooting for the rk1_os conversion
+    reboot_timeout: 900
+
+- name: Check whether the node booted through EFI
+  ansible.builtin.stat:
+    path: /sys/firmware/efi
+  register: rk1_os_efi_after
+
+- name: Fail if the node did not boot through EFI
+  ansible.builtin.assert:
+    that: rk1_os_efi_after.stat.exists
+    fail_msg: >-
+      {{ inventory_hostname }} did not boot through EFI. Check the UART
+      (tpi uart --node {{ slot_num | default('?') }} get).
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# Set by post_upgrade.yml: the upgraded release booted through EFI.
+- name: Mark the release upgrade as complete
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ rk1_os_upgrade_rc_file }}"
+    - "{{ rk1_os_upgrade_started_file }}"
+  when: rk1_os_reboot_ends_upgrade | default(false) | bool
+
+- name: Wait for the node to rejoin the cluster
+  when: rk1_os_in_cluster
+  block:
+    - name: Wait for the k3s unit to be running
+      ansible.builtin.service_facts:
+      register: rk1_os_services
+      until: >-
+        rk1_os_services.ansible_facts.services[rk1_os_k3s_unit].state | default('') == 'running'
+      retries: 30
+      delay: 10
+
+    - name: Read the boot ID
+      ansible.builtin.slurp:
+        src: /proc/sys/kernel/random/boot_id
+      register: rk1_os_boot_id
+
+    # A quick reboot can leave the node Ready from before it went down;
+    # the kubelet reports the new boot ID once it is back.
+    - name: Wait for the node to be Ready after this boot
+      kubernetes.core.k8s_info:
+        kind: Node
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      register: rk1_os_k8s_node_after
+      # An API error while the node rejoins is retried, not fatal; the
+      # task still fails once the retries run out.
+      failed_when: false
+      until: >-
+        (rk1_os_k8s_node_after.resources | default([])) | length > 0
+        and rk1_os_k8s_node_after.resources[0].status.nodeInfo.bootID
+        == rk1_os_boot_id.content | b64decode | trim
+        and (rk1_os_k8s_node_after.resources[0].status.conditions
+        | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | list) == ['True']
+      retries: 60
+      delay: 10
+
+    - name: Uncordon the node if the role cordoned it
+      ansible.builtin.include_tasks: uncordon.yml
+
+# The kernel changed; later tasks (the protected running kernel in
+# check_removals.yml) read it from the facts.
+- name: Gather facts after the reboot
+  ansible.builtin.setup:
+    gather_subset:
+      - min

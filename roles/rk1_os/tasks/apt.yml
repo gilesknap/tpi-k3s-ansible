@@ -1,0 +1,65 @@
+- name: Pin flash-kernel out, as it does not support the RK1
+  ansible.builtin.copy:
+    src: no-flash-kernel
+    dest: /etc/apt/preferences.d/no-flash-kernel
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check purging flash-kernel removes no protected package
+  ansible.builtin.include_tasks: check_removals.yml
+  vars:
+    rk1_os_removal_args: purge flash-kernel
+
+- name: Purge flash-kernel
+  ansible.builtin.apt:
+    name: flash-kernel
+    state: absent
+    purge: true
+
+- name: Find the vendor packages and PPAs
+  ansible.builtin.include_tasks: find_vendor.yml
+
+- name: Disable the ubuntu-rockchip PPAs
+  ansible.builtin.command:
+    cmd: mv -f {{ item.path }} {{ item.path }}.disabled
+  loop: "{{ rk1_os_ppa_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  changed_when: true
+
+- name: Update the apt cache without the PPAs
+  ansible.builtin.apt:
+    update_cache: true
+  when: rk1_os_ppa_files.matched > 0
+
+- name: Offer only LTS release upgrades
+  ansible.builtin.lineinfile:
+    path: /etc/update-manager/release-upgrades
+    regexp: "^Prompt="
+    line: Prompt=lts
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check purging u-boot-menu removes no protected package
+  ansible.builtin.include_tasks: check_removals.yml
+  vars:
+    rk1_os_removal_args: purge u-boot-menu
+
+# u-boot-menu writes /boot/extlinux/extlinux.conf; U-Boot boots GRUB
+# through EFI instead, and cannot boot Ubuntu's EFI-stub kernels anyway.
+- name: Purge the extlinux tooling
+  ansible.builtin.apt:
+    name: u-boot-menu
+    state: absent
+    purge: true
+
+- name: Remove the extlinux kernel-unpack hooks
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/kernel/postinst.d/zy-unpack-zboot
+    - /etc/kernel/postrm.d/zy-unpack-zboot

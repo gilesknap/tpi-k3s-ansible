@@ -1,0 +1,30 @@
+# Before the role changes anything: the first partition must be the
+# vendor image's vfat CIDATA partition, not the root filesystem. Sets the
+# EFI system partition facts grub.yml uses.
+- name: Read the EFI system partition filesystem
+  ansible.builtin.command:
+    cmd: blkid --output export {{ rk1_os_esp }}
+  register: rk1_os_esp_blkid
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Set the EFI system partition filesystem facts
+  ansible.builtin.set_fact:
+    rk1_os_esp_fstype: "{{ rk1_os_esp_blkid.stdout | regex_findall('^TYPE=(.*)$', multiline=True) | first | default('') }}"
+    rk1_os_esp_uuid: "{{ rk1_os_esp_blkid.stdout | regex_findall('^UUID=(.*)$', multiline=True) | first | default('') }}"
+    rk1_os_esp_label: "{{ rk1_os_esp_blkid.stdout | regex_findall('^LABEL=(.*)$', multiline=True) | first | default('') }}"
+
+- name: Check that the first partition is the vfat CIDATA partition
+  ansible.builtin.assert:
+    that:
+      - rk1_os_esp != rk1_os_root_source
+      - rk1_os_esp_fstype == 'vfat'
+      - rk1_os_esp_label == 'CIDATA'
+      - rk1_os_esp_uuid | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }} has an unrecognised disk layout: {{ rk1_os_esp }}
+      (root is {{ rk1_os_root_source }}) is '{{ rk1_os_esp_fstype }}' labelled
+      '{{ rk1_os_esp_label }}', not the vendor image's vfat CIDATA partition.
+      Nothing was changed.
+    quiet: true

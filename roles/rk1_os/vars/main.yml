@@ -1,0 +1,36 @@
+# The release every RK1 ends up on.
+rk1_os_target_release: "26.04"
+
+# Kernel metapackage per release. 26.04 uses the GA line (linux-generic):
+# it stays on the 7.0 series for the life of the release, whereas the
+# HWE line moves to a new kernel series with each point release. 24.04
+# only gets the HWE 7.0 kernel as a bridge to boot through EFI before the
+# release upgrade.
+rk1_os_kernel_packages:
+  "24.04": linux-generic-hwe-24.04
+  "26.04": linux-generic
+
+# Codename of each release the role handles. The enabled apt sources must
+# name only the node's own (/etc/os-release), as do-release-upgrade
+# rewrites them to the new one before it upgrades any package.
+rk1_os_codenames:
+  "24.04": noble
+  "26.04": resolute
+
+rk1_os_esp_type: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+
+# Records the exit status of do-release-upgrade; present means the
+# post-upgrade checks and reboot are still due.
+rk1_os_upgrade_rc_file: /var/lib/rk1_os/release-upgrade.rc
+# Present from the start of do-release-upgrade until its reboot; with no
+# exit status file it means the upgrade was interrupted.
+rk1_os_upgrade_started_file: /var/lib/rk1_os/release-upgrade.started
+rk1_os_upgrade_unit: rk1-os-release-upgrade
+
+# The k3s unit on this node. Its unit file existing means k3s is
+# installed, so the node is expected to be in the cluster.
+rk1_os_k3s_unit: "{{ 'k3s.service' if inventory_hostname == control_plane else 'k3s-agent.service' }}"
+
+# Present while the role holds the node cordoned; the node is uncordoned
+# after its reboot only then, so a node cordoned by hand stays cordoned.
+rk1_os_drain_marker: /var/lib/rk1_os/drained

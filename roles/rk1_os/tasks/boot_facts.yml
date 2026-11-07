@@ -1,0 +1,41 @@
+# Empty when none is installed yet, as in check mode on a vendor kernel.
+- name: Find the newest generic kernel
+  ansible.builtin.shell:
+    cmd: set -o pipefail && linux-version list | { grep -e '-generic$' || true; } | linux-version sort --reverse | head -n 1
+    executable: /bin/bash
+  register: rk1_os_target_kernel
+  changed_when: false
+  check_mode: false
+
+# vfat is case-insensitive, so match the name the same way.
+- name: Find the removable-path GRUB binary
+  ansible.builtin.find:
+    paths: /boot/efi
+    recurse: true
+    use_regex: true
+    patterns: '(?i)^bootaa64\.efi$'
+  register: rk1_os_bootaa64
+
+- name: Read grub.cfg
+  ansible.builtin.slurp:
+    src: /boot/grub/grub.cfg
+  register: rk1_os_grub_cfg_file
+  failed_when: false
+
+# GRUB boots the first top-level menu entry when GRUB_DEFAULT is 0 or
+# unset, which grub.cfg shows as set default="0". That entry must load
+# the newest kernel and its device tree; the submenu is not checked.
+- name: Check grub.cfg boots the newest kernel with its device tree
+  vars:
+    rk1_os_kver: "{{ rk1_os_target_kernel.stdout | trim | regex_escape }}"
+    rk1_os_grub_text: "{{ rk1_os_grub_cfg_file.content | default('') | b64decode }}"
+    rk1_os_grub_defaults: >-
+      {{ rk1_os_grub_text | regex_findall('(?m)^\s*set default="([^"]*)"') | unique
+         | difference(['${next_entry}']) }}
+    rk1_os_first_entry: "{{ rk1_os_grub_text | regex_search('(?ms)^menuentry .*?^[}]') | default('', true) }}"
+    rk1_os_entry_re: '\n\s*linux\s+/boot/vmlinuz-KVER\s[^}]*\n\s*devicetree\s+/boot/dtb-KVER\s'
+  ansible.builtin.set_fact:
+    rk1_os_grub_ok: >-
+      {{ rk1_os_target_kernel.stdout | trim | length > 0
+         and rk1_os_grub_defaults == ['0']
+         and rk1_os_first_entry is search(rk1_os_entry_re | replace('KVER', rk1_os_kver)) }}

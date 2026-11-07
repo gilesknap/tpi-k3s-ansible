@@ -1,0 +1,83 @@
+# GRUB's 10_linux adds "devicetree /boot/dtb-<version>" when that file
+# exists; these hooks keep one per installed kernel.
+- name: Install the kernel hooks that copy the RK1 device tree to /boot
+  ansible.builtin.copy:
+    src: zx-rk1-dtb.{{ item }}
+    dest: /etc/kernel/{{ item }}.d/zx-rk1-dtb
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - postinst
+    - postrm
+
+# No recommends: the kernel recommends "flash-kernel | grub-efi-arm64",
+# and with flash-kernel pinned out apt would install GRUB, its signed
+# variant and shim here, before grub.yml preseeds debconf and mounts the
+# ESP. The other recommends are bpftrace, bpfcc and the kernel tools.
+- name: Install the Ubuntu generic kernel
+  ansible.builtin.apt:
+    name: "{{ rk1_os_kernel_packages[ansible_facts.distribution_version] }}"
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+  register: rk1_os_kernel_pkg
+
+- name: Replace the HWE kernel metapackages with the GA kernel
+  when: ansible_facts.distribution_version == rk1_os_target_release
+  block:
+    - name: Check removing the HWE metapackages removes no protected package
+      ansible.builtin.include_tasks: check_removals.yml
+      vars:
+        rk1_os_removal_args: purge linux-*generic-hwe-*
+
+    - name: Remove the HWE kernel metapackages in favour of the GA kernel
+      ansible.builtin.apt:
+        name: "linux-*generic-hwe-*"
+        state: absent
+        purge: true
+
+- name: Find the RK1 device trees of the installed kernels
+  ansible.builtin.command:
+    cmd: find /usr/lib/firmware -mindepth 4 -maxdepth 4 -path '*/device-tree/rockchip/rk3588-turing-rk1.dtb'
+  register: rk1_os_dtb_sources
+  changed_when: false
+  check_mode: false
+
+- name: Copy each kernel's RK1 device tree to /boot
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /boot/dtb-{{ item.split('/')[4] }}
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ rk1_os_dtb_sources.stdout_lines }}"
+  register: rk1_os_dtb_copies
+
+# U-Boot's booti cannot start Ubuntu's EFI-stub kernels, so an earlier
+# extlinux setup may have replaced /boot/vmlinuz-* with the unpacked
+# Image. GRUB needs the packaged EFI images back.
+- name: Find generic kernel images that differ from their package
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      # dpkg-query fails when nothing matches, as in check mode before
+      # the first generic kernel is installed.
+      { dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'linux-image-[0-9]*-generic' 2>/dev/null || true; } |
+        awk '$1 == "ii" {print $2}' |
+        while read -r pkg; do
+          if dpkg --verify "$pkg" | grep -q ' /boot/vmlinuz-'; then echo "$pkg"; fi
+        done
+    executable: /bin/bash
+  register: rk1_os_modified_kernels
+  changed_when: false
+  check_mode: false
+
+# The apt module cannot reinstall a package.
+- name: Reinstall kernels whose image was modified
+  ansible.builtin.command:
+    cmd: apt install --reinstall --yes {{ rk1_os_modified_kernels.stdout_lines | join(' ') }}
+  when: rk1_os_modified_kernels.stdout_lines | length > 0
+  changed_when: true

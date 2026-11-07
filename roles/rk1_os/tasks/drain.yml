@@ -1,0 +1,61 @@
+# Sets rk1_os_in_cluster and, if the node is in the cluster, drains it.
+# A node without k3s is not in the cluster, even if a stale Node object
+# of its name remains from before a reflash. With k3s installed, a
+# failed API lookup fails the play rather than reboot an undrained node.
+- name: Check whether k3s is installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/{{ rk1_os_k3s_unit }}
+  register: rk1_os_k3s_unit_file
+
+- name: Look up the node in the cluster
+  kubernetes.core.k8s_info:
+    kind: Node
+    name: "{{ inventory_hostname }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  register: rk1_os_k8s_node
+  when: rk1_os_k3s_unit_file.stat.exists
+
+- name: Set whether the node is in the cluster
+  ansible.builtin.set_fact:
+    rk1_os_in_cluster: >-
+      {{ rk1_os_k3s_unit_file.stat.exists
+         and rk1_os_k8s_node.resources | default([]) | length > 0 }}
+
+- name: Cordon and drain the node
+  when: rk1_os_in_cluster
+  block:
+    - name: Create the rk1_os state directory
+      ansible.builtin.file:
+        path: "{{ rk1_os_drain_marker | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    # Only a node that was schedulable is uncordoned again afterwards.
+    # The marker survives a failed run, so a re-run still uncordons.
+    - name: Record that the role cordons the node
+      ansible.builtin.copy:
+        content: ""
+        dest: "{{ rk1_os_drain_marker }}"
+        force: false
+        owner: root
+        group: root
+        mode: "0644"
+      when: not (rk1_os_k8s_node.resources[0].spec.unschedulable | default(false))
+
+    - name: Drain the node
+      kubernetes.core.k8s_drain:
+        name: "{{ inventory_hostname }}"
+        state: drain
+        delete_options:
+          ignore_daemonsets: true
+          delete_emptydir_data: true
+          wait_timeout: 600
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"

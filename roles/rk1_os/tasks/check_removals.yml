@@ -1,0 +1,21 @@
+# Fails if an apt removal would take a protected package with it. The
+# apt module reports nothing about what a check-mode removal would take.
+# Needs rk1_os_removal_args, the apt arguments after --simulate.
+- name: Simulate the removal
+  ansible.builtin.command:
+    cmd: apt --simulate {{ rk1_os_removal_args }}
+  register: rk1_os_removal_sim
+  changed_when: false
+  check_mode: false
+
+- name: Check the removal takes no protected package
+  vars:
+    rk1_os_removes: >-
+      {{ rk1_os_removal_sim.stdout_lines | select('match', '^(Purg|Remv) ')
+         | map('regex_replace', '^\\S+ (\\S+).*$', '\\1') | list }}
+  ansible.builtin.assert:
+    that: rk1_os_removes | intersect(rk1_os_protected_packages) | length == 0
+    fail_msg: >-
+      apt {{ rk1_os_removal_args }} would remove
+      {{ rk1_os_removes | intersect(rk1_os_protected_packages) }}.
+    quiet: true
