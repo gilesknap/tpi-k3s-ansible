@@ -486,7 +486,7 @@ window.addEventListener("load", load);</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Networking" href="networking.html" />
+    <link rel="next" title="Upgrade Model" href="upgrade-model.html" />
     <link rel="prev" title="Kubernetes Services Structure" href="kubernetes-services.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -766,6 +766,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l1"><a class="reference internal" href="gitops-flow.html">GitOps Flow</a></li>
 <li class="toctree-l1"><a class="reference internal" href="kubernetes-services.html">Kubernetes Services Structure</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Ansible Roles in Detail</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-model.html">Upgrade Model</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Networking &amp; Security</span></p>
 <ul class="nav bd-sidenav">
@@ -1158,10 +1159,15 @@ most of it. A conversion can be followed on the node’s serial console with
 <li><p><code class="docutils literal notranslate"><span class="pre">apt</span> <span class="pre">autoremove</span></code> (clean up)</p></li>
 <li><p>Install required packages:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">unattended-upgrades</span></code> — automatic security updates</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unattended-upgrades</span></code> — automatic updates</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">original-awk</span></code> — required by some K3s scripts</p></li>
 </ul>
 </li>
+<li><p><strong>Non-workstation nodes only:</strong> configure unattended-upgrades to install
+from the <code class="docutils literal notranslate"><span class="pre">-updates</span></code> pocket as well as <code class="docutils literal notranslate"><span class="pre">-security</span></code> (so kernel updates are
+included), without rebooting, nightly at 00:00 Europe/London
+(<code class="docutils literal notranslate"><span class="pre">update_packages_upgrade_on_calendar</span></code>). kured does the reboot; see
+<a class="reference internal" href="upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p></li>
 <li><p><strong>NVIDIA GPU nodes only</strong> (when <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in inventory):</p>
 <ul class="simple">
 <li><p>Install <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers-common</span></code> and run <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers</span> <span class="pre">install</span></code> to install the GPU driver</p></li>
@@ -1230,7 +1236,12 @@ separate manual runbook — see <a class="reference internal" href="../how-to/na
 <h2><code class="docutils literal notranslate"><span class="pre">k3s</span></code> — Kubernetes installation<a class="headerlink" href="#k3s-kubernetes-installation" title="Link to this heading">#</a></h2>
 <p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>
 <strong>Tag:</strong> <code class="docutils literal notranslate"><span class="pre">k3s</span></code></p>
-<p>Installs K3s with one control plane node and the rest as workers.</p>
+<p>Installs K3s with one control plane node and the rest as workers. The
+control plane gets the newest patch of the release channel for <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code>
+in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>; workers join at the version the
+control plane runs. <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">k3s_version=...</span></code> pins an exact release on that line.
+The role fails rather than install an older minor than a node already runs.
+Later patch upgrades are automatic; see <a class="reference internal" href="../how-to/upgrade-k3s.html"><span class="doc">Upgrade K3s</span></a>.</p>
 <section id="control-plane-control-yml">
 <h3>Control plane (<code class="docutils literal notranslate"><span class="pre">control.yml</span></code>)<a class="headerlink" href="#control-plane-control-yml" title="Link to this heading">#</a></h3>
 <ul class="simple">
@@ -1312,11 +1323,11 @@ managed by ArgoCD once it’s running.</p>
       </div>
     </a>
     <a class="right-next"
-       href="networking.html"
+       href="upgrade-model.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Networking</p>
+        <p class="prev-next-title">Upgrade Model</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

@@ -1,6 +1,7 @@
 # Node Operations
 
 Common operations for managing cluster nodes: shutdown, reboot, drain, add, and remove.
+Routine OS updates and reboots are automatic; see {doc}`/explanations/upgrade-model`.
 
 ## Apply package updates to nodes
 

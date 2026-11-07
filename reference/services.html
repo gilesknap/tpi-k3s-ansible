@@ -510,13 +510,21 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-odd"><td><p>cloudflared</p></td>
 <td><p>Plain manifests</p></td>
-<td><p>2026.3.0</p></td>
+<td><p>2026.10.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Cloudflare tunnel connector</p></td>
 </tr>
-<tr class="row-even"><td><p>echo</p></td>
+<tr class="row-even"><td><p>CoreDNS HA</p></td>
+<td><p>Plain manifests</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Holds K3s’s bundled CoreDNS at 2 replicas</p></td>
+</tr>
+<tr class="row-odd"><td><p>echo</p></td>
 <td><p>Plain manifests</p></td>
 <td><p>0.9.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
@@ -524,7 +532,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>None</p></td>
 <td><p>HTTP echo test service</p></td>
 </tr>
-<tr class="row-odd"><td><p>Grafana + Prometheus</p></td>
+<tr class="row-even"><td><p>Grafana + Prometheus</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">prometheus-community/kube-prometheus-stack</span></code></p></td>
 <td><p>83.0.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
@@ -532,7 +540,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>Dex (OIDC)</p></td>
 <td><p>Monitoring and dashboards</p></td>
 </tr>
-<tr class="row-even"><td><p>Headlamp</p></td>
+<tr class="row-odd"><td><p>Headlamp</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp/headlamp</span></code></p></td>
 <td><p>0.43.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
@@ -540,7 +548,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>OAuth + Token</p></td>
 <td><p>Kubernetes dashboard (with Argo CD plugin)</p></td>
 </tr>
-<tr class="row-odd"><td><p>ingress-nginx</p></td>
+<tr class="row-even"><td><p>ingress-nginx</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx/ingress-nginx</span></code></p></td>
 <td><p>4.15.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
@@ -548,13 +556,21 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Ingress controller</p></td>
 </tr>
-<tr class="row-even"><td><p>kernel-settings</p></td>
+<tr class="row-odd"><td><p>kernel-settings</p></td>
 <td><p>Inline DaemonSet</p></td>
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Sysctl tuning for performance</p></td>
+</tr>
+<tr class="row-even"><td><p>kured</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubereboot/kured</span></code></p></td>
+<td><p>6.1.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Reboots nodes after OS updates, one at a time</p></td>
 </tr>
 <tr class="row-odd"><td><p>Minecraft dashboard</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> (OCI)</p></td>
@@ -604,6 +620,14 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Encrypted secrets in Git</p></td>
 </tr>
+<tr class="row-odd"><td><p>system-upgrade-controller</p></td>
+<td><p>Upstream release manifests</p></td>
+<td><p>v0.20.2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Applies k3s patch releases</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -623,12 +647,13 @@ for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi lim
 </section>
 <section id="cloudflared">
 <h3>cloudflared<a class="headerlink" href="#cloudflared" title="Link to this heading">#</a></h3>
-<p>Outbound Cloudflare tunnel connector. Runs 2 replicas for availability. Reads the
-tunnel token from a SealedSecret. Non-root, read-only rootfs. Image pinned to
-<code class="docutils literal notranslate"><span class="pre">2026.3.0</span></code>.</p>
+<p>Outbound Cloudflare tunnel connector. Runs 2 replicas on different nodes
+(required pod anti-affinity) with a PodDisruptionBudget of <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>.
+Reads the tunnel token from a SealedSecret. Non-root, read-only rootfs.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/cloudflared/</span></code></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">deployment.yaml</span></code> — 2-replica Deployment with hardened security context</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">deployment.yaml</span></code> — 2-replica Deployment with hardened security context, and
+its PodDisruptionBudget</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tunnel-secret.yaml</span></code> — SealedSecret for tunnel token</p></li>
 </ul>
 </section>
@@ -650,7 +675,9 @@ Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
 emails in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get Admin role, all other authenticated users get Viewer. Uses
 static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs pinned by node affinity (Grafana → node03 30Gi,
 Prometheus → node02 40Gi). Grafana resource limits: 100m/256Mi request,
-500m/512Mi limit.</p>
+500m/512Mi limit. Alertmanager, the Prometheus operator and kube-state-metrics
+do not tolerate the workstation taint, so they stay off workstation nodes;
+node-exporter runs on every node.</p>
 <p>Uses <code class="docutils literal notranslate"><span class="pre">ServerSideApply=true</span></code> sync option due to large CRDs.</p>
 </section>
 <section id="headlamp">
@@ -682,8 +709,14 @@ container. Set <code class="docutils literal notranslate"><span class="pre">head
 </section>
 <section id="ingress-nginx">
 <h3>ingress-nginx<a class="headerlink" href="#ingress-nginx" title="Link to this heading">#</a></h3>
-<p>NGINX ingress controller. Admission webhooks are disabled. Resource limits:
-100m/256Mi request, 500m/512Mi limit. PodDisruptionBudget: minAvailable 1.</p>
+<p>NGINX ingress controller. Runs 2 replicas spread across nodes with a
+PodDisruptionBudget of <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>. Admission webhooks are disabled.
+Resource limits: 100m/256Mi request, 500m/512Mi limit.</p>
+</section>
+<section id="coredns-ha">
+<h3>CoreDNS HA<a class="headerlink" href="#coredns-ha" title="Link to this heading">#</a></h3>
+<p>Adds a HorizontalPodAutoscaler fixed at 2 replicas and a PodDisruptionBudget
+to the CoreDNS Deployment that K3s manages. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p>
 </section>
 <section id="kernel-settings">
 <h3>kernel-settings<a class="headerlink" href="#kernel-settings" title="Link to this heading">#</a></h3>
@@ -692,6 +725,13 @@ container. Set <code class="docutils literal notranslate"><span class="pre">head
 <li><p>Sets <code class="docutils literal notranslate"><span class="pre">rmem_max</span></code> and <code class="docutils literal notranslate"><span class="pre">wmem_max</span></code> to 7500000 (network buffers)</p></li>
 </ul>
 <p>All busybox images pinned to <code class="docutils literal notranslate"><span class="pre">1.37</span></code>.</p>
+</section>
+<section id="kured">
+<h3>kured<a class="headerlink" href="#kured" title="Link to this heading">#</a></h3>
+<p>DaemonSet that reboots a node when <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> exists, inside
+the nightly reboot window, one node at a time, after draining it. Runs on the
+control plane but not on workstation nodes. Exposes <code class="docutils literal notranslate"><span class="pre">kured_*</span></code> metrics to
+Prometheus. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p>
 </section>
 <section id="minecraft-dashboard">
 <h3>Minecraft dashboard<a class="headerlink" href="#minecraft-dashboard" title="Link to this heading">#</a></h3>
@@ -755,8 +795,10 @@ VPS.</p>
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
 for login. Protects services without native OIDC support: Headlamp,
-Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations. Resource limits:
-10m/64Mi request, 100m/128Mi limit.</p>
+Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations.
+Runs 2 replicas spread across nodes with a PodDisruptionBudget of
+<code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>; sessions live in the encrypted cookie, so replicas share no
+state. Resource limits: 10m/64Mi request, 100m/128Mi limit.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-secret.yaml</span></code> — SealedSecret for GitHub OAuth credentials</p></li>
@@ -773,6 +815,12 @@ resource on the node.</p>
 <p>Requires the NVIDIA container runtime to be configured in k3s’s containerd. The
 <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role writes a <code class="docutils literal notranslate"><span class="pre">config.toml.tmpl</span></code> that sets the NVIDIA runtime as
 default and survives k3s-agent restarts.</p>
+</section>
+<section id="system-upgrade-controller">
+<h3>system-upgrade-controller<a class="headerlink" href="#system-upgrade-controller" title="Link to this heading">#</a></h3>
+<p>Rancher’s controller plus two Plans (<code class="docutils literal notranslate"><span class="pre">additions/k3s-upgrade-plans/</span></code>) that keep
+the nodes on the newest k3s patch of <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code>, in the nightly upgrade
+window. Workstation nodes are excluded. See <a class="reference internal" href="../how-to/upgrade-k3s.html"><span class="doc">Upgrade K3s</span></a>.</p>
 </section>
 <section id="sealed-secrets">
 <h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
@@ -855,12 +903,15 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-prometheus-kube-prometheus-stack">Grafana + Prometheus (kube-prometheus-stack)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp">Headlamp</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coredns-ha">CoreDNS HA</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kured">kured</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-upgrade-controller">system-upgrade-controller</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
 </ul>
 </li>
