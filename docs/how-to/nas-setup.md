@@ -145,7 +145,8 @@ rm -rf /share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 - Create or modify any QNAP share or NFS export.
 - Restart any NFS service.
 - Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`
-  (the optional Minecraft archive below is a separate, deliberate step).
+  (the optional Minecraft archive and the dynamic volume share's `stable/`
+  folder below are separate, deliberate steps).
 
 ## Adding new cluster-owned subfolders later
 
@@ -153,6 +154,35 @@ Just `mkdir` under `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/` by hand.
 No repo change needed for directory additions, and no export changes
 ever — everything the cluster writes lives inside a single subtree of
 the existing `bigdisk` export.
+
+(nfs-csi-nas-share)=
+## Dynamic volume share (NFS CSI)
+
+The NFS CSI driver's storage classes provision volumes in a share of their
+own, `nfs_csi.share` (default `/k8s-dynamic`), not in `k8s-cluster/`. On a
+QNAP it is a separate shared folder exported over NFS to the cluster subnet,
+for example `/share/CACHEDEV1_DATA/k8s-dynamic` on the NAS. The driver
+creates one folder per volume in it.
+
+The `nfs-stable` class, used by Minecraft worlds ({doc}`nfs-stable-paths`),
+has its own share root inside it, `nfs_csi.stable_share` (default
+`/k8s-dynamic/stable`). Create it once, before Argo CD syncs the class,
+with the same owner and mode as the share root, since the driver creates the
+same kind of folders in both. Give each cluster its own.
+
+```bash
+# SSH to the QNAP as admin, then:
+
+set -eu
+D=/share/CACHEDEV1_DATA/k8s-dynamic   # where the k8s-dynamic share lives
+sudo mkdir -p "$D/stable"
+sudo chown "$(stat -c '%u:%g' "$D")" "$D/stable"
+sudo chmod "$(stat -c '%a' "$D")" "$D/stable"
+ls -ldn "$D" "$D/stable"
+```
+
+Never delete or empty `stable/` while the Minecraft dashboard is deployed:
+it holds the live world data, and the archives of deleted worlds.
 
 (scrap-nas-directories)=
 ## scrap directories
@@ -186,7 +216,8 @@ start empty.)
 ## Minecraft directories (optional)
 
 Only needed if you enable the Minecraft dashboard ({doc}`minecraft`). It uses
-two static NFS volumes, both on the existing `bigdisk` export:
+two static NFS volumes on the existing `bigdisk` export (and a third, read-only,
+on the dynamic volume share: {ref}`nfs-csi-nas-share`):
 
 | Client-side path | Purpose | Access |
 |------------------|---------|--------|
@@ -199,7 +230,9 @@ mistyped `rsync --delete` — can ever reach it. Moving a promoted backup into
 the archive is always a deliberate manual step on the NAS.
 
 Live world data does not live here: each world gets a dynamically
-provisioned `nfs-rwx` volume from the NFS CSI driver.
+provisioned `nfs-stable` volume from the NFS CSI driver, in
+`<nfs_csi.stable_share>/minecraft/<world>-data`. Create that share root
+first ({ref}`nfs-csi-nas-share`).
 
 ```bash
 # SSH to the QNAP as admin, then:

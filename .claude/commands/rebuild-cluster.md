@@ -23,6 +23,14 @@ NFS-backed data on the NAS (nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
 preserved — Ansible never touches the NAS.
 
+Minecraft worlds live on the `nfs-stable` class, in
+`<nfs_csi.stable_share>/minecraft/<world>-data` on the NAS. The dashboard
+re-creates its worlds (and their PVCs) from its registry on the store, and
+the PVCs bind to those folders. Worlds still on `nfs-rwx` (made before
+`nfs-stable`) are skipped and come back missing: the Phase 1 gate below
+checks there are none. Other `nfs-rwx` volumes come back empty, in new
+folders (`docs/how-to/nfs-stable-paths.md`).
+
 **Clean-slate opt-in:** pass `-e wipe_local_data=true` to the
 decommission playbook to wipe `/home/k8s-data` and `/var/lib/k8s-data`
 as well. Use only for a deliberate fresh start; after this,
@@ -36,10 +44,14 @@ explicitly requests a clean-slate wipe in the prompt arguments.
 Before the FIRST rebuild on this plan, the user must run
 `docs/how-to/nas-setup.md` on the NAS by hand. This creates
 `/bigdisk/k8s-cluster/` with the `backups/*` subtree
-that the backup CronJobs mount, and scrap's `scrap-data/` and
-`backups/scrap/`. **This command does NOT touch the NAS** —
+that the backup CronJobs mount, scrap's `scrap-data/` and
+`backups/scrap/`, and (with Minecraft) the `nfs-stable` share root.
+**This command does NOT touch the NAS** —
 Ansible has zero trust boundary with it. If the setup has already been
-done (check with `showmount -e <nas>`), no action is needed.
+done (check with `showmount -e <nas>`, and, with Minecraft, that the
+`stable/` folder exists in the dynamic volume share, e.g.
+`ls -ld /share/CACHEDEV1_DATA/k8s-dynamic/stable` on the NAS), no action
+is needed.
 
 ## Important rules
 
@@ -52,6 +64,29 @@ done (check with `showmount -e <nas>`), no action is needed.
 - Use `just status` throughout to check cluster health.
 
 ## Phase 1: Preparation
+
+### 1.0 Gate: Minecraft worlds survive the rebuild
+
+Skip this if `enable_minecraft` is false. Otherwise check each step, in
+order, on the cluster before decommissioning. **Stop and report to the
+user if any fails**: rebuilding then loses worlds.
+
+1. Dashboard chart 0.5.0 (or later) is published and pinned:
+   `helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.5.0`
+   succeeds, and `minecraft.chart_version` in
+   `kubernetes-services/values.yaml` is at least that.
+2. `nfs-stable` is live:
+   `kubectl get storageclass nfs-stable -o jsonpath='{.parameters.share} {.parameters.subDir} {.parameters.onDelete}{"\n"}'`
+   shows the stable share, `${pvc.metadata.namespace}/${pvc.metadata.name}`
+   and `archive`, and the `minecraft` app is Synced and Healthy.
+3. The dashboard has a registry file for every world:
+   ```bash
+   kubectl exec -n minecraft deploy/minecraft-dashboard -- ls /store/dashboard/registry
+   kubectl get pvc -n minecraft -l app.kubernetes.io/managed-by=mcdash
+   ```
+   Every `<world>-data` PVC has a matching `<world>.json`.
+4. `scripts/nfs-stable-paths` (dry run) reports `0 to move` and `0 skipped`.
+5. Only then go on to 1a and rebuild.
 
 ### 1a. Branch setup
 
@@ -358,6 +393,11 @@ If any SealedSecrets show `False` with "no key could decrypt":
 
 ### 5b. Certificates and infrastructure
 
+- [ ] Minecraft worlds re-created with their data: the dashboard lists every
+      world, its PVC is Bound in `nfs-stable` to `minecraft/<world>-data`
+      (`kubectl get pv -o custom-columns=CLAIM:.spec.claimRef.name,SC:.spec.storageClassName,DIR:.spec.csi.volumeAttributes.subDir`),
+      nothing is in `/store/dashboard/registry/skipped/`, and running worlds
+      show their old builds
 - [ ] All certificates issued (`kubectl get certificates -A` — all True)
 - [ ] Cloudflare tunnel connected (`kubectl logs -n cloudflared -l app=cloudflared --tail=3`)
 - [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)

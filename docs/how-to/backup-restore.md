@@ -17,6 +17,8 @@ What is **not** in Git and needs separate backup:
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
 | ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
+| Minecraft world volumes (`nfs-stable`) | NFS NAS, `<nfs_csi.stable_share>/minecraft/<world>-data` | survive a rebuild in place; no cluster backup (dashboard snapshots) |
+| Other dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
 
 ## Stateful app data: CronJob-to-NFS backups
 
@@ -319,3 +321,9 @@ To rebuild a cluster from scratch:
 
 The cluster will be fully operational within minutes, with only persistent data
 requiring explicit restoration.
+
+Minecraft worlds need no restore: their `nfs-stable` folders on the NAS
+depend only on the PVC's namespace and name, so the dashboard re-creates its
+worlds with their ports and settings, and their PVCs bind to their old data.
+This holds for worlds on `nfs-stable`; move older ones first
+({doc}`nfs-stable-paths`). `nfs-rwx` volumes come back empty, in new folders.

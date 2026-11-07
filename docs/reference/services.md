@@ -70,7 +70,8 @@ the VPS relay (`enable_vps_relay: true`).
 
 **Storage prerequisites:**
 
-- The NFS CSI storage class (`nfs-rwx`) for per-world data
+- The NFS CSI storage class `nfs-stable` for per-world data, and its share
+  root on the NAS
 - `minecraft-archive/` (read-only) and `k8s-cluster/minecraft/` on the NAS —
   see {doc}`/how-to/nas-setup`
 
@@ -200,11 +201,12 @@ All busybox images pinned to `1.37`.
 Optional (`enable_minecraft`). Deployed from the OCI chart published by
 [gilesknap/k3s-minecraft](https://github.com/gilesknap/k3s-minecraft), which
 creates the dashboard Deployment, Service, a namespace-scoped
-ServiceAccount/Role, and two static NFS volumes: the world archive
-(mounted read-only) and the writable store. The dashboard itself installs
+ServiceAccount/Role, and three static NFS volumes: the world archive
+(mounted read-only), the writable store, and the `nfs-stable` share (mounted
+read-only, to check world folders and archives). The dashboard itself installs
 one [itzg Minecraft](https://github.com/itzg/minecraft-server-charts)
 Helm release per world in the `minecraft` namespace, each with a dynamic
-`nfs-rwx` PVC and a NodePort from `30565`–`30584`, pinned to one node.
+`nfs-stable` PVC and a NodePort from `30565`–`30584`, pinned to one node.
 Protected by oauth2-proxy (admin-only, same as Headlamp).
 
 See {doc}`/how-to/minecraft` for setup.

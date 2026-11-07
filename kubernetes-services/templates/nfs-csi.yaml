@@ -35,6 +35,25 @@ spec:
           volumeBindingMode: Immediate
           mountOptions:
             - nfsvers=4.1
+        # A second class for volumes that must survive a cluster rebuild
+        # (Minecraft worlds). It has a share of its own, and one fixed folder
+        # per PVC, <namespace>/<pvc-name>, so a PVC re-created under the
+        # same name finds its old data. Deleting a PVC moves its folder to
+        # archived-<namespace>/<pvc-name> under the share; the driver never
+        # deletes it. The share root must exist on the NAS before this syncs
+        # (docs/how-to/nas-setup.md).
+        storageClasses:
+          - name: {{ .Values.nfs_csi.stable_storage_class | quote }}
+            parameters:
+              server: {{ .Values.nfs_csi.server | quote }}
+              share: {{ .Values.nfs_csi.stable_share | quote }}
+              subDir: ${pvc.metadata.namespace}/${pvc.metadata.name}
+              onDelete: archive
+              mountPermissions: "0777"
+            reclaimPolicy: Delete
+            volumeBindingMode: Immediate
+            mountOptions:
+              - nfsvers=4.1
   syncPolicy:
     automated:
       prune: true
