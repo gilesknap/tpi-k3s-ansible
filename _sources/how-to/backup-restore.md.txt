@@ -17,8 +17,8 @@ What is **not** in Git and needs separate backup:
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
 | ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
-| Minecraft world volumes (`nfs-stable`) | NFS NAS, `<nfs_csi.stable_share>/minecraft/<world>-data` | survive a rebuild in place; no cluster backup (dashboard snapshots) |
-| Other dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
+| Default dynamic NFS volumes (`nfs-stable`), incl. Minecraft worlds | NFS NAS, `<nfs_csi.stable_share>/<namespace>/<pvc>` | survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots) |
+| Scratch dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
 
 ## Stateful app data: CronJob-to-NFS backups
 
@@ -326,4 +326,6 @@ Minecraft worlds need no restore: their `nfs-stable` folders on the NAS
 depend only on the PVC's namespace and name, so the dashboard re-creates its
 worlds with their ports and settings, and their PVCs bind to their old data.
 This holds for worlds on `nfs-stable`; move older ones first
-({doc}`nfs-stable-paths`). `nfs-rwx` volumes come back empty, in new folders.
+({doc}`nfs-stable-paths`). Any other claim on `nfs-stable`, the default class,
+also comes back with its data. `nfs-rwx` volumes come back empty, in new
+folders.

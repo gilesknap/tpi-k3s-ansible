@@ -163,10 +163,12 @@ StorageClass parameter `mountPermissions: "0777"` for that reason. StorageClass
 parameters are immutable: after changing them, delete the StorageClass so Argo
 CD recreates it, and recreate any PVC that needs the new setting.
 
-A second class, `nfs-stable`, keeps each volume in a fixed folder,
+This repo adds a second class, `nfs-stable`, and makes it the default: it
+keeps each volume in a fixed folder,
 `subDir: ${pvc.metadata.namespace}/${pvc.metadata.name}`, under a share of
-its own, with `onDelete: archive`. Minecraft worlds use it to survive a
-cluster rebuild ({doc}`nfs-stable-paths`).
+its own, with `onDelete: archive`, so volumes survive a cluster rebuild
+({doc}`nfs-stable-paths`). The first class, `nfs-rwx` in this repo, is kept
+for scratch volumes that name it.
 
 ### k3s built-in `local-path` only
 

@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Stable NFS Volumes for Minecraft Worlds &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Stable NFS Volumes &#8212; K3s Cluster Commissioning  documentation</title>
   
   
   
@@ -353,7 +353,7 @@
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Stable NFS Volumes for Minecraft Worlds</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Stable NFS Volumes</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
 <ul class="nav bd-sidenav">
@@ -402,7 +402,7 @@
     
     <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Stable NFS Volumes for Minecraft Worlds</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Stable NFS Volumes</span></li>
   </ul>
 </nav>
 </div>
@@ -419,8 +419,8 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="stable-nfs-volumes-for-minecraft-worlds">
-<h1>Stable NFS Volumes for Minecraft Worlds<a class="headerlink" href="#stable-nfs-volumes-for-minecraft-worlds" title="Link to this heading">#</a></h1>
+  <section id="stable-nfs-volumes">
+<h1>Stable NFS Volumes<a class="headerlink" href="#stable-nfs-volumes" title="Link to this heading">#</a></h1>
 <p>The cluster has two NFS CSI storage classes on the same NAS export:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -432,35 +432,37 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> (default)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.storage_class</span></code>, share <code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">&lt;namespace&gt;/&lt;pvc&gt;-&lt;pv&gt;</span></code></p></td>
-<td><p>data deleted</p></td>
-<td><p>everything else</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (default)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code>, share <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&lt;namespace&gt;/&lt;pvc&gt;</span></code></p></td>
 <td><p>folder archived</p></td>
-<td><p>Minecraft worlds only</p></td>
+<td><p>every claim that names no class; Minecraft worlds</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.fresh_storage_class</span></code>, share <code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;namespace&gt;/&lt;pvc&gt;-&lt;pv&gt;</span></code></p></td>
+<td><p>data deleted</p></td>
+<td><p>scratch volumes that name it; claims made before <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> was the default</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <p>In the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> share the folders look like this:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;stable_share&gt;/minecraft/&lt;world&gt;-data             live world data
-&lt;stable_share&gt;/archived-minecraft/&lt;world&gt;-data    data of a deleted world PVC
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;stable_share&gt;/&lt;namespace&gt;/&lt;pvc&gt;             live data
+&lt;stable_share&gt;/archived-&lt;namespace&gt;/&lt;pvc&gt;    data of a deleted PVC
 </pre></div>
 </div>
 <p>Because the folder depends only on the PVC’s namespace and name, a PVC
-re-created with the same name finds its data again. That is what carries the
-worlds across a cluster rebuild: the rebuild wipes etcd, so every PV and PVC
-object goes, but the folders stay on the NAS. The Minecraft dashboard
-re-creates its worlds from its registry on the store (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>), and
-their PVCs bind to the old folders.</p>
-<p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> stays as it was, because other workloads re-create PVCs under the
-same names on purpose to start empty.
-On <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> they would get the old data back.</p>
+re-created with the same name finds its data again. That is what carries
+volumes across a cluster rebuild: the rebuild wipes etcd, so every PV and PVC
+object goes, but the folders stay on the NAS, and the re-created PVCs bind to
+them. The Minecraft dashboard, for example, re-creates its worlds from its
+registry on the store (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>).</p>
+<p>A new claim with no <code class="docutils literal notranslate"><span class="pre">storageClassName</span></code> gets <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>. Name <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>
+explicitly for a scratch volume that must start empty on every deploy: on
+<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> a PVC re-created under the same name gets the old data back.
+Existing claims keep the class they were made with (<code class="docutils literal notranslate"><span class="pre">storageClassName</span></code> is
+immutable), so changing the default moves no data.</p>
 <p><strong>Each cluster needs its own stable share and its own Minecraft store.</strong> Two
 clusters sharing either would see each other’s worlds: the same
 <code class="docutils literal notranslate"><span class="pre">minecraft/&lt;world&gt;-data</span></code> folders, and each other’s registry to restore from.</p>
@@ -477,18 +479,19 @@ the migration below moves old worlds by renaming their folders, which only
 works within one filesystem. The script checks this and stops before the
 rename if the old and new folders are on different filesystems.</p>
 </section>
-<section id="deleting-a-world-pvc">
-<h2>Deleting a world PVC<a class="headerlink" href="#deleting-a-world-pvc" title="Link to this heading">#</a></h2>
+<section id="deleting-an-nfs-stable-pvc">
+<h2>Deleting an <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC<a class="headerlink" href="#deleting-an-nfs-stable-pvc" title="Link to this heading">#</a></h2>
 <p>Deleting an <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC never deletes data: the driver
-(<code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">archive</span></code>) moves the folder to <code class="docutils literal notranslate"><span class="pre">archived-minecraft/&lt;world&gt;-data</span></code>.
-A new PVC with the same name then starts empty. Clear archives on the NAS
-when you no longer need them.</p>
+(<code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">archive</span></code>) moves the folder to
+<code class="docutils literal notranslate"><span class="pre">&lt;stable_share&gt;/archived-&lt;namespace&gt;/&lt;pvc&gt;</span></code>. A new PVC with the same name then
+starts empty. Clear archives on the NAS when you no longer need them, and
+always clear the old archive before deleting a PVC whose name was used before.</p>
 <p>The driver keeps only one archive per name, and it does not overwrite one. If
 a PVC is deleted while an archive of the same name still exists, the second
 archive fails. The PV then stays <code class="docutils literal notranslate"><span class="pre">Released</span></code>, the driver retries its delete,
 and the folder stays where it is, so a third PVC of that name would bind to
-the second one’s data. The dashboard refuses to create a world whose name
-still has an archive, so this only happens to PVCs deleted by hand. To
+the second one’s data. The Minecraft dashboard refuses to create a world
+whose name still has an archive; other workloads have no such guard. To
 recover:</p>
 <ol class="arabic simple">
 <li><p>Find the stuck PV: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">Released</span></code>.</p></li>
@@ -525,7 +528,9 @@ folder is not the expected <code class="docutils literal notranslate"><span clas
 </div>
 </li>
 <li><p>Dry run. It changes nothing and lists each world PVC, its old and new
-folder, and any pod still using it:</p>
+folder, and any pod that references it, in any phase. A <code class="docutils literal notranslate"><span class="pre">Succeeded</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Failed</span></code> pod blocks the move too (pvc-protection holds the PVC while it
+exists): save its spec with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pod</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>, then delete it.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scripts/nfs-stable-paths<span class="w">                          </span><span class="c1"># every world</span>
 scripts/nfs-stable-paths<span class="w"> </span>minecraft/&lt;world&gt;-data<span class="w">   </span><span class="c1"># chosen worlds</span>
 </pre></div>
@@ -681,7 +686,7 @@ old PV.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-the-share">Creating the share</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deleting-a-world-pvc">Deleting a world PVC</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deleting-an-nfs-stable-pvc">Deleting an <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#moving-worlds-made-before-nfs-stable">Moving worlds made before <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#if-the-script-stops-part-way">If the script stops part-way</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#undoing-one-world">Undoing one world</a></li>

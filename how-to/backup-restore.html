@@ -353,7 +353,7 @@
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
 <li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes for Minecraft Worlds</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
 <ul class="nav bd-sidenav">
@@ -459,11 +459,11 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 <td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace</p></td>
 <td><p>regenerated on install</p></td>
 </tr>
-<tr class="row-even"><td><p>Minecraft world volumes (<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>)</p></td>
-<td><p>NFS NAS, <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/minecraft/&lt;world&gt;-data</span></code></p></td>
-<td><p>survive a rebuild in place; no cluster backup (dashboard snapshots)</p></td>
+<tr class="row-even"><td><p>Default dynamic NFS volumes (<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>), incl. Minecraft worlds</p></td>
+<td><p>NFS NAS, <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/&lt;namespace&gt;/&lt;pvc&gt;</span></code></p></td>
+<td><p>survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Other dynamic NFS volumes (<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>)</p></td>
+<tr class="row-odd"><td><p>Scratch dynamic NFS volumes (<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>)</p></td>
 <td><p>NFS NAS, <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.share&gt;/&lt;namespace&gt;/&lt;pvc&gt;-&lt;pv&gt;</span></code></p></td>
 <td><p>not re-bound after a rebuild; the folders stay on the NAS</p></td>
 </tr>
@@ -771,7 +771,9 @@ requiring explicit restoration.</p>
 depend only on the PVC’s namespace and name, so the dashboard re-creates its
 worlds with their ports and settings, and their PVCs bind to their old data.
 This holds for worlds on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>; move older ones first
-(<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes for Minecraft Worlds</span></a>). <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volumes come back empty, in new folders.</p>
+(<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes</span></a>). Any other claim on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>, the default class,
+also comes back with its data. <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volumes come back empty, in new
+folders.</p>
 </section>
 </section>
 
