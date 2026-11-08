@@ -487,7 +487,7 @@ on its target node (guarded by `inventory_hostname`).
 | Node   | Directory                         | Owner / mode         | Consumed by |
 |--------|-----------------------------------|----------------------|-------------|
 | node04 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
-| node03 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
+| node04 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
 | nuc2   | `/home/k8s-data/scrap`            | 10001:10001 / 0750   | scrap (frozen pre-Litestream copy) |
 | nuc2   | `/home/k8s-data/scrap-backup-copy` | 10001:10001 / 0750  | scrap (off-NAS backup copy) |
 

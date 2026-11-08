@@ -87,8 +87,8 @@ kubectl get nodes -w
 
 :::{warning}
 A hard power-cycle is an unclean shutdown for any in-flight writes. If
-the node carries live local-PV data (Prometheus on node04, Grafana on
-node03 — see the "Local PV data paths are sacred"
+the node carries live local-PV data (Prometheus and Grafana on
+node04 — see the "Local PV data paths are sacred"
 rule in `CLAUDE.md`), expect fsck on boot and check the affected pods'
 logs once the node returns.
 :::

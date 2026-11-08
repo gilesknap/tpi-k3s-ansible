@@ -414,8 +414,8 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 
 - **Stateful pods Pending with "waiting for first consumer"** — the
   `local-nvme` StorageClass uses `WaitForFirstConsumer`. Pods can only
-  schedule on the node that owns the PV: prometheus→node02,
-  grafana→node03. If a pod is
+  schedule on the node that owns the PV: prometheus→node04,
+  grafana→node04. If a pod is
   Pending, check that its target node is Ready and untainted.
 - **Stateful pods CrashLooping with permission denied on /data** —
   the on-disk UID/mode set by `k8s_data_dirs` does not match what the
