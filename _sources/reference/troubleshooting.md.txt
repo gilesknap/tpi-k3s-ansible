@@ -279,7 +279,7 @@ available for this claim`.
 
 **Fix:** Verify the data directory exists on the target node (the
 `node`/`path` pair in its `k8s_data_dirs` entry, e.g.
-`/var/lib/k8s-data/<app>`); re-run `ansible-playbook pb_all.yml --tags cluster` to let the
+`/var/lib/k8s-data/<app>`); re-run `ansible-playbook pb_all.yml --tags k8s_data_dirs` to let the
 `k8s_data_dirs` role recreate any missing directory.
 
 ### Restoring from an NFS backup

@@ -14,6 +14,7 @@ All configurable variables, their defaults, and where they are used.
 | `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
 | `local_domain` | `.lan` | Local domain suffix; `known_hosts` looks up `<node>{{ local_domain }}` to find a node's IPs |
 | `control_plane` | `node02` | Hostname of the K3s control plane node |
+| `standby_control_plane` | `node03` | Warm-standby control plane: the spare node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
 | `dns_router` | `root@192.168.1.1` | SSH target of an OpenWrt (dnsmasq, `uci`) router, used only by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane. |
 | `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, resolving to the control plane. Agents join it, it is a `tls-san` on the server certificate, and the kubeconfig uses it. Every address it resolves to must be the control plane's. Without LAN DNS, the control plane's IPv4 address also works; an IPv6 literal does not. |
 | `etcd_backup_age_recipient` | `""` | age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading. |

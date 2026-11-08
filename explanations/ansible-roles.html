@@ -1390,7 +1390,7 @@ on its target node (guarded by <code class="docutils literal notranslate"><span 
 <td><p>1000:2000 / 0755</p></td>
 <td><p>monitoring</p></td>
 </tr>
-<tr class="row-odd"><td><p>node03</p></td>
+<tr class="row-odd"><td><p>node04</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
 <td><p>472:472 / 0755</p></td>
 <td><p>monitoring</p></td>
@@ -1482,7 +1482,11 @@ check fails (in <code class="docutils literal notranslate"><span class="pre">--c
 <p>Bootstraps ArgoCD and the entire service stack:</p>
 <ol class="arabic simple">
 <li><p><strong>Taint the control plane</strong> (multi-node only) — applies <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> taint so
-workloads only run on worker nodes. Skipped for single-node clusters.</p></li>
+workloads only run on worker nodes. Skipped for single-node clusters.
+Also gives the <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> node, if set, a
+<code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/standby-control-plane:PreferNoSchedule</span></code> taint and
+removes that taint from any other node. Both use <code class="docutils literal notranslate"><span class="pre">k8s_taint</span></code>, which adds to
+a node’s existing taints rather than replacing them.</p></li>
 <li><p><strong>Install ArgoCD</strong> — deploys the ArgoCD OCI Helm chart (v9.4.17).</p></li>
 <li><p><strong>Patch ConfigMap</strong> — adds a custom Lua health check for <code class="docutils literal notranslate"><span class="pre">monitoring.coreos.com/Prometheus</span></code>
 (respects a <code class="docutils literal notranslate"><span class="pre">skip-health-check</span></code> annotation).</p></li>

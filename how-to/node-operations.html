@@ -503,8 +503,8 @@ kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> 
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>A hard power-cycle is an unclean shutdown for any in-flight writes. If
-the node carries live local-PV data (Prometheus on node04, Grafana on
-node03 — see the “Local PV data paths are sacred”
+the node carries live local-PV data (Prometheus and Grafana on
+node04 — see the “Local PV data paths are sacred”
 rule in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>), expect fsck on boot and check the affected pods’
 logs once the node returns.</p>
 </div>
@@ -574,18 +574,29 @@ directory on the host, so deleting the PV object does not delete any data.</p>
 <li><p>In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, set the new <code class="docutils literal notranslate"><span class="pre">node</span></code> (and <code class="docutils literal notranslate"><span class="pre">path</span></code>, if
 that node keeps its data elsewhere) on the PV’s <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> entry.
 Make the same change to its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry in
-<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. Create the directory on the new node by hand,
-with the owner, group and mode of the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry, for
-example:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span>sudo<span class="w"> </span>install<span class="w"> </span>-d<span class="w"> </span>-o<span class="w"> </span><span class="m">472</span><span class="w"> </span>-g<span class="w"> </span><span class="m">472</span><span class="w"> </span>-m<span class="w"> </span><span class="m">2775</span><span class="w"> </span>/var/lib/k8s-data/grafana
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. On the branch, let the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role
+create the directory on the new node, with that entry’s owner, group
+and mode. Do not create it by hand:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>k8s_data_dirs<span class="w"> </span>--limit<span class="w"> </span>node02
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">servers</span> <span class="pre">--limit</span> <span class="pre">node02</span></code> creates it
-too, but that play also runs <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> and <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>:
-on an RK1 still on the vendor image, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> drains it, reboots it and
-can run an Ubuntu release upgrade to convert it.</p>
-<p>Merge the change. Until step 3 the <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> app shows a sync
-error for that PV, as it cannot change its node.</p>
+<p>The tag runs only that role. <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code> would also run
+<code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> and <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>.</p>
+<p>If the workload has a backup (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>), take a fresh one
+now, while it still runs on the old node.</p>
+<p>Merge the change into the branch ArgoCD tracks (<code class="docutils literal notranslate"><span class="pre">repo_branch</span></code>, normally
+<code class="docutils literal notranslate"><span class="pre">main</span></code>), then hard-refresh the parent app, <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code>, so it
+re-reads that branch straight away:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>annotate<span class="w"> </span>application<span class="w"> </span>all-cluster-services<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>argocd.argoproj.io/refresh<span class="o">=</span>hard<span class="w"> </span>--overwrite
+</pre></div>
+</div>
+<p>The child apps, such as <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> and <code class="docutils literal notranslate"><span class="pre">backups</span></code>, take their values
+from the parent. Refreshing only a child leaves it on the parent’s old
+commit, still with the old node. Wait until the <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> app
+shows a sync error for that PV, as it cannot change its node: that shows
+it has the new values. Do not go on before then, or step 3 re-creates
+the PV on the old node. The error stays until step 3.</p>
 </li>
 <li><p>Delete the PVC and the pod that uses it. The PVC waits for the pod to
 go, and the StatefulSet then re-creates both. The new pod stays
@@ -594,8 +605,9 @@ go, and the StatefulSet then re-creates both. The new pod stays
 kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>grafana-prometheus-0
 </pre></div>
 </div>
-<p>To keep the data, copy the directory from the old node to the new one
-now, while nothing writes to it, keeping its owner and mode.</p>
+<p>The new node’s directory starts empty. Bring the data across with the
+workload’s own backup and restore, not by copying files under the data
+paths by hand (see “Never touch <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>” in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>).</p>
 </li>
 <li><p>Delete the PV through ArgoCD and sync, so ArgoCD re-creates it with the
 new node. <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">--core</span></code> uses the kube context’s namespace, so set it
@@ -608,6 +620,12 @@ argocd<span class="w"> </span>app<span class="w"> </span>sync<span class="w"> </
 </div>
 <p>Then set the namespace back to the one you had before, if it was not
 <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>.</p>
+<p>The sync can fail with <code class="docutils literal notranslate"><span class="pre">another</span> <span class="pre">operation</span> <span class="pre">is</span> <span class="pre">already</span> <span class="pre">in</span> <span class="pre">progress</span></code>,
+while auto-sync retries the app. That is usually fine: the auto-sync
+re-creates the PV once <code class="docutils literal notranslate"><span class="pre">delete-resource</span></code> has removed it. If that
+operation ends failed instead (its retries ran out before the PV was
+gone), ArgoCD does not retry the same revision by itself: run the sync
+again once it has finished.</p>
 <p>In the ArgoCD UI, the same is: open <code class="docutils literal notranslate"><span class="pre">local-storage</span></code>, delete the PV,
 then <strong>Sync</strong>. <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">app</span> <span class="pre">sync</span> <span class="pre">--replace</span></code> does not work instead: the
 ArgoCD server disables sync with replace.</p>
@@ -615,8 +633,9 @@ ArgoCD server disables sync with replace.</p>
 <li><p>Check that the PVC is <code class="docutils literal notranslate"><span class="pre">Bound</span></code> and the pod runs on the new node:
 <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">get</span> <span class="pre">pvc,pod</span> <span class="pre">-o</span> <span class="pre">wide</span></code>.</p></li>
 </ol>
-<p>The old directory stays on the old node. Remove it by hand once the
-workload runs from its new home.</p>
+<p>The old directory stays on the old node, as a fallback. Do not remove it
+by hand: only <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span> <span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> or a re-flash
+removes it.</p>
 </section>
 <section id="add-extra-non-turing-pi-nodes">
 <h2>Add extra (non-Turing Pi) nodes<a class="headerlink" href="#add-extra-non-turing-pi-nodes" title="Link to this heading">#</a></h2>

@@ -474,14 +474,24 @@ or slow to replace. A worker serves, but it loses its workloads while it
 changes role, and the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag later taints it <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code>. Prefer a
 node that holds no <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV (<code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>): a pod pinned there by its PV cannot
-restart on it once it is tainted. <code class="docutils literal notranslate"><span class="pre">node03</span></code> holds Grafana’s, which is
-acceptable while you recover, not as a permanent home.</p></li>
+restart on it once it is tainted.</p></li>
 </ul>
+<p>Name the spare in advance as <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">node03</span></code>). The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag gives it a
+<code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/standby-control-plane:PreferNoSchedule</span></code> taint, so
+the scheduler keeps it light while other nodes have room but can still use
+it. Little then has to move off it when it changes role. Leave the variable
+empty to have no standby.</p>
 <p>For a spare node, set it as the control plane first, on a branch:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># group_vars/all.yml</span>
 <span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node03</span>
+<span class="nt">standby_control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node04</span><span class="w"> </span><span class="c1"># the next spare, or empty for none</span>
 </pre></div>
 </div>
+<p>Repoint or clear <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in the same change. The <code class="docutils literal notranslate"><span class="pre">cluster</span></code>
+tag skips the soft taint on the control plane itself, but clearing it keeps
+the inventory honest, and naming the next spare means the cluster has a
+standby again.</p>
 <p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">restore-control-plane</span></code> and the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role both read it.</p>
 </section>
 <section id="what-you-need">
@@ -729,7 +739,8 @@ ssh<span class="w"> </span>ansible@node02<span class="w"> </span><span class="s1
 </div>
 </li>
 <li><p>Fetch and decrypt that bundle (<a class="reference internal" href="#get-and-decrypt-the-latest-backup">step 1</a>).</p></li>
-<li><p>Set <code class="docutils literal notranslate"><span class="pre">control_plane:</span> <span class="pre">node03</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and restore
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">control_plane:</span> <span class="pre">node03</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, point
+<code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> at the next spare or clear it, and restore
 (<a class="reference internal" href="#restore-etcd">step 3</a>).</p></li>
 <li><p>Point the DNS record at node03 (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">192.168.1.83</span></code>) and run
 the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> tag on it
@@ -753,8 +764,12 @@ podCIDR, then run
 </li>
 <li><p>Taint the new control plane with
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>, and update anything else
-that names the old node’s IP, such as a Cloudflare SSH tunnel route.</p></li>
-<li><p>Commit the <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> change and merge it.</p></li>
+that names the old node’s IP, such as a Cloudflare SSH tunnel route.
+The same run sets <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> on node03, removes its
+<code class="docutils literal notranslate"><span class="pre">standby-control-plane</span></code> taint and puts that taint on the new
+<code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code>, if any.</p></li>
+<li><p>Commit the <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> changes and
+merge them.</p></li>
 </ol>
 <section id="k3s-uninstall-leaves-files-behind">
 <h3>k3s uninstall leaves files behind<a class="headerlink" href="#k3s-uninstall-leaves-files-behind" title="Link to this heading">#</a></h3>

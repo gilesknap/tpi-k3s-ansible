@@ -39,8 +39,8 @@ ansible-playbook pb_all.yml --limit turingpi,node03 -e flash_force=true
 :::{warning}
 **A re-flash is a fresh node.** On an RK1 with `root_dev`, the flash wipes the NVMe
 and installs Ubuntu on it again, so everything on it is lost, including the
-`local-nvme` PV data under `/var/lib/k8s-data` (for example Prometheus on node02 or
-Grafana on node03 in the default inventory). Back up or move that data before
+`local-nvme` PV data under `/var/lib/k8s-data` (for example Prometheus and
+Grafana on node04 in the default inventory). Back up or move that data before
 re-flashing the node.
 :::
 
