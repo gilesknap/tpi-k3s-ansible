@@ -153,14 +153,12 @@ minecraft:
     # Sources allowed to reach world RCON (port 25575) through the dashboard
     # chart's NetworkPolicy, besides the dashboard pod and the world's own
     # node. NodePort clients keep their IP (externalTrafficPolicy Local), but
-    # pods on OTHER cluster nodes arrive as their node's IP, so every cluster
-    # node's IP is excepted: add a new node here when it joins (/add-node).
-    # The world node is excepted too, so the list stays right if
-    # worlds.node moves; its own host processes (mciwb on 127.0.0.1) still
-    # get in, as k3s's network policy controller always admits traffic from
-    # the pod's local node. ws03 (.10) is left in on purpose: RCON clients
-    # run on that workstation and its taint keeps workload pods off it. Each
-    # entry is a CIDR or {cidr, except: [CIDRs]}.
+    # pods on OTHER cluster nodes arrive as their node's IP, so cluster node
+    # IPs are excepted: add a new node here when it joins (/add-node). Two
+    # nodes are left allowed on purpose, so RCON clients such as mciwb can
+    # run on their hosts: the world node (nuc2, .92) and ws03 (.10), whose
+    # taint keeps workload pods off it. Each entry is a CIDR or
+    # {cidr, except: [CIDRs]}.
     rcon_allowed_cidrs:
       - cidr: 192.168.1.0/24
         except:
@@ -169,7 +167,6 @@ minecraft:
           - 192.168.1.83/32   # node03
           - 192.168.1.84/32   # node04
           - 192.168.1.91/32   # nuc1
-          - 192.168.1.92/32   # nuc2 (world node)
       - cidr: 192.168.0.0/24  # nuc2's second LAN
 # VPS relay — publishes chosen cluster ports on a VPS's fixed public IP, for
 # homes behind CGNAT or that should not expose their own IP. frpc in the
