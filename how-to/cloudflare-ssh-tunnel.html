@@ -745,8 +745,8 @@ re-authentication. When the token expires, re-run <code class="docutils literal 
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copy kubeconfig from the control plane</span>
 scp<span class="w"> </span>ssh.example.com:~/.kube/config<span class="w"> </span>~/.kube/k3s-remote.yaml
 
-<span class="c1"># Patch the server address to use a local forwarded port</span>
-sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|https://&lt;node01-ip&gt;:6443|https://127.0.0.1:6443|&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="c1"># Patch the server address (k3s_api_name or an IP) to use a local forwarded port</span>
+sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|https://[^/]*:6443|https://127.0.0.1:6443|&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>~/.kube/k3s-remote.yaml
 </pre></div>
 </div>
@@ -754,7 +754,7 @@ sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|htt
 <section id="forward-the-kubernetes-api-port-and-use-kubectl">
 <h3>5.2 Forward the Kubernetes API port and use kubectl<a class="headerlink" href="#forward-the-kubernetes-api-port-and-use-kubectl" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start the port forward in the background</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:&lt;node01-ip&gt;:6443<span class="w"> </span>ssh.example.com
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:k3s.lan:6443<span class="w"> </span>ssh.example.com<span class="w">   </span><span class="c1"># k3s_api_name, or &lt;node01-ip&gt;</span>
 
 <span class="c1"># Use the remote kubeconfig</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">KUBECONFIG</span><span class="o">=</span>~/.kube/k3s-remote.yaml

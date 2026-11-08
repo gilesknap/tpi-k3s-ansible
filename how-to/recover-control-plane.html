@@ -423,8 +423,11 @@
 <h1>Recover the Control Plane<a class="headerlink" href="#recover-the-control-plane" title="Link to this heading">#</a></h1>
 <p>This runbook rebuilds a lost single-server control plane from the nightly
 encrypted etcd backup on the NAS (<a class="reference internal" href="backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>). The workers
-and their data are untouched. The examples use <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a Raspberry Pi CM4
-in Turing Pi slot 1, as the control plane.</p>
+and their data are untouched. The restore can go onto the old control-plane
+node, rebuilt, or onto any spare node. The examples use <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a
+Raspberry Pi CM4 in Turing Pi slot 1, as the lost control plane and <code class="docutils literal notranslate"><span class="pre">node03</span></code>
+as the spare. The same procedure, planned, moves a healthy control plane to
+another node: see <a class="reference internal" href="#move-the-control-plane"><span class="std std-ref">Move the control plane</span></a>.</p>
 <p>A restore takes the cluster back to the moment of the snapshot. Most
 changes after that point come back by themselves, since ArgoCD re-syncs
 from Git. Objects created by hand after the snapshot, such as a rotated
@@ -453,10 +456,33 @@ from Git. Objects created by hand after the snapshot, such as a rotated
 </tbody>
 </table>
 </div>
-<p>The control plane must come back with the <strong>same hostname and IP</strong>
-(192.168.1.81 for node01), because the workers connect to that address.
-Keep a DHCP reservation for it; a replacement module needs the reservation
-moved to its MAC address.</p>
+<p>The workers, the API server certificate and your kubeconfig all reach the
+API through <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>), a DNS
+record on your router that points at the control plane. Wherever the control
+plane comes back, point that record at it and the workers follow; nothing
+has to keep the old node’s IP. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role refuses to run until the name
+resolves to the <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> node.</p>
+</section>
+<section id="choose-the-target-node">
+<h2>Choose the target node<a class="headerlink" href="#choose-the-target-node" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>The old node, rebuilt.</strong> Keeps its hostname and IP, so the DNS record
+needs no change. Use this when the hardware is fine and only its OS or
+disk was lost.</p></li>
+<li><p><strong>A spare node</strong> (<code class="docutils literal notranslate"><span class="pre">node03</span></code> here). Use this when the old hardware is dead
+or slow to replace. A worker serves, but it loses its workloads while it
+changes role, and the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag later taints it <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code>. Prefer a
+node that holds no <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV (<code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>): a pod pinned there by its PV cannot
+restart on it once it is tainted. <code class="docutils literal notranslate"><span class="pre">node03</span></code> holds Grafana’s, which is
+acceptable while you recover, not as a permanent home.</p></li>
+</ul>
+<p>For a spare node, set it as the control plane first, on a branch:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># group_vars/all.yml</span>
+<span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node03</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">restore-control-plane</span></code> and the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role both read it.</p>
 </section>
 <section id="what-you-need">
 <h2>What you need<a class="headerlink" href="#what-you-need" title="Link to this heading">#</a></h2>
@@ -521,8 +547,13 @@ upgrade.</p>
 </section>
 <section id="reflash-and-provision-the-node">
 <h2>2. Reflash and provision the node<a class="headerlink" href="#reflash-and-provision-the-node" title="Link to this heading">#</a></h2>
-<p>Power the node off if it is half-alive, then flash and prepare it, but stop
-before k3s:</p>
+<p><strong>A spare node</strong> needs no reflash. Remove its k3s agent instead; this keeps
+<code class="docutils literal notranslate"><span class="pre">/etc/rancher/node/password</span></code> and the local PV data directories:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node03<span class="w"> </span>sudo<span class="w"> </span>k3s-agent-uninstall.sh
+</pre></div>
+</div>
+<p><strong>The old node:</strong> power it off if it is half-alive, then flash and prepare
+it, but stop before k3s:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>turingpi,node01<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--tags<span class="w"> </span>flash,known_hosts,servers<span class="w"> </span>-e<span class="w"> </span><span class="nv">flash_force</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
@@ -539,8 +570,12 @@ packages. A node outside a Turing Pi is reinstalled by hand, then
 <span class="c1"># without just: scripts/restore-control-plane &lt;snapshot&gt; &lt;token&gt;</span>
 </pre></div>
 </div>
-<p>The recipe reads the k3s version from <code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code> and picks up
-<code class="docutils literal notranslate"><span class="pre">node-password</span></code> from the same directory. Run it with <code class="docutils literal notranslate"><span class="pre">DRY_RUN=1</span></code> first to
+<p>The recipe restores onto <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> (or <code class="docutils literal notranslate"><span class="pre">NODE=&lt;node&gt;</span></code>). It reads the
+k3s version from <code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code> and picks up <code class="docutils literal notranslate"><span class="pre">node-password</span></code> from the same
+directory when the target is the node the bundle came from (the <code class="docutils literal notranslate"><span class="pre">node:</span></code>
+line in <code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code>); a spare node keeps its own. An older bundle without a
+<code class="docutils literal notranslate"><span class="pre">node:</span></code> line restores no node password unless you pass it as the fourth
+argument. It refuses a node that still runs the k3s agent. Run it with <code class="docutils literal notranslate"><span class="pre">DRY_RUN=1</span></code> first to
 see exactly what it will do. It shows what it found on the node, then asks
 you to type the node name. If k3s is running there or the node already
 has etcd data, it also asks you to type <code class="docutils literal notranslate"><span class="pre">RESET</span> <span class="pre">&lt;node&gt;</span></code> (or set <code class="docutils literal notranslate"><span class="pre">FORCE=1</span></code>
@@ -550,8 +585,9 @@ to skip that second prompt). After that it:</p>
 (<code class="docutils literal notranslate"><span class="pre">INSTALL_K3S_SKIP_START=true</span></code>). k3s requires the snapshot’s token
 and advises restoring onto the same minor version, so matching the
 exact version is the safe choice;</p></li>
-<li><p>writes the server config from <code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>
-and restores <code class="docutils literal notranslate"><span class="pre">/etc/rancher/node/password</span></code>;</p></li>
+<li><p>writes the server config from <code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>,
+with <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> as its <code class="docutils literal notranslate"><span class="pre">tls-san</span></code>, and restores
+<code class="docutils literal notranslate"><span class="pre">/etc/rancher/node/password</span></code>;</p></li>
 <li><p>runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span> <span class="pre">--cluster-reset</span> <span class="pre">--cluster-reset-restore-path=&lt;snapshot&gt;</span> <span class="pre">--token-file=&lt;token&gt;</span></code>, which restores the snapshot, makes this node the
 only etcd member and exits. Any existing etcd data is moved to
 <code class="docutils literal notranslate"><span class="pre">db/etcd-old-&lt;timestamp&gt;</span></code>;</p></li>
@@ -561,17 +597,38 @@ cleanup fails, it prints the remote paths to delete by hand.</p></li>
 </ol>
 <p>On a single server there are no etcd peers, so there is no <code class="docutils literal notranslate"><span class="pre">db</span></code> directory to
 remove on other servers.</p>
-<p>Then refresh your kubeconfig and reinstall the backup timer:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node01<span class="w"> </span>--tags<span class="w"> </span>k3s
+</section>
+<section id="point-the-api-name-at-the-new-control-plane">
+<h2>4. Point the API name at the new control plane<a class="headerlink" href="#point-the-api-name-at-the-new-control-plane" title="Link to this heading">#</a></h2>
+<p>On a spare node, point the <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> DNS record at the new node’s IP.
+With an OpenWrt <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>, that is one command, which also checks the
+name resolves on the controller:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>k3s-api-dns<span class="w"> </span><span class="m">192</span>.168.1.83
 </pre></div>
 </div>
-<p>This is safe now: the role sees the restored server and skips the install.</p>
+<p>On another router, change the record by hand. Either way, check it from a
+worker too:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>getent<span class="w"> </span>hosts<span class="w"> </span>k3s.lan
+ssh<span class="w"> </span>ansible@node04<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>k3s.lan
+</pre></div>
+</div>
+<p>Then refresh your kubeconfig and reinstall the backup timer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node03<span class="w"> </span>--tags<span class="w"> </span>k3s
+</pre></div>
+</div>
+<p>This is safe now: the role sees the restored server and skips the install.
+It stops if the DNS record does not point at the new node yet.</p>
 </section>
 <section id="check-the-cluster">
-<h2>4. Check the cluster<a class="headerlink" href="#check-the-cluster" title="Link to this heading">#</a></h2>
+<h2>5. Check the cluster<a class="headerlink" href="#check-the-cluster" title="Link to this heading">#</a></h2>
 <p>The workers have kept running their pods throughout. Their k3s agents
-reconnect to the same IP and trust the restored CA, so they rejoin by
-themselves within a minute or two.</p>
+reconnect through <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> and trust the restored CA, so they rejoin
+by themselves within a minute or two of the DNS change (allow for the
+record’s TTL). An agent that stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> needs
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">k3s-agent</span></code>, or a reboot.</p>
+<p>On a spare node, the restored cluster still lists the old control plane:
+delete its Node object once it is not coming back as itself,
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">delete</span> <span class="pre">node</span> <span class="pre">node01</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>status<span class="w">                                   </span><span class="c1"># nodes, ArgoCD apps, failing pods</span>
 kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w">                             </span><span class="c1"># all Ready</span>
 kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>get<span class="w"> </span>applications<span class="w">           </span><span class="c1"># Synced / Healthy</span>
@@ -583,11 +640,24 @@ just<span class="w"> </span>etcd-backup-now<span class="w">                     
 </pre></div>
 </div>
 <p>If something is off:</p>
-<ul class="simple">
-<li><p><strong>A worker stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code>:</strong> run <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">k3s-agent</span></code> on it.</p></li>
+<ul>
+<li><p><strong>A worker stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code>:</strong> check <code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">hosts</span> <span class="pre">k3s.lan</span></code> on it, then
+run <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">k3s-agent</span></code> on it.</p></li>
+<li><p><strong>A worker still dials the old IP:</strong> it joined before <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>
+existed. Fix it by hand on the worker:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>sed<span class="w"> </span>-i<span class="w"> </span><span class="s2">&quot;s|^K3S_URL=.*|K3S_URL=&#39;https://k3s.lan:6443&#39;|&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/etc/systemd/system/k3s-agent.service.env
+sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s-agent
+</pre></div>
+</div>
+<p>Don’t use <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">k3s</span> <span class="pre">--limit</span> <span class="pre">&lt;worker&gt;</span></code> for this while the worker is
+<code class="docutils literal notranslate"><span class="pre">NotReady</span></code>: the role then deletes its Node object, uninstalls the agent
+and reinstalls it. That works, but it is a full rejoin, not a URL fix.
+Once the worker is <code class="docutils literal notranslate"><span class="pre">Ready</span></code>, the role rewrites <code class="docutils literal notranslate"><span class="pre">K3S_URL</span></code> in place.</p>
+</li>
 <li><p><strong>The control plane stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> with “Node password rejected”</strong> (no
-<code class="docutils literal notranslate"><span class="pre">node-password</span></code> in the bundle): run
-<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">delete</span> <span class="pre">secret</span> <span class="pre">node01.node-password.k3s</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">node-password</span></code> restored): run
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">delete</span> <span class="pre">secret</span> <span class="pre">&lt;node&gt;.node-password.k3s</span></code>.</p></li>
 <li><p><strong>SealedSecrets fail with <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">key</span> <span class="pre">could</span> <span class="pre">decrypt</span> <span class="pre">secret</span></code>:</strong> the sealing key
 was rotated after the snapshot. Restore the key from your sealed-secrets
 key backup (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>) or re-seal (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
@@ -595,11 +665,59 @@ key backup (<a class="reference internal" href="backup-restore.html"><span class
 </ul>
 </section>
 <section id="fallback-rebuild-from-git">
-<h2>5. Fallback: rebuild from Git<a class="headerlink" href="#fallback-rebuild-from-git" title="Link to this heading">#</a></h2>
+<h2>6. Fallback: rebuild from Git<a class="headerlink" href="#fallback-rebuild-from-git" title="Link to this heading">#</a></h2>
 <p>If no bundle decrypts, or the restore fails, rebuild the cluster from Git
 (<a class="reference internal" href="reflash-rebuild.html"><span class="doc">Re-flash and Rebuild</span></a>, <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>) and restore stateful data
 from the NAS (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>). The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data directories on
 the workers survive a rebuild.</p>
+</section>
+<section id="move-the-control-plane">
+<h2>Move the control plane<a class="headerlink" href="#move-the-control-plane" title="Link to this heading">#</a></h2>
+<p>Moving a healthy control plane to another node is the same restore, planned:
+a fresh snapshot, then a short API outage while the new node takes over.
+Workloads keep running throughout. Before you start, the <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>
+record must exist and every agent must already use it (run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">k3s</span></code> once and check with
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">grep</span> <span class="pre">K3S_URL</span> <span class="pre">/etc/systemd/system/k3s-agent.service.env</span></code>).</p>
+<ol class="arabic">
+<li><p>Pick the new node as in <a class="reference internal" href="#choose-the-target-node"><span class="std std-ref">Choose the target node</span></a>; a node with no
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV is best. Move any PV it holds first (re-pin it in
+<code class="docutils literal notranslate"><span class="pre">local_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>).</p></li>
+<li><p>Drain it and remove its agent:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>drain<span class="w"> </span>node03<span class="w"> </span>--ignore-daemonsets<span class="w"> </span>--delete-emptydir-data
+ssh<span class="w"> </span>ansible@node03<span class="w"> </span>sudo<span class="w"> </span>k3s-agent-uninstall.sh
+kubectl<span class="w"> </span>delete<span class="w"> </span>node<span class="w"> </span>node03
+</pre></div>
+</div>
+</li>
+<li><p>Take a backup, then stop the old server at once, so nothing changes
+after the snapshot:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>etcd-backup-now
+ssh<span class="w"> </span>ansible@node01<span class="w"> </span><span class="s1">&#39;sudo systemctl disable --now k3s-etcd-backup.timer k3s&#39;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Fetch and decrypt that bundle (<a class="reference internal" href="#get-and-decrypt-the-latest-backup">step 1</a>).</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">control_plane:</span> <span class="pre">node03</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and restore
+(<a class="reference internal" href="#restore-etcd">step 3</a>).</p></li>
+<li><p>Point the DNS record at node03 (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">192.168.1.83</span></code>) and run
+the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> tag on it
+(<a class="reference internal" href="#point-the-api-name-at-the-new-control-plane">step 4</a>), then check the
+cluster (<a class="reference internal" href="#check-the-cluster">step 5</a>).</p></li>
+<li><p>Remove the old server, whether you retire node01 or keep it as a
+worker, so its etcd data and <code class="docutils literal notranslate"><span class="pre">k3s.service</span></code> don’t linger:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>delete<span class="w"> </span>node<span class="w"> </span>node01
+ssh<span class="w"> </span>ansible@node01<span class="w"> </span>sudo<span class="w"> </span>k3s-uninstall.sh
+</pre></div>
+</div>
+<p>To keep it as a worker, then run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">k3s</span> <span class="pre">--limit</span> <span class="pre">node01</span></code>.</p>
+</li>
+<li><p>Taint the new control plane with
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>, and update anything else
+that names the old node’s IP, such as a Cloudflare SSH tunnel route.</p></li>
+<li><p>Commit the <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> change and merge it.</p></li>
+</ol>
 </section>
 </section>
 
@@ -651,12 +769,15 @@ the workers survive a rebuild.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-it">When to use it</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choose-the-target-node">Choose the target node</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-you-need">What you need</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#get-and-decrypt-the-latest-backup">1. Get and decrypt the latest backup</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reflash-and-provision-the-node">2. Reflash and provision the node</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-etcd">3. Restore etcd</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-cluster">4. Check the cluster</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fallback-rebuild-from-git">5. Fallback: rebuild from Git</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#point-the-api-name-at-the-new-control-plane">4. Point the API name at the new control plane</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-cluster">5. Check the cluster</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fallback-rebuild-from-git">6. Fallback: rebuild from Git</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#move-the-control-plane">Move the control plane</a></li>
 </ul>
   </nav></div>
 

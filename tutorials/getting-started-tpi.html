@@ -581,12 +581,27 @@ eMMC then holds only U-Boot. Without it, an RK1 runs Ubuntu from its eMMC.</p></
 <p>Edit <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> — the primary Ansible configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Change these to match your environment</span>
 <span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node01</span><span class="w">              </span><span class="c1"># Which node is the K3s control plane</span>
+<span class="nt">k3s_api_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">k3s.lan</span><span class="w">              </span><span class="c1"># DNS record for the API, -&gt; control plane IP</span>
 <span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example.com</span><span class="w">        </span><span class="c1"># Your domain name</span>
 <span class="nt">domain_email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">you@example.com</span><span class="w">      </span><span class="c1"># For Let&#39;s Encrypt certificates</span>
 <span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/&lt;your-username&gt;/tpi-k3s-ansible.git</span>
 <span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span><span class="w">                  </span><span class="c1"># Git branch for ArgoCD to track</span>
 </pre></div>
 </div>
+<p>Add a DNS record for <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> on your router (or other LAN DNS),
+pointing at the control plane’s IP. The workers join the cluster through
+that name, so the control plane can later move to another node. Without LAN
+DNS, set <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the control plane’s IPv4 address.</p>
+<p>If your router runs OpenWrt (dnsmasq, managed with <code class="docutils literal notranslate"><span class="pre">uci</span></code>), set <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>
+in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> to its SSH target (e.g. <code class="docutils literal notranslate"><span class="pre">root&#64;192.168.1.1</span></code>) and
+create the record with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>k3s-api-dns<span class="w"> </span>&lt;control-plane-ip&gt;
+</pre></div>
+</div>
+<p>It adds or updates the record on the router, then checks the name resolves
+locally. On any other router, create an equivalent local DNS (host) record
+by hand, with a TTL of 0 or a few seconds, so a later move takes effect at
+once.</p>
 <p>Then edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> — the ArgoCD runtime configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span><span class="w">                  </span><span class="c1"># Must match the value in all.yml</span>
 

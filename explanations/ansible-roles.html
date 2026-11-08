@@ -1385,7 +1385,7 @@ on its target node (guarded by <code class="docutils literal notranslate"><span 
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>node02</p></td>
+<tr class="row-even"><td><p>node04</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code></p></td>
 <td><p>1000:2000 / 0755</p></td>
 <td><p>monitoring</p></td>
@@ -1433,9 +1433,11 @@ Later patch upgrades are automatic; see <a class="reference internal" href="../h
 <h3>Control plane (<code class="docutils literal notranslate"><span class="pre">control.yml</span></code>)<a class="headerlink" href="#control-plane-control-yml" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Downloads the K3s install script.</p></li>
-<li><p>Runs: <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span> <span class="pre">--disable=traefik</span> <span class="pre">--cluster-init</span></code></p></li>
+<li><p>Writes <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code> and runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span></code> with it.</p></li>
 <li><p>Traefik is disabled because this project uses NGINX Ingress.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--cluster-init</span></code> enables embedded etcd.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cluster-init</span></code> enables embedded etcd.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tls-san</span></code> adds <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the API server certificate. A config
+change restarts k3s before the workers are touched.</p></li>
 </ul>
 </section>
 <section id="workers-worker-yml">
@@ -1443,7 +1445,9 @@ Later patch upgrades are automatic; see <a class="reference internal" href="../h
 <ul class="simple">
 <li><p>Checks if the node is already in the cluster (skip if so, unless force).</p></li>
 <li><p>Gets the join token from the control plane.</p></li>
-<li><p>Runs the K3s agent installer.</p></li>
+<li><p>Runs the K3s agent installer with <code class="docutils literal notranslate"><span class="pre">K3S_URL=https://&lt;k3s_api_name&gt;:6443</span></code>.</p></li>
+<li><p>Rewrites <code class="docutils literal notranslate"><span class="pre">K3S_URL</span></code> in <code class="docutils literal notranslate"><span class="pre">/etc/systemd/system/k3s-agent.service.env</span></code> on
+agents that joined by IP, and restarts <code class="docutils literal notranslate"><span class="pre">k3s-agent</span></code> if it changed.</p></li>
 <li><p>Labels NVIDIA GPU nodes with <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code> (when <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code>
 in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
 then takes over and advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> allocatable resources to the scheduler.</p></li>
@@ -1453,8 +1457,15 @@ then takes over and advertises <code class="docutils literal notranslate"><span 
 <h3>Kubeconfig (<code class="docutils literal notranslate"><span class="pre">kubeconfig.yml</span></code>)<a class="headerlink" href="#kubeconfig-kubeconfig-yml" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Copies <code class="docutils literal notranslate"><span class="pre">k3s.yaml</span></code> from the control plane to <code class="docutils literal notranslate"><span class="pre">~/.kube/config</span></code> on the devcontainer.</p></li>
-<li><p>Replaces <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code> with the control plane’s actual IP.</p></li>
+<li><p>Replaces <code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:6443</span></code> with <code class="docutils literal notranslate"><span class="pre">https://&lt;k3s_api_name&gt;:6443</span></code>.</p></li>
 </ul>
+<p>Before any of this, the role checks that every address <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>
+resolves to (IPv4 and IPv6) belongs to the control plane, on every node and
+on the controller. Before the kubeconfig write and any agent change, it also
+fetches <code class="docutils literal notranslate"><span class="pre">https://&lt;k3s_api_name&gt;:6443/ping</span></code> against the cluster CA, from the
+controller and from each node that already has the CA, so nothing switches
+to the name until the server certificate carries it. It stops if either
+check fails (in <code class="docutils literal notranslate"><span class="pre">--check</span></code> mode it only warns).</p>
 </section>
 <section id="force-reinstall">
 <h3>Force reinstall<a class="headerlink" href="#force-reinstall" title="Link to this heading">#</a></h3>
