@@ -36,6 +36,21 @@ spec:
               - --cookie-name=_oauth2_proxy_monitor
               - --api-route=/api/
               - --prompt=login
+          # Grafana dashboard buttons on each Application's pod table. The
+          # links target the kube-prometheus-stack dashboards in this
+          # cluster's Grafana. Every Application deploys in-cluster, so map
+          # the in-cluster destination (by server URL, or by ArgoCD's
+          # default cluster name) to it; urlTemplate is left empty so an
+          # Application on any other cluster gets no links rather than links
+          # to the wrong Grafana. Explore links stay off: Grafana's Viewer
+          # role, which non-admins get, cannot open Explore.
+          grafana:
+            enabled: true
+            overrides:
+              https://kubernetes.default.svc: https://grafana.{{ .Values.cluster_domain }}
+              in-cluster: https://grafana.{{ .Values.cluster_domain }}
+            datasourceUid: prometheus
+            exploreLinks: false
 
     - path: ./kubernetes-services/additions/argocd-monitor
       repoURL: {{ .Values.repo_remote }}
