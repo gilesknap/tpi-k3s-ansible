@@ -563,6 +563,61 @@ kubectl<span class="w"> </span>uncordon<span class="w"> </span>node03
 </pre></div>
 </div>
 </section>
+<section id="move-a-local-nvme-pv-to-another-node">
+<span id="move-a-local-nvme-pv"></span><h2>Move a local-nvme PV to another node<a class="headerlink" href="#move-a-local-nvme-pv-to-another-node" title="Link to this heading">#</a></h2>
+<p>Each <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV is pinned to one node by its <code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>, which
+Kubernetes does not let you change on an existing PV. To move one, for
+example Grafana’s from <code class="docutils literal notranslate"><span class="pre">node03</span></code> to <code class="docutils literal notranslate"><span class="pre">node02</span></code>, delete the PV through ArgoCD
+and let it re-create it. The PV’s policy is <code class="docutils literal notranslate"><span class="pre">Retain</span></code> and the data is a
+directory on the host, so deleting the PV object does not delete any data.</p>
+<ol class="arabic">
+<li><p>In <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, set the new <code class="docutils literal notranslate"><span class="pre">node</span></code> (and <code class="docutils literal notranslate"><span class="pre">path</span></code>, if
+that node keeps its data elsewhere) on the PV’s <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> entry.
+Make the same change to its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry in
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. Create the directory on the new node by hand,
+with the owner, group and mode of the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry, for
+example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span>sudo<span class="w"> </span>install<span class="w"> </span>-d<span class="w"> </span>-o<span class="w"> </span><span class="m">472</span><span class="w"> </span>-g<span class="w"> </span><span class="m">472</span><span class="w"> </span>-m<span class="w"> </span><span class="m">2775</span><span class="w"> </span>/var/lib/k8s-data/grafana
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">servers</span> <span class="pre">--limit</span> <span class="pre">node02</span></code> creates it
+too, but that play also runs <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> and <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>:
+on an RK1 still on the vendor image, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> drains it, reboots it and
+can run an Ubuntu release upgrade to convert it.</p>
+<p>Merge the change. Until step 3 the <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> app shows a sync
+error for that PV, as it cannot change its node.</p>
+</li>
+<li><p>Delete the PVC and the pod that uses it. The PVC waits for the pod to
+go, and the StatefulSet then re-creates both. The new pod stays
+<code class="docutils literal notranslate"><span class="pre">Pending</span></code>, as the old PV still points at the old claim and node:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>delete<span class="w"> </span>pvc<span class="w"> </span>storage-grafana-prometheus-0<span class="w"> </span>--wait<span class="o">=</span><span class="nb">false</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>grafana-prometheus-0
+</pre></div>
+</div>
+<p>To keep the data, copy the directory from the old node to the new one
+now, while nothing writes to it, keeping its owner and mode.</p>
+</li>
+<li><p>Delete the PV through ArgoCD and sync, so ArgoCD re-creates it with the
+new node. <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">--core</span></code> uses the kube context’s namespace, so set it
+to <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> first:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>config<span class="w"> </span>set-context<span class="w"> </span>--current<span class="w"> </span>--namespace<span class="o">=</span>argo-cd
+argocd<span class="w"> </span>app<span class="w"> </span>delete-resource<span class="w"> </span>local-storage<span class="w"> </span>--core<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--kind<span class="w"> </span>PersistentVolume<span class="w"> </span>--resource-name<span class="w"> </span>grafana-local
+argocd<span class="w"> </span>app<span class="w"> </span>sync<span class="w"> </span>local-storage<span class="w"> </span>--core
+</pre></div>
+</div>
+<p>Then set the namespace back to the one you had before, if it was not
+<code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>.</p>
+<p>In the ArgoCD UI, the same is: open <code class="docutils literal notranslate"><span class="pre">local-storage</span></code>, delete the PV,
+then <strong>Sync</strong>. <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">app</span> <span class="pre">sync</span> <span class="pre">--replace</span></code> does not work instead: the
+ArgoCD server disables sync with replace.</p>
+</li>
+<li><p>Check that the PVC is <code class="docutils literal notranslate"><span class="pre">Bound</span></code> and the pod runs on the new node:
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">get</span> <span class="pre">pvc,pod</span> <span class="pre">-o</span> <span class="pre">wide</span></code>.</p></li>
+</ol>
+<p>The old directory stays on the old node. Remove it by hand once the
+workload runs from its new home.</p>
+</section>
 <section id="add-extra-non-turing-pi-nodes">
 <h2>Add extra (non-Turing Pi) nodes<a class="headerlink" href="#add-extra-non-turing-pi-nodes" title="Link to this heading">#</a></h2>
 <p>To add standalone Linux servers to the cluster:</p>
@@ -694,6 +749,7 @@ ansible<span class="w"> </span>all_nodes<span class="w"> </span>-m<span class="w
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hard-power-cycle-a-turing-pi-node-via-the-bmc">Hard power-cycle a Turing Pi node via the BMC</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fail-over-from-a-dead-node-fence">Fail over from a dead node (fence)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drain-a-node-for-maintenance">Drain a node for maintenance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#move-a-local-nvme-pv-to-another-node">Move a local-nvme PV to another node</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-extra-non-turing-pi-nodes">Add extra (non-Turing Pi) nodes</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-add-to-inventory">Step 1: Add to inventory</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-bootstrap-ansible-access">Step 2: Bootstrap Ansible access</a></li>

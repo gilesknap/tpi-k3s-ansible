@@ -219,8 +219,11 @@ upgrade windows, it:
 3. mounts the NAS share, copies the result to
    `backups/etcd/k3s-etcd-<node>-<UTC time>.tar.age`, checks the copy's
    checksum, updates `LATEST`, and keeps the newest 14;
-4. ships the newest `pre-upgrade-*` snapshot (taken by an automatic k3s
-   upgrade) once to `backups/etcd/pre-upgrade/`, keeping 4;
+4. ships each `pre-upgrade-<version>` snapshot (taken by an automatic k3s
+   upgrade) once to `backups/etcd/pre-upgrade/`, keeping 4. If there are
+   two for one version, it ships the earliest: a later one is a
+   post-upgrade copy from a retried upgrade Job
+   ({doc}`/explanations/upgrade-model`);
 5. writes `k3s_etcd_backup_*` metrics for node-exporter's textfile
    collector.
 
