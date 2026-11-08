@@ -87,6 +87,14 @@ resource "cloudflare_zero_trust_access_policy" "scrap_mcp" {
 # --- Applications ------------------------------------------------------------
 
 locals {
+  # The reusable policies above, by the keys that access_apps uses.
+  access_policies = {
+    owner     = cloudflare_zero_trust_access_policy.owner
+    viewers   = cloudflare_zero_trust_access_policy.viewers
+    bypass    = cloudflare_zero_trust_access_policy.bypass
+    scrap_mcp = cloudflare_zero_trust_access_policy.scrap_mcp
+  }
+
   # Settings common to every self-hosted app, spelled out so the plan
   # compares them with the live values rather than provider defaults.
   access_app_defaults = {
@@ -104,7 +112,7 @@ locals {
     clusterapps = {
       name     = "clusterapps"
       uris     = ["*.${var.domain}"]
-      policies = [cloudflare_zero_trust_access_policy.owner.id]
+      policies = ["owner"]
     }
     # Read-only dashboards that viewers may see.
     demo = {
@@ -114,22 +122,19 @@ locals {
         local.tunnel_hostnames["grafana"],
         local.tunnel_hostnames["argocd-monitor"],
       ]
-      policies = [
-        cloudflare_zero_trust_access_policy.viewers.id,
-        cloudflare_zero_trust_access_policy.owner.id,
-      ]
+      policies = ["viewers", "owner"]
     }
     # Public static pages.
     pages = {
       name     = "pages"
       uris     = [local.tunnel_hostnames["pages"]]
-      policies = [cloudflare_zero_trust_access_policy.bypass.id]
+      policies = ["bypass"]
     }
     # scrap's MCP endpoint: service token only.
     scrap = {
       name     = "scrap"
       uris     = ["${local.tunnel_hostnames["scrap"]}/mcp"]
-      policies = [cloudflare_zero_trust_access_policy.scrap_mcp.id]
+      policies = ["scrap_mcp"]
     }
     # ntfy: the phone app cannot do an Access login, so bypass Access;
     # ntfy's token auth is the gate. This app is more specific than
@@ -137,7 +142,7 @@ locals {
     ntfy = {
       name     = "ntfy"
       uris     = [local.tunnel_hostnames["ntfy"]]
-      policies = [cloudflare_zero_trust_access_policy.bypass.id]
+      policies = ["bypass"]
     }
   }
 }
@@ -161,5 +166,16 @@ resource "cloudflare_zero_trust_access_application" "app" {
   domain       = each.value.uris[0]
   destinations = [for u in each.value.uris : { type = "public", uri = u }]
   # Reusable policies, in precedence order.
-  policies = [for i, id in each.value.policies : { id = id, precedence = i + 1 }]
+  policies = [
+    for i, k in each.value.policies :
+    { id = local.access_policies[k].id, precedence = i + 1 }
+  ]
+
+  lifecycle {
+    # See access_guard.tf.
+    precondition {
+      condition     = !local.access_app_open[each.key] || length(setsubtract(local.access_app_hosts[each.key], local.access_bypass_hosts)) == 0
+      error_message = "Access app \"${each.value.name}\" lets anyone in (a bypass policy, or one that includes everyone) for ${join(", ", sort(setsubtract(local.access_app_hosts[each.key], local.access_bypass_hosts)))}, which is not on the bypass allowlist. Give the app an identity or service-token policy, or, if the service is meant to be public, set access_bypass = true on its tunnel_services entry (locals.tf)."
+    }
+  }
 }

@@ -11,6 +11,9 @@ locals {
   #   service        - origin URL; defaults to the ingress controller
   #   origin_request - optional per-route cloudflared settings
   #   cache          - true adds a "cache everything" rule for the host
+  #   access_bypass  - true allows an Access app that lets anyone in
+  #                    (the bypass policy) for this host; without it the
+  #                    plan fails on such an app (see access_guard.tf)
   tunnel_services = [
     { name = "echo" },
     { name = "grafana", service = "${local.ingress_nginx}:80" },
@@ -22,10 +25,10 @@ locals {
     { name = "alertmanager" },
     { name = "minecraft" },
     { name = "scrap" },
-    { name = "pages", cache = true },
+    { name = "pages", cache = true, access_bypass = true },
     # Open to the internet behind ntfy's own token auth: it has a bypass
     # Access app (access.tf) and a rate-limiting rule (waf.tf).
-    { name = "ntfy" },
+    { name = "ntfy", access_bypass = true },
   ]
 
   tunnel_ingress = concat(
