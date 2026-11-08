@@ -450,7 +450,7 @@ as drift in the next <code class="docutils literal notranslate"><span class="pre
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">locals.tf</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>: the list of public services. Each entry is a tunnel ingress rule (in list order, before the 404 catch-all) and a proxied CNAME to the tunnel; <code class="docutils literal notranslate"><span class="pre">cache</span> <span class="pre">=</span> <span class="pre">true</span></code> adds a cache rule for it</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>: the list of public services. Each entry is a tunnel ingress rule (in list order, before the 404 catch-all) and a proxied CNAME to the tunnel; <code class="docutils literal notranslate"><span class="pre">cache</span> <span class="pre">=</span> <span class="pre">true</span></code> adds a cache rule for it; <code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code> puts it on the Access bypass allowlist</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tunnel.tf</span></code></p></td>
 <td><p>The remotely-managed tunnel and its ingress configuration</p></td>
@@ -461,16 +461,19 @@ as drift in the next <code class="docutils literal notranslate"><span class="pre
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">access.tf</span></code></p></td>
 <td><p>Reusable policies (Owner, Viewers, bypass, service token) and the Access applications</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">zone.tf</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">access_guard.tf</span></code></p></td>
+<td><p>The rule that every public hostname is behind Access unless allowlisted (see <a class="reference internal" href="#every-public-hostname-in-the-code-is-behind-access">below</a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">zone.tf</span></code></p></td>
 <td><p>Zone settings (SSL mode, minimum TLS, HSTS, security level, …) and the zone’s cache rules</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">waf.tf</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">waf.tf</span></code></p></td>
 <td><p>The zone’s rate-limiting rules (the <code class="docutils literal notranslate"><span class="pre">http_ratelimit</span></code> ruleset)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">imports.tf</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">imports.tf</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">import</span></code> blocks that adopt existing objects into state</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">variables.tf</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">variables.tf</span></code></p></td>
 <td><p>Per-account inputs; the values go in the gitignored <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code></p></td>
 </tr>
 </tbody>
@@ -509,9 +512,48 @@ does not have: check it in the dashboard after changing one of those apps.</p>
 <p>To add a service to the edge, add an entry to <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> (and, if
 it needs something other than the wildcard Owner app, an entry in
 <code class="docutils literal notranslate"><span class="pre">local.access_apps</span></code> in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code>), then plan and apply. ntfy is an
-example of both: a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry, an Access app with the
-<code class="docutils literal notranslate"><span class="pre">bypass</span></code> policy (a more specific app than the wildcard, so it wins for
-that hostname), and a rate-limiting rule in <code class="docutils literal notranslate"><span class="pre">waf.tf</span></code> (see <a class="reference internal" href="ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>).</p>
+example of both: a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry with <code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code>,
+an Access app with the <code class="docutils literal notranslate"><span class="pre">bypass</span></code> policy (a more specific app than the
+wildcard, so it wins for that hostname), and a rate-limiting rule in
+<code class="docutils literal notranslate"><span class="pre">waf.tf</span></code> (see <a class="reference internal" href="ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>).</p>
+</section>
+<section id="every-public-hostname-in-the-code-is-behind-access">
+<h3>Every public hostname in the code is behind Access<a class="headerlink" href="#every-public-hostname-in-the-code-is-behind-access" title="Link to this heading">#</a></h3>
+<p>The repo is public, so a hostname left open by mistake is easy for
+anyone to find. <code class="docutils literal notranslate"><span class="pre">access_guard.tf</span></code> makes <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">plan</span></code> (and so
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>) fail, before anything reaches
+Cloudflare, when:</p>
+<ul class="simple">
+<li><p>a tunnel service, or a proxied entry in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code>, is not
+covered by an Access app whose policies all ask for an identity or a
+service token. The <code class="docutils literal notranslate"><span class="pre">*.&lt;domain&gt;</span></code> wildcard app covers every hostname one
+label below the domain (<code class="docutils literal notranslate"><span class="pre">a.&lt;domain&gt;</span></code>, not <code class="docutils literal notranslate"><span class="pre">a.b.&lt;domain&gt;</span></code>); an app for
+exactly one hostname covers that hostname; an app with a path
+(such as <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;/mcp</span></code>) covers only that path, never the whole
+hostname. The error reads <code class="docutils literal notranslate"><span class="pre">&lt;host&gt;</span> <span class="pre">is</span> <span class="pre">routed</span> <span class="pre">through</span> <span class="pre">the</span> <span class="pre">tunnel</span> <span class="pre">but</span> <span class="pre">no</span> <span class="pre">Access</span> <span class="pre">app</span> <span class="pre">protects</span> <span class="pre">it</span></code>.</p></li>
+<li><p>an Access app lets anyone in (a policy with the <code class="docutils literal notranslate"><span class="pre">bypass</span></code> decision, or
+one that includes everyone, a login method on its own or the whole
+internet’s IP range) for a hostname that is not on the bypass
+allowlist. One such policy opens the whole app, as Cloudflare evaluates
+bypass policies first. The error reads <code class="docutils literal notranslate"><span class="pre">Access</span> <span class="pre">app</span> <span class="pre">&quot;&lt;name&gt;&quot;</span> <span class="pre">lets</span> <span class="pre">anyone</span> <span class="pre">in</span> <span class="pre">...</span> <span class="pre">which</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">on</span> <span class="pre">the</span> <span class="pre">bypass</span> <span class="pre">allowlist</span></code>. This also catches a
+bypass app with a path, and a bypass policy added to the wildcard app.</p></li>
+</ul>
+<p>The allowlist is the <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entries with
+<code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code>: services that are public on purpose, such as
+static pages or ntfy, which does its own token auth. It lives in the
+code, next to the services, so that opening a service to the internet is
+a visible line in a reviewed change. A service-token-only policy (the
+<code class="docutils literal notranslate"><span class="pre">non_identity</span></code> decision) counts as protected, not as bypass. A
+hostname on the allowlist is not checked at all, so it may have a bypass
+app or none. Only tunnel services can be allowlisted: a proxied
+<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> entry must always be behind Access.</p>
+<p>The guard sees only this code. It does not judge rules that are wide by
+their values (a public email domain in <code class="docutils literal notranslate"><span class="pre">viewer_email_domains</span></code>, say), and
+it knows nothing of hostnames created outside <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>.</p>
+<p>To fix either error, add or correct the Access app in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code>; or,
+if the service really is meant to be public, set <code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code>
+on its <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry. A flag that no open app needs gives a
+warning (not an error), so the allowlist does not outgrow its use.</p>
 </section>
 <section id="rate-limiting-on-the-free-plan">
 <h3>Rate limiting on the Free plan<a class="headerlink" href="#rate-limiting-on-the-free-plan" title="Link to this heading">#</a></h3>
@@ -780,6 +822,7 @@ cluster no longer runs, left behind by earlier dashboard edits.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-managed">What is managed</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#login-methods-are-set-up-in-the-dashboard">Login methods are set up in the dashboard</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#also-not-managed">Also not managed</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#every-public-hostname-in-the-code-is-behind-access">Every public hostname in the code is behind Access</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rate-limiting-on-the-free-plan">Rate limiting on the Free plan</a></li>
 </ul>
 </li>
