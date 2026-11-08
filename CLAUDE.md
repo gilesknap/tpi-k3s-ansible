@@ -55,7 +55,7 @@
   GPT sets its first usable LBA to 32768 (16 MiB), so partitioning tools
   cannot place a partition over U-Boot.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
-  existing pinning is prometheus→node04, grafana→node03,
+  existing pinning is prometheus→node04, grafana→node04,
   scrap's off-NAS backup copy→nuc2. scrap itself is not pinned (ADR
   0013). Each local PV in
   `additions/local-storage/` has `spec.nodeAffinity` matching its pod;

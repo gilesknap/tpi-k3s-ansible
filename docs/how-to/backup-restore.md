@@ -59,7 +59,7 @@ unlike a raw tar of the db file). To restore:
 
 ```bash
 kubectl scale -n monitoring sts/grafana-prometheus --replicas=0
-ssh ansible@node03 '
+ssh ansible@node04 '
   sudo cp /mnt/nfs/k8s-cluster/backups/grafana/YYYY-MM-DD.db \
           /var/lib/k8s-data/grafana/grafana.db
 '

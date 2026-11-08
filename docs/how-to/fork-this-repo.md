@@ -113,7 +113,7 @@ For each entry, the `node` and `path` fields **must match** between
 the two files. If they drift, the PV's nodeAffinity will point at a
 directory that doesn't exist and the PVC will hang Pending.
 
-For a fork retargeting Grafana from `node03` to `nodeX`:
+For a fork retargeting Grafana from `node04` to `nodeX`:
 
 ```yaml
 # kubernetes-services/values.yaml

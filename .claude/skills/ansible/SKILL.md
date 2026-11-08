@@ -113,7 +113,7 @@ reboot unexpectedly. This has these consequences you must design for:
 There is no replicated block storage (Longhorn was dropped, ADR 0012):
 - **RWO `local-nvme`**: static PVs in `additions/local-storage/`, each
   with `spec.nodeAffinity` pinning its pod (prometheus→node04,
-  grafana→node03; scrap's off-NAS backup copy and frozen pre-NFS copy
+  grafana→node04; scrap's off-NAS backup copy and frozen pre-NFS copy
   →nuc2). A new workload gets its own PV and node, never ws03. Losing
   the node takes the workload offline until it's back.
 - **Shared volumes**: `nfs-stable` is the default StorageClass (one fixed
@@ -146,7 +146,7 @@ Notes:
   (or come back, for DaemonSets pinned to that node).
 - Hard power-cycle is unclean for in-flight writes. If the node hosts
   live local-PV data (see CLAUDE.md "Local PV data paths are sacred":
-  Prometheus on node04, Grafana on node03),
+  Prometheus and Grafana on node04),
   expect fsck on boot — check pod logs once the node returns.
 - For the Claude sandbox specifically: the BMC SSH key isn't reachable
   from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`,

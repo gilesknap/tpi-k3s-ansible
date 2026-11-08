@@ -87,8 +87,8 @@ kubectl get nodes -w
 
 :::{warning}
 A hard power-cycle is an unclean shutdown for any in-flight writes. If
-the node carries live local-PV data (Prometheus on node04, Grafana on
-node03 — see the "Local PV data paths are sacred"
+the node carries live local-PV data (Prometheus and Grafana on
+node04 — see the "Local PV data paths are sacred"
 rule in `CLAUDE.md`), expect fsck on boot and check the affected pods'
 logs once the node returns.
 :::
@@ -162,18 +162,19 @@ directory on the host, so deleting the PV object does not delete any data.
 1. In `kubernetes-services/values.yaml`, set the new `node` (and `path`, if
    that node keeps its data elsewhere) on the PV's `local_storage` entry.
    Make the same change to its `k8s_data_dirs` entry in
-   `group_vars/all.yml`. Create the directory on the new node by hand,
-   with the owner, group and mode of the `k8s_data_dirs` entry, for
-   example:
+   `group_vars/all.yml`. On the branch, let the `k8s_data_dirs` role
+   create the directory on the new node, with that entry's owner, group
+   and mode. Do not create it by hand:
 
    ```bash
-   ssh ansible@node02 sudo install -d -o 472 -g 472 -m 2775 /var/lib/k8s-data/grafana
+   ansible-playbook pb_all.yml --tags k8s_data_dirs --limit node02
    ```
 
-   `ansible-playbook pb_all.yml --tags servers --limit node02` creates it
-   too, but that play also runs `move_fs`, `rk1_os` and `update_packages`:
-   on an RK1 still on the vendor image, `rk1_os` drains it, reboots it and
-   can run an Ubuntu release upgrade to convert it.
+   The tag runs only that role. `--tags servers` would also run
+   `move_fs`, `rk1_os` and `update_packages`.
+
+   If the workload has a backup ({doc}`backup-restore`), take a fresh one
+   now, while it still runs on the old node.
 
    Merge the change. Until step 3 the `local-storage` app shows a sync
    error for that PV, as it cannot change its node.
@@ -186,8 +187,9 @@ directory on the host, so deleting the PV object does not delete any data.
    kubectl -n monitoring delete pod grafana-prometheus-0
    ```
 
-   To keep the data, copy the directory from the old node to the new one
-   now, while nothing writes to it, keeping its owner and mode.
+   The new node's directory starts empty. Bring the data across with the
+   workload's own backup and restore, not by copying files under the data
+   paths by hand (see "Never touch `/var/lib/k8s-data`" in `CLAUDE.md`).
 3. Delete the PV through ArgoCD and sync, so ArgoCD re-creates it with the
    new node. `argocd --core` uses the kube context's namespace, so set it
    to `argo-cd` first:
@@ -208,8 +210,9 @@ directory on the host, so deleting the PV object does not delete any data.
 4. Check that the PVC is `Bound` and the pod runs on the new node:
    `kubectl -n monitoring get pvc,pod -o wide`.
 
-The old directory stays on the old node. Remove it by hand once the
-workload runs from its new home.
+The old directory stays on the old node, as a fallback. Do not remove it
+by hand: only `pb_decommission.yml -e wipe_local_data=true` or a re-flash
+removes it.
 
 ## Add extra (non-Turing Pi) nodes
 
