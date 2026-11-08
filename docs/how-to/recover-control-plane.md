@@ -39,8 +39,7 @@ resolves to the `control_plane` node.
   changes role, and the `cluster` tag later taints it `NoSchedule`. Prefer a
   node that holds no `local-nvme` PV (`local_storage` in
   `kubernetes-services/values.yaml`): a pod pinned there by its PV cannot
-  restart on it once it is tainted. `node03` holds Grafana's, which is
-  acceptable while you recover, not as a permanent home.
+  restart on it once it is tainted.
 
 For a spare node, set it as the control plane first, on a branch:
 

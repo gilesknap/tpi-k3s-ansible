@@ -12,6 +12,7 @@ combinations. Tags map to plays within the playbook.
 | `known_hosts` | Update known_hosts | `known_hosts` | all_nodes, turing_pis | Updates SSH known_hosts; fails a host whose key scan returns nothing |
 | `servers` | Prepare nodes | `move_fs`, `rk1_os`, `update_packages`, `k8s_data_dirs`, `node_reboot` | all_nodes | Ubuntu install on RK1 NVMe, conversion of older RK1 installs, dist-upgrade, dependencies; no reboot of cluster nodes unless `-e reboot_now=true` |
 | `rk1_os` | Convert RK1 nodes | `rk1_os` | RK1 nodes, `serial: 1` | Converts RK1s still on the old ubuntu-rockchip vendor layout to stock Ubuntu 26.04; skips standard installs |
+| `k8s_data_dirs` | Update all nodes | `k8s_data_dirs` | all_nodes | Only the local-PV host directories from `k8s_data_dirs`; never deletes data |
 | `k3s` | Install K3s | `k3s`, `etcd_backup` | all_nodes | Installs K3s control plane + workers, and the control plane's nightly etcd backup timer |
 | `apparmor` | Install K3s | `k3s` (`apparmor.yml` only) | all_nodes | Only the corrected containerd AppArmor profile (see {doc}`/reference/troubleshooting`) |
 | `etcd_backup` | Install K3s | `etcd_backup` | control plane | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
