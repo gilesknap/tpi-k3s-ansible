@@ -87,6 +87,17 @@ without a matching toleration won't schedule there, so it can safely
 be skipped when running `--tags servers` for node-level drivers (DRA
 plugins, etc.).
 
+### Standby control-plane `PreferNoSchedule` taint
+`standby_control_plane` in `group_vars/all.yml` (e.g. node03) names the
+recovery target for `docs/how-to/recover-control-plane.md`. The `cluster`
+tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule`
+(soft: the scheduler avoids it but can still use it) and strips that taint
+from any other node. When the standby is promoted, set `control_plane` to
+it and repoint `standby_control_plane` at the next spare (or empty it);
+`--tags cluster` then sets `NoSchedule` and moves the soft taint. Don't pin
+a `local-nvme` PV to the standby. Use `kubernetes.core.k8s_taint` for node
+taints, not a `k8s` patch of `spec.taints`, which replaces the whole list.
+
 ### Workstation taint (ws03)
 Workstation nodes carry `workstation=true:NoSchedule` because they may
 reboot unexpectedly. This has these consequences you must design for:

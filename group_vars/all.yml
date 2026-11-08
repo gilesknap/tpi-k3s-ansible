@@ -43,6 +43,13 @@ known_hosts_files:
   - "~/.ssh/known_hosts"
   - /etc/ssh/ssh_known_hosts
 control_plane: node02 # the node name of the (single) control plane
+# Warm-standby control plane: the node you would restore the etcd bundle
+# onto if the control plane died (docs/how-to/recover-control-plane.md).
+# The cluster tag taints it node-role.kubernetes.io/standby-control-plane
+# :PreferNoSchedule so the scheduler keeps it light without ruling it out.
+# Leave empty for none. After promoting it, point this at the next spare
+# (or empty it); the cluster tag then moves or removes the soft taint.
+standby_control_plane: node03
 # Stable name for the Kubernetes API (port 6443). Agents join it, the
 # server certificate carries it as a SAN, and the exported kubeconfig uses
 # it, so moving the control plane to another node means changing

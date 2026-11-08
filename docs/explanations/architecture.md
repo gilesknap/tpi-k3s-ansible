@@ -97,6 +97,10 @@ Notable configuration:
   NGINX Ingress instead (`--disable=traefik`)
 - **Control plane is tainted** (multi-node only) — `NoSchedule` taint prevents
   workloads from running on the control plane node; skipped for single-node clusters
+- **Warm-standby control plane** (optional) — the node named by
+  `standby_control_plane` carries a `PreferNoSchedule` taint, so it stays
+  lightly loaded and ready to take an etcd restore
+  ({doc}`/how-to/recover-control-plane`)
 - **etcd mode** — single control plane with `--cluster-init` (embedded etcd)
 - **Stable API name** — workers, the server certificate (`tls-san`) and the
   exported kubeconfig all use `k3s_api_name` (e.g. `k3s.lan`), a LAN DNS

@@ -41,12 +41,25 @@ resolves to the `control_plane` node.
   `kubernetes-services/values.yaml`): a pod pinned there by its PV cannot
   restart on it once it is tainted.
 
+Name the spare in advance as `standby_control_plane` in
+`group_vars/all.yml` (e.g. `node03`). The `cluster` tag gives it a
+`node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` taint, so
+the scheduler keeps it light while other nodes have room but can still use
+it. Little then has to move off it when it changes role. Leave the variable
+empty to have no standby.
+
 For a spare node, set it as the control plane first, on a branch:
 
 ```yaml
 # group_vars/all.yml
 control_plane: node03
+standby_control_plane: node04 # the next spare, or empty for none
 ```
+
+Repoint or clear `standby_control_plane` in the same change. The `cluster`
+tag skips the soft taint on the control plane itself, but clearing it keeps
+the inventory honest, and naming the next spare means the cluster has a
+standby again.
 
 `just restore-control-plane` and the `k3s` role both read it.
 
@@ -299,7 +312,8 @@ record must exist and every agent must already use it (run
    ```
 
 4. Fetch and decrypt that bundle ([step 1](#1-get-and-decrypt-the-latest-backup)).
-5. Set `control_plane: node03` in `group_vars/all.yml` and restore
+5. Set `control_plane: node03` in `group_vars/all.yml`, point
+   `standby_control_plane` at the next spare or clear it, and restore
    ([step 3](#3-restore-etcd)).
 6. Point the DNS record at node03 (`just k3s-api-dns 192.168.1.83`) and run
    the `k3s` tag on it
@@ -325,7 +339,11 @@ record must exist and every agent must already use it (run
 8. Taint the new control plane with
    `ansible-playbook pb_all.yml --tags cluster`, and update anything else
    that names the old node's IP, such as a Cloudflare SSH tunnel route.
-9. Commit the `control_plane` change and merge it.
+   The same run sets `NoSchedule` on node03, removes its
+   `standby-control-plane` taint and puts that taint on the new
+   `standby_control_plane`, if any.
+9. Commit the `control_plane` and `standby_control_plane` changes and
+   merge them.
 
 ### k3s uninstall leaves files behind
 

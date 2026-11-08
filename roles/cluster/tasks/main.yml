@@ -1,17 +1,83 @@
 # perform any final cluster setup first
 
+# k8s_taint merges into the node's existing taints, where a kubernetes.core.k8s
+# patch of spec.taints would replace the whole list (Node taints have no
+# strategic-merge key), dropping e.g. a cordon's unschedulable taint.
 - name: Taint the control plane node to keep workloads off
-  kubernetes.core.k8s:
-    definition:
-      apiVersion: v1
-      kind: Node
-      metadata:
-        name: "{{ control_plane }}"
-      spec:
-        taints:
-          - key: node-role.kubernetes.io/master
-            effect: NoSchedule
+  kubernetes.core.k8s_taint:
+    name: "{{ control_plane }}"
+    taints:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
   when: groups['all_nodes'] | length > 1
+
+# The warm-standby control plane (docs/how-to/recover-control-plane.md) is
+# kept light with a soft taint: the scheduler avoids it while other nodes
+# have room, but can still use it. Skipped when unset, or when it names the
+# control plane itself (the NoSchedule taint above covers that node).
+- name: Find nodes carrying the standby control plane taint
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+  register: cluster_nodes
+  when: groups['all_nodes'] | length > 1
+
+- name: Remove the standby taint from nodes that are no longer the standby
+  kubernetes.core.k8s_taint:
+    name: "{{ cluster_old_standby }}"
+    state: absent
+    taints:
+      - key: node-role.kubernetes.io/standby-control-plane
+        effect: PreferNoSchedule
+  # Match on key and effect only, as k8s_taint does, whatever the value.
+  loop: >-
+    {{ cluster_nodes.resources
+       | map(attribute='metadata.name')
+       | reject('equalto', cluster_standby_target)
+       | list }}
+  loop_control:
+    loop_var: cluster_old_standby
+  vars:
+    cluster_standby_target: >-
+      {{ (standby_control_plane | default('', true) != control_plane)
+         | ternary(standby_control_plane | default('', true), '') }}
+    cluster_node_taints: >-
+      {{ (cluster_nodes.resources
+          | selectattr('metadata.name', 'equalto', cluster_old_standby)
+          | first).spec.taints | default([]) }}
+  when:
+    - groups['all_nodes'] | length > 1
+    - cluster_node_taints
+      | selectattr('key', 'equalto', 'node-role.kubernetes.io/standby-control-plane')
+      | selectattr('effect', 'equalto', 'PreferNoSchedule')
+      | list | length > 0
+
+# k8s_taint fails on a node the cluster doesn't know (powered off during a
+# rebuild, never joined, or a typo), which would abort the play before
+# ArgoCD is installed: warn and skip instead.
+- name: Warn that the standby control plane is not a cluster node
+  ansible.builtin.debug:
+    msg: >-
+      standby_control_plane {{ standby_control_plane }} is not registered
+      in the cluster, so its PreferNoSchedule taint was skipped. Re-run
+      --tags cluster once it has joined, or fix the name.
+  when:
+    - groups['all_nodes'] | length > 1
+    - standby_control_plane | default('', true) | length > 0
+    - standby_control_plane != control_plane
+    - standby_control_plane not in cluster_nodes.resources | map(attribute='metadata.name')
+
+- name: Taint the standby control plane node PreferNoSchedule
+  kubernetes.core.k8s_taint:
+    name: "{{ standby_control_plane }}"
+    taints:
+      - key: node-role.kubernetes.io/standby-control-plane
+        effect: PreferNoSchedule
+  when:
+    - groups['all_nodes'] | length > 1
+    - standby_control_plane | default('', true) | length > 0
+    - standby_control_plane != control_plane
+    - standby_control_plane in cluster_nodes.resources | map(attribute='metadata.name')
 
 
 # install services - only ArgoCD for now - it adds everything else
