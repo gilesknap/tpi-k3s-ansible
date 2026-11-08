@@ -253,7 +253,7 @@ empty the job fails on every run and uploads nothing.
 4. Install the timer:
 
    ```bash
-   ansible-playbook pb_all.yml --limit node01 --tags etcd_backup
+   ansible-playbook pb_all.yml --limit node02 --tags etcd_backup   # your control_plane
    just etcd-backup-now
    ```
 
@@ -269,16 +269,16 @@ cover this backup: `K3sEtcdBackupFailed` (the last run failed),
 first reported) and `K3sEtcdBackupMetricsMissing`. To check by hand:
 
 ```bash
-ssh node01 systemctl list-timers k3s-etcd-backup.timer
-ssh node01 journalctl -u k3s-etcd-backup -n 20
+ssh node02 systemctl list-timers k3s-etcd-backup.timer
+ssh node02 journalctl -u k3s-etcd-backup -n 20
 ssh nas cat /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd/LATEST
 ```
 
 ### Take or list snapshots by hand
 
 ```bash
-ssh node01 sudo k3s etcd-snapshot save --name manual
-ssh node01 sudo k3s etcd-snapshot list
+ssh node02 sudo k3s etcd-snapshot save --name manual
+ssh node02 sudo k3s etcd-snapshot list
 ```
 
 ### Restore
@@ -294,7 +294,7 @@ are lost.
 :::
 
 ```bash
-ssh node01
+ssh node02
 sudo systemctl stop k3s
 sudo k3s server --cluster-reset \
   --cluster-reset-restore-path=/var/lib/rancher/k3s/server/db/snapshots/<snapshot-name>
