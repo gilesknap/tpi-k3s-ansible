@@ -58,6 +58,20 @@ node-unfence node:
 upgrade-workstation node *args:
     scripts/upgrade-workstation {{ node }} {{ args }}
 
+# Cloudflare config as code (cloudflare/, OpenTofu); see
+# docs/how-to/cloudflare-as-code.md. Run in the devcontainer.
+# Download the provider and set up the local, encrypted state
+cf-init:
+    scripts/cf-tofu init
+
+# Show what would change at Cloudflare (read-only token)
+cf-plan *args:
+    scripts/cf-tofu plan {{ args }}
+
+# Apply the Cloudflare config (edit token; asks before changing anything)
+cf-apply *args:
+    scripts/cf-tofu apply {{ args }}
+
 # After scrap's move to NFS: list writes in the frozen old database
 # that the live one lacks (read-only on both sides)
 scrap-cutover-check node="nuc2":

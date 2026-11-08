@@ -18,11 +18,19 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
   DNS-only A record on the VPS relay's public IP (`additions/vps-relay/`)
 
 ## Gotchas
-- Tunnel hostname config is managed in Cloudflare dashboard — NOT in this repo
+- **Edge config is code in `cloudflare/` (OpenTofu)**: tunnel routes, DNS,
+  Access apps and policies, zone settings, cache rules (login methods are
+  dashboard-only)
+  (docs/how-to/cloudflare-as-code.md). Change it there, `just cf-plan`
+  (read-only token) and the owner runs `just cf-apply`; a dashboard edit
+  is drift that the next apply reverts. Live per-account values (IDs,
+  emails) are in the gitignored `cloudflare/live.auto.tfvars`; state is
+  local, encrypted, gitignored. Never run `cf-apply` / `tofu apply` yourself.
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
   - ws03 had `systemd-resolved` overridden to `1.1.1.1` which broke `node01.lan` resolution
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`
-- Adding new services requires both: ingress in repo + tunnel hostname in Cloudflare dashboard
+- Adding new services requires both: ingress in repo + an entry in
+  `tunnel_services` in `cloudflare/locals.tf` (route + DNS), then plan/apply
 - **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
   tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
   static clients must list both `http://` and `https://` redirect URIs.

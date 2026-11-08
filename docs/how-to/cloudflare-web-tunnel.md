@@ -365,3 +365,4 @@ DNS resolver to return private IPs for the service hostnames.
 - {doc}`cloudflare-tunnel` — Base tunnel setup and per-service tunnel instructions
 - {doc}`cloudflare-ssh-tunnel` — SSH tunnel with Cloudflare Access
 - {doc}`oauth-setup` — In-cluster OAuth configuration
+- {doc}`cloudflare-as-code` — Manage the tunnel routes, DNS and Access apps as OpenTofu code

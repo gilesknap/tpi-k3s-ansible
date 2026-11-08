@@ -12,6 +12,7 @@ how-to/accessing-services
 how-to/cloudflare-tunnel
 how-to/cloudflare-ssh-tunnel
 how-to/cloudflare-web-tunnel
+how-to/cloudflare-as-code
 how-to/oauth-setup
 how-to/nas-setup
 ```

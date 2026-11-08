@@ -53,3 +53,23 @@ jobs:
 
       - name: Shellcheck
         run: grep -rl '^#!/.*bash' scripts/ | xargs shellcheck --severity=warning
+
+  tofu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.13.2
+          tofu_wrapper: false
+
+      # No credentials and no backend: formatting and a static check only.
+      - name: Check the Cloudflare config
+        working-directory: cloudflare
+        run: |
+          tofu fmt -check -recursive -diff
+          tofu init -backend=false -input=false
+          tofu validate

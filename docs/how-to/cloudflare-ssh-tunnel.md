@@ -334,3 +334,4 @@ The node is only reachable via the Cloudflare tunnel with a valid Access session
 - {doc}`cloudflare-tunnel` — Setting up the base Cloudflare tunnel
 - {doc}`oauth-setup` — In-cluster OAuth authentication as an alternative to
   Cloudflare Access
+- {doc}`cloudflare-as-code` — Manage the tunnel routes, DNS and Access apps as OpenTofu code
