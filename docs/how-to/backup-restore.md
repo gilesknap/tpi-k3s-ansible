@@ -30,6 +30,7 @@ workload-specific `subPath` so it only sees its own target subdirectory.
 | Workload | Backup method | NFS path |
 |----------|---------------|----------|
 | Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` | `backups/grafana/{,weekly}/<date>.db` |
+| Jellyfin database and config | `sqlite3 .backup` of the database, plus the config, plugins and library definitions, from its config volume (not subtitles or metadata); see {doc}`jellyfin` | `backups/jellyfin/{,weekly}/<date>.tar.gz` |
 
 Prometheus is deliberately **not** backed up — metrics are reconstructible
 via re-scrape, and the snapshot-API dance is not worth the complexity.

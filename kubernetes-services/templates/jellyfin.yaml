@@ -1,6 +1,10 @@
 {{- if .Values.enable_jellyfin }}
 {{- $jf := .Values.jellyfin }}
 {{- $pv := required "local_storage.jellyfin is required with enable_jellyfin" .Values.local_storage.jellyfin }}
+{{- if and $jf.trial $jf.seed_from_host }}
+{{- fail "jellyfin.trial and jellyfin.seed_from_host are exclusive: a seed replaces the trial config" }}
+{{- end }}
+{{- $image := printf "docker.io/jellyfin/jellyfin:%s" $jf.image_tag }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,6 +27,11 @@ spec:
       targetRevision: {{ $jf.chart_version | quote }}
       helm:
         releaseName: jellyfin
+        # Helm --set: null deletes a chart default. (A null in valuesObject
+        # would not: the API server prunes nulls from it.)
+        parameters:
+          - name: startupProbe.tcpSocket
+            value: "null"
         valuesObject:
           image:
             repository: docker.io/jellyfin/jellyfin
@@ -37,9 +46,10 @@ spec:
           nodeSelector:
             kubernetes.io/hostname: {{ $pv.node }}
 
-          # hostNetwork: off for the trial (ClusterIP only, reached by
-          # kubectl port-forward, so it cannot clash with a host install on
-          # 8096/7359). The cutover switches it on: see jellyfin.host_network.
+          # hostNetwork: listens on every host interface, with UDP 7359
+          # client discovery. Off for a trial beside a host install
+          # (ClusterIP only, reached by kubectl port-forward), so the two
+          # cannot clash on 8096/7359. See jellyfin.host_network.
           podPrivileges:
             hostNetwork: {{ $jf.host_network }}
           dnsPolicy: {{ if $jf.host_network }}ClusterFirstWithHostNet{{ else }}ClusterFirst{{ end }}
@@ -69,15 +79,20 @@ spec:
               drop:
                 - ALL
 
-          # Generous probes: the first library scan or a database migration
-          # after an upgrade can keep /health slow for minutes. Startup allows
-          # 10 minutes; after that, liveness restarts the pod only after
-          # about 5 minutes of failures.
+          # Generous probes: the first start on a copied database, or a
+          # database migration after an upgrade, can keep /health failing
+          # for minutes. Startup allows 15 minutes (it starts after the init
+          # containers, so the seed's copy time does not count); after that,
+          # liveness restarts the pod only after about 5 minutes of failures.
+          # The chart's default tcpSocket handler is dropped by a parameter
+          # below: a probe takes one handler.
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: http
             periodSeconds: 10
-            failureThreshold: 60
+            timeoutSeconds: 10
+            failureThreshold: 90
           livenessProbe:
             httpGet:
               path: /health
@@ -105,24 +120,34 @@ spec:
               memory: 4Gi
               gpu.intel.com/i915: 1
 
+          # The host install's paths, not the image's /config layout, so the
+          # absolute paths in the copied database and XML stay valid. Each
+          # is a subdirectory of the config volume (volumeMounts below).
+          # HOME is the jellyfin account's home on a host install: it holds
+          # .aspnet (the data-protection keys) and plugin tool data.
           jellyfin:
             env:
+              - name: JELLYFIN_DATA_DIR
+                value: {{ $jf.data_dir }}
+              - name: JELLYFIN_CONFIG_DIR
+                value: {{ $jf.config_dir }}
+              - name: JELLYFIN_LOG_DIR
+                value: {{ $jf.log_dir }}
               # The cache (images, and transcodes/ under it) goes on a
               # size-limited emptyDir; the chart's own /cache emptyDir has no
               # sizeLimit and stays unused.
               - name: JELLYFIN_CACHE_DIR
-                value: /var/cache/jellyfin
+                value: {{ $jf.cache_dir }}
+              - name: HOME
+                value: {{ $jf.data_dir }}
 
+          # The chart's /config, /media and /cache are unused emptyDirs: the
+          # config volume, library and cache are mounted below at a host
+          # install's paths. /media is not read-only, so the runtime can
+          # create the library's mount point inside it.
           persistence:
-            # /config: the static local-nvme PV (local_storage.jellyfin).
             config:
-              enabled: true
-              type: pvc
-              existingClaim: {{ $pv.claim_name }}
-            # The chart's /media is unused (an emptyDir): the library is
-            # mounted below at the path a host install uses, so imported
-            # library paths match. Not read-only, so the runtime can create
-            # that mount point inside it.
+              enabled: false
             media:
               enabled: false
               readOnly: false
@@ -130,6 +155,10 @@ spec:
               enabled: false
 
           volumes:
+            # The static local-nvme PV (local_storage.jellyfin).
+            - name: jellyfin-pv
+              persistentVolumeClaim:
+                claimName: {{ $pv.claim_name }}
             - name: media-nas
               persistentVolumeClaim:
                 claimName: jellyfin-media
@@ -137,31 +166,56 @@ spec:
             - name: cache-sized
               emptyDir:
                 sizeLimit: {{ $jf.cache_size }}
+            {{- if $jf.seed_from_host }}
+            # The seed's sources, read-only: the host install is never
+            # written, so it stays the rollback copy. Not subject to fsGroup.
+            - name: host-data
+              hostPath:
+                path: {{ $jf.data_dir }}
+                type: Directory
+            - name: host-config
+              hostPath:
+                path: {{ $jf.config_dir }}
+                type: Directory
+            - name: seed-scripts
+              configMap:
+                name: jellyfin-seed-scripts
+            {{- end }}
           volumeMounts:
+            - name: jellyfin-pv
+              mountPath: {{ $jf.data_dir }}
+              subPath: data
+            - name: jellyfin-pv
+              mountPath: {{ $jf.config_dir }}
+              subPath: config
+            - name: jellyfin-pv
+              mountPath: {{ $jf.log_dir }}
+              subPath: log
             - name: media-nas
               mountPath: {{ $jf.media.mount_path }}
               readOnly: true
             - name: cache-sized
-              mountPath: /var/cache/jellyfin
+              mountPath: {{ $jf.cache_dir }}
 
-          {{- if $jf.trial }}
-          # Trial only: mark the config volume as throwaway, so the cutover
-          # can clear it safely (it deletes the volume's contents only when
-          # this marker is there). The marker is written only on an empty
-          # volume or one already marked, so a trial re-enabled later (for
-          # example by reverting the cutover) never marks real data.
-          # See docs/how-to/jellyfin.md.
+          # Init containers, in order. They all mount the config volume's
+          # root at /pv. See docs/how-to/jellyfin.md.
           extraInitContainers:
+            {{- if $jf.trial }}
+            # Trial only: mark the config volume as throwaway, so a later
+            # seed can clear it safely (it clears the volume only when this
+            # marker is there). The marker is written only on an empty
+            # volume or one already marked, so a trial re-enabled later
+            # never marks real data.
             - name: mark-trial
-              image: docker.io/jellyfin/jellyfin:{{ $jf.image_tag }}
+              image: {{ $image }}
               command:
                 - sh
                 - -c
                 - >-
-                  m=/config/TRIAL-CONFIG-SAFE-TO-DELETE;
-                  if [ -z "$(ls -A /config)" ] || [ -e "$m" ]; then
+                  m=/pv/TRIAL-CONFIG-SAFE-TO-DELETE;
+                  if [ -z "$(ls -A /pv)" ] || [ -e "$m" ]; then
                   touch "$m";
-                  else echo "/config holds unmarked data: not marking it as a trial";
+                  else echo "/pv holds unmarked data: not marking it as a trial";
                   fi
               securityContext:
                 allowPrivilegeEscalation: false
@@ -175,9 +229,108 @@ spec:
                 limits:
                   memory: 64Mi
               volumeMounts:
-                - name: config
-                  mountPath: /config
-          {{- end }}
+                - name: jellyfin-pv
+                  mountPath: /pv
+            {{- end }}
+            {{- if $jf.seed_from_host }}
+            # Seed, step 1: copy the stopped host install into the volume
+            # (data/ and config/), unless it is already SEEDED-FROM-HOST.
+            # Refuses while the host service looks live, and never clears a
+            # volume that is not empty or trial-marked. Runs as the pod's
+            # uid (the host files' owner), with no capabilities.
+            - name: seed-copy
+              image: {{ $image }}
+              command:
+                - bash
+                - /scripts/seed-copy.sh
+              env:
+                - name: HOST_IP
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.hostIP
+                - name: CODECS
+                  value: {{ join " " ($jf.seed.hardware_decoding_codecs | default list) | quote }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              # About 25G on one node: page cache needs headroom, not CPU.
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: jellyfin-pv
+                  mountPath: /pv
+                - name: host-data
+                  mountPath: /host/data
+                  readOnly: true
+                - name: host-config
+                  mountPath: /host/config
+                  readOnly: true
+                - name: seed-scripts
+                  mountPath: /scripts
+                  readOnly: true
+            # Seed, step 2: PRAGMA integrity_check on the copied database,
+            # then the SEEDED-FROM-HOST marker. The Jellyfin image has no
+            # sqlite3, hence this image.
+            - name: seed-verify
+              image: {{ $jf.seed.sqlite_image }}
+              command:
+                - sh
+                - /scripts/seed-verify.sh
+              env:
+                - name: DATA_DIR
+                  value: {{ $jf.data_dir }}
+                - name: CONFIG_DIR
+                  value: {{ $jf.config_dir }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: jellyfin-pv
+                  mountPath: /pv
+                - name: seed-scripts
+                  mountPath: /scripts
+                  readOnly: true
+            {{- end }}
+            # Last: make sure data/, config/ and log/ exist and belong to the
+            # pod's uid, so kubelet never creates them (as root) for the
+            # subPath mounts. After the seed, so an empty volume still reads
+            # as empty to it.
+            - name: layout
+              image: {{ $image }}
+              command:
+                - mkdir
+                - -p
+                - /pv/data
+                - /pv/config
+                - /pv/log
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: jellyfin-pv
+                  mountPath: /pv
 
     # The config claim and the read-only media NFS volume.
     - path: ./kubernetes-services/additions/jellyfin
@@ -194,6 +347,9 @@ spec:
             volume: jellyfin-media-nfs
             server: {{ .Values.nfs.server | quote }}
             path: {{ $jf.media.nfs_path | quote }}
+          seed:
+            enabled: {{ $jf.seed_from_host }}
+            configmap: jellyfin-seed-scripts
   syncPolicy:
     automated:
       prune: true

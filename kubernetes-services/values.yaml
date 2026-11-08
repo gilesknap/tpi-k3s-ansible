@@ -211,27 +211,54 @@ vps_relay:
 enable_jellyfin: true
 jellyfin:
   # Each pinned to the newest release at least two weeks old when chosen, as
-  # a supply-chain buffer; keep that rule when bumping. Chart 3.6.0 ships
-  # app 12.3. The image tag is the immutable dated build of 12.3.
-  chart_version: "3.6.0"
-  image_tag: "12.3.20261023-013714"
-  # Trial: a throwaway config on the real config volume, marked as such
-  # (TRIAL-CONFIG-SAFE-TO-DELETE) so the cutover can clear it before copying
-  # the real data in. The cutover sets this false.
-  trial: true
-  # Off for the trial: ClusterIP only, reached by kubectl port-forward, so
-  # the pod cannot clash with a host install's 8096/7359. The cutover turns
-  # it on, so the pod listens on every host interface (both LANs and
-  # tailscale0) and UDP 7359 client discovery works.
-  host_network: false
+  # a supply-chain buffer; keep that rule when bumping. One exception: the
+  # owner waived it on 2026-11-08 for this bump to 12.4 (chart 3.7.0, image
+  # built 2026-10-26), because the host install being migrated is already on
+  # 12.4.0 and an older Jellyfin must not open a database migrated by a newer
+  # one. The image tag is the immutable dated build of 12.4.
+  chart_version: "3.7.0"
+  image_tag: "12.4.20261026-211555"
+  # Trial: a throwaway config, marked TRIAL-CONFIG-SAFE-TO-DELETE at the
+  # config volume's root, so a later seed can clear it. Not with
+  # seed_from_host.
+  trial: false
+  # One-off copy of a host install's data and config into the config volume
+  # (init containers; see docs/how-to/jellyfin.md). It copies only into an
+  # empty or trial-marked volume, refuses while the host service looks live,
+  # and does nothing once the volume is marked SEEDED-FROM-HOST, so it is
+  # safe to leave on until a later change retires it.
+  seed_from_host: true
+  seed:
+    # For the seed's PRAGMA integrity_check (the Jellyfin image has no
+    # sqlite3); the jellyfin backup CronJobs use it too. Alpine-based,
+    # pinned to a release at least two weeks old (3.54.1: 2026-10-19).
+    sqlite_image: docker.io/keinos/sqlite3:3.54.1
+    # Replaces HardwareDecodingCodecs in the copied encoding.xml (not the
+    # host's). Empty: copy it unchanged. These are the codecs the node's
+    # Tiger Lake iGPU decodes with VAAPI.
+    hardware_decoding_codecs: [h264, hevc, mpeg2video, vc1, vp8, vp9, av1]
+  # Where Jellyfin keeps its data, config and logs: the same paths as the
+  # host install, so the absolute paths in its database and XML stay valid.
+  # Each is a subdirectory (data/, config/, log/) of the config volume. The
+  # seed copies the host's data_dir and config_dir (mounted read-only). The
+  # cache is an emptyDir (cache_size).
+  data_dir: /var/lib/jellyfin
+  config_dir: /etc/jellyfin
+  log_dir: /var/log/jellyfin
+  cache_dir: /var/cache/jellyfin
+  # On the node's network, so the pod listens on every host interface (both
+  # LANs and tailscale0) and UDP 7359 client discovery works. Off (ClusterIP
+  # only, reached by kubectl port-forward) for a trial alongside a host
+  # install, so the two cannot clash on 8096/7359.
+  host_network: true
   # The node's jellyfin account: files on the volume keep this owner.
   # SYNC: owner/group of the jellyfin entry in k8s_data_dirs
   # (group_vars/all.yml).
   uid: 122
   gid: 124
   # The node's render group, for /dev/dri/renderD128 (`getent group render`
-  # on the node). 992 on Ubuntu 24.04: VERIFY after an OS release upgrade,
-  # as it is allocated dynamically.
+  # on the node). 992 on Ubuntu 24.04 and still after the upgrade to 26.04:
+  # VERIFY after an OS release upgrade, as it is allocated dynamically.
   render_gid: 992
   # The video group, for /dev/dri/card0 (fixed at 44 on Debian/Ubuntu).
   video_gid: 44
@@ -299,9 +326,10 @@ local_storage:
     capacity: 10Gi
     claim_namespace: scrap
     claim_name: scrap-backup-copy
-  # Jellyfin's /config (database, metadata, subtitles, plugins). 60Gi is an
-  # estimate: a host install's data was 25G, 22G of it extracted subtitles.
-  # Mounted by kubernetes-services/templates/jellyfin.yaml.
+  # Jellyfin's data/ (database, metadata, subtitles, plugins), config/ and
+  # log/. 60Gi is an estimate: a host install's data was 25G, 22G of it
+  # extracted subtitles. Mounted by kubernetes-services/templates/jellyfin.yaml;
+  # backed up by additions/backups (jellyfin-daily, jellyfin-weekly).
   jellyfin:
     node: nuc2
     path: /home/k8s-data/jellyfin
