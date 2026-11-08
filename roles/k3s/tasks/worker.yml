@@ -59,6 +59,13 @@
   # Read-only: run in --check too, so later tasks see real data.
   check_mode: false
 
+# A new Node object (a new node, a rebuild, or a NotReady node deleted
+# above) registers with its inventory-driven labels and taint, so no pod
+# lands on a workstation in the gap before the kubectl tasks below run, and
+# the system-upgrade-controller agent Plan (which excludes node-role=
+# workstation) never selects it. k3s applies --node-label and --node-taint
+# only when the Node object is created; the kubectl tasks below stay as the
+# backstop for nodes registered before these flags existed.
 - name: Install k3s worker node {{ k3s_version | default(k3s_control_plane_version.stdout) }}
   ansible.builtin.command:
     cmd: /usr/local/bin/k3s-install.sh
@@ -66,9 +73,15 @@
     INSTALL_K3S_VERSION: "{{ k3s_version | default(k3s_control_plane_version.stdout) }}"
     K3S_URL: "https://{{ k3s_api_name }}:6443"
     K3S_TOKEN: "{{ k3s_node_token.stdout }}"
-    INSTALL_K3S_EXEC: >-
+    INSTALL_K3S_EXEC: "{{ k3s_agent_exec | trim }}"
+  vars:
+    k3s_agent_exec: >-
       {% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}
       {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
+      {% if nvidia_gpu_node | default(false) | bool %} --node-label=nvidia.com/gpu.present=true{% endif %}
+      {% if intel_gpu_node | default(false) | bool %} --node-label=intel.feature.node.kubernetes.io/gpu=true{% endif %}
+      {% if workstation | default(false) | bool %} --node-label=node-role=workstation
+      --node-taint=workstation=true:NoSchedule{% endif %}
   register: k3s_installed
   changed_when: true
   # The environment carries K3S_TOKEN.
@@ -102,26 +115,26 @@
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} nvidia.com/gpu.present=true --overwrite
   delegate_to: "{{ control_plane }}"
-  when: nvidia_gpu_node | default(false)
+  when: nvidia_gpu_node | default(false) | bool
   changed_when: true
 
 - name: Label Intel iGPU nodes so the Intel GPU device plugin DaemonSet can schedule there
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} intel.feature.node.kubernetes.io/gpu=true --overwrite
   delegate_to: "{{ control_plane }}"
-  when: intel_gpu_node | default(false)
+  when: intel_gpu_node | default(false) | bool
   changed_when: true
 
 - name: Taint workstation nodes with workstation=true:NoSchedule
   ansible.builtin.command:
     cmd: kubectl taint node {{ inventory_hostname }} workstation=true:NoSchedule --overwrite
   delegate_to: "{{ control_plane }}"
-  when: workstation | default(false)
+  when: workstation | default(false) | bool
   changed_when: true
 
 - name: Label workstation nodes with node-role=workstation
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} node-role=workstation --overwrite
   delegate_to: "{{ control_plane }}"
-  when: workstation | default(false)
+  when: workstation | default(false) | bool
   changed_when: true

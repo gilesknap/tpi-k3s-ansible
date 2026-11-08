@@ -65,7 +65,11 @@ The script:
    control plane runs. Extra arguments are passed on to `ansible-playbook`,
    e.g. `just upgrade-workstation ws03 -K` to prompt for a sudo password.
 5. Waits for the node to be Ready again, uncordons it, and prints the node
-   and its taints (the `workstation=true:NoSchedule` taint is reapplied).
+   and its taints. A Ready node keeps its Node object, taint and
+   label through the reinstall; a NotReady node, which the playbook deletes,
+   registers again with the `workstation=true:NoSchedule` taint and
+   `node-role=workstation` label already set, so no other pod lands on it
+   while it rejoins.
 
 Done by hand, the core steps are below. Run them one at a time and stop
 if one fails; unlike the script, they do not skip the drain for a NotReady
