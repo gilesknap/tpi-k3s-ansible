@@ -511,16 +511,18 @@ access to run this initial bootstrap.</p>
 if you have no Turing Pi hardware.</p>
 </div>
 <p>Then run the bootstrap playbook:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">ansible_user</span><span class="o">=</span>&lt;your-username&gt;<span class="w"> </span>-K
 </pre></div>
 </div>
-<p>You will be prompted for:</p>
 <ul class="simple">
-<li><p><strong>Username</strong> — an existing SSH user on all servers</p></li>
-<li><p><strong>Password</strong> — that user’s password (used for initial sudo)</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">ansible_user=</span></code></strong> — an existing SSH user on all servers, with sudo (use <code class="docutils literal notranslate"><span class="pre">-e</span></code>,
+not <code class="docutils literal notranslate"><span class="pre">-u</span></code>: <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> sets <code class="docutils literal notranslate"><span class="pre">ansible_user</span></code> for <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code> to the <code class="docutils literal notranslate"><span class="pre">ansible</span></code>
+account, which overrides <code class="docutils literal notranslate"><span class="pre">-u</span></code> and doesn’t exist yet)</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">-K</span></code></strong> — prompts for that user’s sudo password</p></li>
 </ul>
 <p>The playbook creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user with your SSH key and passwordless sudo on
-every server in <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>.</p>
+every server in <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>. Re-running it later is safe: it adds the key without
+removing other keys already in the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user’s <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>.</p>
 </section>
 <section id="step-4-verify-ssh-access">
 <h2>Step 4: Verify SSH access<a class="headerlink" href="#step-4-verify-ssh-access" title="Link to this heading">#</a></h2>

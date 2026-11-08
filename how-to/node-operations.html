@@ -661,11 +661,15 @@ removes it.</p>
 </section>
 <section id="step-2-bootstrap-ansible-access">
 <h3>Step 2: Bootstrap Ansible access<a class="headerlink" href="#step-2-bootstrap-ansible-access" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">ansible_user</span><span class="o">=</span>&lt;your-username&gt;<span class="w"> </span>-K
 </pre></div>
 </div>
-<p>This prompts for an existing username and password on the new servers, creates the
-<code class="docutils literal notranslate"><span class="pre">ansible</span></code> user with SSH key authentication and passwordless sudo.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ansible_user</span></code> is an existing user on the new servers with SSH access and sudo
+(pass it with <code class="docutils literal notranslate"><span class="pre">-e</span></code>: <code class="docutils literal notranslate"><span class="pre">-u</span></code> is overridden by the <code class="docutils literal notranslate"><span class="pre">ansible_user</span></code> that <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> sets
+for <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>), and <code class="docutils literal notranslate"><span class="pre">-K</span></code> prompts for its sudo password. The playbook creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user with SSH key
+authentication and passwordless sudo. Re-running it on an existing node is safe: it
+adds the key from <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> without removing other keys already in
+the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user’s <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>.</p>
 </section>
 <section id="step-3-join-the-cluster">
 <h3>Step 3: Join the cluster<a class="headerlink" href="#step-3-join-the-cluster" title="Link to this heading">#</a></h3>
