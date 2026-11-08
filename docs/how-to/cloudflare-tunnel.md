@@ -11,7 +11,8 @@ follow-ups, see the other two Cloudflare how-tos once this one works:
   with a single `enable_cloudflare_tunnel` toggle.
 - {doc}`cloudflare-ssh-tunnel` — add a Cloudflare Access-gated SSH
   tunnel for remote `kubectl` / shell access without opening inbound
-  firewall ports.
+  firewall ports (optional: not needed if you already reach your
+  machines over a mesh VPN such as Tailscale).
 
 Once the tunnel and Access are set up, {doc}`cloudflare-as-code` manages
 the same configuration (DNS, tunnel routes, Access, zone settings) as
@@ -212,9 +213,9 @@ on your LAN. If you don't need public internet access, you can stop here.
 Follow this section only if you want to expose selected services to the
 internet. If LAN-only access is sufficient, skip to {doc}`oauth-setup` or
 the other guides listed in {doc}`bootstrap-cluster`. For remote shell /
-`kubectl` access (rather than web exposure), use
-{doc}`cloudflare-ssh-tunnel` instead — it adds an Access-gated SSH route
-on top of the same tunnel.
+`kubectl` access (rather than web exposure), use a mesh VPN such as
+Tailscale, or {doc}`cloudflare-ssh-tunnel`, which adds an Access-gated
+SSH route on top of the same tunnel.
 
 ### 4.1 Create a tunnel
 

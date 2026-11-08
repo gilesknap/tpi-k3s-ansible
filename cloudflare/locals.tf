@@ -12,20 +12,9 @@ locals {
   #   origin_request - optional per-route cloudflared settings
   #   cache          - true adds a "cache everything" rule for the host
   tunnel_services = [
-    {
-      name = "echo"
-      origin_request = {
-        access = {
-          aud_tag   = []
-          required  = false
-          team_name = var.access_team_name
-        }
-      }
-    },
-    { name = "ssh", service = "ssh://192.168.1.81:22" },
+    { name = "echo" },
     { name = "grafana", service = "${local.ingress_nginx}:80" },
     { name = "headlamp" },
-    { name = "open-webui" },
     { name = "oauth2" },
     { name = "argocd-monitor" },
     { name = "home" },
@@ -34,6 +23,9 @@ locals {
     { name = "minecraft" },
     { name = "scrap" },
     { name = "pages", cache = true },
+    # Open to the internet behind ntfy's own token auth: it has a bypass
+    # Access app (access.tf) and a rate-limiting rule (waf.tf).
+    { name = "ntfy" },
   ]
 
   tunnel_ingress = concat(

@@ -111,7 +111,8 @@ local volume could not deliver them. SQLite is never put on NFS.
    No value is printed. Commit and push it. A cluster rebuild does this
    for you (see [Rebuilds](#rebuilds)).
 
-2. Add the tunnel hostname and the Access bypass (below).
+2. Add the tunnel route, the Access bypass and the rate limit
+   (see [Cloudflare](#cloudflare) below).
 
 3. Let ArgoCD sync the `ntfy` Application, then check:
 
@@ -122,33 +123,37 @@ local volume could not deliver them. SQLite is never put on NFS.
 
 ### Cloudflare
 
-The tunnel's public hostnames are managed in the Cloudflare dashboard, not
-in this repository. In the [Cloudflare dashboard](https://dash.cloudflare.com/):
+The edge configuration for ntfy is in `cloudflare/` (see
+{doc}`cloudflare-as-code`), and `just cf-apply` sets it up:
 
-1. **Tunnel route.** Under **Networking → Tunnels**, open the tunnel,
-   **Routes → Add route**, and add the public hostname, as in
-   {doc}`cloudflare-web-tunnel`:
+- **Tunnel route and DNS record:** the `ntfy` entry in `tunnel_services`
+  (`cloudflare/locals.tf`), routed to ingress-nginx like the other
+  services.
+- **Access bypass:** the wildcard Access application covers every
+  subdomain, and the phone app cannot complete an Access login. The
+  `ntfy` application in `cloudflare/access.tf` uses the reusable
+  `bypass` policy; it is more specific than the wildcard, so it takes
+  precedence for `ntfy.<domain>`.
+- **Rate limit:** as the hostname is open to the internet, a WAF
+  rate-limiting rule (`cloudflare/waf.tf`) blocks a client IP that
+  sends more than 20 requests to ntfy's paths in 10 seconds (about 100
+  a minute), for 10 seconds. These are the Free plan's limits, which
+  also rule out matching on the hostname, so the rule matches ntfy's
+  topic paths and `/v1/` instead; keep its topic list in step with
+  `access` in `kubernetes-services/additions/ntfy/values.yaml`. ntfy's
+  own per-visitor limits still apply behind it.
 
-   | Subdomain | Domain | URL |
-   |---|---|---|
-   | `ntfy` | `<domain>` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
-
-   If an A record for `ntfy` already exists, delete it first so the tunnel
-   can create its CNAME.
-
-2. **Access bypass.** The wildcard Access application covers every
-   subdomain, and the phone app cannot complete an Access login. Add an
-   Access application for `ntfy.<domain>` whose policy Action is
-   **Bypass** and Include **Everyone**, as in
-   [Bypass application for API endpoints](cloudflare-web-tunnel.md#bypass-application-for-api-endpoints).
-   The more specific application takes precedence over the wildcard; check
-   in the dashboard that it does.
-
-3. **Rate limit (recommended).** As the hostname is open to the internet,
-   add a WAF rate-limiting rule for it under **Security → WAF → Rate
-   limiting rules**: for example, requests where *Hostname equals
-   `ntfy.<domain>`*, counted per IP, blocked above about 100 requests a
-   minute. ntfy's own per-visitor limits still apply behind it.
+If you do not manage Cloudflare with that code, make the same three
+changes in the [dashboard](https://dash.cloudflare.com/): a tunnel
+route for `ntfy.<domain>` to
+`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`
+(delete any existing `ntfy` A record first, so the tunnel can create its
+CNAME; see {doc}`cloudflare-web-tunnel`); a self-hosted Access
+application for `ntfy.<domain>` with a policy of Action **Bypass** and
+Include **Everyone**, as in
+[Bypass application for API endpoints](cloudflare-web-tunnel.md#bypass-application-for-api-endpoints);
+and a rate-limiting rule under **Security → WAF → Rate limiting rules**
+like the one above.
 
 ## Android app
 

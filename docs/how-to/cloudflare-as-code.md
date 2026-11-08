@@ -2,7 +2,7 @@
 
 The cluster's edge configuration at Cloudflare (DNS records, the tunnel's
 public hostnames, Zero Trust Access applications and policies, zone
-security settings and cache rules) is described in
+security settings, cache rules and rate-limiting rules) is described in
 `cloudflare/` as [OpenTofu](https://opentofu.org) code using the
 [Cloudflare provider](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs).
 Changes are made in the repo and reviewed like any other change, then
@@ -26,6 +26,7 @@ as drift in the next `just cf-plan`, and `just cf-apply` reverts it.
 | `dns.tf` | The tunnel CNAMEs, plus `dns_only_records` (records that bypass the tunnel) |
 | `access.tf` | Reusable policies (Owner, Viewers, bypass, service token) and the Access applications |
 | `zone.tf` | Zone settings (SSL mode, minimum TLS, HSTS, security level, ...) and the zone's cache rules |
+| `waf.tf` | The zone's rate-limiting rules (the `http_ratelimit` ruleset) |
 | `imports.tf` | `import` blocks that adopt existing objects into state |
 | `variables.tf` | Per-account inputs; the values go in the gitignored `live.auto.tfvars` |
 
@@ -62,7 +63,24 @@ does not have: check it in the dashboard after changing one of those apps.
 
 To add a service to the edge, add an entry to `tunnel_services` (and, if
 it needs something other than the wildcard Owner app, an entry in
-`local.access_apps` in `access.tf`), then plan and apply.
+`local.access_apps` in `access.tf`), then plan and apply. ntfy is an
+example of both: a `tunnel_services` entry, an Access app with the
+`bypass` policy (a more specific app than the wildcard, so it wins for
+that hostname), and a rate-limiting rule in `waf.tf` (see {doc}`ntfy`).
+
+### Rate limiting on the Free plan
+
+Cloudflare's Free plan allows one rate-limiting rule, with a 10-second
+counting period and a 10-second block, counted per client IP, and an
+expression that may only use the URI path (and Verified Bot), not the
+hostname. The rule in `waf.tf` fits those limits: it matches ntfy's
+paths, 20 requests in 10 seconds (about 100 a minute) per IP, then
+blocks for 10 seconds. On a paid plan you can match on the hostname and
+use longer periods; see Cloudflare's
+[rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+for what each plan allows. Only the edit token can ask Cloudflare to
+check a rule against the plan (see the note in step 1), so a rule your
+plan does not allow shows up in `just cf-apply`, not in `just cf-plan`.
 
 ## Prerequisites
 
@@ -89,6 +107,7 @@ Custom Token**, scoped to your account and to the cluster's zone only.
 | Zone | DNS |
 | Zone | Zone Settings |
 | Zone | Cache Rules |
+| Zone | Zone WAF |
 
 **Apply token (edit)**: the same list with **Edit** in place of
 **Read**, except Zone: Zone, Access: Service Tokens and Access:
@@ -100,6 +119,14 @@ The plan token is read from `CF_PLAN_TOKEN`, else from
 `cloudflare/.secrets/plan-token` (gitignored), else you are prompted.
 The apply token is read from `CF_APPLY_TOKEN`, else you are prompted;
 it is deliberately never read from a file.
+
+:::{note}
+For a ruleset it is about to create or change, the provider asks
+Cloudflare to check it with a dry-run API call, which needs the edit
+token. With the plan token, `just cf-plan` prints a warning, `failed to
+make http request for the dry run` (403), and carries on; the check
+runs again, with the edit token, when `just cf-apply` plans.
+:::
 
 ```bash
 mkdir -p -m 700 cloudflare/.secrets
@@ -238,10 +265,12 @@ ever holds ciphertext. This backend has no state locking unless you add
 `use_lockfile = true`, which needs a bucket that supports conditional
 writes; with one operator that is acceptable.
 
-## Next: removing drift
+## Removing a service
 
-The first version of this code imports the live configuration exactly,
-including entries for services the cluster no longer runs. Remove those
-in a reviewed change: delete the entry from `tunnel_services` or
-`dns_only_records` (and any Access app that only served it), check that
-`just cf-plan` destroys exactly those objects, and apply.
+Delete its entry from `tunnel_services` or `dns_only_records` (and any
+Access app that only served it), and its ID from `import_ids` in
+`live.auto.tfvars` (an import block for an object no longer in the
+code is skipped, and a check warns about the stale key). Check that
+`just cf-plan` destroys exactly those objects, and apply. Imported
+configuration often carries such drift: entries for services the
+cluster no longer runs, left behind by earlier dashboard edits.
