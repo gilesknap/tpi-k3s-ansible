@@ -413,7 +413,7 @@ The controller's manifests are vendored unchanged from its GitHub release in
 `additions/system-upgrade-controller/`, so a sync or rebuild does not depend
 on GitHub release downloads. To upgrade it, re-download both files and update
 the version and sha256 sums, as the `kustomization.yaml` header there
-describes.
+describes, and the version in the table above.
 
 ### Sealed Secrets
 
