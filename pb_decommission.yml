@@ -260,7 +260,8 @@
 # units: k3s-apparmor-profile.service (roles/k3s, every node) and
 # k3s-etcd-backup.service (roles/etcd_backup, control plane). Remove them
 # first so the scripts finish; the rebuild's k3s and etcd_backup roles
-# install them again.
+# install them again. Each node runs k3s-killall.sh and a mount check
+# before its uninstall script (see the uninstall plays).
 - name: Remove the units this repo adds beside k3s
   hosts: all_nodes
   gather_facts: false
@@ -309,6 +310,43 @@
   serial: 1
   order: reverse_sorted
   tasks:
+    # The uninstall scripts end with an unguarded rm -rf of
+    # /var/lib/kubelet and of the k3s data dir, which would follow a
+    # mount that k3s-killall.sh failed to remove into a local PV
+    # (/var/lib/k8s-data, /home/k8s-data) or an NFS volume. So run
+    # killall on its own first, and stop if anything is still mounted.
+    - name: Stop k3s and check nothing is left mounted on workers
+      when: inventory_hostname != control_plane
+      block:
+        - name: Run k3s-killall.sh on workers
+          ansible.builtin.command:
+            cmd: /usr/local/bin/k3s-killall.sh
+            removes: /usr/local/bin/k3s-killall.sh
+
+        # Skipped in check mode, where killall ran nothing and the mounts
+        # are all still there.
+        - name: List mounts on workers
+          ansible.builtin.command:
+            cmd: findmnt --raw --noheadings --output TARGET
+          register: decommission_mounts
+          changed_when: false
+          when: not ansible_check_mode
+
+        - name: Check nothing is mounted under the k3s state directories on workers
+          ansible.builtin.assert:
+            that:
+              - decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list | length == 0
+            fail_msg: >-
+              Still mounted under {{ item }} on {{ inventory_hostname }}
+              after k3s-killall.sh:
+              {{ decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list }}.
+              Not uninstalling k3s; unmount them or reboot the node, then re-run.
+            quiet: true
+          loop:
+            - /var/lib/rancher
+            - /var/lib/kubelet
+          when: not ansible_check_mode
+
     - name: Run k3s-agent-uninstall.sh on workers
       ansible.builtin.command:
         cmd: /usr/local/bin/k3s-agent-uninstall.sh
@@ -327,6 +365,43 @@
   gather_facts: false
   become: true
   tasks:
+    # The uninstall scripts end with an unguarded rm -rf of
+    # /var/lib/kubelet and of the k3s data dir, which would follow a
+    # mount that k3s-killall.sh failed to remove into a local PV
+    # (/var/lib/k8s-data, /home/k8s-data) or an NFS volume. So run
+    # killall on its own first, and stop if anything is still mounted.
+    - name: Stop k3s and check nothing is left mounted on the control plane
+      when: inventory_hostname == control_plane
+      block:
+        - name: Run k3s-killall.sh on the control plane
+          ansible.builtin.command:
+            cmd: /usr/local/bin/k3s-killall.sh
+            removes: /usr/local/bin/k3s-killall.sh
+
+        # Skipped in check mode, where killall ran nothing and the mounts
+        # are all still there.
+        - name: List mounts on the control plane
+          ansible.builtin.command:
+            cmd: findmnt --raw --noheadings --output TARGET
+          register: decommission_mounts
+          changed_when: false
+          when: not ansible_check_mode
+
+        - name: Check nothing is mounted under the k3s state directories on the control plane
+          ansible.builtin.assert:
+            that:
+              - decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list | length == 0
+            fail_msg: >-
+              Still mounted under {{ item }} on {{ inventory_hostname }}
+              after k3s-killall.sh:
+              {{ decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list }}.
+              Not uninstalling k3s; unmount them or reboot the node, then re-run.
+            quiet: true
+          loop:
+            - /var/lib/rancher
+            - /var/lib/kubelet
+          when: not ansible_check_mode
+
     - name: Run k3s-uninstall.sh on the control plane
       ansible.builtin.command:
         cmd: /usr/local/bin/k3s-uninstall.sh
@@ -351,8 +426,9 @@
   tasks:
     # Backstop for Play 4: never delete k3s state under a running k3s.
     # systemd_service with only a name changes nothing and reports the
-    # unit's ActiveState ("inactive" for a unit that does not exist); a
-    # unit that is starting, stopping or reloading counts as running.
+    # unit's ActiveState ("inactive" for a unit that does not exist).
+    # Only inactive or failed passes: starting, stopping, reloading or a
+    # module error with no status all fail the node.
     # Skipped in check mode, where Play 4 uninstalls nothing.
     - name: Check no k3s server or agent is still running
       ansible.builtin.systemd_service:
@@ -362,14 +438,17 @@
         - k3s-agent.service
       register: decommission_k3s_state
       failed_when: >-
-        decommission_k3s_state.status.ActiveState | default('inactive')
-        in ['active', 'activating', 'deactivating', 'reloading']
+        decommission_k3s_state.status is not defined
+        or decommission_k3s_state.status.ActiveState | default('unknown')
+        not in ['inactive', 'failed']
       when: not ansible_check_mode
 
-    # A file-module delete descends into mount points, so a directory with
-    # anything still mounted below it (a bind-mounted local PV under
-    # /var/lib/kubelet, say) is never deleted: the node fails instead.
-    # This lists every mount and filters by path, because
+    # Play 4 checked this before the uninstall scripts ran, but those
+    # scripts are skipped on a node without them (e.g. one whose k3s was
+    # already uninstalled), so check again before deleting here: a
+    # file-module delete descends into mount points, and a bind-mounted
+    # local PV or NFS volume under /var/lib/kubelet must never be followed
+    # into. This lists every mount and filters by path, because
     # `findmnt -R <dir>` prints nothing when <dir> is not itself a mount
     # point, however much is mounted below it. Skipped in check mode,
     # where k3s is still running and its mounts are still there.
@@ -424,14 +503,16 @@
 
     # What the uninstall scripts remove, for a node whose scripts are
     # already gone but left these behind (e.g. a run before the added
-    # units were removed first).
-    - name: Remove leftover k3s binary, killall script and config
+    # units were removed first), plus the install script.
+    - name: Remove leftover k3s binary, scripts and config
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       loop:
         - /usr/local/bin/k3s
         - /usr/local/bin/k3s-killall.sh
+        # Downloaded by roles/k3s; no uninstall script removes it.
+        - /usr/local/bin/k3s-install.sh
         - /etc/rancher/k3s
 
     - name: Remove leftover device-mapper devices

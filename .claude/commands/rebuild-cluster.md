@@ -203,10 +203,13 @@ The playbook handles:
 5. Uninstalling k3s from all nodes (workers first, then the
    `control_plane` from `group_vars/all.yml`), after removing the
    `k3s-apparmor-profile` and `k3s-etcd-backup` units so the upstream
-   uninstall scripts run their full cleanup (the rebuild reinstalls both)
+   uninstall scripts run their full cleanup (the rebuild reinstalls both).
+   Each node runs `k3s-killall.sh` first and fails, before its uninstall
+   script, if anything is still mounted under `/var/lib/kubelet` or
+   `/var/lib/rancher`
 6. Cleaning up node state (`/var/lib/rancher`, `/var/lib/kubelet` once
-   nothing is mounted under them, any leftover k3s binary, links and
-   `/etc/rancher/k3s`, device-mapper leftovers)
+   nothing is mounted under them, any leftover k3s binary, links,
+   `k3s-install.sh` and `/etc/rancher/k3s`, device-mapper leftovers)
    — **does NOT touch `/home/k8s-data` or `/var/lib/k8s-data` unless
    `-e wipe_local_data=true` is passed**
 
