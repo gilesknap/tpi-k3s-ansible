@@ -96,3 +96,13 @@ check "dns_import_keys" {
     error_message = "import_ids.dns_records has a key that is neither in tunnel_services nor in dns_only_records."
   }
 }
+
+check "import_keys" {
+  assert {
+    condition = alltrue(concat(
+      [for k in keys(var.import_ids.idps) : contains(["otp", "github"], k)],
+      [for k in keys(var.import_ids.access_policies) : contains(["owner", "viewers", "bypass", "scrap_mcp"], k)],
+    ))
+    error_message = "import_ids.idps keys must be otp or github; import_ids.access_policies keys must be owner, viewers, bypass or scrap_mcp."
+  }
+}

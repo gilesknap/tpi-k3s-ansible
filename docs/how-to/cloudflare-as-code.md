@@ -192,10 +192,14 @@ the variable is left unset (null), which leaves the live secret alone.
 To rotate the secret, to change the GitHub login method, or on a fresh
 account (where the first apply creates the login method), put the secret
 in `cloudflare/.secrets/github-client-secret` (gitignored; `just cf-*`
-reads it) and **keep it there**: once applied, state holds the secret,
-and a plan without it would remove it.
+reads it) and **keep it there**, backed up next to the state passphrase:
+once applied, state holds the secret, and a plan without it would remove
+it. If a plan shows `config.client_secret` changing when you did not mean
+to rotate it, the file is missing (or you ran `tofu` directly rather than
+through `just cf-*`): restore it, do not apply.
 
 ```bash
+mkdir -p -m 700 cloudflare/.secrets
 read -rsp 'GitHub client secret: ' s && printf '%s\n' "$s" > cloudflare/.secrets/github-client-secret && unset s
 chmod 600 cloudflare/.secrets/github-client-secret
 just cf-apply
