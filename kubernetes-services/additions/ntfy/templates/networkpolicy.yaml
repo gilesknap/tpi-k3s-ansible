@@ -1,0 +1,24 @@
+# Only the listed namespaces (ingress-nginx by default) may reach ntfy, so
+# nothing else in the cluster can publish to or subscribe from it directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ntfy
+  labels:
+    app.kubernetes.io/name: ntfy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ntfy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+{{- range .Values.allowed_namespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+{{- end }}
+      ports:
+        - protocol: TCP
+          port: 8080

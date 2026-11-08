@@ -169,5 +169,27 @@ else
     echo "Skipping: vps-relay-credentials (not in JSON)"
 fi
 
+# 11. ntfy-auth (ntfy) — optional, only if present in JSON
+if has_secret ntfy-auth ntfy; then
+    echo "Sealing: ntfy-auth..."
+    v_users=$(get_key ntfy-auth ntfy NTFY_AUTH_USERS) || exit 1
+    v_tokens=$(get_key ntfy-auth ntfy NTFY_AUTH_TOKENS) || exit 1
+    v_admin_password=$(get_key ntfy-auth ntfy admin-password) || exit 1
+    v_alertmanager_token=$(get_key ntfy-auth ntfy alertmanager-token) || exit 1
+    v_vps_token=$(get_key ntfy-auth ntfy vps-token) || exit 1
+    v_phone_token=$(get_key ntfy-auth ntfy phone-token) || exit 1
+    kubectl create secret generic ntfy-auth --namespace=ntfy \
+        --from-literal=NTFY_AUTH_USERS="$v_users" \
+        --from-literal=NTFY_AUTH_TOKENS="$v_tokens" \
+        --from-literal=admin-password="$v_admin_password" \
+        --from-literal=alertmanager-token="$v_alertmanager_token" \
+        --from-literal=vps-token="$v_vps_token" \
+        --from-literal=phone-token="$v_phone_token" \
+        --dry-run=client -o yaml | seal_to "$BASE/ntfy/templates/ntfy-auth-secret.yaml"
+    echo "  -> $BASE/ntfy/templates/ntfy-auth-secret.yaml"
+else
+    echo "Skipping: ntfy-auth (not in JSON)"
+fi
+
 echo ""
 echo "All secrets sealed."

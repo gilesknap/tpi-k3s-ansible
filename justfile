@@ -72,6 +72,14 @@ headlamp-token:
 seal-argocd-dex target:
     scripts/seal-argocd-dex {{ target }}
 
+# Seal ntfy's users and tokens, keeping live values (e.g. --rotate vps)
+seal-ntfy *args:
+    scripts/seal-ntfy {{ args }}
+
+# Print ntfy's phone and VPS access tokens (reads the live secret only)
+ntfy-tokens:
+    @scripts/ntfy-tokens
+
 # Asks you to type the node name (and `RESET <node>` if the node is in use)
 # before changing anything; DRY_RUN=1 previews, FORCE=1 skips the second prompt.
 # See docs/how-to/recover-control-plane.md.

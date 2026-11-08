@@ -146,7 +146,7 @@ set -a && source .env && set +a
 ```
 
 Everything else (admin passwords, cookie secrets, Dex client secrets)
-is generated fresh, with two exceptions that the export also captures so
+is generated fresh, with these exceptions that the export also captures so
 the rebuild keeps them:
 
 - `SCRAP_MCP_TOKEN` (scrap's `/mcp` bearer token): every Claude client
@@ -157,6 +157,11 @@ the rebuild keeps them:
   updated with it.
 - `SCRAP_PUBLISH_TOKEN` (scrap's public-pages upload token): sealed into
   both `scrap` and `scrap-public`, generated if not set.
+- `NTFY_ADMIN_PASSWORD`, `NTFY_ALERTMANAGER_TOKEN`, `NTFY_VPS_TOKEN`,
+  `NTFY_PHONE_TOKEN` (ntfy's `ntfy-auth`): the phone app and the VPS hold
+  copies of their tokens, so each is kept; any not set is generated, with
+  a warning naming it (never the value). Only if the user asks to rotate
+  one, remove its line from `.env`.
 
 scrap's secrets are sealed only when `SCRAP_ANTHROPIC_API_KEY` is set.
 
@@ -264,7 +269,9 @@ The admin password is printed in the output and saved to
 `/tmp/cluster-secrets/admin-password.txt`. If
 `/tmp/cluster-secrets/scrap-mcp-token.txt` exists, a new scrap MCP token
 was generated (a rotation, or no token was exported): tell the user that
-every scrap MCP client needs it, without printing the value.
+every scrap MCP client needs it, without printing the value. If
+generate-secrets warned that it generated ntfy values, tell the user which
+clients need new tokens (they read them with `just ntfy-tokens`).
 
 ### Verify rebuild
 

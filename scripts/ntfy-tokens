@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Print the ntfy access tokens the owner hands out: the phone app's (read on
+# cluster-alerts and vps-alerts) and the VPS's (write on vps-alerts).
+# Read-only: it only reads the live ntfy-auth Secret. Run it yourself in a
+# terminal; the output is a secret, so do not paste it into logs or chats.
+set -euo pipefail
+get() {
+    kubectl get secret ntfy-auth -n ntfy -o jsonpath="{.data.$1}" | base64 -d
+}
+phone=$(get phone-token)
+vps=$(get vps-token)
+[ -n "$phone" ] && [ -n "$vps" ] || { echo "ERROR: ntfy-auth has no phone-token or vps-token" >&2; exit 1; }
+domain=$(awk '/^cluster_domain:/ {print $2}' group_vars/all.yml)
+echo "Server URL:   https://ntfy.${domain:-<domain>}"
+echo "Phone token:  $phone"
+echo "VPS token:    $vps"

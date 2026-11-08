@@ -1,0 +1,35 @@
+# Defaults for standalone `helm template` rendering. In-cluster ArgoCD
+# overrides these via the parent chart's valuesObject (see
+# kubernetes-services/templates/ntfy.yaml).
+
+cluster_domain: example.com
+
+image: binwiederhier/ntfy:v2.37.2
+
+# How long messages stay in the cache, for clients that reconnect and ask
+# for what they missed (the Android app does this after being offline).
+cache_duration: 12h
+
+# Namespaces whose pods may reach ntfy directly. ingress-nginx carries all
+# external traffic (Cloudflare tunnel); add a namespace here only for an
+# in-cluster publisher, such as an Alertmanager bridge.
+allowed_namespaces:
+  - ingress-nginx
+
+# Topic access for the provisioned users. Every user named here must exist
+# in NTFY_AUTH_USERS in the ntfy-auth SealedSecret (scripts/lib/ntfy_auth.py
+# defines them), or ntfy refuses to start. Anything not listed is denied
+# (auth-default-access: deny-all).
+access:
+  - user: alertmanager
+    topic: cluster-alerts
+    permission: write-only
+  - user: vps
+    topic: vps-alerts
+    permission: write-only
+  - user: phone
+    topic: cluster-alerts
+    permission: read-only
+  - user: phone
+    topic: vps-alerts
+    permission: read-only

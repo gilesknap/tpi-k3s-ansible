@@ -1,0 +1,99 @@
+# One ntfy pod. Its state is on an emptyDir, so it can run on any node:
+# - the user database is rebuilt from the declarative auth config at start;
+# - the message cache holds at most cache_duration of messages, and losing
+#   it on a pod move costs only messages an offline client had not fetched.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  labels:
+    app.kubernetes.io/name: ntfy
+spec:
+  replicas: 1
+  # One SQLite writer: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ntfy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ntfy
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ntfy
+          image: {{ .Values.image }}
+          args:
+            - serve
+          env:
+            - name: TZ
+              value: Europe/London
+            # Comma-separated lists, "<user>:<bcrypt-hash>:<role>" and
+            # "<user>:<token>:<label>", from the SealedSecret.
+            - name: NTFY_AUTH_USERS
+              valueFrom:
+                secretKeyRef:
+                  name: ntfy-auth
+                  key: NTFY_AUTH_USERS
+            - name: NTFY_AUTH_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: ntfy-auth
+                  key: NTFY_AUTH_TOKENS
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ntfy
+              readOnly: true
+            - name: cache
+              mountPath: /var/cache/ntfy
+            - name: auth
+              mountPath: /var/lib/ntfy
+      volumes:
+        - name: config
+          configMap:
+            name: ntfy-config
+        - name: cache
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: auth
+          emptyDir:
+            sizeLimit: 100Mi

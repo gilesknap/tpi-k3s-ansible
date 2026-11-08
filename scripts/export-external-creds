@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Export external credentials (GitHub OAuth, Cloudflare, Slack,
 # VPS relay, scrap) from the running cluster into a .env file at the repo
-# root (gitignored). scrap's MCP and publish tokens are not external, but
-# they are exported too so that a rebuild keeps them: every MCP client
-# holds a copy of SCRAP_MCP_TOKEN.
+# root (gitignored). scrap's MCP and publish tokens and ntfy's admin password
+# and access tokens are not external, but they are exported too so that a
+# rebuild keeps them: every MCP client holds a copy of SCRAP_MCP_TOKEN, and
+# the phone app and the VPS hold copies of their ntfy tokens.
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
@@ -21,6 +22,10 @@ VPS_RELAY_FRP_TOKEN=$(get_key_opt vps-relay-credentials vps-relay frp-token)
 SCRAP_ANTHROPIC_API_KEY=$(get_key_opt scrap-secrets scrap ANTHROPIC_API_KEY)
 SCRAP_MCP_TOKEN=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN)
 SCRAP_PUBLISH_TOKEN=$(get_key_opt scrap-publish scrap token)
+NTFY_ADMIN_PASSWORD=$(get_key_opt ntfy-auth ntfy admin-password)
+NTFY_ALERTMANAGER_TOKEN=$(get_key_opt ntfy-auth ntfy alertmanager-token)
+NTFY_VPS_TOKEN=$(get_key_opt ntfy-auth ntfy vps-token)
+NTFY_PHONE_TOKEN=$(get_key_opt ntfy-auth ntfy phone-token)
 EOF
 # The publish token must match in both namespaces. Compare the two copies
 # without printing either.

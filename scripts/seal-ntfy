@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Seal (or re-seal) the ntfy-auth SealedSecret for ntfy.
+
+Usage:
+    scripts/seal-ntfy [--rotate NAME]...
+
+NAME is one of admin, alertmanager, vps, phone, or all.
+
+Values already in the live ntfy-auth Secret (namespace ntfy) are kept, since
+the phone and the VPS each hold a copy of their token; anything missing, or
+named with --rotate, is generated. The client password hashes are always
+regenerated (clients use tokens only). The result is sealed with kubeseal
+into kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml.
+No secret value is printed.
+
+After committing and pushing, and once ArgoCD has synced the new Secret,
+restart the pod so ntfy reloads its users and tokens:
+
+    kubectl delete pod -n ntfy -l app.kubernetes.io/name=ntfy
+
+then give the owner the new tokens with `just ntfy-tokens`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import ntfy_auth  # noqa: E402
+
+REPO = Path(__file__).resolve().parent.parent
+DEST = REPO / "kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml"
+NAMESPACE = "ntfy"
+NAME = "ntfy-auth"
+KUBESEAL = [
+    "kubeseal",
+    "--controller-name", "sealed-secrets",
+    "--controller-namespace", "kube-system",
+    "--format", "yaml",
+]
+
+
+def live_data() -> dict[str, str]:
+    """The live Secret's data, decoded; empty if it does not exist."""
+    res = subprocess.run(
+        ["kubectl", "get", "secret", NAME, "-n", NAMESPACE, "-o", "json"],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        if "NotFound" in res.stderr:
+            return {}
+        sys.exit(f"ERROR: kubectl get secret {NAME} failed: {res.stderr.strip()}")
+    raw = json.loads(res.stdout).get("data", {})
+    return {k: base64.b64decode(v).decode() for k, v in raw.items()}
+
+
+def main() -> None:
+    names = ["admin", *ntfy_auth.TOKEN_USERS]
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument(
+        "--rotate", action="append", default=[], choices=[*names, "all"],
+        help="generate a new value for this user (repeatable)",
+    )
+    args = parser.parse_args()
+    rotate = set(names) if "all" in args.rotate else set(args.rotate)
+
+    live = live_data()
+    generated = []
+
+    admin_password = "" if "admin" in rotate else live.get("admin-password", "")
+    if not admin_password:
+        admin_password = ntfy_auth.new_password()
+        generated.append("admin password")
+
+    tokens = {}
+    for user in ntfy_auth.TOKEN_USERS:
+        token = "" if user in rotate else live.get(f"{user}-token", "")
+        if not token:
+            token = ntfy_auth.new_token()
+            generated.append(f"{user} token")
+        tokens[user] = token
+
+    secret = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "type": "Opaque",
+        "metadata": {"name": NAME, "namespace": NAMESPACE},
+        "stringData": ntfy_auth.secret_data(admin_password, tokens),
+    }
+    tmp = DEST.with_suffix(".yaml.tmp")
+    with open(tmp, "w") as out:
+        res = subprocess.run(KUBESEAL, input=json.dumps(secret), stdout=out, text=True)
+    if res.returncode != 0:
+        tmp.unlink(missing_ok=True)
+        sys.exit(f"ERROR: kubeseal failed; {DEST} is unchanged")
+    os.replace(tmp, DEST)
+
+    print(f"Sealed {NAME} -> {DEST.relative_to(REPO)}")
+    kept = [n for n in names if not any(g.startswith(n + " ") for g in generated)]
+    if kept:
+        print("Kept from the live secret: " + ", ".join(kept))
+    if generated:
+        print("Generated: " + ", ".join(generated))
+        if live:
+            print(
+                "WARNING: the clients holding a replaced token (phone app, VPS) "
+                "must be given the new one: `just ntfy-tokens` after the sync.",
+                file=sys.stderr,
+            )
+    print(
+        "Next: commit and push; after ArgoCD syncs, restart the pod:\n"
+        f"  kubectl delete pod -n {NAMESPACE} -l app.kubernetes.io/name=ntfy"
+    )
+
+
+if __name__ == "__main__":
+    main()

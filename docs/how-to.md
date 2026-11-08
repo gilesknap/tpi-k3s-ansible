@@ -21,6 +21,7 @@ how-to/nas-setup
 :caption: Optional Features
 
 how-to/minecraft
+how-to/ntfy
 how-to/scrap
 how-to/vps-relay
 how-to/add-remove-services
