@@ -44,6 +44,15 @@ Authenticates via Dex (GitHub) using an oauth2-proxy sidecar. Click
 **Sign in** to log in with your GitHub account. The dashboard inherits
 your ArgoCD RBAC role (admin or readonly).
 
+An Application's detail page links each workload, pod and node to the
+matching [Grafana](#grafana) dashboard (CPU, memory, network, volumes),
+with the workload's namespace already selected. The links open the
+`kube-prometheus-stack` dashboards in this cluster's Grafana, set by the
+`grafana` values in `kubernetes-services/templates/argocd-monitor.yaml`.
+See the argocd-monitor
+[observability links guide](https://epics-containers.github.io/argocd-monitor/main/how-to/observability-links.html)
+for the full list of links and settings.
+
 ## Grafana
 
 Via ingress: **https://grafana.\<domain\>**
