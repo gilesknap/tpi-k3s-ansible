@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Export external credentials (GitHub OAuth, Cloudflare, Slack,
 # VPS relay, scrap) from the running cluster into a .env file at the repo
-# root (gitignored). scrap's MCP and publish tokens are not external, but
-# they are exported too so that a rebuild keeps them: every MCP client
-# holds a copy of SCRAP_MCP_TOKEN.
+# root (gitignored). scrap's MCP and publish tokens and ntfy's access tokens
+# are not external, but they are exported too so that a rebuild keeps them:
+# every MCP client holds a copy of SCRAP_MCP_TOKEN, and each ntfy client
+# (the phone app, the VPS) holds a copy of its token.
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
 get_key_opt() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" 2>/dev/null | base64 -d 2>/dev/null || true; }
+# ntfy: one NTFY_<USER>_TOKEN per user in SENDERS (scripts/lib/ntfy_auth.py).
+# Ask the helper first, so a failure stops before .env is written.
+ntfy_users=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" users)
 cat > .env <<EOF
 GITHUB_CLIENT_ID=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientID')
 GITHUB_CLIENT_SECRET=$(get_key argocd-dex-secret argo-cd 'dex\.github\.clientSecret')
@@ -22,6 +26,10 @@ SCRAP_ANTHROPIC_API_KEY=$(get_key_opt scrap-secrets scrap ANTHROPIC_API_KEY)
 SCRAP_MCP_TOKEN=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN)
 SCRAP_PUBLISH_TOKEN=$(get_key_opt scrap-publish scrap token)
 EOF
+for user in $ntfy_users; do
+    var="NTFY_$(printf %s "$user" | tr '[:lower:]' '[:upper:]')_TOKEN"
+    printf '%s=%s\n' "$var" "$(get_key_opt ntfy-auth ntfy "$user-token")" >> .env
+done
 # The publish token must match in both namespaces. Compare the two copies
 # without printing either.
 if [ "$(get_key_opt scrap-publish scrap token)" != "$(get_key_opt scrap-publish scrap-public token)" ]; then

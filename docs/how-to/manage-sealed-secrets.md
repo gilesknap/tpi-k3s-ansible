@@ -41,6 +41,7 @@ These secrets are created during the setup guides:
 | `alertmanager-slack-secret` | `monitoring` | Alertmanager Slack webhook URL | additions/grafana/alertmanager-slack-secret.yaml |
 | `vps-relay-credentials` | `vps-relay` | Tailscale OAuth client secret + frp token for the VPS relay (optional — see {doc}`vps-relay`) | additions/vps-relay/templates/vps-relay-secret.yaml |
 | `scrap-secrets` | `scrap` | Claude API key + `/mcp` bearer token for scrap (see {doc}`scrap`) | additions/scrap/templates/scrap-secret.yaml |
+| `ntfy-auth` | `ntfy` | ntfy users (bcrypt hashes) and access tokens (see {doc}`ntfy`) | additions/ntfy/templates/ntfy-auth-secret.yaml |
 | `scrap-publish` | `scrap`, `scrap-public` | scrap's public-pages upload token, the same in both namespaces | additions/scrap/templates/scrap-publish-secret.yaml, additions/scrap/templates/scrap-public-publish-secret.yaml |
 
 ## Prerequisites
@@ -198,7 +199,11 @@ seals them all. Two generated values are exported and kept, not
 regenerated: `SCRAP_MCP_TOKEN`, because every scrap MCP client holds a copy
 (set `SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update every
 client), and `SCRAP_PUBLISH_TOKEN`. scrap's secrets are sealed only when
-`SCRAP_ANTHROPIC_API_KEY` is set.
+`SCRAP_ANTHROPIC_API_KEY` is set. ntfy's access tokens (one
+`NTFY_<USER>_TOKEN` per user, for example `NTFY_PHONE_TOKEN`) are kept the
+same way, since the phone app and the VPS hold copies; any left unset is
+generated. To rotate one on a live cluster, use
+`just seal-ntfy --rotate <user>` (see {doc}`ntfy`).
 
 :::{tip}
 Back up the sealed-secrets controller's private key if you want to preserve the ability

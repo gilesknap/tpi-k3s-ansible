@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ntfy
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ntfy
+  project: kubernetes
+  sources:
+    # ntfy push notifications: a small local chart (Deployment, Service,
+    # ConfigMap, NetworkPolicy and the ntfy-auth SealedSecret). Auth is
+    # declarative: no `ntfy user add` is ever run by hand.
+    # See docs/how-to/ntfy.md.
+    - path: ./kubernetes-services/additions/ntfy
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          cluster_domain: {{ .Values.cluster_domain }}
+
+    # Public via the Cloudflare tunnel at ntfy.<cluster_domain>, with no
+    # Cloudflare Access (phone apps cannot do its login) and no oauth2-proxy:
+    # ntfy's own token auth is the gate. Subscriptions are long-lived
+    # streams, so nginx must not buffer them or time them out early.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: ntfy
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: ntfy
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          extra_annotations:
+            nginx.ingress.kubernetes.io/proxy-buffering: "off"
+            nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
+            # Messages are at most 4k and attachments are off.
+            nginx.ingress.kubernetes.io/proxy-body-size: 64k
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

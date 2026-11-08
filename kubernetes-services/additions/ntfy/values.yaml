@@ -1,0 +1,44 @@
+# Defaults for standalone `helm template` rendering. In-cluster ArgoCD
+# overrides these via the parent chart's valuesObject (see
+# kubernetes-services/templates/ntfy.yaml).
+
+cluster_domain: example.com
+
+# Pinned to the newest release at least two weeks old when chosen, as a
+# supply-chain buffer; keep that rule when bumping (Renovate offers newer).
+image: binwiederhier/ntfy:v2.34.0
+
+# How long messages stay in the cache, for clients that reconnect and ask
+# for what they missed (the Android app does this after being offline).
+cache_duration: 12h
+
+# Most messages a visitor may publish a day, so a leaked token cannot push
+# thousands a day from one address. ntfy counts users without a tier (all of
+# ours) per client IP, not per account, so a leaked token used from many
+# addresses gets this much per address. The request-rate limits stay at
+# ntfy's defaults.
+message_daily_limit: 500
+
+# Namespaces whose pods may reach ntfy directly. ingress-nginx carries all
+# external traffic (Cloudflare tunnel); add a namespace here only for an
+# in-cluster publisher, such as an Alertmanager bridge.
+allowed_namespaces:
+  - ingress-nginx
+
+# Topic access for the provisioned users. Every user named here must be in
+# SENDERS in scripts/lib/ntfy_auth.py (and so in the ntfy-auth
+# SealedSecret), or ntfy refuses to start. Anything not listed is denied
+# (auth-default-access: deny-all).
+access:
+  - user: alertmanager
+    topic: cluster-alerts
+    permission: write-only
+  - user: vps
+    topic: vps-alerts
+    permission: write-only
+  - user: phone
+    topic: cluster-alerts
+    permission: read-only
+  - user: phone
+    topic: vps-alerts
+    permission: read-only

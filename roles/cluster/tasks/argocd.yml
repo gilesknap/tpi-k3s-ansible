@@ -200,26 +200,43 @@
 # push — all in one playbook run. This eliminates the manual extract→seal→
 # second-run cycle during cluster rebuild. External credentials must be
 # provided as env vars (GITHUB_CLIENT_ID, CLOUDFLARE_API_TOKEN, etc.).
+# One NTFY_<USER>_TOKEN per user in SENDERS (scripts/lib/ntfy_auth.py), so
+# adding or removing an ntfy sender needs no change here.
+- name: Collect ntfy token variables for rebuild
+  ansible.builtin.set_fact:
+    cluster_ntfy_token_env: "{{ cluster_ntfy_token_env | default({}) | combine({item: lookup('ansible.builtin.env', item, default='')}) }}"
+  # The condition is in the loop expression too, as `loop` is evaluated
+  # before `when`: the helper runs only on rebuilds.
+  loop: >-
+    {{ (lookup('ansible.builtin.pipe', 'python3 ' ~ playbook_dir ~ '/scripts/lib/ntfy_auth.py users --env')
+        if lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+        else '').splitlines() }}
+  no_log: true
+  when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+
 - name: Generate and seal all secrets for rebuild
   ansible.builtin.shell:
     cmd: just generate-and-seal-all
     chdir: "{{ playbook_dir }}"
     executable: /bin/bash
-  environment:
-    GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_ID') }}"
-    GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_SECRET') }}"
-    CLOUDFLARE_API_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_API_TOKEN') }}"
-    CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TUNNEL_TOKEN') }}"
-    OAUTH2_PROXY_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_ID') }}"
-    OAUTH2_PROXY_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_SECRET') }}"
-    ADMIN_PASSWORD: "{{ lookup('ansible.builtin.env', 'ADMIN_PASSWORD', default='') }}"
-    SLACK_WEBHOOK_URL: "{{ lookup('ansible.builtin.env', 'SLACK_WEBHOOK_URL', default='') }}"
-    VPS_RELAY_TS_OAUTH_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'VPS_RELAY_TS_OAUTH_CLIENT_SECRET', default='') }}"
-    VPS_RELAY_FRP_TOKEN: "{{ lookup('ansible.builtin.env', 'VPS_RELAY_FRP_TOKEN', default='') }}"
-    SCRAP_ANTHROPIC_API_KEY: "{{ lookup('ansible.builtin.env', 'SCRAP_ANTHROPIC_API_KEY', default='') }}"
-    SCRAP_MCP_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_MCP_TOKEN', default='') }}"
-    SCRAP_ROTATE_MCP_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_ROTATE_MCP_TOKEN', default='') }}"
-    SCRAP_PUBLISH_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_PUBLISH_TOKEN', default='') }}"
+  vars:
+    cluster_secrets_env:
+      GITHUB_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_ID') }}"
+      GITHUB_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'GITHUB_CLIENT_SECRET') }}"
+      CLOUDFLARE_API_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_API_TOKEN') }}"
+      CLOUDFLARE_TUNNEL_TOKEN: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_TUNNEL_TOKEN') }}"
+      OAUTH2_PROXY_CLIENT_ID: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_ID') }}"
+      OAUTH2_PROXY_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'OAUTH2_PROXY_CLIENT_SECRET') }}"
+      ADMIN_PASSWORD: "{{ lookup('ansible.builtin.env', 'ADMIN_PASSWORD', default='') }}"
+      SLACK_WEBHOOK_URL: "{{ lookup('ansible.builtin.env', 'SLACK_WEBHOOK_URL', default='') }}"
+      VPS_RELAY_TS_OAUTH_CLIENT_SECRET: "{{ lookup('ansible.builtin.env', 'VPS_RELAY_TS_OAUTH_CLIENT_SECRET', default='') }}"
+      VPS_RELAY_FRP_TOKEN: "{{ lookup('ansible.builtin.env', 'VPS_RELAY_FRP_TOKEN', default='') }}"
+      SCRAP_ANTHROPIC_API_KEY: "{{ lookup('ansible.builtin.env', 'SCRAP_ANTHROPIC_API_KEY', default='') }}"
+      SCRAP_MCP_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_MCP_TOKEN', default='') }}"
+      SCRAP_ROTATE_MCP_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_ROTATE_MCP_TOKEN', default='') }}"
+      SCRAP_PUBLISH_TOKEN: "{{ lookup('ansible.builtin.env', 'SCRAP_PUBLISH_TOKEN', default='') }}"
+  # Plus ntfy's NTFY_<USER>_TOKEN variables, collected by the task above.
+  environment: "{{ cluster_secrets_env | combine(cluster_ntfy_token_env | default({})) }}"
   when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
   changed_when: true
 

@@ -61,6 +61,10 @@ re-seal through any other path (manual `kubeseal`, rebuild playbook,
 etc.), you must restart pods in these namespaces:
 
 - `argo-cd` / `argocd-monitor` (Dex: `just restart-dex`)
+- `ntfy` — **delete the pod**, do not just restart the container:
+  `kubectl delete pod -n ntfy -l app.kubernetes.io/name=ntfy`. The user
+  database is on the pod's emptyDir, and only a new pod drops the old
+  tokens and any minted through the account API (docs/how-to/ntfy.md)
 - `monitoring` (`kubectl rollout restart sts grafana-prometheus -n monitoring`)
 - `headlamp`
 

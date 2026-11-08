@@ -1,0 +1,54 @@
+# ntfy server.yml, minus the secrets. Users and tokens (password hashes and
+# token values) come from the ntfy-auth SealedSecret as NTFY_AUTH_USERS and
+# NTFY_AUTH_TOKENS (see deployment.yaml); everything else is here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-config
+  labels:
+    app.kubernetes.io/name: ntfy
+data:
+  server.yml: |
+    base-url: "https://ntfy.{{ .Values.cluster_domain }}"
+    # Non-root, so not :80; the Service maps port 80 here.
+    listen-http: ":8080"
+
+    # Message cache, so clients that were offline get what they missed.
+    # On the pod's emptyDir: see docs/how-to/ntfy.md for why that is enough.
+    cache-file: /var/cache/ntfy/cache.db
+    cache-duration: {{ .Values.cache_duration | quote }}
+
+    # Auth: everything is denied unless a provisioned user is granted it.
+    # The user database is rebuilt from the declarative config at every
+    # start (auth-users, auth-tokens from the Secret; auth-access below), so
+    # it lives on the emptyDir too.
+    auth-file: /var/lib/ntfy/user.db
+    auth-default-access: deny-all
+    auth-access:
+{{- range .Values.access }}
+      - "{{ .user }}:{{ .topic }}:{{ .permission }}"
+{{- end }}
+
+    # Behind Cloudflare -> cloudflared -> ingress-nginx. Cloudflare's edge
+    # sets CF-Connecting-IP to the real client address, so for tunnel
+    # traffic the visitor rate limits (ntfy's defaults) apply per client.
+    # The header is trusted from anyone who reaches ingress-nginx, though:
+    # a LAN host (via its LoadBalancer IPs) or a pod (via its ClusterIP) can
+    # set any value and so dodge the per-IP limits, including the daily
+    # message cap below (counted per IP for users without a tier). Token
+    # auth still holds: spoofing the header grants no access.
+    behind-proxy: true
+    proxy-forwarded-header: CF-Connecting-IP
+    visitor-message-daily-limit: {{ .Values.message_daily_limit }}
+
+    # No web app, no sign-up, no browser login, no reservations: clients use
+    # access tokens only.
+    web-root: disable
+    enable-signup: false
+    enable-login: false
+    enable-reservations: false
+
+    # Attachments stay off: attachment-cache-dir is deliberately not set.
+
+    # Android connects directly, so no upstream server. iOS needs
+    # upstream-base-url: "https://ntfy.sh" (docs/how-to/ntfy.md).

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Print the ntfy access tokens the owner hands out by hand: those of the
+# users whose holder is "owner" in SENDERS (scripts/lib/ntfy_auth.py), such
+# as the phone app and the VPS. In-cluster publishers' tokens are not shown.
+# Read-only: it only reads the live ntfy-auth Secret. Run it yourself in a
+# terminal; the output is a secret, so do not paste it into logs or chats.
+set -euo pipefail
+users=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" users --owner)
+domain=$(awk '/^cluster_domain:/ {print $2}' group_vars/all.yml)
+echo "Server URL: https://ntfy.${domain:-<domain>}"
+for user in $users; do
+    token=$(kubectl get secret ntfy-auth -n ntfy -o jsonpath="{.data.$user-token}" | base64 -d)
+    [ -n "$token" ] || { echo "ERROR: ntfy-auth has no $user-token" >&2; exit 1; }
+    printf '%-14s %s\n' "$user token:" "$token"
+done
