@@ -18,6 +18,7 @@ kubernetes-services/
 │   ├── echo.yaml
 │   ├── grafana.yaml
 │   ├── ingress.yaml
+│   ├── intel-gpu-plugin.yaml # Intel iGPU device plugin
 │   ├── kernel-settings.yaml
 │   ├── local-storage.yaml
 │   ├── minecraft.yaml      # Minecraft dashboard (OCI chart, optional)
@@ -33,6 +34,7 @@ kubernetes-services/
     ├── dashboard/          # RBAC for Headlamp
     ├── echo/               # Echo-server manifests
     ├── ingress/            # Reusable ingress sub-chart
+    ├── intel-gpu-plugin/   # Vendored Intel GPU plugin DaemonSet + patch
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
     └── vps-relay/          # Tailscale + frpc Deployment, generated frpc.toml
