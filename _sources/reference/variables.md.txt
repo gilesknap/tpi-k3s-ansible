@@ -112,6 +112,13 @@ ansible-playbook pb_all.yml \
 | `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
 | `nfs.server` | *(your NFS server IP)* | NFS server for the backup and Minecraft volumes |
 | `nfs.cluster_share_path` | *(your NFS export path)* | Cluster-owned directory on the NFS export (see {doc}`/how-to/nas-setup`) |
+| `enable_jellyfin` | `true` | Deploy Jellyfin ({doc}`/how-to/jellyfin`); needs `local_storage.jellyfin` and its `k8s_data_dirs` entry |
+| `jellyfin.chart_version` / `image_tag` | `3.6.0` / `12.3.…` | The upstream chart version and the Jellyfin image tag |
+| `jellyfin.trial` | `true` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE` |
+| `jellyfin.host_network` | `false` | Run on the node's network (both LANs, Tailscale, UDP 7359 discovery); on after cutover |
+| `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
+| `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
+| `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
 | `minecraft.chart_version` | `0.2.0` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |

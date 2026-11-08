@@ -1,0 +1,781 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Run Jellyfin &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/jellyfin';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Run the Minecraft Dashboard" href="minecraft.html" />
+    <link rel="prev" title="Set Up the Cluster NFS Tree on the NAS" href="nas-setup.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push Notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Run Jellyfin</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="run-jellyfin">
+<h1>Run Jellyfin<a class="headerlink" href="#run-jellyfin" title="Link to this heading">#</a></h1>
+<p><a class="reference external" href="https://jellyfin.org">Jellyfin</a> is a self-hosted media server. This
+repository runs it in the cluster from the upstream
+<a class="reference external" href="https://github.com/jellyfin/jellyfin-helm">jellyfin/jellyfin</a> Helm chart,
+pinned to one node with an Intel iGPU for hardware transcoding. It is for the
+LAN and Tailscale only: there is no Ingress and no Cloudflare route.</p>
+<p>The page describes a move from a Jellyfin installed on a node’s host OS (the
+apt package) into the cluster. It happens in stages: first a <strong>trial</strong> that
+runs alongside the host install with a throwaway config, then a <strong>cutover</strong>
+that copies the host’s data in and takes over its ports.</p>
+<section id="what-this-deploys">
+<h2>What this deploys<a class="headerlink" href="#what-this-deploys" title="Link to this heading">#</a></h2>
+<p>The cluster wiring is:</p>
+<ul class="simple">
+<li><p>An ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/jellyfin.yaml</span></code>),
+toggled by <code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code> and configured from the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> block in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. Its first source is the upstream chart;
+the second is <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/jellyfin/</span></code>, with the claims
+and volumes below.</p></li>
+<li><p>The chart repository <code class="docutils literal notranslate"><span class="pre">https://jellyfin.github.io/jellyfin-helm</span></code> in the
+AppProject’s <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> (<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>).</p></li>
+</ul>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Piece</p></th>
+<th class="head"><p>Where</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Deployment and ClusterIP Service on 8096</p></td>
+<td><p>Upstream chart, namespace <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
+<td><p>One pod, <code class="docutils literal notranslate"><span class="pre">Recreate</span></code> strategy, no PodDisruptionBudget</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/config</span></code>: database, metadata, subtitles, plugins, XML config</p></td>
+<td><p>Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on the node (<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), claim <code class="docutils literal notranslate"><span class="pre">jellyfin-config</span></code></p></td>
+<td><p>Created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role, owned by the pod’s uid/gid. Not NFS: the database is SQLite</p></td>
+</tr>
+<tr class="row-even"><td><p>Media library</p></td>
+<td><p>Static NFS PV <code class="docutils literal notranslate"><span class="pre">jellyfin-media-nfs</span></code> of <code class="docutils literal notranslate"><span class="pre">jellyfin.media.nfs_path</span></code> on <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, claim <code class="docutils literal notranslate"><span class="pre">jellyfin-media</span></code></p></td>
+<td><p>Read-only (PV, access mode and mount), at <code class="docutils literal notranslate"><span class="pre">jellyfin.media.mount_path</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Cache and transcodes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">emptyDir</span></code> at <code class="docutils literal notranslate"><span class="pre">/var/cache/jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.cache_size</span></code></p></td>
+<td><p>Lost on a pod restart, which is harmless; see the note below on its size</p></td>
+</tr>
+<tr class="row-even"><td><p>GPU</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915:</span> <span class="pre">1</span></code> from the <a class="reference internal" href="../reference/services.html#intel-gpu-device-plugin"><span class="std std-ref">Intel GPU device plugin</span></a></p></td>
+<td><p>Not privileged</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The pod:</p>
+<ul class="simple">
+<li><p>is pinned to the node by <code class="docutils literal notranslate"><span class="pre">nodeSelector</span></code> (and by the local PV’s
+<code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>);</p></li>
+<li><p>runs as <code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>:<code class="docutils literal notranslate"><span class="pre">jellyfin.gid</span></code>, the node’s own <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account,
+so files on the volume have the owner a host install would give them;</p></li>
+<li><p>has the node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> group IDs in <code class="docutils literal notranslate"><span class="pre">supplementalGroups</span></code>
+(<code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.video_gid</span></code>), so it can open
+<code class="docutils literal notranslate"><span class="pre">/dev/dri/renderD128</span></code> (<code class="docutils literal notranslate"><span class="pre">root:render</span></code>, mode 0660) and <code class="docutils literal notranslate"><span class="pre">/dev/dri/card0</span></code>;</p></li>
+<li><p>requests 500m CPU and 1Gi memory, with a 4Gi memory limit and no CPU
+limit, so transcode bursts are not throttled.</p></li>
+</ul>
+<p>The media is mounted at the same path the host install used (for example
+<code class="docutils literal notranslate"><span class="pre">/media/bigdisk/media</span></code>), so the library paths in an imported database match.
+The chart’s own <code class="docutils literal notranslate"><span class="pre">/media</span></code> and <code class="docutils literal notranslate"><span class="pre">/cache</span></code> volumes are unused.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The cache <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code> has a <code class="docutils literal notranslate"><span class="pre">sizeLimit</span></code> (20Gi by default), and the transcode
+segments are written under it. If it fills, kubelet <strong>evicts the pod</strong>, which
+stops every stream. Jellyfin deletes old segments as playback moves on, so
+one stream uses a few GB at most, but several concurrent 4K transcodes, or
+seeking far ahead in them, can reach the limit. Raise <code class="docutils literal notranslate"><span class="pre">jellyfin.cache_size</span></code>
+if you expect that.</p>
+</div>
+<p>kured may reboot the node: Jellyfin is then down until the node is back, as a
+host install would be.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> group ID is allocated dynamically and can change across an
+OS release upgrade. Check it with <code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">group</span> <span class="pre">render</span></code> on the node, and set
+<code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code> to match. With the wrong ID, the GPU is silently
+unusable and Jellyfin falls back to software transcoding.</p>
+</div>
+</section>
+<section id="before-the-first-sync">
+<h2>Before the first sync<a class="headerlink" href="#before-the-first-sync" title="Link to this heading">#</a></h2>
+<ol class="arabic">
+<li><p><strong>The node is labelled for the GPU.</strong> Set <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code> for it in
+<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and run the k3s role, so the device plugin advertises
+<code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> there:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span><span class="s1">&#39;NODE:.metadata.name,I915:.status.allocatable.gpu\.intel\.com/i915&#39;</span>
+</pre></div>
+</div>
+<p>The node must also be schedulable (not cordoned).</p>
+</li>
+<li><p><strong>The config directory exists.</strong> The <code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code> entry in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> entry in
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> (<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>) must agree on node and path. Create
+the directory, before ArgoCD syncs, with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>k8s_data_dirs<span class="w"> </span>--limit<span class="w"> </span>&lt;node&gt;
+</pre></div>
+</div>
+<p>Without it the pod stays in <code class="docutils literal notranslate"><span class="pre">ContainerCreating</span></code>, as the local PV’s path
+does not exist.</p>
+</li>
+<li><p><strong>ArgoCD may use the chart repository.</strong> The AppProject is applied by
+Ansible, not ArgoCD. After adding the repository to
+<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>, apply it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
+</pre></div>
+</div>
+</li>
+<li><p><strong>The NAS export allows the node</strong> to mount the media path. A host install
+that mounts the export already proves that; a subdirectory of an NFSv4
+export mounts the same way. To check from the cluster, run the throwaway
+pod in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>, pinned to the node, with your media path.</p></li>
+</ol>
+</section>
+<section id="trial">
+<h2>Trial<a class="headerlink" href="#trial" title="Link to this heading">#</a></h2>
+<p>In a trial (<code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">false</span></code>) the pod
+has no host networking. It is reached only through its ClusterIP Service, so
+it cannot clash with a host install listening on 8096 and 7359.</p>
+<p>Its config starts empty and is throwaway. It is written to the real config
+volume, and an init container marks it with a file
+<code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code> at the volume’s root, so the cutover can clear
+it without any hand edits on the node (see <a class="reference internal" href="#cutover">Cutover</a>). The init
+container writes the marker only when the volume is empty or already marked,
+so turning the trial back on later (for example by reverting the cutover)
+never marks real data as throwaway.</p>
+<section id="reach-it">
+<h3>Reach it<a class="headerlink" href="#reach-it" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span>port-forward<span class="w"> </span>svc/jellyfin<span class="w"> </span><span class="m">8097</span>:8096
+</pre></div>
+</div>
+<p>Then open <a class="reference external" href="http://localhost:8097">http://localhost:8097</a>, complete the setup wizard with a throwaway
+admin account, and add a library under the media mount path, for example
+<code class="docutils literal notranslate"><span class="pre">/media/bigdisk/media/movies</span></code>.</p>
+</section>
+<section id="check-hardware-transcoding">
+<h3>Check hardware transcoding<a class="headerlink" href="#check-hardware-transcoding" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>In <strong>Dashboard › Playback › Transcoding</strong>, set <strong>Hardware acceleration</strong>
+to <strong>Video Acceleration API (VAAPI)</strong> and <strong>VA-API Device</strong> to
+<code class="docutils literal notranslate"><span class="pre">/dev/dri/renderD128</span></code>. Enable hardware decoding for the codecs your GPU
+supports, and save.</p></li>
+<li><p>Play a file and force a transcode: in the player’s settings pick a lower
+<strong>Quality</strong> (bitrate) than the file’s.</p></li>
+<li><p><strong>Dashboard › Activity</strong> (or the active session on the Dashboard home)
+shows the playback as transcoding. Its FFmpeg log, under
+<code class="docutils literal notranslate"><span class="pre">/config/log/FFmpeg.Transcode-*.log</span></code> in the pod, shows <code class="docutils literal notranslate"><span class="pre">vaapi</span></code> in the
+command line and no error opening the device.</p></li>
+<li><p>Query the GPU from inside the pod with the <code class="docutils literal notranslate"><span class="pre">vainfo</span></code> bundled in the image:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>deploy/jellyfin<span class="w"> </span>--<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/dev/dri
+kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>deploy/jellyfin<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/usr/lib/jellyfin-ffmpeg/vainfo<span class="w"> </span>--display<span class="w"> </span>drm<span class="w"> </span>--device<span class="w"> </span>/dev/dri/renderD128
+</pre></div>
+</div>
+<p>It should list the iHD driver and its <code class="docutils literal notranslate"><span class="pre">VAProfile…</span></code> entrypoints. A
+<code class="docutils literal notranslate"><span class="pre">permission</span> <span class="pre">denied</span></code> means <code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code> does not match the node’s
+<code class="docutils literal notranslate"><span class="pre">render</span></code> group; no <code class="docutils literal notranslate"><span class="pre">/dev/dri</span></code> at all means the pod did not get the
+<code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> resource.</p>
+</li>
+</ol>
+</section>
+<section id="end-a-trial">
+<h3>End a trial<a class="headerlink" href="#end-a-trial" title="Link to this heading">#</a></h3>
+<p>To remove it, set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push. ArgoCD deletes the pod,
+Service and media volume. The config claim is kept (<code class="docutils literal notranslate"><span class="pre">Prune=false,Delete=false</span></code>),
+and the volume’s data on the node is never deleted by ArgoCD.</p>
+</section>
+</section>
+<section id="cutover">
+<h2>Cutover<a class="headerlink" href="#cutover" title="Link to this heading">#</a></h2>
+<p>An outline of the move from a host install; each step is its own change.</p>
+<ol class="arabic">
+<li><p><strong>Prepare the host install.</strong> Remove libraries whose paths no longer exist
+(they would leave stale items and errors). If remote clients use
+Tailscale, make sure the node is logged in to the tailnet, with key expiry
+disabled for it. Re-check the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account’s uid and gid and the
+<code class="docutils literal notranslate"><span class="pre">render</span></code> group ID on the node, and update <code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>, <code class="docutils literal notranslate"><span class="pre">gid</span></code> and
+<code class="docutils literal notranslate"><span class="pre">render_gid</span></code> (and the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> owner) to match.</p></li>
+<li><p><strong>Stop the host service, keeping its files:</strong>
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">disable</span> <span class="pre">--now</span> <span class="pre">jellyfin</span></code>. Do not uninstall the package or
+touch its data and config directories yet: they are the rollback copy.</p></li>
+<li><p><strong>Cutover change</strong>, in git:</p>
+<ul class="simple">
+<li><p>stop the trial pod first: the Job mounts the same volume on the same
+node, and must not run while Jellyfin has the database open. Either set
+<code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and let ArgoCD remove the trial (the config
+claim and its data are kept) before the cutover change, or have the Job
+wait until no Jellyfin pod is running in the namespace;</p></li>
+<li><p>set the image tag to the host’s Jellyfin version or newer (a database
+cannot be opened by an older Jellyfin);</p></li>
+<li><p>set <code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">false</span></code> and <code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">true</span></code>;</p></li>
+<li><p>add a one-off Job (an ArgoCD sync hook, before the Deployment) that runs
+on the node with the host’s data and config directories mounted
+read-only, and the config volume read-write. It:</p>
+<ul>
+<li><p>empties the volume <strong>only if</strong> <code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code> is at its
+root, then removes the marker. It refuses to wipe, and fails, if
+<code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> is also there (see below): that is real data. (A
+database newer than the marker is no sign of real data, since a trial
+writes its database after every start.);</p></li>
+<li><p>copies the host data <strong>only if</strong> the volume has no database yet,
+mapping the host’s layout onto the image’s: the data directory (for
+example <code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code>) to <code class="docutils literal notranslate"><span class="pre">/config</span></code>, and the config directory
+(for example <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>) to <code class="docutils literal notranslate"><span class="pre">/config/config</span></code>;</p></li>
+<li><p>checks the copied database with <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code>, then
+writes <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> at the volume’s root.</p></li>
+</ul>
+</li>
+</ul>
+<p>The media paths are unchanged, so the libraries need no remapping. Check
+the copied config for any remaining absolute paths under the old data
+directory, and fix them in the Job or by a library rescan.</p>
+</li>
+<li><p><strong>Verify:</strong> the web UI on each LAN address on port 8096, client
+auto-discovery (UDP 7359), remote clients over Tailscale, users and watch
+history, one hardware transcode, and the scheduled tasks.</p></li>
+<li><p><strong>Backups:</strong> a nightly CronJob copying the database (<code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>)
+and the config to the NAS. Extracted subtitles and metadata stay on the
+volume but are not backed up: a rescan rebuilds them.</p></li>
+<li><p><strong>Retire the host install</strong> after a settling period: remove the packages
+(without purging, so the old data stays as a cold copy for a while) and
+the apt source. Keep the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account, as it owns the files on the
+config volume.</p></li>
+</ol>
+<p><strong>Rollback</strong> at any point: set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">enable</span> <span class="pre">--now</span> <span class="pre">jellyfin</span></code> on the host. The host database is as it
+was at step 2.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="nas-setup.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Set Up the Cluster NFS Tree on the NAS</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="minecraft.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Run the Minecraft Dashboard</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-deploys">What this deploys</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#before-the-first-sync">Before the first sync</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trial">Trial</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reach-it">Reach it</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-hardware-transcoding">Check hardware transcoding</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#end-a-trial">End a trial</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cutover">Cutover</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/jellyfin.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/jellyfin.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
