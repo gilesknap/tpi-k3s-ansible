@@ -483,7 +483,11 @@ playbook deletes it and lets it rejoin).</p></li>
 control plane runs. Extra arguments are passed on to <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code>,
 e.g. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">upgrade-workstation</span> <span class="pre">ws03</span> <span class="pre">-K</span></code> to prompt for a sudo password.</p></li>
 <li><p>Waits for the node to be Ready again, uncordons it, and prints the node
-and its taints (the <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> taint is reapplied).</p></li>
+and its taints. A Ready node keeps its Node object, taint and
+label through the reinstall; a NotReady node, which the playbook deletes,
+registers again with the <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> taint and
+<code class="docutils literal notranslate"><span class="pre">node-role=workstation</span></code> label already set, so no other pod lands on it
+while it rejoins.</p></li>
 </ol>
 <p>Done by hand, the core steps are below. Run them one at a time and stop
 if one fails; unlike the script, they do not skip the drain for a NotReady
