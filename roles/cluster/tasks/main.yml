@@ -52,6 +52,21 @@
       | selectattr('effect', 'equalto', 'PreferNoSchedule')
       | list | length > 0
 
+# k8s_taint fails on a node the cluster doesn't know (powered off during a
+# rebuild, never joined, or a typo), which would abort the play before
+# ArgoCD is installed: warn and skip instead.
+- name: Warn that the standby control plane is not a cluster node
+  ansible.builtin.debug:
+    msg: >-
+      standby_control_plane {{ standby_control_plane }} is not registered
+      in the cluster, so its PreferNoSchedule taint was skipped. Re-run
+      --tags cluster once it has joined, or fix the name.
+  when:
+    - groups['all_nodes'] | length > 1
+    - standby_control_plane | default('', true) | length > 0
+    - standby_control_plane != control_plane
+    - standby_control_plane not in cluster_nodes.resources | map(attribute='metadata.name')
+
 - name: Taint the standby control plane node PreferNoSchedule
   kubernetes.core.k8s_taint:
     name: "{{ standby_control_plane }}"
@@ -62,6 +77,7 @@
     - groups['all_nodes'] | length > 1
     - standby_control_plane | default('', true) | length > 0
     - standby_control_plane != control_plane
+    - standby_control_plane in cluster_nodes.resources | map(attribute='metadata.name')
 
 
 # install services - only ArgoCD for now - it adds everything else
