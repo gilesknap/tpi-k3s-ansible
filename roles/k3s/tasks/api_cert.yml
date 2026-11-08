@@ -7,6 +7,7 @@
 # scratch file for the uri module, then removed): this covers the
 # kubeconfig and fresh nodes that have no copy of the CA yet. Then from each
 # node that already has the CA, which is the path its agent will use.
+# Both probes retry for about a minute before the asserts report a failure.
 
 - name: Read the cluster's server CA from the control plane
   ansible.builtin.command:
@@ -47,6 +48,12 @@
         timeout: 10
       register: k3s_api_probe_local
       failed_when: false
+      # Retry for about a minute: after a restart for a new tls-san, k3s
+      # answers /readyz before it serves the re-issued certificate. Not in
+      # --check, where nothing has restarted.
+      until: k3s_api_probe_local.status | default(-1) == 200
+      retries: "{{ 0 if ansible_check_mode else 12 }}"
+      delay: 5
   always:
     - name: Remove the server CA scratch file
       ansible.builtin.file:
@@ -82,6 +89,10 @@
     timeout: 10
   register: k3s_api_probe
   failed_when: false
+  # As above: give a just-restarted server time to serve its new certificate.
+  until: k3s_api_probe.status | default(-1) == 200
+  retries: "{{ 0 if ansible_check_mode else 12 }}"
+  delay: 5
   check_mode: false
   when: k3s_agent_ca.stat.exists
 
