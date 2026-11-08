@@ -3,10 +3,10 @@
 This runbook rebuilds a lost single-server control plane from the nightly
 encrypted etcd backup on the NAS ({ref}`etcd-offsite-backup`). The workers
 and their data are untouched. The restore can go onto the old control-plane
-node, rebuilt, or onto any spare node. The examples use `node01`, a
-Raspberry Pi CM4 in Turing Pi slot 1, as the lost control plane and `node03`
-as the spare. The same procedure, planned, moves a healthy control plane to
-another node: see [](#move-the-control-plane).
+node, rebuilt, or onto any spare node. The examples use `node02`, an RK1
+in Turing Pi slot 2, as the lost control plane and `node03` as the spare.
+The same procedure, planned, moves a healthy control plane to another
+node: see [](#move-the-control-plane).
 
 A restore takes the cluster back to the moment of the snapshot. Most
 changes after that point come back by themselves, since ArgoCD re-syncs
@@ -105,11 +105,15 @@ upgrade.
 ssh ansible@node03 sudo k3s-agent-uninstall.sh
 ```
 
+It also leaves the `k3s` binary, `/var/lib/rancher/k3s` and
+`/run/flannel` behind (see [](#k3s-uninstall-leaves-files-behind)). The
+restore copes with all three.
+
 **The old node:** power it off if it is half-alive, then flash and prepare
 it, but stop before k3s:
 
 ```bash
-ansible-playbook pb_all.yml --limit turingpi,node01 \
+ansible-playbook pb_all.yml --limit turingpi,node02 \
   --tags flash,known_hosts,servers -e flash_force=true
 ```
 
@@ -141,15 +145,24 @@ to skip that second prompt). After that it:
 1. installs the same k3s version as the snapshot without starting it
    (`INSTALL_K3S_SKIP_START=true`). k3s requires the snapshot's token
    and advises restoring onto the same minor version, so matching the
-   exact version is the safe choice;
+   exact version is the safe choice. It skips the install only when that
+   version is already there *and* `k3s.service` exists: a former agent
+   keeps the binary but has no server unit;
 2. writes the server config from `roles/k3s/templates/k3s-server-config.yml.j2`,
    with `k3s_api_name` as its `tls-san`, and restores
    `/etc/rancher/node/password`;
-3. runs `k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
+3. writes the token to `/var/lib/rancher/k3s/server/token` (mode 0600).
+   On a node that has never been a server, the reset otherwise fails with
+   `server/token does not exist, please pass --token`, even with
+   `--token-file`. The file stays after the restore on purpose: it is the
+   server's own token file, and every agent holds the same token;
+4. runs `k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
    --token-file=<token>`, which restores the snapshot, makes this node the
    only etcd member and exits. Any existing etcd data is moved to
    `db/etcd-old-<timestamp>`;
-4. starts k3s normally, waits for the API server, and deletes its copy of
+5. removes `/run/flannel`, whose `subnet.env` on a former agent still
+   holds the node's old podCIDR, then starts k3s normally, waits for the
+   API server, and deletes its copy of
    the plaintext files. It deletes them on failure too; if even that
    cleanup fails, it prints the remote paths to delete by hand.
 
@@ -193,7 +206,7 @@ record's TTL). An agent that stays `NotReady` needs
 
 On a spare node, the restored cluster still lists the old control plane:
 delete its Node object once it is not coming back as itself,
-`kubectl delete node node01`.
+`kubectl delete node node02`.
 
 ```bash
 just status                                   # nodes, ArgoCD apps, failing pods
@@ -229,6 +242,23 @@ If something is off:
 - **SealedSecrets fail with `no key could decrypt secret`:** the sealing key
   was rotated after the snapshot. Restore the key from your sealed-secrets
   key backup ({doc}`backup-restore`) or re-seal ({doc}`manage-sealed-secrets`).
+- **Pods on a former worker are unreachable** (e.g. a readiness probe that
+  times out), with IPs outside the node's podCIDR. The node re-registers
+  with a new podCIDR, but until a reboot `/run/flannel/subnet.env` still
+  holds its old one, which `k3s-agent-uninstall.sh` leaves behind. Pods
+  that start in the seconds before flannel rewrites the file get IPs from
+  the old range, and nothing routes to them. The restore script removes
+  `/run/flannel` first, so this should only happen after a restore done
+  another way. Compare the two, and delete each pod whose IP is outside the
+  node's podCIDR (pods on the host network show the node IP and are fine);
+  its controller re-creates it:
+
+  ```bash
+  kubectl get node node03 -o jsonpath='{.spec.podCIDR}{"\n"}'
+  kubectl get pods -A -o wide --field-selector spec.nodeName=node03
+  kubectl -n <namespace> delete pod <pod>
+  ```
+
 - **An ArgoCD app is stuck:** `just argocd-sync`.
 
 ## 6. Fallback: rebuild from Git
@@ -242,14 +272,17 @@ the workers survive a rebuild.
 
 Moving a healthy control plane to another node is the same restore, planned:
 a fresh snapshot, then a short API outage while the new node takes over.
-Workloads keep running throughout. Before you start, the `k3s_api_name`
+Workloads keep running throughout. Moving an RK1 control plane to another
+RK1 took about 15 minutes of API downtime, from stopping the old server to
+the DNS change. Before you start, the `k3s_api_name`
 record must exist and every agent must already use it (run
 `ansible-playbook pb_all.yml --tags k3s` once and check with
 `sudo grep K3S_URL /etc/systemd/system/k3s-agent.service.env`).
 
 1. Pick the new node as in [](#choose-the-target-node); a node with no
-   `local-nvme` PV is best. Move any PV it holds first (re-pin it in
-   `local_storage` and `k8s_data_dirs`).
+   `local-nvme` PV is best. Move any PV it holds first: re-pin it in
+   `local_storage` and `k8s_data_dirs` and copy its data (see
+   [](node-operations.md#move-a-local-nvme-pv-to-another-node)).
 2. Drain it and remove its agent:
 
    ```bash
@@ -263,7 +296,7 @@ record must exist and every agent must already use it (run
 
    ```bash
    just etcd-backup-now
-   ssh ansible@node01 'sudo systemctl disable --now k3s-etcd-backup.timer k3s'
+   ssh ansible@node02 'sudo systemctl disable --now k3s-etcd-backup.timer k3s'
    ```
 
 4. Fetch and decrypt that bundle ([step 1](#1-get-and-decrypt-the-latest-backup)).
@@ -272,18 +305,66 @@ record must exist and every agent must already use it (run
 6. Point the DNS record at node03 (`just k3s-api-dns 192.168.1.83`) and run
    the `k3s` tag on it
    ([step 4](#4-point-the-api-name-at-the-new-control-plane)), then check the
-   cluster ([step 5](#5-check-the-cluster)).
-7. Remove the old server, whether you retire node01 or keep it as a
-   worker, so its etcd data and `k3s.service` don't linger:
+   cluster ([step 5](#5-check-the-cluster)). The agents rejoin by themselves
+   within a minute or two. If pods on the new node are unreachable, see the
+   stale podCIDR entry in step 5's troubleshooting list.
+7. Remove the old server, whether you retire node02 or keep it as a
+   worker, so `k3s.service` doesn't linger:
 
    ```bash
-   kubectl delete node node01
-   ssh ansible@node01 sudo k3s-uninstall.sh
+   ssh ansible@node02 sudo k3s-uninstall.sh
+   kubectl delete node node02
    ```
 
-   To keep it as a worker, then run
-   `ansible-playbook pb_all.yml --tags k3s --limit node01`.
+   This leaves the old etcd data, which holds every cluster Secret, and the
+   backup job on the node; clean them up by hand
+   ([below](#k3s-uninstall-leaves-files-behind)). To keep the node as a
+   worker, also clear its stale flannel state first, with a reboot or
+   `sudo rm -rf /run/flannel`, or its first pods get IPs from its old
+   podCIDR, then run
+   `ansible-playbook pb_all.yml --tags k3s --limit node02`.
 8. Taint the new control plane with
    `ansible-playbook pb_all.yml --tags cluster`, and update anything else
    that names the old node's IP, such as a Cloudflare SSH tunnel route.
 9. Commit the `control_plane` change and merge it.
+
+### k3s uninstall leaves files behind
+
+`k3s-uninstall.sh` and `k3s-agent-uninstall.sh` remove their own service,
+then stop early, with `Additional k3s services installed, skipping
+uninstall of k3s`, if any other `/etc/systemd/system/k3s*.service` remains.
+This repository installs `k3s-apparmor-profile.service` on nodes where
+AppArmor is enabled and `k3s-etcd-backup.service` on the control plane, so
+on those nodes the scripts stop there. They leave the `k3s` binary, the
+`kubectl`, `crictl` and `ctr` links, `k3s-killall.sh`, `/etc/rancher/k3s`,
+all of `/var/lib/rancher/k3s` and `/run/flannel`, and they delete
+themselves.
+
+On a former agent, the binary and `/var/lib/rancher/k3s` do no harm: the
+restore installs over them. `/run/flannel/subnet.env` does, until the node
+reboots: it holds the node's old podCIDR, which pods started before flannel
+rewrites it pick up. The restore script removes it.
+
+On a former server, `/var/lib/rancher/k3s/server` still holds the old etcd
+database and token, and the `etcd_backup` role's files remain: the backup
+script and its configuration and state, the `noauto` NAS mount in
+`/etc/fstab` (only the backup uses it), and its metric files in the
+node-exporter textfile directory. If the node later runs node-exporter as
+a worker, stale metric files there would hide a missing backup from the
+`K3sEtcdBackupMetricsMissing` alert. Remove them all once the new control
+plane is healthy:
+
+```bash
+ssh ansible@node02 'sudo bash -s' <<'END'
+set -e
+rm -f /etc/systemd/system/k3s-etcd-backup.service \
+  /etc/systemd/system/k3s-etcd-backup.timer
+systemctl daemon-reload
+rm -f /usr/local/sbin/k3s-etcd-backup \
+  /var/lib/node_exporter/textfile_collector/k3s_etcd_backup*
+rm -rf /etc/k3s-etcd-backup /var/lib/k3s-etcd-backup
+sed -i '\| /mnt/k8s-cluster |d' /etc/fstab
+rmdir /mnt/k8s-cluster
+rm -rf /var/lib/rancher/k3s/server /etc/rancher/k3s /run/flannel
+END
+```

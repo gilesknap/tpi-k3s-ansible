@@ -87,7 +87,7 @@ Edit `group_vars/all.yml` — the primary Ansible configuration:
 
 ```yaml
 # Change these to match your environment
-control_plane: node01              # Which node is the K3s control plane
+control_plane: node02              # Which node is the K3s control plane
 k3s_api_name: k3s.lan              # DNS record for the API, -> control plane IP
 cluster_domain: example.com        # Your domain name
 domain_email: you@example.com      # For Let's Encrypt certificates
@@ -170,8 +170,8 @@ Expected output shows all nodes in `Ready` state:
 
 ```
 NAME     STATUS   ROLES                       AGE   VERSION
-node01   Ready    control-plane,etcd,master   5m    v1.31.x+k3s1
-node02   Ready    <none>                      4m    v1.31.x+k3s1
+node01   Ready    <none>                      4m    v1.31.x+k3s1
+node02   Ready    control-plane,etcd,master   5m    v1.31.x+k3s1
 node03   Ready    <none>                      4m    v1.31.x+k3s1
 node04   Ready    <none>                      4m    v1.31.x+k3s1
 ```

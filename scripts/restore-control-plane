@@ -151,7 +151,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ "$(k3s --version 2>/dev/null | head -n 1 | awk '{print $3}')" != "$version" ]]; then
+# Install unless both the binary and the server unit are already there: a
+# former agent keeps the k3s binary but has no k3s.service.
+if [[ "$(k3s --version 2>/dev/null | head -n 1 | awk '{print $3}')" != "$version" ]] \
+    || [[ ! -f /etc/systemd/system/k3s.service ]]; then
     log "Installing k3s $version (not started)"
     curl -sfL https://get.k3s.io -o /usr/local/bin/k3s-install.sh
     chmod 0755 /usr/local/bin/k3s-install.sh
@@ -172,6 +175,16 @@ if [[ -s $dir/node-password ]]; then
     install -m 0600 "$dir/node-password" /etc/rancher/node/password
 fi
 
+# On a node that has never been a server, k3s's restore ignores
+# --token-file and insists on server/token ("does not exist, please pass
+# --token"). Put the token where a server keeps it (root-only, as k3s
+# writes it itself), rather than passing --token on the command line.
+# It stays there after the restore: it is the server's own token file, and
+# every agent holds the same token anyway.
+log "Writing /var/lib/rancher/k3s/server/token"
+install -d -m 0700 /var/lib/rancher/k3s/server
+install -m 0600 "$dir/token" /var/lib/rancher/k3s/server/token
+
 log "Restoring etcd from $(basename "$dir/snapshot")"
 # Runs in the foreground and exits once the reset is done. Judge success
 # by its log message rather than its exit status.
@@ -184,6 +197,12 @@ if ! grep -q 'cluster membership has been reset' "$dir/cluster-reset.log"; then
     log "cluster-reset did not report success; log saved to /root/k3s-cluster-reset.log"
     exit 1
 fi
+
+# A former agent's k3s-agent-uninstall.sh stops before it removes
+# /run/flannel, so without a reboot subnet.env still holds the node's old
+# podCIDR. Pods started before flannel rewrites it get unroutable IPs.
+log "Removing stale /run/flannel"
+rm -rf /run/flannel
 
 log "Starting k3s"
 systemctl enable --now k3s

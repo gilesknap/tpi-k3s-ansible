@@ -82,7 +82,7 @@ any node with multiple NICs — otherwise CNI traffic goes out the wrong
 interface and pod networking silently breaks.
 
 ### Control-plane `NoSchedule` taint
-The control plane (e.g. node01) is tainted `NoSchedule`. DaemonSets
+The control plane (e.g. node02) is tainted `NoSchedule`. DaemonSets
 without a matching toleration won't schedule there, so it can safely
 be skipped when running `--tags servers` for node-level drivers (DRA
 plugins, etc.).
