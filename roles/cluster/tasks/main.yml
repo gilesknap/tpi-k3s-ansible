@@ -29,23 +29,28 @@
     taints:
       - key: node-role.kubernetes.io/standby-control-plane
         effect: PreferNoSchedule
+  # Match on key and effect only, as k8s_taint does, whatever the value.
   loop: >-
     {{ cluster_nodes.resources
-       | selectattr('spec.taints', 'defined')
-       | selectattr('spec.taints', 'contains', cluster_standby_taint)
        | map(attribute='metadata.name')
        | reject('equalto', cluster_standby_target)
        | list }}
   loop_control:
     loop_var: cluster_old_standby
   vars:
-    cluster_standby_taint:
-      key: node-role.kubernetes.io/standby-control-plane
-      effect: PreferNoSchedule
     cluster_standby_target: >-
       {{ (standby_control_plane | default('', true) != control_plane)
          | ternary(standby_control_plane | default('', true), '') }}
-  when: groups['all_nodes'] | length > 1
+    cluster_node_taints: >-
+      {{ (cluster_nodes.resources
+          | selectattr('metadata.name', 'equalto', cluster_old_standby)
+          | first).spec.taints | default([]) }}
+  when:
+    - groups['all_nodes'] | length > 1
+    - cluster_node_taints
+      | selectattr('key', 'equalto', 'node-role.kubernetes.io/standby-control-plane')
+      | selectattr('effect', 'equalto', 'PreferNoSchedule')
+      | list | length > 0
 
 - name: Taint the standby control plane node PreferNoSchedule
   kubernetes.core.k8s_taint:

@@ -176,8 +176,9 @@ directory on the host, so deleting the PV object does not delete any data.
    If the workload has a backup ({doc}`backup-restore`), take a fresh one
    now, while it still runs on the old node.
 
-   Merge the change, then hard-refresh the parent app,
-   `all-cluster-services`, so it re-reads `main` straight away:
+   Merge the change into the branch ArgoCD tracks (`repo_branch`, normally
+   `main`), then hard-refresh the parent app, `all-cluster-services`, so it
+   re-reads that branch straight away:
 
    ```bash
    kubectl -n argo-cd annotate application all-cluster-services \
@@ -186,8 +187,10 @@ directory on the host, so deleting the PV object does not delete any data.
 
    The child apps, such as `local-storage` and `backups`, take their values
    from the parent. Refreshing only a child leaves it on the parent's old
-   commit, still with the old node. Until step 3 the `local-storage` app
-   shows a sync error for that PV, as it cannot change its node.
+   commit, still with the old node. Wait until the `local-storage` app
+   shows a sync error for that PV, as it cannot change its node: that shows
+   it has the new values. Do not go on before then, or step 3 re-creates
+   the PV on the old node. The error stays until step 3.
 2. Delete the PVC and the pod that uses it. The PVC waits for the pod to
    go, and the StatefulSet then re-creates both. The new pod stays
    `Pending`, as the old PV still points at the old claim and node:
@@ -215,8 +218,11 @@ directory on the host, so deleting the PV object does not delete any data.
    `argo-cd`.
 
    The sync can fail with `another operation is already in progress`,
-   while auto-sync retries the app. That is fine: the auto-sync re-creates
-   the PV once `delete-resource` has removed it.
+   while auto-sync retries the app. That is usually fine: the auto-sync
+   re-creates the PV once `delete-resource` has removed it. If that
+   operation ends failed instead (its retries ran out before the PV was
+   gone), ArgoCD does not retry the same revision by itself: run the sync
+   again once it has finished.
 
    In the ArgoCD UI, the same is: open `local-storage`, delete the PV,
    then **Sync**. `argocd app sync --replace` does not work instead: the
