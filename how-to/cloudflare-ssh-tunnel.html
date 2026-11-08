@@ -434,6 +434,22 @@ top of the existing Cloudflare tunnel. <strong>Prerequisite:</strong> complete
 cluster. For exposing <em>web</em> services through the tunnel (Grafana,
 Headlamp, ArgoCD), see <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a> instead.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>This route is optional.</strong> If you already reach your machines over a
+mesh VPN such as Tailscale, you do not need a public SSH hostname at
+all, and leaving it out means one less route to defend. The example
+cluster this repository was built on uses its tailnet for SSH and has no
+<code class="docutils literal notranslate"><span class="pre">ssh</span></code> route.</p>
+<p>If you manage Cloudflare with <a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>, add the route
+there instead of in the dashboard: an entry
+<code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;ssh&quot;,</span> <span class="pre">service</span> <span class="pre">=</span> <span class="pre">&quot;ssh://&lt;control-plane-ip&gt;:22&quot;</span> <span class="pre">}</span></code> in
+<code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> (<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>) creates both the route and
+its DNS record, and the wildcard Owner application already gates it.
+Part 1 below is then done by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, and Part 2 is covered by
+the wildcard application unless you add an entry to <code class="docutils literal notranslate"><span class="pre">local.access_apps</span></code>
+in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code> for a dedicated <code class="docutils literal notranslate"><span class="pre">ssh</span></code> application.</p>
+</div>
 <p>This guide walks through setting up secure remote access to your K3s cluster via an
 SSH tunnel through Cloudflare Zero Trust, without opening any inbound firewall ports.</p>
 <section id="architecture">

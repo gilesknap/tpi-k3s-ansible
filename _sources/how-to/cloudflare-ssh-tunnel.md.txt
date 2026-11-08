@@ -10,6 +10,23 @@ cluster. For exposing *web* services through the tunnel (Grafana,
 Headlamp, ArgoCD), see {doc}`cloudflare-web-tunnel` instead.
 :::
 
+:::{note}
+**This route is optional.** If you already reach your machines over a
+mesh VPN such as Tailscale, you do not need a public SSH hostname at
+all, and leaving it out means one less route to defend. The example
+cluster this repository was built on uses its tailnet for SSH and has no
+`ssh` route.
+
+If you manage Cloudflare with {doc}`cloudflare-as-code`, add the route
+there instead of in the dashboard: an entry
+`{ name = "ssh", service = "ssh://<control-plane-ip>:22" }` in
+`tunnel_services` (`cloudflare/locals.tf`) creates both the route and
+its DNS record, and the wildcard Owner application already gates it.
+Part 1 below is then done by `just cf-apply`, and Part 2 is covered by
+the wildcard application unless you add an entry to `local.access_apps`
+in `access.tf` for a dedicated `ssh` application.
+:::
+
 This guide walks through setting up secure remote access to your K3s cluster via an
 SSH tunnel through Cloudflare Zero Trust, without opening any inbound firewall ports.
 

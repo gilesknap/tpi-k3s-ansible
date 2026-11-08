@@ -426,7 +426,7 @@
 <h1>Manage Cloudflare as Code (OpenTofu)<a class="headerlink" href="#manage-cloudflare-as-code-opentofu" title="Link to this heading">#</a></h1>
 <p>The cluster’s edge configuration at Cloudflare (DNS records, the tunnel’s
 public hostnames, Zero Trust Access applications and policies, zone
-security settings and cache rules) is described in
+security settings, cache rules and rate-limiting rules) is described in
 <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> as <a class="reference external" href="https://opentofu.org">OpenTofu</a> code using the
 <a class="reference external" href="https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs">Cloudflare provider</a>.
 Changes are made in the repo and reviewed like any other change, then
@@ -464,10 +464,13 @@ as drift in the next <code class="docutils literal notranslate"><span class="pre
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">zone.tf</span></code></p></td>
 <td><p>Zone settings (SSL mode, minimum TLS, HSTS, security level, …) and the zone’s cache rules</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">imports.tf</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">waf.tf</span></code></p></td>
+<td><p>The zone’s rate-limiting rules (the <code class="docutils literal notranslate"><span class="pre">http_ratelimit</span></code> ruleset)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">imports.tf</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">import</span></code> blocks that adopt existing objects into state</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">variables.tf</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">variables.tf</span></code></p></td>
 <td><p>Per-account inputs; the values go in the gitignored <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code></p></td>
 </tr>
 </tbody>
@@ -505,7 +508,26 @@ Access apps’ <code class="docutils literal notranslate"><span class="pre">eage
 does not have: check it in the dashboard after changing one of those apps.</p>
 <p>To add a service to the edge, add an entry to <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> (and, if
 it needs something other than the wildcard Owner app, an entry in
-<code class="docutils literal notranslate"><span class="pre">local.access_apps</span></code> in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code>), then plan and apply.</p>
+<code class="docutils literal notranslate"><span class="pre">local.access_apps</span></code> in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code>), then plan and apply. ntfy is an
+example of both: a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry, an Access app with the
+<code class="docutils literal notranslate"><span class="pre">bypass</span></code> policy (a more specific app than the wildcard, so it wins for
+that hostname), and a rate-limiting rule in <code class="docutils literal notranslate"><span class="pre">waf.tf</span></code> (see <a class="reference internal" href="ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>).</p>
+</section>
+<section id="rate-limiting-on-the-free-plan">
+<h3>Rate limiting on the Free plan<a class="headerlink" href="#rate-limiting-on-the-free-plan" title="Link to this heading">#</a></h3>
+<p>Cloudflare’s Free plan allows one rate-limiting rule, with a 10-second
+counting period and a 10-second block, counted per client IP, and an
+expression that may only use the URI path (and Verified Bot), not the
+hostname. The rule in <code class="docutils literal notranslate"><span class="pre">waf.tf</span></code> fits those limits: it matches ntfy’s
+topic paths, <code class="docutils literal notranslate"><span class="pre">/v1/</span></code> and <code class="docutils literal notranslate"><span class="pre">/</span></code> (on every host in the zone, as it cannot
+name one), allows 17 requests in 10 seconds (about 100 a minute) per
+IP, then blocks for 10 seconds. The zone’s one rule is then taken, so a
+second rule, for another service, needs a paid plan. On a paid plan you can match on the hostname and
+use longer periods; see Cloudflare’s
+<a class="reference external" href="https://developers.cloudflare.com/waf/rate-limiting-rules/">rate limiting rules</a>
+for what each plan allows. Only the edit token can ask Cloudflare to
+check a rule against the plan (see the note in step 1), so a rule your
+plan does not allow shows up in <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, not in <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code>.</p>
 </section>
 </section>
 <section id="prerequisites">
@@ -554,6 +576,9 @@ Custom Token</strong>, scoped to your account and to the cluster’s zone only.<
 <tr class="row-odd"><td><p>Zone</p></td>
 <td><p>Cache Rules</p></td>
 </tr>
+<tr class="row-even"><td><p>Zone</p></td>
+<td><p>Zone WAF</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -566,6 +591,13 @@ when you need it and delete it afterwards: it can change your edge.</p>
 <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code> (gitignored), else you are prompted.
 The apply token is read from <code class="docutils literal notranslate"><span class="pre">CF_APPLY_TOKEN</span></code>, else you are prompted;
 it is deliberately never read from a file.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For a ruleset it is about to create or change, the provider asks
+Cloudflare to check it with a dry-run API call, which needs the edit
+token. With the plan token, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> prints a warning, <code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">make</span> <span class="pre">http</span> <span class="pre">request</span> <span class="pre">for</span> <span class="pre">the</span> <span class="pre">dry</span> <span class="pre">run</span></code> (403), and carries on; the check
+runs again, with the edit token, when <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> plans.</p>
+</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span><span class="m">700</span><span class="w"> </span>cloudflare/.secrets
 <span class="nb">read</span><span class="w"> </span>-rsp<span class="w"> </span><span class="s1">&#39;Plan token: &#39;</span><span class="w"> </span>t<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>cloudflare/.secrets/plan-token<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">unset</span><span class="w"> </span>t
 chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>cloudflare/.secrets/plan-token
@@ -685,13 +717,16 @@ ever holds ciphertext. This backend has no state locking unless you add
 <code class="docutils literal notranslate"><span class="pre">use_lockfile</span> <span class="pre">=</span> <span class="pre">true</span></code>, which needs a bucket that supports conditional
 writes; with one operator that is acceptable.</p>
 </section>
-<section id="next-removing-drift">
-<h2>Next: removing drift<a class="headerlink" href="#next-removing-drift" title="Link to this heading">#</a></h2>
-<p>The first version of this code imports the live configuration exactly,
-including entries for services the cluster no longer runs. Remove those
-in a reviewed change: delete the entry from <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> or
-<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (and any Access app that only served it), check that
-<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> destroys exactly those objects, and apply.</p>
+<section id="removing-a-service">
+<h2>Removing a service<a class="headerlink" href="#removing-a-service" title="Link to this heading">#</a></h2>
+<p>Delete its entry from <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> or <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (and any
+Access app that only served it), and its ID from <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> in
+<code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code> (an import block for an object no longer in the
+code is skipped; for DNS records a check also warns about the stale
+key). Check that
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> destroys exactly those objects, and apply. Imported
+configuration often carries such drift: entries for services the
+cluster no longer runs, left behind by earlier dashboard edits.</p>
 </section>
 </section>
 
@@ -745,6 +780,7 @@ in a reviewed change: delete the entry from <code class="docutils literal notran
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-managed">What is managed</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#login-methods-are-set-up-in-the-dashboard">Login methods are set up in the dashboard</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#also-not-managed">Also not managed</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rate-limiting-on-the-free-plan">Rate limiting on the Free plan</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
@@ -754,7 +790,7 @@ in a reviewed change: delete the entry from <code class="docutils literal notran
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#first-init-and-plan">4. First init and plan</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day">Day to day</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#later-state-in-an-s3-compatible-bucket">Later: state in an S3-compatible bucket</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-removing-drift">Next: removing drift</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#removing-a-service">Removing a service</a></li>
 </ul>
   </nav></div>
 

@@ -436,7 +436,8 @@ services (Grafana, Headlamp, ArgoCD) through the tunnel
 with a single <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> toggle.</p></li>
 <li><p><a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> — add a Cloudflare Access-gated SSH
 tunnel for remote <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> / shell access without opening inbound
-firewall ports.</p></li>
+firewall ports (optional: not needed if you already reach your
+machines over a mesh VPN such as Tailscale).</p></li>
 </ul>
 <p>Once the tunnel and Access are set up, <a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a> manages
 the same configuration (DNS, tunnel routes, Access, zone settings) as
@@ -678,9 +679,9 @@ on your LAN. If you don’t need public internet access, you can stop here.</p>
 <p>Follow this section only if you want to expose selected services to the
 internet. If LAN-only access is sufficient, skip to <a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> or
 the other guides listed in <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>. For remote shell /
-<code class="docutils literal notranslate"><span class="pre">kubectl</span></code> access (rather than web exposure), use
-<a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> instead — it adds an Access-gated SSH route
-on top of the same tunnel.</p>
+<code class="docutils literal notranslate"><span class="pre">kubectl</span></code> access (rather than web exposure), use a mesh VPN such as
+Tailscale, or <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a>, which adds an Access-gated
+SSH route on top of the same tunnel.</p>
 <section id="create-a-tunnel">
 <h3>4.1 Create a tunnel<a class="headerlink" href="#create-a-tunnel" title="Link to this heading">#</a></h3>
 <ol class="arabic simple">
@@ -789,29 +790,14 @@ curl<span class="w"> </span>-I<span class="w"> </span>https://argocd.example.com
 <p>Cloudflare’s built-in protections (DDoS mitigation, bot management, managed rulesets)
 apply automatically to all proxied traffic. <strong>No custom rules are needed</strong> for this
 setup — only explicitly tunnelled hostnames receive traffic from the internet.</p>
-<p>Optionally add a rate-limiting rule in <strong>Security → WAF → Rate Limiting Rules</strong>:</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Field</p></th>
-<th class="head"><p>Value</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Rule name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">Echo</span> <span class="pre">rate</span> <span class="pre">limit</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Match</p></td>
-<td><p>Hostname equals <code class="docutils literal notranslate"><span class="pre">echo.example.com</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Rate</p></td>
-<td><p>30 requests per 1 minute</p></td>
-</tr>
-<tr class="row-odd"><td><p>Action</p></td>
-<td><p>Block</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<p>Optionally add a rate-limiting rule in <strong>Security → WAF → Rate Limiting Rules</strong>,
+for example one that blocks a client IP sending more than about 100
+requests a minute to a public service. What a rule may match on and its
+periods depend on your plan: the Free plan allows one rule, matching on
+the URI path only (not the hostname), with a 10-second period and
+block. If you manage Cloudflare with <a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>, the
+rule is in <code class="docutils literal notranslate"><span class="pre">cloudflare/waf.tf</span></code> instead (it holds the zone’s one Free
+rule, for ntfy; see “Rate limiting on the Free plan” there).</p>
 </section>
 </section>
 <section id="making-a-lan-only-service-externally-accessible">
@@ -865,8 +851,8 @@ zero cluster overhead. See <a class="reference internal" href="cloudflare-ssh-tu
 <li><p><strong>oauth2-proxy</strong> — in-cluster OAuth. See <a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>.</p></li>
 </ul>
 </li>
-<li><p><strong>Optionally add a rate-limiting rule</strong> in <strong>Security → WAF → Rate Limiting Rules</strong>
-for the newly public hostname.</p></li>
+<li><p><strong>Optionally add a rate-limiting rule</strong> for the newly public service
+(see <a class="reference internal" href="#waf-web-application-firewall">4.5 WAF</a> for the plan limits).</p></li>
 </ol>
 <section id="reverting-to-lan-only">
 <h3>Reverting to LAN-only<a class="headerlink" href="#reverting-to-lan-only" title="Link to this heading">#</a></h3>

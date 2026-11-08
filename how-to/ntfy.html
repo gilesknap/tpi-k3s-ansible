@@ -567,7 +567,8 @@ the rest, then seals the result into
 No value is printed. Commit and push it. A cluster rebuild does this
 for you (see <a class="reference internal" href="#rebuilds">Rebuilds</a>).</p>
 </li>
-<li><p>Add the tunnel hostname and the Access bypass (below).</p></li>
+<li><p>Add the tunnel route, the Access bypass and the rate limit
+(see <a class="reference internal" href="#cloudflare">Cloudflare</a> below).</p></li>
 <li><p>Let ArgoCD sync the <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> Application, then check:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://ntfy.&lt;domain&gt;/v1/health<span class="w">     </span><span class="c1"># {&quot;healthy&quot;:true,...}</span>
 curl<span class="w"> </span>-d<span class="w"> </span><span class="nb">test</span><span class="w"> </span>https://ntfy.&lt;domain&gt;/vps-alerts<span class="w">   </span><span class="c1"># 403: anonymous is denied</span>
@@ -577,43 +578,40 @@ curl<span class="w"> </span>-d<span class="w"> </span><span class="nb">test</spa
 </ol>
 <section id="cloudflare">
 <h3>Cloudflare<a class="headerlink" href="#cloudflare" title="Link to this heading">#</a></h3>
-<p>The tunnel’s public hostnames are managed in the Cloudflare dashboard, not
-in this repository. In the <a class="reference external" href="https://dash.cloudflare.com/">Cloudflare dashboard</a>:</p>
-<ol class="arabic">
-<li><p><strong>Tunnel route.</strong> Under <strong>Networking → Tunnels</strong>, open the tunnel,
-<strong>Routes → Add route</strong>, and add the public hostname, as in
-<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>:</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Subdomain</p></th>
-<th class="head"><p>Domain</p></th>
-<th class="head"><p>URL</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">&lt;domain&gt;</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>If an A record for <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> already exists, delete it first so the tunnel
-can create its CNAME.</p>
-</li>
-<li><p><strong>Access bypass.</strong> The wildcard Access application covers every
-subdomain, and the phone app cannot complete an Access login. Add an
-Access application for <code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code> whose policy Action is
-<strong>Bypass</strong> and Include <strong>Everyone</strong>, as in
-<a class="reference internal" href="cloudflare-web-tunnel.html#bypass-application-for-api-endpoints"><span class="std std-ref">Bypass application for API endpoints</span></a>.
-The more specific application takes precedence over the wildcard; check
-in the dashboard that it does.</p></li>
-<li><p><strong>Rate limit (recommended).</strong> As the hostname is open to the internet,
-add a WAF rate-limiting rule for it under <strong>Security → WAF → Rate
-limiting rules</strong>: for example, requests where <em>Hostname equals
-<code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code></em>, counted per IP, blocked above about 100 requests a
-minute. ntfy’s own per-visitor limits still apply behind it.</p></li>
-</ol>
+<p>The edge configuration for ntfy is in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> (see
+<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>), and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> sets it up:</p>
+<ul class="simple">
+<li><p><strong>Tunnel route and DNS record:</strong> the <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> entry in <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>
+(<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>), routed to ingress-nginx like the other
+services.</p></li>
+<li><p><strong>Access bypass:</strong> the wildcard Access application covers every
+subdomain, and the phone app cannot complete an Access login. The
+<code class="docutils literal notranslate"><span class="pre">ntfy</span></code> application in <code class="docutils literal notranslate"><span class="pre">cloudflare/access.tf</span></code> uses the reusable
+<code class="docutils literal notranslate"><span class="pre">bypass</span></code> policy; it is more specific than the wildcard, so it takes
+precedence for <code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code>.</p></li>
+<li><p><strong>Rate limit:</strong> as the hostname is open to the internet, a WAF
+rate-limiting rule (<code class="docutils literal notranslate"><span class="pre">cloudflare/waf.tf</span></code>) blocks, for 10 seconds, a
+client IP that sends more than 17 requests in 10 seconds (about 100 a
+minute) to ntfy’s topic paths (including comma-joined topics),
+<code class="docutils literal notranslate"><span class="pre">/v1/</span></code> or <code class="docutils literal notranslate"><span class="pre">/</span></code>. These are the Free plan’s limits, which also rule out
+matching on the hostname, so the rule matches those paths on every
+host in the zone instead. Requests to other paths, such as an unknown
+topic, are not counted; ntfy denies them. Keep the rule’s topic list
+in step with <code class="docutils literal notranslate"><span class="pre">access</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/values.yaml</span></code>. ntfy’s own
+per-visitor limits still apply behind it.</p></li>
+</ul>
+<p>If you do not manage Cloudflare with that code, make the same three
+changes in the <a class="reference external" href="https://dash.cloudflare.com/">dashboard</a>: a tunnel
+route for <code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code> to
+<code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>
+(delete any existing <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> A record first, so the tunnel can create its
+CNAME; see <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>); a self-hosted Access
+application for <code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code> with a policy of Action <strong>Bypass</strong> and
+Include <strong>Everyone</strong>, as in
+<a class="reference internal" href="cloudflare-web-tunnel.html#bypass-application-for-api-endpoints"><span class="std std-ref">Bypass application for API endpoints</span></a>;
+and a rate-limiting rule under <strong>Security → WAF → Rate limiting rules</strong>
+like the one above.</p>
 </section>
 </section>
 <section id="android-app">
