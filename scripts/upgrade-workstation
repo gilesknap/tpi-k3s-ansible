@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Upgrade a workstation node's k3s agent to the version the control plane
+# runs. Workstations (workstation: true in hosts.yml) are excluded from the
+# system-upgrade-controller Plans, so their owner upgrades them by hand when
+# the machine can be interrupted.
+#
+# Steps: drain the node (if Ready), reinstall its agent with
+#   ansible-playbook pb_all.yml --limit <node> --tags known_hosts,k3s -e k3s_force=true
+# then wait for it to come back Ready and uncordon it.
+#
+# Run it in this project's devcontainer terminal (e.g. the tpi-k3s-ansible
+# devcontainer on the workstation itself), where your SSH key reaches
+# ansible@<node> and kubectl works. Not on the workstation host (ansible is
+# not installed there) and not from the claude-sandbox (it deliberately
+# cannot SSH to its own host).
+#
+# Usage: upgrade-workstation <node> [extra ansible-playbook args, e.g. -K]
+set -euo pipefail
+
+drain_timeout=10m
+ready_timeout=600 # seconds to wait for the node to rejoin Ready
+
+usage() {
+    echo "Usage: $0 <node> [extra ansible-playbook args]" >&2
+    echo "Run in the project's devcontainer terminal, not on the host or in the claude-sandbox." >&2
+    exit 1
+}
+
+[ $# -ge 1 ] || usage
+node=$1
+shift
+
+cd "$(dirname "$0")/.."
+
+# Refuse anything but a workstation: other nodes are upgraded by the Plans.
+if ! hostvars=$(ansible-inventory --host "$node" 2>/dev/null); then
+    echo "Refusing: $node is not in the inventory (hosts.yml)." >&2
+    exit 1
+fi
+workstation=$(jq -r '.workstation // false | tostring | ascii_downcase' <<<"$hostvars")
+if [ "$workstation" != "true" ]; then
+    echo "Refusing: $node is not a workstation (workstation: true in hosts.yml)." >&2
+    echo "Other nodes are upgraded automatically by system-upgrade-controller." >&2
+    exit 1
+fi
+
+if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "ansible@$node" true; then
+    cat >&2 <<EOF
+Cannot SSH to ansible@$node.
+Run this in the project's devcontainer terminal, where your SSH agent holds
+the ansible key. It does not work on the workstation host (no ansible there)
+or from the claude-sandbox (which cannot SSH to its own host by design).
+EOF
+    exit 1
+fi
+
+control_plane=$(jq -r '.control_plane' <<<"$hostvars")
+cp_version=$(kubectl get node "$control_plane" \
+    -o jsonpath='{.status.nodeInfo.kubeletVersion}')
+node_version=$(kubectl get node "$node" \
+    -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null || echo "not in cluster")
+ready=$(kubectl get node "$node" \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+
+echo "$node runs $node_version; control plane $control_plane runs $cp_version."
+
+if [ "$ready" = "True" ]; then
+    echo "Draining $node..."
+    kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data \
+        --timeout="$drain_timeout"
+else
+    echo "$node is not Ready (Ready=${ready:-unknown}): skipping the drain."
+    echo "The playbook deletes a NotReady node and lets it rejoin."
+fi
+
+ansible-playbook pb_all.yml --limit "$node" --tags known_hosts,k3s \
+    -e k3s_force=true "$@"
+
+# The node object may have been deleted and re-created: wait for it to
+# exist, then for it to be Ready.
+echo "Waiting up to ${ready_timeout}s for $node to be Ready..."
+deadline=$((SECONDS + ready_timeout))
+until [ "$(kubectl get node "$node" \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = "True" ]; do
+    if [ $SECONDS -ge $deadline ]; then
+        echo "$node is not Ready after ${ready_timeout}s; it is still cordoned." >&2
+        echo "Check it, then run: kubectl uncordon $node" >&2
+        exit 1
+    fi
+    sleep 5
+done
+
+kubectl uncordon "$node"
+kubectl get node "$node"
+echo "Taints:"
+kubectl get node "$node" -o jsonpath='{range .spec.taints[*]}  {.key}={.value}:{.effect}{"\n"}{end}'

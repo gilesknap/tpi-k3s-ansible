@@ -53,6 +53,11 @@ node-fence node:
 node-unfence node:
     scripts/node-fence unfence {{ node }}
 
+# Drain, reinstall and uncordon a workstation's k3s agent.
+# Run in the project's devcontainer terminal, not on the host or in claude-sandbox.
+upgrade-workstation node *args:
+    scripts/upgrade-workstation {{ node }} {{ args }}
+
 # After scrap's move to NFS: list writes in the frozen old database
 # that the live one lacks (read-only on both sides)
 scrap-cutover-check node="nuc2":
