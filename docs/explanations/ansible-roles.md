@@ -534,6 +534,13 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 - Checks if the node is already in the cluster (skip if so, unless force).
 - Gets the join token from the control plane.
 - Runs the K3s agent installer with `K3S_URL=https://<k3s_api_name>:6443`.
+  A new Node object registers with its inventory-driven labels and taint
+  already set (`--node-label`, `--node-taint`): the GPU labels below, and on a workstation
+  node (`workstation: true`) the `node-role=workstation` label and the
+  `workstation=true:NoSchedule` taint. No ordinary pod can land on a
+  workstation between its registration and the kubectl tasks below, and the
+  system-upgrade-controller agent Plan, which selects nodes without
+  `node-role=workstation`, never picks it up.
 - Rewrites `K3S_URL` in `/etc/systemd/system/k3s-agent.service.env` on
   agents that joined by IP, and restarts `k3s-agent` if it changed.
 - Labels NVIDIA GPU nodes with `nvidia.com/gpu.present=true` (when `nvidia_gpu_node: true`
@@ -542,6 +549,12 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 - Labels Intel iGPU nodes with `intel.feature.node.kubernetes.io/gpu=true` (when
   `intel_gpu_node: true` in inventory), so the Intel GPU device plugin DaemonSet
   schedules there and advertises `gpu.intel.com/i915`.
+- Taints workstation nodes `workstation=true:NoSchedule` and labels them
+  `node-role=workstation`.
+- K3s applies `--node-label` and `--node-taint` only when the Node object
+  is created, so these kubectl label and taint tasks run on every pass as the
+  backstop for nodes registered before the flags were added (and for a label
+  or taint removed by hand).
 
 ### Kubeconfig (`kubeconfig.yml`)
 

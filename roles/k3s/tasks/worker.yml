@@ -59,6 +59,13 @@
   # Read-only: run in --check too, so later tasks see real data.
   check_mode: false
 
+# A new Node object (a new node, a rebuild, or a NotReady node deleted
+# above) registers with its inventory-driven labels and taint, so no pod
+# lands on a workstation in the gap before the kubectl tasks below run, and
+# the system-upgrade-controller agent Plan (which excludes node-role=
+# workstation) never selects it. k3s applies --node-label and --node-taint
+# only when the Node object is created; the kubectl tasks below stay as the
+# backstop for nodes registered before these flags existed.
 - name: Install k3s worker node {{ k3s_version | default(k3s_control_plane_version.stdout) }}
   ansible.builtin.command:
     cmd: /usr/local/bin/k3s-install.sh
@@ -66,9 +73,15 @@
     INSTALL_K3S_VERSION: "{{ k3s_version | default(k3s_control_plane_version.stdout) }}"
     K3S_URL: "https://{{ k3s_api_name }}:6443"
     K3S_TOKEN: "{{ k3s_node_token.stdout }}"
-    INSTALL_K3S_EXEC: >-
+    INSTALL_K3S_EXEC: "{{ k3s_agent_exec | trim }}"
+  vars:
+    k3s_agent_exec: >-
       {% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}
       {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
+      {% if nvidia_gpu_node | default(false) %} --node-label=nvidia.com/gpu.present=true{% endif %}
+      {% if intel_gpu_node | default(false) %} --node-label=intel.feature.node.kubernetes.io/gpu=true{% endif %}
+      {% if workstation | default(false) %} --node-label=node-role=workstation
+      --node-taint=workstation=true:NoSchedule{% endif %}
   register: k3s_installed
   changed_when: true
   # The environment carries K3S_TOKEN.
