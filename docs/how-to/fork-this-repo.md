@@ -57,6 +57,8 @@ Per-node variables that matter:
   already on their target disk.
 - `nvidia_gpu_node: true` — enables the NVIDIA driver and container
   toolkit on that node. Required for GPU workloads.
+- `intel_gpu_node: true` — labels a node with an Intel iGPU so the Intel
+  GPU device plugin advertises it as `gpu.intel.com/i915`.
 - `workstation: true` — applies a `NoSchedule` taint. Useful for
   machines that reboot unexpectedly (only tolerating workloads land
   there).

@@ -1,0 +1,44 @@
+# Intel GPU device plugin: advertises gpu.intel.com/i915 on Intel iGPU
+# nodes, so a pod gets /dev/dri through a resource request instead of
+# running privileged.
+# https://github.com/intel/intel-device-plugins-for-kubernetes
+#
+# upstream/ holds the release's plain DaemonSet, vendored so that a sync
+# never fetches from GitHub. To upgrade: copy
+# deployments/gpu_plugin/base/intel-gpu-plugin.yaml from the new release
+# tag into upstream/, keeping its header comment with the new version.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: intel-gpu-plugin
+resources:
+  - namespace.yaml
+  - upstream/intel-gpu-plugin.yaml
+patches:
+  - target:
+      kind: DaemonSet
+      name: intel-gpu-plugin
+    patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: intel-gpu-plugin
+      spec:
+        template:
+          spec:
+            # Only on nodes the k3s role labels for intel_gpu_node hosts.
+            # The label is the one Node Feature Discovery would set, so
+            # NFD can take over later without touching this selector.
+            nodeSelector:
+              intel.feature.node.kubernetes.io/gpu: "true"
+            # An iGPU node may also be a workstation node.
+            tolerations:
+              - key: workstation
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+            containers:
+              - name: intel-gpu-plugin
+                args:
+                  # How many pods may share each GPU. Raise it to let
+                  # more than one pod (e.g. two transcoders) use the iGPU.
+                  - "-shared-dev-num=1"

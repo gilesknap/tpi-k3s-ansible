@@ -37,6 +37,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | `type` | — | Module type: `rk1` or `pi4` |
 | `root_dev` | — | RK1 only: the disk to install the OS on (e.g. `/dev/nvme0n1`) |
 | `nvidia_gpu_node` | `false` | Set `true` on nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true` so the device plugin DaemonSet can schedule. |
+| `intel_gpu_node` | `false` | Set `true` on nodes with an Intel iGPU. Labels the node `intel.feature.node.kubernetes.io/gpu=true` so the Intel GPU device plugin DaemonSet runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node. |
 
 ### `tools` role (`roles/tools/vars/main.yml`)
 

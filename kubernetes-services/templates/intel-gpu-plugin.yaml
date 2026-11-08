@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: intel-gpu-plugin
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: intel-gpu-plugin
+  project: kubernetes
+  sources:
+    # Intel GPU device plugin (upstream DaemonSet, vendored and patched by
+    # kustomize). Advertises gpu.intel.com/i915 on nodes labelled
+    # intel.feature.node.kubernetes.io/gpu=true (set by the k3s worker
+    # role for hosts with intel_gpu_node: true).
+    - path: ./kubernetes-services/additions/intel-gpu-plugin
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
