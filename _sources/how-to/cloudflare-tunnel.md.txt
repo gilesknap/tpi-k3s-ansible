@@ -12,6 +12,11 @@ follow-ups, see the other two Cloudflare how-tos once this one works:
 - {doc}`cloudflare-ssh-tunnel` — add a Cloudflare Access-gated SSH
   tunnel for remote `kubectl` / shell access without opening inbound
   firewall ports.
+
+Once the tunnel and Access are set up, {doc}`cloudflare-as-code` manages
+the same configuration (DNS, tunnel routes, Access, zone settings) as
+OpenTofu code in `cloudflare/`, so later changes are reviewed in the
+repo rather than made in the dashboard.
 :::
 
 This guide sets up three things:

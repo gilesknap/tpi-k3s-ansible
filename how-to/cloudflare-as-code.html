@@ -1,0 +1,821 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Manage Cloudflare as Code (OpenTofu) &#8212; K3s Cluster Commissioning  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/cloudflare-as-code';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Set Up OAuth Authentication" href="oauth-setup.html" />
+    <link rel="prev" title="Expose Web Services via Cloudflare Tunnel" href="cloudflare-web-tunnel.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">K3s Cluster Commissioning</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-To Guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Manage Cloudflare as Code (OpenTofu)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push Notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Manage Cloudflare as Code (OpenTofu)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="manage-cloudflare-as-code-opentofu">
+<h1>Manage Cloudflare as Code (OpenTofu)<a class="headerlink" href="#manage-cloudflare-as-code-opentofu" title="Link to this heading">#</a></h1>
+<p>The cluster’s edge configuration at Cloudflare (DNS records, the tunnel’s
+public hostnames, Zero Trust Access applications and policies, zone
+security settings and cache rules) is described in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> as <a class="reference external" href="https://opentofu.org">OpenTofu</a> code using the
+<a class="reference external" href="https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs">Cloudflare provider</a>.
+Changes are made in the repo and reviewed like any other change, then
+applied by the owner with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, rather than clicked in the
+dashboard.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The other Cloudflare guides (<a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a>,
+<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>, <a class="reference internal" href="cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a>) describe the
+dashboard steps. Once you manage Cloudflare with this code, make the same
+changes in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> instead: a change made in the dashboard shows up
+as drift in the next <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code>, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> reverts it.</p>
+</div>
+<section id="what-is-managed">
+<h2>What is managed<a class="headerlink" href="#what-is-managed" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Contents</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">locals.tf</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>: the list of public services. Each entry is a tunnel ingress rule (in list order, before the 404 catch-all) and a proxied CNAME to the tunnel; <code class="docutils literal notranslate"><span class="pre">cache</span> <span class="pre">=</span> <span class="pre">true</span></code> adds a cache rule for it</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tunnel.tf</span></code></p></td>
+<td><p>The remotely-managed tunnel and its ingress configuration</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dns.tf</span></code></p></td>
+<td><p>The tunnel CNAMEs, plus <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (records that bypass the tunnel)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">access.tf</span></code></p></td>
+<td><p>Reusable policies (Owner, Viewers, bypass, service token) and the Access applications</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">zone.tf</span></code></p></td>
+<td><p>Zone settings (SSL mode, minimum TLS, HSTS, security level, …) and the zone’s cache rules</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">imports.tf</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">import</span></code> blocks that adopt existing objects into state</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">variables.tf</span></code></p></td>
+<td><p>Per-account inputs; the values go in the gitignored <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="login-methods-are-set-up-in-the-dashboard">
+<h3>Login methods are set up in the dashboard<a class="headerlink" href="#login-methods-are-set-up-in-the-dashboard" title="Link to this heading">#</a></h3>
+<p>The Access login methods (identity providers) are <strong>not</strong> managed here:
+Cloudflare never returns an OAuth client secret through its API, so code
+cannot keep a login method in step with what is live. Set them up once in
+the Zero Trust dashboard under <strong>Settings &gt; Authentication &gt; Login
+methods</strong>:</p>
+<ul class="simple">
+<li><p><strong>One-time PIN</strong> (emailed code; no configuration).</p></li>
+<li><p><strong>GitHub</strong>, with the client ID and secret of a GitHub OAuth app whose
+callback URL is <code class="docutils literal notranslate"><span class="pre">https://&lt;team&gt;.cloudflareaccess.com/cdn-cgi/access/callback</span></code>.</p></li>
+</ul>
+<p>The Owner policy requires the GitHub login method and finds it by name
+(<code class="docutils literal notranslate"><span class="pre">owner_login_method</span></code>, default <code class="docutils literal notranslate"><span class="pre">GitHub</span></code>); a plan fails with a clear error
+if no login method of that name exists. A rebuild into a fresh Cloudflare
+account therefore means adding both login methods by hand <strong>before</strong> the
+first <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p>
+</section>
+<section id="also-not-managed">
+<h3>Also not managed<a class="headerlink" href="#also-not-managed" title="Link to this heading">#</a></h3>
+<p>Cloudflare’s managed rulesets (DDoS, the free managed WAF
+ruleset), zone settings left at their defaults, and the Access service
+token’s lifecycle. The service token is looked up by name: its secret is
+shown only once, when it is created, and has to be handed to the client,
+so create or rotate it in the Zero Trust dashboard (<strong>Access &gt; Service
+auth</strong>). The tunnel’s own secret is not managed either: <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>
+runs with the tunnel token held in a SealedSecret. Nor are the zone’s
+(empty) custom WAF ruleset, the Zero Trust organization settings, and the
+Access apps’ <code class="docutils literal notranslate"><span class="pre">eager_redirect_cookie_setting</span></code>, which the provider’s schema
+does not have: check it in the dashboard after changing one of those apps.</p>
+<p>To add a service to the edge, add an entry to <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> (and, if
+it needs something other than the wildcard Owner app, an entry in
+<code class="docutils literal notranslate"><span class="pre">local.access_apps</span></code> in <code class="docutils literal notranslate"><span class="pre">access.tf</span></code>), then plan and apply.</p>
+</section>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>The project devcontainer, which has <code class="docutils literal notranslate"><span class="pre">tofu</span></code> installed (pinned in
+<code class="docutils literal notranslate"><span class="pre">.devcontainer/Dockerfile</span></code>). Run every <code class="docutils literal notranslate"><span class="pre">cf-*</span></code> recipe there.</p></li>
+<li><p>A Cloudflare account with the zone, a remotely-managed tunnel and Zero
+Trust enabled, as set up by the other Cloudflare guides.</p></li>
+</ul>
+</section>
+<section id="create-two-api-tokens">
+<h2>1. Create two API tokens<a class="headerlink" href="#create-two-api-tokens" title="Link to this heading">#</a></h2>
+<p>Plan and apply use separate tokens, and neither is stored in the repo.
+Create both under <strong>My Profile &gt; API Tokens &gt; Create Token &gt; Create
+Custom Token</strong>, scoped to your account and to the cluster’s zone only.</p>
+<p><strong>Plan token (read-only)</strong>: all of these with <strong>Read</strong>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Scope</p></th>
+<th class="head"><p>Permission</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Account</p></td>
+<td><p>Access: Apps and Policies</p></td>
+</tr>
+<tr class="row-odd"><td><p>Account</p></td>
+<td><p>Access: Organizations, Identity Providers, and Groups</p></td>
+</tr>
+<tr class="row-even"><td><p>Account</p></td>
+<td><p>Access: Service Tokens</p></td>
+</tr>
+<tr class="row-odd"><td><p>Account</p></td>
+<td><p>Cloudflare Tunnel</p></td>
+</tr>
+<tr class="row-even"><td><p>Zone</p></td>
+<td><p>Zone</p></td>
+</tr>
+<tr class="row-odd"><td><p>Zone</p></td>
+<td><p>DNS</p></td>
+</tr>
+<tr class="row-even"><td><p>Zone</p></td>
+<td><p>Zone Settings</p></td>
+</tr>
+<tr class="row-odd"><td><p>Zone</p></td>
+<td><p>Cache Rules</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Apply token (edit)</strong>: the same list with <strong>Edit</strong> in place of
+<strong>Read</strong>, except Zone: Zone, Access: Service Tokens and Access:
+Organizations, Identity Providers, and Groups, which stay at Read (those
+are only looked up). Give it a short expiry, or create it
+when you need it and delete it afterwards: it can change your edge.</p>
+<p>The plan token is read from <code class="docutils literal notranslate"><span class="pre">CF_PLAN_TOKEN</span></code>, else from
+<code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code> (gitignored), else you are prompted.
+The apply token is read from <code class="docutils literal notranslate"><span class="pre">CF_APPLY_TOKEN</span></code>, else you are prompted;
+it is deliberately never read from a file.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span><span class="m">700</span><span class="w"> </span>cloudflare/.secrets
+<span class="nb">read</span><span class="w"> </span>-rsp<span class="w"> </span><span class="s1">&#39;Plan token: &#39;</span><span class="w"> </span>t<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>cloudflare/.secrets/plan-token<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">unset</span><span class="w"> </span>t
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>cloudflare/.secrets/plan-token
+</pre></div>
+</div>
+</section>
+<section id="state-and-its-encryption-key">
+<h2>2. State and its encryption key<a class="headerlink" href="#state-and-its-encryption-key" title="Link to this heading">#</a></h2>
+<p>State is <strong>local</strong> (<code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code>, gitignored) and
+encrypted with OpenTofu’s
+<a class="reference external" href="https://opentofu.org/docs/language/state/encryption/">state encryption</a>
+(PBKDF2 key from a passphrase, AES-GCM). Saved plan files are encrypted
+the same way. State holds the IDs and settings of everything managed,
+including owner and viewer emails, which is why it is encrypted and kept
+out of git.</p>
+<p>The passphrase (16 characters or more) is read from
+<code class="docutils literal notranslate"><span class="pre">TF_VAR_state_passphrase</span></code>, else from <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code>
+(gitignored), else you are prompted:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>openssl<span class="w"> </span>rand<span class="w"> </span>-base64<span class="w"> </span><span class="m">24</span><span class="w"> </span>&gt;<span class="w"> </span>cloudflare/.secrets/state-passphrase
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>cloudflare/.secrets/state-passphrase
+</pre></div>
+</div>
+<p>Keep a copy of the passphrase in your password manager. <strong>Without it the
+state cannot be read</strong>; the encrypted state file itself is safe to copy
+to a backup location such as the NAS.</p>
+<p>If the state is lost, nothing at Cloudflare is affected: recreate it by
+filling <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> again and running a plan and apply, which imports
+the objects afresh.</p>
+</section>
+<section id="fill-in-the-account-values">
+<h2>3. Fill in the account values<a class="headerlink" href="#fill-in-the-account-values" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>cloudflare/live.auto.tfvars.example<span class="w"> </span>cloudflare/live.auto.tfvars
+</pre></div>
+</div>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code> (gitignored): account and zone IDs,
+domain, team name, tunnel name, owner and viewer emails, any DNS-only
+records, and the IDs of the existing
+objects for the import blocks. Owner and viewer emails live here, not in
+the code, because the repo is public.</p>
+<p>The IDs come from the API (read-only calls with the plan token), for
+example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">T</span><span class="o">=</span><span class="k">$(</span>cat<span class="w"> </span>cloudflare/.secrets/plan-token<span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="nv">A</span><span class="o">=</span>&lt;account_id&gt;<span class="p">;</span><span class="w"> </span><span class="nv">Z</span><span class="o">=</span>&lt;zone_id&gt;
+api<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$T</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;https://api.cloudflare.com/client/v4/</span><span class="nv">$1</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">$Z</span><span class="s2">/dns_records?per_page=100&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
+api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="nv">$A</span><span class="s2">/cfd_tunnel?is_deleted=false&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
+api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="nv">$A</span><span class="s2">/access/apps&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
+api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="nv">$A</span><span class="s2">/access/policies&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
+api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">$Z</span><span class="s2">/rulesets&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | select(.phase == &quot;http_request_cache_settings&quot;) | .id&#39;</span>
+</pre></div>
+</div>
+<p>The cache rule’s <code class="docutils literal notranslate"><span class="pre">ref</span></code>, for <code class="docutils literal notranslate"><span class="pre">cache_rule_refs</span></code>, is in
+<code class="docutils literal notranslate"><span class="pre">api</span> <span class="pre">&quot;zones/$Z/rulesets/&lt;ruleset_id&gt;&quot;</span></code> under <code class="docutils literal notranslate"><span class="pre">.result.rules[].ref</span></code>.</p>
+<p>For a fresh account with none of these objects yet, leave <code class="docutils literal notranslate"><span class="pre">import_ids</span></code>
+empty: the plan then creates everything.</p>
+</section>
+<section id="first-init-and-plan">
+<h2>4. First init and plan<a class="headerlink" href="#first-init-and-plan" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>cf-init
+just<span class="w"> </span>cf-plan
+</pre></div>
+</div>
+<p>The first plan after filling <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> must show only imports:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Plan</span><span class="p">:</span> <span class="n">N</span> <span class="n">to</span> <span class="n">import</span><span class="p">,</span> <span class="mi">0</span> <span class="n">to</span> <span class="n">add</span><span class="p">,</span> <span class="mi">0</span> <span class="n">to</span> <span class="n">change</span><span class="p">,</span> <span class="mi">0</span> <span class="n">to</span> <span class="n">destroy</span><span class="o">.</span>
+</pre></div>
+</div>
+<p>Any <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">add</span></code>, <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">change</span></code> or <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">destroy</span></code> means the code does not match
+the live configuration: fix the code (or the values in
+<code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>) until it shows none. Then record the imports in
+state:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>cf-apply
+</pre></div>
+</div>
+<p>That apply only writes state (imports make no changes at Cloudflare), so
+the read-only plan token is enough for it: give that at the prompt.
+From then on <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> should print <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">changes.</span> <span class="pre">Your</span> <span class="pre">infrastructure</span> <span class="pre">matches</span> <span class="pre">the</span> <span class="pre">configuration.</span></code> and the import blocks are
+no-ops.</p>
+</section>
+<section id="day-to-day">
+<h2>Day to day<a class="headerlink" href="#day-to-day" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Change <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> in a branch.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> and check that the plan does what you meant.</p></li>
+<li><p>Open the PR; CI runs <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">fmt</span> <span class="pre">-check</span></code> and <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">validate</span></code> (no
+credentials, no Cloudflare access).</p></li>
+<li><p>After review, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> with the edit token, then merge.</p></li>
+</ol>
+<p>Extra arguments pass through to <code class="docutils literal notranslate"><span class="pre">tofu</span></code>, for example
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span> <span class="pre">-target=cloudflare_dns_record.tunnel</span></code>.</p>
+</section>
+<section id="later-state-in-an-s3-compatible-bucket">
+<h2>Later: state in an S3-compatible bucket<a class="headerlink" href="#later-state-in-an-s3-compatible-bucket" title="Link to this heading">#</a></h2>
+<p>Local state suits a single operator. To share it, or to run <code class="docutils literal notranslate"><span class="pre">plan</span></code> in
+CI, move it to an S3-compatible bucket (for example Backblaze B2) by
+adding a backend to <code class="docutils literal notranslate"><span class="pre">cloudflare/versions.tf</span></code>:</p>
+<div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="nb">terraform</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kr">backend</span><span class="w"> </span><span class="nv">&quot;s3&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="na">bucket</span><span class="w">                      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&lt;bucket&gt;&quot;</span>
+<span class="w">    </span><span class="na">key</span><span class="w">                         </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;cloudflare/terraform.tfstate&quot;</span>
+<span class="w">    </span><span class="na">region</span><span class="w">                      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&lt;region&gt;&quot;</span>
+<span class="w">    </span><span class="nb">endpoints</span><span class="w">                   </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="na">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://s3.&lt;region&gt;.backblazeb2.com&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="na">skip_credentials_validation</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">    </span><span class="na">skip_region_validation</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">    </span><span class="na">skip_requesting_account_id</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">    </span><span class="na">skip_s3_checksum</span><span class="w">            </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">    </span><span class="na">use_path_style</span><span class="w">              </span><span class="o">=</span><span class="w"> </span><span class="no">true</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>then, with the bucket’s key in <code class="docutils literal notranslate"><span class="pre">AWS_ACCESS_KEY_ID</span></code> and
+<code class="docutils literal notranslate"><span class="pre">AWS_SECRET_ACCESS_KEY</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>cloudflare<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>tofu<span class="w"> </span>init<span class="w"> </span>-migrate-state
+</pre></div>
+</div>
+<p>The state stays encrypted with the same passphrase, so the bucket only
+ever holds ciphertext. This backend has no state locking unless you add
+<code class="docutils literal notranslate"><span class="pre">use_lockfile</span> <span class="pre">=</span> <span class="pre">true</span></code>, which needs a bucket that supports conditional
+writes; with one operator that is acceptable.</p>
+</section>
+<section id="next-removing-drift">
+<h2>Next: removing drift<a class="headerlink" href="#next-removing-drift" title="Link to this heading">#</a></h2>
+<p>The first version of this code imports the live configuration exactly,
+including entries for services the cluster no longer runs. Remove those
+in a reviewed change: delete the entry from <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> or
+<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (and any Access app that only served it), check that
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> destroys exactly those objects, and apply.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cloudflare-web-tunnel.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Expose Web Services via Cloudflare Tunnel</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="oauth-setup.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Set Up OAuth Authentication</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-managed">What is managed</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#login-methods-are-set-up-in-the-dashboard">Login methods are set up in the dashboard</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#also-not-managed">Also not managed</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-two-api-tokens">1. Create two API tokens</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#state-and-its-encryption-key">2. State and its encryption key</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fill-in-the-account-values">3. Fill in the account values</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#first-init-and-plan">4. First init and plan</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day">Day to day</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#later-state-in-an-s3-compatible-bucket">Later: state in an S3-compatible bucket</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-removing-drift">Next: removing drift</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/cloudflare-as-code.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/cloudflare-as-code.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
