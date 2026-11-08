@@ -116,7 +116,7 @@ hardware and want the full experience out of the box.
 | scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
-| system-upgrade-controller | Upstream release manifests | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |
+| system-upgrade-controller | Upstream release manifests (vendored) | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |
 
 ## Service details
 
@@ -408,6 +408,12 @@ render node has another number, use the one `ls` printed.
 Rancher's controller plus two Plans (`additions/k3s-upgrade-plans/`) that keep
 the nodes on the newest k3s patch of `k3s.minor`, in the nightly upgrade
 window. Workstation nodes are excluded. See {doc}`/how-to/upgrade-k3s`.
+
+The controller's manifests are vendored unchanged from its GitHub release in
+`additions/system-upgrade-controller/`, so a sync or rebuild does not depend
+on GitHub release downloads. To upgrade it, re-download both files and update
+the version and sha256 sums, as the `kustomization.yaml` header there
+describes, and the version in the table above.
 
 ### Sealed Secrets
 

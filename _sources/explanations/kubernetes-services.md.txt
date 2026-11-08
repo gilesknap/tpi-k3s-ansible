@@ -37,6 +37,7 @@ kubernetes-services/
     ├── intel-gpu-plugin/   # Vendored Intel GPU plugin DaemonSet + patch
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
     ├── oauth2-proxy/       # SealedSecret for OAuth config
+    ├── system-upgrade-controller/  # Vendored upstream release manifests
     └── vps-relay/          # Tailscale + frpc Deployment, generated frpc.toml
 ```
 
