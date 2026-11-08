@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Run OpenTofu on the Cloudflare config in cloudflare/ with the right
+# credentials. See docs/how-to/cloudflare-as-code.md.
+#
+#   scripts/cf-tofu init           # download the provider
+#   scripts/cf-tofu plan  [args]   # read-only token
+#   scripts/cf-tofu apply [args]   # edit token, asks before changing anything
+#
+# State encryption passphrase: $TF_VAR_state_passphrase, else
+#   cloudflare/.secrets/state-passphrase, else a prompt.
+# Plan token: $CF_PLAN_TOKEN, else cloudflare/.secrets/plan-token, else a prompt.
+# Apply token: $CF_APPLY_TOKEN, else a prompt (never read from a file).
+set -euo pipefail
+
+cd "$(dirname "$0")/../cloudflare"
+secrets=.secrets
+
+usage() { echo "usage: $0 init|plan|apply [tofu args]" >&2; exit 1; }
+[[ $# -ge 1 ]] || usage
+action=$1
+shift
+
+command -v tofu >/dev/null || { echo "ERROR: tofu not found; run this in the devcontainer" >&2; exit 1; }
+
+# read_secret VAR FILE PROMPT: print the value of $VAR, else FILE's
+# contents, else what the user types (not echoed).
+read_secret() {
+    local value=${!1:-}
+    if [[ -z $value && -n $2 && -r $2 ]]; then
+        value=$(<"$2")
+    fi
+    if [[ -z $value ]]; then
+        read -rsp "$3: " value </dev/tty
+        echo >&2
+    fi
+    [[ -n $value ]] || { echo "ERROR: no value for $1" >&2; exit 1; }
+    printf '%s' "$value"
+}
+
+need_tfvars() {
+    [[ -f live.auto.tfvars ]] || {
+        echo "ERROR: cloudflare/live.auto.tfvars is missing; copy live.auto.tfvars.example and fill it in" >&2
+        exit 1
+    }
+}
+
+TF_VAR_state_passphrase=$(read_secret TF_VAR_state_passphrase "$secrets/state-passphrase" \
+    "State encryption passphrase")
+export TF_VAR_state_passphrase
+
+case $action in
+    init)
+        tofu init -input=false "$@"
+        ;;
+    plan)
+        need_tfvars
+        CLOUDFLARE_API_TOKEN=$(read_secret CF_PLAN_TOKEN "$secrets/plan-token" \
+            "Cloudflare read-only (plan) API token")
+        export CLOUDFLARE_API_TOKEN
+        tofu plan -input=false "$@"
+        ;;
+    apply)
+        need_tfvars
+        CLOUDFLARE_API_TOKEN=$(read_secret CF_APPLY_TOKEN "" "Cloudflare edit (apply) API token")
+        export CLOUDFLARE_API_TOKEN
+        # tofu shows the plan and asks for "yes" before it changes anything.
+        tofu apply "$@"
+        ;;
+    *)
+        usage
+        ;;
+esac
