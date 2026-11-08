@@ -92,7 +92,7 @@ certificates, and optionally exposes services to the internet.
 Other guides:
 
 - {doc}`../reference/services` — pick which services your cluster should run
-  (quick-start configurations: AI memory, monitoring, full stack)
+  (quick-start configurations: monitoring, Minecraft, full stack)
 - {doc}`manage-sealed-secrets` — manage encrypted secrets in the repository
 - {doc}`add-remove-services` — customise which services are deployed
 - {doc}`nas-setup` — create the NFS share layout used by backup CronJobs
