@@ -22,11 +22,6 @@ variable "domain" {
   type        = string
 }
 
-variable "access_team_name" {
-  description = "Zero Trust team name (the <team> in <team>.cloudflareaccess.com)."
-  type        = string
-}
-
 variable "tunnel_name" {
   description = "Name of the remotely-managed cloudflared tunnel."
   type        = string

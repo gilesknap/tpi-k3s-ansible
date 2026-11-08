@@ -131,11 +131,19 @@ locals {
       uris     = ["${local.tunnel_hostnames["scrap"]}/mcp"]
       policies = [cloudflare_zero_trust_access_policy.scrap_mcp.id]
     }
+    # ntfy: the phone app cannot do an Access login, so bypass Access;
+    # ntfy's token auth is the gate. This app is more specific than
+    # clusterapps' wildcard, so it takes precedence for ntfy's hostname.
+    ntfy = {
+      name     = "ntfy"
+      uris     = [local.tunnel_hostnames["ntfy"]]
+      policies = [cloudflare_zero_trust_access_policy.bypass.id]
+    }
   }
 }
 
-# Not in the provider's schema, so not managed: the live apps other than
-# clusterapps have eager_redirect_cookie_setting = true. An update to one
+# Not in the provider's schema, so not managed: the imported apps other
+# than clusterapps have eager_redirect_cookie_setting = true. An update to one
 # of those apps from here may reset it; check it in the dashboard after.
 resource "cloudflare_zero_trust_access_application" "app" {
   for_each = local.access_apps

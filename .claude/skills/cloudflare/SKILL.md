@@ -12,14 +12,16 @@ description: Cloudflare Tunnel and Access configuration for exposing K3s service
 
 ## Exposed Services
 Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, minecraft, ntfy
-- `ntfy.<domain>` needs an Access **Bypass** app (the phone app cannot do
-  the Access login); ntfy's own token auth is the gate (docs/how-to/ntfy.md)
+- `ntfy.<domain>` has an Access **Bypass** app (the phone app cannot do
+  the Access login) and the zone's one Free-plan rate-limiting rule
+  (path-based: Free cannot match the hostname), both in `cloudflare/`;
+  ntfy's own token auth is the gate (docs/how-to/ntfy.md)
 - `mc.<domain>` (Minecraft game port) is deliberately NOT a tunnel route — it is a
   DNS-only A record on the VPS relay's public IP (`additions/vps-relay/`)
 
 ## Gotchas
 - **Edge config is code in `cloudflare/` (OpenTofu)**: tunnel routes, DNS,
-  Access apps and policies, zone settings, cache rules (login methods are
+  Access apps and policies, zone settings, cache and rate-limiting rules (login methods are
   dashboard-only)
   (docs/how-to/cloudflare-as-code.md). Change it there, `just cf-plan`
   (read-only token) and the owner runs `just cf-apply`; a dashboard edit
