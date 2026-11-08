@@ -20,12 +20,17 @@ cache_duration: 12h
 message_daily_limit: 500
 
 # Namespaces whose pods may reach ntfy directly. ingress-nginx carries all
-# external traffic (Cloudflare tunnel); add a namespace here only for an
-# in-cluster publisher. monitoring: Alertmanager publishes cluster alerts to
-# the Service (kubernetes-services/templates/grafana.yaml).
+# external traffic (Cloudflare tunnel).
 allowed_namespaces:
   - ingress-nginx
-  - monitoring
+
+# In-cluster publishers that reach ntfy directly: only the pods with these
+# labels in that namespace. Alertmanager publishes cluster alerts to the
+# Service (kubernetes-services/templates/grafana.yaml).
+allowed_pods:
+  - namespace: monitoring
+    labels:
+      app.kubernetes.io/name: alertmanager
 
 # Topic access for the provisioned users. Every user named here must be in
 # SENDERS in scripts/lib/ntfy_auth.py (and so in the ntfy-auth

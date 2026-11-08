@@ -62,10 +62,10 @@ longer configured. Nobody runs `ntfy user add`.
 - The user names are listed once, in `SENDERS` in
   `scripts/lib/ntfy_auth.py`; every script derives them from there.
 
-The NetworkPolicy admits only `ingress-nginx` and `monitoring` (the
-`allowed_namespaces` value) to the pod: `monitoring` for Alertmanager, which
-publishes to the Service directly. Another in-cluster publisher adds its
-namespace there. This limits who reaches the pod
+The NetworkPolicy admits only `ingress-nginx` (the `allowed_namespaces`
+value) and the Alertmanager pods in `monitoring` (`allowed_pods`), which
+publish to the Service directly. Another in-cluster publisher adds its pods
+to `allowed_pods`. This limits who reaches the pod
 *directly*; anything that can reach ingress-nginx can still talk to ntfy
 through it, so ntfy's token auth is the real gate.
 
@@ -109,8 +109,10 @@ local volume could not deliver them. SQLite is never put on NFS.
 
    It keeps every value already in the live `ntfy-auth` Secret and generates
    the rest, then seals the result into
-   `kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml`.
-   No value is printed. Commit and push it. A cluster rebuild does this
+   `kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml`,
+   and Alertmanager's copy of its token into
+   `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml`.
+   No value is printed. Commit and push both. A cluster rebuild does this
    for you (see [Rebuilds](#rebuilds)).
 
 2. Add the tunnel route, the Access bypass and the rate limit

@@ -179,6 +179,7 @@ if has_secret ntfy-auth ntfy; then
     # e.g. alertmanager-ntfy in monitoring, from the same ntfy-auth data.
     ntfy_copies=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" copies) || exit 1
     while read -r user ns name path; do
+        [ -n "$user" ] || continue
         echo "Sealing: $name ($ns)..."
         v=$(get_key ntfy-auth ntfy "$user-token") || exit 1
         kubectl create secret generic "$name" --namespace="$ns" \

@@ -106,12 +106,19 @@ block in `kubernetes-services/templates/grafana.yaml`.
   alerts.
 - **Planned outages:** powering a node off fires `KubeNodeNotReady` after 15
   minutes (cordoning or draining does not). Silence it first in the
-  Alertmanager UI, or with `amtool silence add node=<node> --duration=2h`.
+  Alertmanager UI, or with:
+
+  ```bash
+  kubectl exec -n monitoring \
+    alertmanager-grafana-prometheus-kube-pr-alertmanager-0 -c alertmanager -- \
+    amtool --alertmanager.url=http://localhost:9093 silence add \
+    node=<node> --duration=2h --comment="planned outage"
+  ```
 
 Alertmanager posts to the ntfy Service inside the cluster
 (`http://ntfy.ntfy.svc.cluster.local`), not through Cloudflare; ntfy's
-NetworkPolicy admits the `monitoring` namespace for this (`allowed_namespaces`
-in `kubernetes-services/additions/ntfy/values.yaml`). It authenticates as the
+NetworkPolicy admits the Alertmanager pods for this (`allowed_pods` in
+`kubernetes-services/additions/ntfy/values.yaml`). It authenticates as the
 ntfy `alertmanager` user, which can only publish to `cluster-alerts`, with a
 Bearer token read from the `alertmanager-ntfy` Secret (key `token`). That
 Secret is a copy of the `alertmanager-token` key of `ntfy-auth`, as a pod can

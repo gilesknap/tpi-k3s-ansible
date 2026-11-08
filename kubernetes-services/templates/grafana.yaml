@@ -160,7 +160,12 @@ spec:
               inhibit_rules:
                 # Chart defaults: a critical mutes its own warning/info, a
                 # warning its own info; InfoInhibitor mutes info alerts in its
-                # namespace and is itself always muted.
+                # namespace and is itself always muted. The first two also
+                # match instance, mountpoint and persistentvolumeclaim (a
+                # label absent from both alerts counts as equal), so a
+                # critical on one node or volume does not mute the warning
+                # on another: node-exporter alerts all have namespace
+                # monitoring.
                 - source_matchers:
                     - severity="critical"
                   target_matchers:
@@ -168,6 +173,9 @@ spec:
                   equal:
                     - namespace
                     - alertname
+                    - instance
+                    - mountpoint
+                    - persistentvolumeclaim
                 - source_matchers:
                     - severity="warning"
                   target_matchers:
@@ -175,6 +183,9 @@ spec:
                   equal:
                     - namespace
                     - alertname
+                    - instance
+                    - mountpoint
+                    - persistentvolumeclaim
                 - source_matchers:
                     - alertname="InfoInhibitor"
                   target_matchers:
@@ -204,7 +215,7 @@ spec:
                 - name: ntfy
                   webhook_configs:
                     # In-cluster, straight to the ntfy Service (its
-                    # NetworkPolicy admits the monitoring namespace). ntfy
+                    # NetworkPolicy admits the Alertmanager pods). ntfy
                     # formats the webhook JSON with its alertmanager-cluster
                     # template (kubernetes-services/additions/ntfy/files/).
                     - url: http://ntfy.ntfy.svc.cluster.local/cluster-alerts?template=alertmanager-cluster&click=https://alertmanager.{{ .Values.cluster_domain }}/

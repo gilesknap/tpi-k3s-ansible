@@ -10,6 +10,11 @@
 # Priority: 5 (urgent) while any critical alert in the group is firing,
 # 3 (default) for other firing alerts, 2 (low) once the group has resolved.
 # ntfy cannot template tags, so the title carries the state instead.
+# Criticals and warnings never share a group: they reach the receiver
+# through different routes, so a truncated group cannot hide a critical.
+#
+# For alerts on kube-state-metrics or node-exporter series, namespace and
+# pod are the exporter's own, not the affected object's, so are left out.
 title: |
   {{- $name := (first .alerts).labels.alertname -}}
   {{- if eq .status "resolved" -}}
@@ -21,10 +26,11 @@ message: |
   {{- range .alerts }}
   {{ if eq .status "firing" }}FIRING{{ else }}resolved{{ end }} · {{ default "no severity" .labels.severity }}
   {{- with .labels.node }} · node {{ . }}{{ else }}{{ with .labels.instance }} · {{ . }}{{ end }}{{ end }}
-  {{- with .labels.namespace }} · {{ . }}{{ end }}
+  {{- $exporter := has (default "" .labels.job) (list "kube-state-metrics" "node-exporter") }}
+  {{- if not $exporter }}{{ with .labels.namespace }} · {{ . }}{{ end }}{{ end }}
   {{- with .labels.persistentvolumeclaim }} · pvc {{ . }}{{ end }}
   {{- with .labels.mountpoint }} · {{ . }}{{ end }}
-  {{- with .labels.pod }} · pod {{ . }}{{ end }}
+  {{- if not $exporter }}{{ with .labels.pod }} · pod {{ . }}{{ end }}{{ end }}
   {{- with .annotations.summary }}
   {{ trunc 160 . }}
   {{- end }}

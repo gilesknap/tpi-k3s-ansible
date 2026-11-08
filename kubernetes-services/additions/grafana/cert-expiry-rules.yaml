@@ -3,7 +3,8 @@
 # Let's Encrypt certificate 30 days before it expires, so one still under
 # 14 days means renewals are failing (check `kubectl describe certificate`
 # and the cert-manager logs). Both are pushed to the phone; the chart's
-# inhibit rule mutes the warning while the critical fires.
+# inhibit rule mutes the warning while the critical fires. A Certificate
+# not issued yet reports 0, which is not an expiry and is left out.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -19,6 +20,7 @@ spec:
           expr: >-
             certmanager_certificate_expiration_timestamp_seconds - time()
             < 14 * 86400
+            and certmanager_certificate_expiration_timestamp_seconds > 0
           for: 1h
           labels:
             severity: warning
@@ -35,6 +37,7 @@ spec:
           expr: >-
             certmanager_certificate_expiration_timestamp_seconds - time()
             < 7 * 86400
+            and certmanager_certificate_expiration_timestamp_seconds > 0
           for: 1h
           labels:
             severity: critical
