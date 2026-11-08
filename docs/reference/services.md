@@ -107,6 +107,7 @@ hardware and want the full experience out of the box.
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | Intel GPU device plugin | Upstream release manifests (vendored) | v0.37.1 | `intel-gpu-plugin` | — | — | Advertises `gpu.intel.com/i915` on Intel iGPU nodes |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
+| Jellyfin | `jellyfin/jellyfin` | 3.6.0 (image 12.3) | `jellyfin` | — (LAN and Tailscale) | Jellyfin users | Media server with Intel GPU transcoding (optional) |
 | kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
@@ -216,6 +217,21 @@ DaemonSet that reboots a node when `/var/run/reboot-required` exists, inside
 the nightly reboot window, one node at a time, after draining it. Runs on the
 control plane but not on workstation nodes. Exposes `kured_*` metrics to
 Prometheus. See {doc}`/explanations/upgrade-model`.
+
+### Jellyfin
+
+Optional (`enable_jellyfin`). The upstream
+[jellyfin/jellyfin](https://github.com/jellyfin/jellyfin-helm) chart, pinned
+to one node: `/config` is a static `local-nvme` PV there
+(`local_storage.jellyfin`), and the pod requests that node's Intel iGPU
+(`gpu.intel.com/i915: 1`, see [Intel GPU device plugin](#intel-gpu-device-plugin))
+with the node's `render` and `video` groups in `supplementalGroups`. It runs as
+a fixed uid/gid (`jellyfin.uid`/`gid`). The media library is a static
+read-only NFS PV, mounted at the path a host install used. No Ingress and no
+Cloudflare route: LAN and Tailscale only, with `hostNetwork` (off in a trial,
+`jellyfin.host_network`). No PodDisruptionBudget, so kured can drain the node.
+
+See {doc}`/how-to/jellyfin`.
 
 ### Minecraft dashboard
 

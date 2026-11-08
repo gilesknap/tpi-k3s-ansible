@@ -20,6 +20,7 @@ how-to/nas-setup
 :maxdepth: 1
 :caption: Optional Features
 
+how-to/jellyfin
 how-to/minecraft
 how-to/ntfy
 how-to/scrap

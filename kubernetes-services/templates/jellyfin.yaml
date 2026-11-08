@@ -1,0 +1,203 @@
+{{- if .Values.enable_jellyfin }}
+{{- $jf := .Values.jellyfin }}
+{{- $pv := required "local_storage.jellyfin is required with enable_jellyfin" .Values.local_storage.jellyfin }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jellyfin
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jellyfin
+  project: kubernetes
+  sources:
+    # Jellyfin media server: the upstream chart.
+    # https://github.com/jellyfin/jellyfin-helm/blob/master/charts/jellyfin/values.yaml
+    # LAN and Tailscale only: no Ingress and no Cloudflare route.
+    # See docs/how-to/jellyfin.md.
+    - chart: jellyfin
+      repoURL: https://jellyfin.github.io/jellyfin-helm
+      targetRevision: {{ $jf.chart_version | quote }}
+      helm:
+        releaseName: jellyfin
+        valuesObject:
+          image:
+            repository: docker.io/jellyfin/jellyfin
+            tag: {{ $jf.image_tag | quote }}
+
+          # One pod on an RWO volume and one SQLite database: never two.
+          deploymentStrategy:
+            type: Recreate
+
+          # Pinned to the node that holds the config volume and the GPU. The
+          # local PV's nodeAffinity pins it too; this makes it explicit.
+          nodeSelector:
+            kubernetes.io/hostname: {{ $pv.node }}
+
+          # hostNetwork: off for the trial (ClusterIP only, reached by
+          # kubectl port-forward, so it cannot clash with a host install on
+          # 8096/7359). The cutover switches it on: see jellyfin.host_network.
+          podPrivileges:
+            hostNetwork: {{ $jf.host_network }}
+          dnsPolicy: {{ if $jf.host_network }}ClusterFirstWithHostNet{{ else }}ClusterFirst{{ end }}
+
+          serviceAccount:
+            automount: false
+
+          # The pod runs as the node's own jellyfin account, so files on the
+          # volume keep the owner a host install would give them.
+          # supplementalGroups: the node's render group (for
+          # /dev/dri/renderD*, root:render 0660, mounted by the Intel GPU
+          # device plugin) and video (for /dev/dri/card*).
+          podSecurityContext:
+            runAsUser: {{ $jf.uid }}
+            runAsGroup: {{ $jf.gid }}
+            runAsNonRoot: true
+            fsGroup: {{ $jf.gid }}
+            fsGroupChangePolicy: OnRootMismatch
+            supplementalGroups:
+              - {{ $jf.render_gid }}
+              - {{ $jf.video_gid }}
+            seccompProfile:
+              type: RuntimeDefault
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          # Generous probes: the first library scan or a database migration
+          # after an upgrade can keep /health slow for minutes. Startup allows
+          # 10 minutes; after that, liveness restarts the pod only after
+          # about 5 minutes of failures.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # No CPU limit: a transcode burst would be throttled. The GPU comes
+          # from the Intel GPU device plugin, not a privileged pod.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+              gpu.intel.com/i915: 1
+
+          jellyfin:
+            env:
+              # The cache (images, and transcodes/ under it) goes on a
+              # size-limited emptyDir; the chart's own /cache emptyDir has no
+              # sizeLimit and stays unused.
+              - name: JELLYFIN_CACHE_DIR
+                value: /var/cache/jellyfin
+
+          persistence:
+            # /config: the static local-nvme PV (local_storage.jellyfin).
+            config:
+              enabled: true
+              type: pvc
+              existingClaim: {{ $pv.claim_name }}
+            # The chart's /media is unused (an emptyDir): the library is
+            # mounted below at the path a host install uses, so imported
+            # library paths match. Not read-only, so the runtime can create
+            # that mount point inside it.
+            media:
+              enabled: false
+              readOnly: false
+            cache:
+              enabled: false
+
+          volumes:
+            - name: media-nas
+              persistentVolumeClaim:
+                claimName: jellyfin-media
+                readOnly: true
+            - name: cache-sized
+              emptyDir:
+                sizeLimit: {{ $jf.cache_size }}
+          volumeMounts:
+            - name: media-nas
+              mountPath: {{ $jf.media.mount_path }}
+              readOnly: true
+            - name: cache-sized
+              mountPath: /var/cache/jellyfin
+
+          {{- if $jf.trial }}
+          # Trial only: mark the config volume as throwaway, so the cutover
+          # can clear it safely (it deletes the volume's contents only when
+          # this marker is there). The marker is written only on an empty
+          # volume or one already marked, so a trial re-enabled later (for
+          # example by reverting the cutover) never marks real data.
+          # See docs/how-to/jellyfin.md.
+          extraInitContainers:
+            - name: mark-trial
+              image: docker.io/jellyfin/jellyfin:{{ $jf.image_tag }}
+              command:
+                - sh
+                - -c
+                - >-
+                  m=/config/TRIAL-CONFIG-SAFE-TO-DELETE;
+                  if [ -z "$(ls -A /config)" ] || [ -e "$m" ]; then
+                  touch "$m";
+                  else echo "/config holds unmarked data: not marking it as a trial";
+                  fi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+          {{- end }}
+
+    # The config claim and the read-only media NFS volume.
+    - path: ./kubernetes-services/additions/jellyfin
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          config:
+            claim: {{ $pv.claim_name }}
+            volume: jellyfin-local
+            size: {{ $pv.capacity }}
+          media:
+            claim: jellyfin-media
+            volume: jellyfin-media-nfs
+            server: {{ .Values.nfs.server | quote }}
+            path: {{ $jf.media.nfs_path | quote }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

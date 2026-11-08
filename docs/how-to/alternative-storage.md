@@ -57,6 +57,8 @@ grep -rn local-nvme kubernetes-services/templates/
 Expect hits in `grafana.yaml`. Change `storageClassName: local-nvme` to
 your provider's class. scrap uses static NFS volumes instead ({doc}`scrap`);
 drop its `local_storage` entries (`scrap`, `scrap_backup_copy`) too.
+Jellyfin's config claim (`additions/jellyfin/templates/config-pvc.yaml`)
+names `local-nvme` as well; change it with the `jellyfin` entry.
 
 :::{tip}
 If your replacement storage provider registers itself as the **default**
