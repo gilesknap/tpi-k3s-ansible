@@ -141,8 +141,9 @@ cp $HOME/.ssh/ansible_rsa.pub <repo-path>/pub_keys/ansible_rsa.pub
 For Turing Pi users, remind them to copy the key to BMC(s) per the tutorial.
 For generic servers, remind them to (1) add their hosts to the
 `extra_nodes` group in `hosts.yml` first, then (2) run
-`ansible-playbook pb_add_nodes.yml` (they'll be prompted for an existing
-user and password to seed the `ansible` account via SSH key + sudoers).
+`ansible-playbook pb_add_nodes.yml -e ansible_user=<existing-user> -K`
+themselves (`-K` prompts for that user's sudo password; this seeds the
+`ansible` account via SSH key + sudoers).
 
 ## Phase 4: Run the playbook
 
