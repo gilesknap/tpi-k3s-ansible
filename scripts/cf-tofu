@@ -10,8 +10,6 @@
 #   cloudflare/.secrets/state-passphrase, else a prompt.
 # Plan token: $CF_PLAN_TOKEN, else cloudflare/.secrets/plan-token, else a prompt.
 # Apply token: $CF_APPLY_TOKEN, else a prompt (never read from a file).
-# GitHub login client secret (optional): $TF_VAR_github_client_secret, else
-#   cloudflare/.secrets/github-client-secret if it exists.
 set -euo pipefail
 
 cd "$(dirname "$0")/../cloudflare"
@@ -49,11 +47,6 @@ need_tfvars() {
 TF_VAR_state_passphrase=$(read_secret TF_VAR_state_passphrase "$secrets/state-passphrase" \
     "State encryption passphrase")
 export TF_VAR_state_passphrase
-
-if [[ -z ${TF_VAR_github_client_secret:-} && -s $secrets/github-client-secret ]]; then
-    TF_VAR_github_client_secret=$(tr -d '\r\n' <"$secrets/github-client-secret")
-    export TF_VAR_github_client_secret
-fi
 
 case $action in
     init)

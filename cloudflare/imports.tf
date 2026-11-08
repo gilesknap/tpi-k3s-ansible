@@ -25,18 +25,6 @@ import {
 }
 
 import {
-  for_each = { for k, v in var.import_ids.idps : k => v if k == "otp" }
-  to       = cloudflare_zero_trust_access_identity_provider.otp
-  id       = "accounts/${var.account_id}/${each.value}"
-}
-
-import {
-  for_each = { for k, v in var.import_ids.idps : k => v if k == "github" }
-  to       = cloudflare_zero_trust_access_identity_provider.github
-  id       = "accounts/${var.account_id}/${each.value}"
-}
-
-import {
   for_each = { for k, v in var.import_ids.access_policies : k => v if k == "owner" }
   to       = cloudflare_zero_trust_access_policy.owner
   id       = "${var.account_id}/${each.value}"
@@ -99,10 +87,9 @@ check "dns_import_keys" {
 
 check "import_keys" {
   assert {
-    condition = alltrue(concat(
-      [for k in keys(var.import_ids.idps) : contains(["otp", "github"], k)],
-      [for k in keys(var.import_ids.access_policies) : contains(["owner", "viewers", "bypass", "scrap_mcp"], k)],
-    ))
-    error_message = "import_ids.idps keys must be otp or github; import_ids.access_policies keys must be owner, viewers, bypass or scrap_mcp."
+    condition = alltrue([
+      for k in keys(var.import_ids.access_policies) : contains(["owner", "viewers", "bypass", "scrap_mcp"], k)
+    ])
+    error_message = "import_ids.access_policies keys must be owner, viewers, bypass or scrap_mcp."
   }
 }

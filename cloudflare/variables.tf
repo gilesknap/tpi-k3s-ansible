@@ -55,21 +55,10 @@ variable "viewer_email_domains" {
   }
 }
 
-variable "github_client_id" {
-  description = "Client ID of the GitHub OAuth app behind the GitHub login method."
+variable "owner_login_method" {
+  description = "Name of the Access login method (set up in the dashboard) that the Owner policy requires."
   type        = string
-}
-
-variable "github_client_secret" {
-  description = <<-EOT
-    Client secret of the GitHub OAuth app. Cloudflare never returns it, so
-    an imported login method has none in state and null matches. Once you
-    supply it (scripts/cf-tofu reads cloudflare/.secrets/github-client-secret),
-    keep supplying it: state then holds it, and null would plan its removal.
-  EOT
-  type        = string
-  sensitive   = true
-  default     = null
+  default     = "GitHub"
 }
 
 variable "dns_only_records" {
@@ -97,7 +86,6 @@ variable "import_ids" {
     dns_records     = optional(map(string), {})
     access_apps     = optional(map(string), {})
     access_policies = optional(map(string), {})
-    idps            = optional(map(string), {})
     cache_ruleset   = optional(string)
   })
   default = {}

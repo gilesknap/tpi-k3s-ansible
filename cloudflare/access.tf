@@ -1,20 +1,25 @@
 # Zero Trust Access: login methods, reusable policies and applications.
 
-resource "cloudflare_zero_trust_access_identity_provider" "otp" {
+# Login methods (identity providers: one-time PIN and GitHub) are set up
+# once in the dashboard and not managed here: Cloudflare never returns an
+# OAuth client secret, so code could not keep it in step. The Owner
+# policy finds the GitHub login method by name.
+data "cloudflare_zero_trust_access_identity_providers" "all" {
   account_id = var.account_id
-  name       = ""
-  type       = "onetimepin"
-  config     = {}
+
+  lifecycle {
+    postcondition {
+      condition     = length([for p in self.result : p if p.name == var.owner_login_method]) == 1
+      error_message = "Expected exactly one Access login method named \"${var.owner_login_method}\" (set var.owner_login_method; add it in Zero Trust > Settings > Authentication)."
+    }
+  }
 }
 
-resource "cloudflare_zero_trust_access_identity_provider" "github" {
-  account_id = var.account_id
-  name       = "GitHub"
-  type       = "github"
-  config = {
-    client_id     = var.github_client_id
-    client_secret = var.github_client_secret
-  }
+locals {
+  owner_login_method_id = one([
+    for p in data.cloudflare_zero_trust_access_identity_providers.all.result :
+    p.id if p.name == var.owner_login_method
+  ])
 }
 
 # Service token for non-browser clients (scrap's MCP endpoint), looked up
@@ -38,7 +43,7 @@ resource "cloudflare_zero_trust_access_policy" "owner" {
   session_duration = "24h"
   include          = [for e in var.owner_emails : { email = { email = e } }]
   require = [{
-    login_method = { id = cloudflare_zero_trust_access_identity_provider.github.id }
+    login_method = { id = local.owner_login_method_id }
   }]
   connection_rules = {
     rdp = {}

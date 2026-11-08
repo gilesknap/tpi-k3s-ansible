@@ -19,7 +19,8 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
 
 ## Gotchas
 - **Edge config is code in `cloudflare/` (OpenTofu)**: tunnel routes, DNS,
-  Access apps/policies/login methods, zone settings, cache rules
+  Access apps and policies, zone settings, cache rules (login methods are
+  dashboard-only)
   (docs/how-to/cloudflare-as-code.md). Change it there, `just cf-plan`
   (read-only token) and the owner runs `just cf-apply`; a dashboard edit
   is drift that the next apply reverts. Live per-account values (IDs,

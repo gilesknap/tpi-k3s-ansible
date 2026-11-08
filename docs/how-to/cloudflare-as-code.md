@@ -1,8 +1,8 @@
 # Manage Cloudflare as Code (OpenTofu)
 
 The cluster's edge configuration at Cloudflare (DNS records, the tunnel's
-public hostnames, Zero Trust Access applications, policies and login
-methods, zone security settings and cache rules) is described in
+public hostnames, Zero Trust Access applications and policies, zone
+security settings and cache rules) is described in
 `cloudflare/` as [OpenTofu](https://opentofu.org) code using the
 [Cloudflare provider](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs).
 Changes are made in the repo and reviewed like any other change, then
@@ -24,12 +24,32 @@ as drift in the next `just cf-plan`, and `just cf-apply` reverts it.
 | `locals.tf` | `tunnel_services`: the list of public services. Each entry is a tunnel ingress rule (in list order, before the 404 catch-all) and a proxied CNAME to the tunnel; `cache = true` adds a cache rule for it |
 | `tunnel.tf` | The remotely-managed tunnel and its ingress configuration |
 | `dns.tf` | The tunnel CNAMEs, plus `dns_only_records` (records that bypass the tunnel) |
-| `access.tf` | Login methods (one-time PIN, GitHub), reusable policies (Owner, Viewers, bypass, service token) and the Access applications |
+| `access.tf` | Reusable policies (Owner, Viewers, bypass, service token) and the Access applications |
 | `zone.tf` | Zone settings (SSL mode, minimum TLS, HSTS, security level, ...) and the zone's cache rules |
 | `imports.tf` | `import` blocks that adopt existing objects into state |
 | `variables.tf` | Per-account inputs; the values go in the gitignored `live.auto.tfvars` |
 
-Not managed: Cloudflare's managed rulesets (DDoS, the free managed WAF
+### Login methods are set up in the dashboard
+
+The Access login methods (identity providers) are **not** managed here:
+Cloudflare never returns an OAuth client secret through its API, so code
+cannot keep a login method in step with what is live. Set them up once in
+the Zero Trust dashboard under **Settings > Authentication > Login
+methods**:
+
+- **One-time PIN** (emailed code; no configuration).
+- **GitHub**, with the client ID and secret of a GitHub OAuth app whose
+  callback URL is `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`.
+
+The Owner policy requires the GitHub login method and finds it by name
+(`owner_login_method`, default `GitHub`); a plan fails with a clear error
+if no login method of that name exists. A rebuild into a fresh Cloudflare
+account therefore means adding both login methods by hand **before** the
+first `just cf-apply`.
+
+### Also not managed
+
+Cloudflare's managed rulesets (DDoS, the free managed WAF
 ruleset), zone settings left at their defaults, and the Access service
 token's lifecycle. The service token is looked up by name: its secret is
 shown only once, when it is created, and has to be handed to the client,
@@ -71,7 +91,9 @@ Custom Token**, scoped to your account and to the cluster's zone only.
 | Zone | Cache Rules |
 
 **Apply token (edit)**: the same list with **Edit** in place of
-**Read** (keep Zone: Zone at Read). Give it a short expiry, or create it
+**Read**, except Zone: Zone, Access: Service Tokens and Access:
+Organizations, Identity Providers, and Groups, which stay at Read (those
+are only looked up). Give it a short expiry, or create it
 when you need it and delete it afterwards: it can change your edge.
 
 The plan token is read from `CF_PLAN_TOKEN`, else from
@@ -91,9 +113,9 @@ State is **local** (`cloudflare/terraform.tfstate`, gitignored) and
 encrypted with OpenTofu's
 [state encryption](https://opentofu.org/docs/language/state/encryption/)
 (PBKDF2 key from a passphrase, AES-GCM). Saved plan files are encrypted
-the same way. State holds the IDs of everything managed and can hold
-secrets (for example the GitHub client secret after a rotation), which is
-why it is encrypted and kept out of git.
+the same way. State holds the IDs and settings of everything managed,
+including owner and viewer emails, which is why it is encrypted and kept
+out of git.
 
 The passphrase (16 characters or more) is read from
 `TF_VAR_state_passphrase`, else from `cloudflare/.secrets/state-passphrase`
@@ -119,8 +141,8 @@ cp cloudflare/live.auto.tfvars.example cloudflare/live.auto.tfvars
 ```
 
 Edit `cloudflare/live.auto.tfvars` (gitignored): account and zone IDs,
-domain, team name, tunnel name, owner and viewer emails, the GitHub
-login's client ID, any DNS-only records, and the IDs of the existing
+domain, team name, tunnel name, owner and viewer emails, any DNS-only
+records, and the IDs of the existing
 objects for the import blocks. Owner and viewer emails live here, not in
 the code, because the repo is public.
 
@@ -134,7 +156,6 @@ api "zones/$Z/dns_records?per_page=100" | jq -r '.result[] | "\(.name) \(.id)"'
 api "accounts/$A/cfd_tunnel?is_deleted=false" | jq -r '.result[] | "\(.name) \(.id)"'
 api "accounts/$A/access/apps" | jq -r '.result[] | "\(.name) \(.id)"'
 api "accounts/$A/access/policies" | jq -r '.result[] | "\(.name) \(.id)"'
-api "accounts/$A/access/identity_providers" | jq -r '.result[] | "\(.type) \(.id)"'
 api "zones/$Z/rulesets" | jq -r '.result[] | select(.phase == "http_request_cache_settings") | .id'
 ```
 
@@ -182,28 +203,6 @@ no-ops.
 
 Extra arguments pass through to `tofu`, for example
 `just cf-plan -target=cloudflare_dns_record.tunnel`.
-
-### The GitHub login's client secret
-
-Cloudflare never returns an identity provider's client secret, so it is a
-sensitive variable. An imported login method has no secret in state and
-the variable is left unset (null), which leaves the live secret alone.
-
-To rotate the secret, to change the GitHub login method, or on a fresh
-account (where the first apply creates the login method), put the secret
-in `cloudflare/.secrets/github-client-secret` (gitignored; `just cf-*`
-reads it) and **keep it there**, backed up next to the state passphrase:
-once applied, state holds the secret, and a plan without it would remove
-it. If a plan shows `config.client_secret` changing when you did not mean
-to rotate it, the file is missing (or you ran `tofu` directly rather than
-through `just cf-*`): restore it, do not apply.
-
-```bash
-mkdir -p -m 700 cloudflare/.secrets
-read -rsp 'GitHub client secret: ' s && printf '%s\n' "$s" > cloudflare/.secrets/github-client-secret && unset s
-chmod 600 cloudflare/.secrets/github-client-secret
-just cf-apply
-```
 
 ## Later: state in an S3-compatible bucket
 
