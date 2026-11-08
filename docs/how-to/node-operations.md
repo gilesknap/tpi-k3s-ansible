@@ -162,12 +162,21 @@ directory on the host, so deleting the PV object does not delete any data.
 1. In `kubernetes-services/values.yaml`, set the new `node` (and `path`, if
    that node keeps its data elsewhere) on the PV's `local_storage` entry.
    Make the same change to its `k8s_data_dirs` entry in
-   `group_vars/all.yml`. Create the directory on the new node, either with
-   `ansible-playbook pb_all.yml --tags servers --limit node02` (which also
-   applies pending package updates) or by hand with the owner and mode from
-   the `k8s_data_dirs` entry. Merge the change. Until step 3 the
-   `local-storage` app shows a sync error for that PV, as it cannot change
-   its node.
+   `group_vars/all.yml`. Create the directory on the new node by hand,
+   with the owner, group and mode of the `k8s_data_dirs` entry, for
+   example:
+
+   ```bash
+   ssh ansible@node02 sudo install -d -o 472 -g 472 -m 2775 /var/lib/k8s-data/grafana
+   ```
+
+   `ansible-playbook pb_all.yml --tags servers --limit node02` creates it
+   too, but that play also runs `move_fs`, `rk1_os` and `update_packages`:
+   on an RK1 still on the vendor image, `rk1_os` drains it, reboots it and
+   can run an Ubuntu release upgrade to convert it.
+
+   Merge the change. Until step 3 the `local-storage` app shows a sync
+   error for that PV, as it cannot change its node.
 2. Delete the PVC and the pod that uses it. The PVC waits for the pod to
    go, and the StatefulSet then re-creates both. The new pod stays
    `Pending`, as the old PV still points at the old claim and node:
@@ -188,8 +197,10 @@ directory on the host, so deleting the PV object does not delete any data.
    argocd app delete-resource local-storage --core \
      --kind PersistentVolume --resource-name grafana-local
    argocd app sync local-storage --core
-   kubectl config set-context --current --namespace=default
    ```
+
+   Then set the namespace back to the one you had before, if it was not
+   `argo-cd`.
 
    In the ArgoCD UI, the same is: open `local-storage`, delete the PV,
    then **Sync**. `argocd app sync --replace` does not work instead: the
