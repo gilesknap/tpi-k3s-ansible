@@ -110,6 +110,7 @@ hardware and want the full experience out of the box.
 | kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
+| ntfy | Local chart (`binwiederhier/ntfy`) | v2.34.0 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
@@ -288,6 +289,31 @@ state. Resource limits: 10m/64Mi request, 100m/128Mi limit.
 - `oauth2-proxy-secret.yaml` — SealedSecret for GitHub OAuth credentials
 
 See {doc}`/how-to/oauth-setup` for configuration details.
+
+### ntfy
+
+Push-notification server ([ntfy](https://ntfy.sh)), locked down:
+`auth-default-access: deny-all`, no sign-up, no login, no web app and no
+attachments. Users, tokens and access are declarative: the users and tokens
+come from the `ntfy-auth` SealedSecret, the access list from the chart's
+values, so no `ntfy user add` is ever run. One write-only user per sender
+(`alertmanager` on `cluster-alerts`, `vps` on `vps-alerts`) and a
+read-only `phone` user; no admin user. A daily cap of 500 messages per
+visitor. One replica with its SQLite user database and
+message cache (12h) on an `emptyDir`, so it is not pinned to a node. A
+NetworkPolicy admits only `ingress-nginx`. Non-root (10001) with a
+read-only root filesystem; probes on `/v1/health`. Resource limits:
+10m/32Mi request, 500m/256Mi limit. Public through the Cloudflare tunnel
+with a Cloudflare Access **Bypass** application, as the phone app cannot
+log in to Access.
+
+**Additional manifests:** `additions/ntfy/`
+- `templates/deployment.yaml`, `templates/service.yaml`,
+  `templates/configmap.yaml` (`server.yml`), `templates/networkpolicy.yaml`
+- `templates/ntfy-auth-secret.yaml` — SealedSecret with the users and
+  tokens (`just seal-ntfy`)
+
+See {doc}`/how-to/ntfy` for setup.
 
 ### NVIDIA device plugin
 

@@ -596,7 +596,15 @@ hardware and want the full experience out of the box.</p>
 <td><p>GitHub</p></td>
 <td><p>OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard</p></td>
 </tr>
-<tr class="row-even"><td><p>NVIDIA device plugin</p></td>
+<tr class="row-even"><td><p>ntfy</p></td>
+<td><p>Local chart (<code class="docutils literal notranslate"><span class="pre">binwiederhier/ntfy</span></code>)</p></td>
+<td><p>v2.34.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code></p></td>
+<td><p>ntfy access tokens (no Cloudflare Access)</p></td>
+<td><p>Push notifications to phones; alerts from the cluster and outside hosts</p></td>
+</tr>
+<tr class="row-odd"><td><p>NVIDIA device plugin</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia/nvidia-device-plugin</span></code></p></td>
 <td><p>0.19.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
@@ -604,7 +612,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the scheduler</p></td>
 </tr>
-<tr class="row-odd"><td><p>scrap</p></td>
+<tr class="row-even"><td><p>scrap</p></td>
 <td><p>Helm chart from <code class="docutils literal notranslate"><span class="pre">github.com/gilesknap/scrap</span></code></p></td>
 <td><p>0.2.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
@@ -612,7 +620,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>Cloudflare Access + oauth2-proxy</p></td>
 <td><p>Personal knowledge store (PWA; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> behind a bearer token)</p></td>
 </tr>
-<tr class="row-even"><td><p>VPS relay</p></td>
+<tr class="row-odd"><td><p>VPS relay</p></td>
 <td><p>Plain manifests (tailscale v1.102.5, frpc v0.71.0)</p></td>
 <td><p>—</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
@@ -620,7 +628,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>Tailscale + frp</p></td>
 <td><p>Publishes chosen TCP/UDP ports on a VPS’s public IP (optional)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
 <td><p>2.18.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
@@ -628,7 +636,7 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Encrypted secrets in Git</p></td>
 </tr>
-<tr class="row-even"><td><p>system-upgrade-controller</p></td>
+<tr class="row-odd"><td><p>system-upgrade-controller</p></td>
 <td><p>Upstream release manifests</p></td>
 <td><p>v0.20.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
@@ -813,6 +821,31 @@ state. Resource limits: 10m/64Mi request, 100m/128Mi limit.</p>
 </ul>
 <p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> for configuration details.</p>
 </section>
+<section id="ntfy">
+<h3>ntfy<a class="headerlink" href="#ntfy" title="Link to this heading">#</a></h3>
+<p>Push-notification server (<a class="reference external" href="https://ntfy.sh">ntfy</a>), locked down:
+<code class="docutils literal notranslate"><span class="pre">auth-default-access:</span> <span class="pre">deny-all</span></code>, no sign-up, no login, no web app and no
+attachments. Users, tokens and access are declarative: the users and tokens
+come from the <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> SealedSecret, the access list from the chart’s
+values, so no <code class="docutils literal notranslate"><span class="pre">ntfy</span> <span class="pre">user</span> <span class="pre">add</span></code> is ever run. One write-only user per sender
+(<code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>, <code class="docutils literal notranslate"><span class="pre">vps</span></code> on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code>) and a
+read-only <code class="docutils literal notranslate"><span class="pre">phone</span></code> user; no admin user. A daily cap of 500 messages per
+visitor. One replica with its SQLite user database and
+message cache (12h) on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, so it is not pinned to a node. A
+NetworkPolicy admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>. Non-root (10001) with a
+read-only root filesystem; probes on <code class="docutils literal notranslate"><span class="pre">/v1/health</span></code>. Resource limits:
+10m/32Mi request, 500m/256Mi limit. Public through the Cloudflare tunnel
+with a Cloudflare Access <strong>Bypass</strong> application, as the phone app cannot
+log in to Access.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/ntfy/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/deployment.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/service.yaml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">templates/configmap.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">server.yml</span></code>), <code class="docutils literal notranslate"><span class="pre">templates/networkpolicy.yaml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/ntfy-auth-secret.yaml</span></code> — SealedSecret with the users and
+tokens (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code>)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push Notifications with ntfy</span></a> for setup.</p>
+</section>
 <section id="nvidia-device-plugin">
 <h3>NVIDIA device plugin<a class="headerlink" href="#nvidia-device-plugin" title="Link to this heading">#</a></h3>
 <p>DaemonSet that detects NVIDIA GPUs and advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the
@@ -965,6 +998,7 @@ across services.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ntfy">ntfy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#intel-gpu-device-plugin">Intel GPU device plugin</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-upgrade-controller">system-upgrade-controller</a></li>
