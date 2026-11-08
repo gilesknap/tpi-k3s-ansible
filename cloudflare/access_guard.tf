@@ -20,10 +20,17 @@
 #   - an app that lets anyone in exposes what it targets, with or without
 #     a path, so every hostname it names must be on the allowlist.
 #
-# A policy lets anyone in if its decision is bypass, or if it includes
-# everyone (any email that can sign in). Within one app Cloudflare
-# evaluates bypass policies first, so one such policy opens the whole app.
-# A service-token (non_identity) policy is closed: it needs the token.
+# A policy lets anyone in if its decision is bypass, or if one of its
+# include rules matches anybody: everyone (any email that can sign in), a
+# login method on its own (anyone with, say, a GitHub account) or an IP
+# range of the whole internet. Within one app Cloudflare evaluates bypass
+# policies first, so one such policy opens the whole app. A service-token
+# (non_identity) policy is closed: it needs the token. What is not
+# detected: rules that are wide by their values, such as a public email
+# domain in viewer_email_domains.
+#
+# The wildcard is trusted only for names one label below the domain
+# (a.<domain>, not a.b.<domain>): a deeper name needs its own app.
 
 locals {
   # The allowlist: hostnames whose tunnel_services entry has
@@ -36,7 +43,12 @@ locals {
   access_policy_open = {
     for k, p in local.access_policies : k => (
       p.decision == "bypass" ||
-      anytrue([for i in coalesce(p.include, []) : try(i.everyone != null, false)])
+      anytrue([
+        for i in coalesce(p.include, []) :
+        try(i.everyone != null, false) ||
+        try(i.login_method != null, false) ||
+        contains(["0.0.0.0/0", "::/0"], try(i.ip.ip, ""))
+      ])
     )
   }
 

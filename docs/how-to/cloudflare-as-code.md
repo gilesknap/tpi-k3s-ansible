@@ -25,7 +25,7 @@ as drift in the next `just cf-plan`, and `just cf-apply` reverts it.
 | `tunnel.tf` | The remotely-managed tunnel and its ingress configuration |
 | `dns.tf` | The tunnel CNAMEs, plus `dns_only_records` (records that bypass the tunnel) |
 | `access.tf` | Reusable policies (Owner, Viewers, bypass, service token) and the Access applications |
-| `access_guard.tf` | The rule that every public hostname is behind Access unless allowlisted (see [below](#every-public-hostname-is-behind-access)) |
+| `access_guard.tf` | The rule that every public hostname is behind Access unless allowlisted (see [below](#every-public-hostname-in-the-code-is-behind-access)) |
 | `zone.tf` | Zone settings (SSL mode, minimum TLS, HSTS, security level, ...) and the zone's cache rules |
 | `waf.tf` | The zone's rate-limiting rules (the `http_ratelimit` ruleset) |
 | `imports.tf` | `import` blocks that adopt existing objects into state |
@@ -70,7 +70,7 @@ an Access app with the `bypass` policy (a more specific app than the
 wildcard, so it wins for that hostname), and a rate-limiting rule in
 `waf.tf` (see {doc}`ntfy`).
 
-### Every public hostname is behind Access
+### Every public hostname in the code is behind Access
 
 The repo is public, so a hostname left open by mistake is easy for
 anyone to find. `access_guard.tf` makes `tofu plan` (and so
@@ -79,13 +79,15 @@ Cloudflare, when:
 
 - a tunnel service, or a proxied entry in `dns_only_records`, is not
   covered by an Access app whose policies all ask for an identity or a
-  service token. The `*.<domain>` wildcard app covers every hostname; an
-  app for exactly one hostname covers that hostname; an app with a path
+  service token. The `*.<domain>` wildcard app covers every hostname one
+  label below the domain (`a.<domain>`, not `a.b.<domain>`); an app for
+  exactly one hostname covers that hostname; an app with a path
   (such as `scrap.<domain>/mcp`) covers only that path, never the whole
   hostname. The error reads `<host> is routed through the tunnel but no
   Access app protects it`.
 - an Access app lets anyone in (a policy with the `bypass` decision, or
-  one that includes everyone) for a hostname that is not on the bypass
+  one that includes everyone, a login method on its own or the whole
+  internet's IP range) for a hostname that is not on the bypass
   allowlist. One such policy opens the whole app, as Cloudflare evaluates
   bypass policies first. The error reads `Access app "<name>" lets anyone
   in ... which is not on the bypass allowlist`. This also catches a
@@ -96,7 +98,14 @@ The allowlist is the `tunnel_services` entries with
 static pages or ntfy, which does its own token auth. It lives in the
 code, next to the services, so that opening a service to the internet is
 a visible line in a reviewed change. A service-token-only policy (the
-`non_identity` decision) counts as protected, not as bypass.
+`non_identity` decision) counts as protected, not as bypass. A
+hostname on the allowlist is not checked at all, so it may have a bypass
+app or none. Only tunnel services can be allowlisted: a proxied
+`dns_only_records` entry must always be behind Access.
+
+The guard sees only this code. It does not judge rules that are wide by
+their values (a public email domain in `viewer_email_domains`, say), and
+it knows nothing of hostnames created outside `cloudflare/`.
 
 To fix either error, add or correct the Access app in `access.tf`; or,
 if the service really is meant to be public, set `access_bypass = true`

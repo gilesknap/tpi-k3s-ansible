@@ -15,8 +15,8 @@ resource "cloudflare_dns_record" "tunnel" {
   lifecycle {
     # See access_guard.tf.
     precondition {
-      condition     = contains(local.access_bypass_hosts, each.value) || local.access_wildcard_covered || contains(local.access_covered, each.value)
-      error_message = "${each.value} is routed through the tunnel but no Access app protects it: neither the *.${var.domain} wildcard app nor an app for exactly this hostname has only identity or service-token policies (an app with a path covers only that path). Add or fix the Access app in access.tf, or, if the service is meant to be public, set access_bypass = true on its tunnel_services entry (locals.tf)."
+      condition     = contains(local.access_bypass_hosts, each.value) || (local.access_wildcard_covered && !strcontains(each.key, ".")) || contains(local.access_covered, each.value)
+      error_message = "${each.value} is routed through the tunnel but no Access app protects it: neither the *.${var.domain} wildcard app nor an app for exactly this hostname has only identity or service-token policies (an app with a path covers only that path; the wildcard covers only names one label below the domain). Add or fix the Access app in access.tf, or, if the service is meant to be public, set access_bypass = true on its tunnel_services entry (locals.tf)."
     }
   }
 }
@@ -35,7 +35,7 @@ resource "cloudflare_dns_record" "dns_only" {
   lifecycle {
     # See access_guard.tf. A record that is not proxied never reaches Access.
     precondition {
-      condition     = !each.value.proxied || local.access_wildcard_covered || contains(local.access_covered, "${each.key}.${var.domain}")
+      condition     = !each.value.proxied || (local.access_wildcard_covered && !strcontains(each.key, ".")) || contains(local.access_covered, "${each.key}.${var.domain}")
       error_message = "${each.key}.${var.domain} is proxied but no Access app protects it: neither the *.${var.domain} wildcard app nor an app for exactly this hostname has only identity or service-token policies. Add or fix the Access app in access.tf, or make the record DNS-only (proxied = false)."
     }
   }

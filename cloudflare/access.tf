@@ -175,7 +175,7 @@ resource "cloudflare_zero_trust_access_application" "app" {
     # See access_guard.tf.
     precondition {
       condition     = !local.access_app_open[each.key] || length(setsubtract(local.access_app_hosts[each.key], local.access_bypass_hosts)) == 0
-      error_message = "Access app \"${each.value.name}\" lets anyone in (a bypass policy, or one that includes everyone) for ${join(", ", sort(setsubtract(local.access_app_hosts[each.key], local.access_bypass_hosts)))}, which is not on the bypass allowlist. Give the app an identity or service-token policy, or, if the service is meant to be public, set access_bypass = true on its tunnel_services entry (locals.tf)."
+      error_message = "Access app \"${each.value.name}\" lets anyone in (a bypass policy, or one that includes everyone, a login method on its own or every IP) for ${join(", ", sort(setsubtract(local.access_app_hosts[each.key], local.access_bypass_hosts)))}: not on the bypass allowlist. Give the app an identity or service-token policy, or, if the service is meant to be public, set access_bypass = true on its tunnel_services entry (locals.tf)."
     }
   }
 }
