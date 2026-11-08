@@ -26,7 +26,7 @@ point-in-time restore. See the
 for a visual tour, the [architecture explanation](https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html)
 for the layered model, and the
 [services reference](https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html)
-for quick-start configurations (AI memory, monitoring, full
+for quick-start configurations (monitoring, Minecraft, full
 stack) to help you pick which services to run.
 
 Source          | <https://github.com/gilesknap/tpi-k3s-ansible>
