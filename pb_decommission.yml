@@ -20,6 +20,48 @@
 # workloads, otherwise ArgoCD re-creates them faster than we can remove them.
 
 # ---------------------------------------------------------------------------
+# Play 0: Stop the etcd backup
+# ---------------------------------------------------------------------------
+# roles/etcd_backup installs a nightly timer on the control plane, and a
+# former control plane may still have one. Stop it before anything is torn
+# down, so no backup snapshots a half-removed cluster (and rotates a good
+# bundle out of the NAS) or runs against a half-removed k3s. The rebuild
+# re-enables it on the control plane.
+- name: Stop the etcd backup
+  hosts: all_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    # The uninstall in Play 4 keys on this name, so a typo would leave the
+    # k3s server running while Play 5 deletes /var/lib/rancher.
+    - name: Check control_plane names an inventory node
+      ansible.builtin.assert:
+        that:
+          - control_plane in groups['all_nodes']
+        fail_msg: >-
+          control_plane ({{ control_plane }}) in group_vars/all.yml is not
+          in the all_nodes inventory group.
+        quiet: true
+
+    - name: Check for the etcd backup timer
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s-etcd-backup.timer
+      register: decommission_etcd_backup_timer
+
+    - name: Stop and disable the etcd backup timer
+      ansible.builtin.systemd_service:
+        name: k3s-etcd-backup.timer
+        state: stopped
+        enabled: false
+      when: decommission_etcd_backup_timer.stat.exists
+
+    - name: Stop the etcd backup service
+      ansible.builtin.systemd_service:
+        name: k3s-etcd-backup.service
+        state: stopped
+      when: decommission_etcd_backup_timer.stat.exists
+
+# ---------------------------------------------------------------------------
 # Play 1: Stop ArgoCD reconciliation (orphan cascade)
 # ---------------------------------------------------------------------------
 - name: Stop ArgoCD reconciliation
@@ -199,6 +241,13 @@
 # ---------------------------------------------------------------------------
 # Play 4: Uninstall k3s — workers first, then control plane
 # ---------------------------------------------------------------------------
+# The control plane is control_plane in group_vars/all.yml, never a
+# position in the inventory. Every uninstall is guarded by `removes:` on
+# its script, so a node with neither script (k3s already uninstalled)
+# skips them all. A node with both scripts gets both: each k3s uninstall
+# script leaves the shared files alone while another k3s service remains,
+# so the second one finishes the job. Nothing may keep a k3s server or
+# agent running into Play 5, which deletes /var/lib/rancher.
 - name: Uninstall k3s from worker nodes
   hosts: all_nodes
   gather_facts: false
@@ -206,17 +255,37 @@
   serial: 1
   order: reverse_sorted
   tasks:
-    - name: Run k3s-agent-uninstall.sh
+    - name: Run k3s-agent-uninstall.sh on workers
       ansible.builtin.command:
         cmd: /usr/local/bin/k3s-agent-uninstall.sh
         removes: /usr/local/bin/k3s-agent-uninstall.sh
-      when: inventory_hostname != groups['turingpi_nodes'][0]
+      when: inventory_hostname != control_plane
 
-    - name: Run k3s-uninstall.sh on control plane
+    # A stale server install, e.g. on a former control plane.
+    - name: Run k3s-uninstall.sh on workers that still have a server install
       ansible.builtin.command:
         cmd: /usr/local/bin/k3s-uninstall.sh
         removes: /usr/local/bin/k3s-uninstall.sh
-      when: inventory_hostname == groups['turingpi_nodes'][0]
+      when: inventory_hostname != control_plane
+
+- name: Uninstall k3s from the control plane
+  hosts: all_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Run k3s-uninstall.sh on the control plane
+      ansible.builtin.command:
+        cmd: /usr/local/bin/k3s-uninstall.sh
+        removes: /usr/local/bin/k3s-uninstall.sh
+      when: inventory_hostname == control_plane
+
+    # A stale agent install on the control plane, run after the server is
+    # gone so it cannot leave a kubelet running into Play 5.
+    - name: Run k3s-agent-uninstall.sh on the control plane if it has one
+      ansible.builtin.command:
+        cmd: /usr/local/bin/k3s-agent-uninstall.sh
+        removes: /usr/local/bin/k3s-agent-uninstall.sh
+      when: inventory_hostname == control_plane
 
 # ---------------------------------------------------------------------------
 # Play 5: Node cleanup
@@ -226,6 +295,26 @@
   gather_facts: false
   become: true
   tasks:
+    # Backstop for Play 4: never delete k3s state under a running k3s.
+    # Skipped in check mode, where Play 4 uninstalls nothing.
+    - name: Gather service state
+      ansible.builtin.service_facts:
+      when: not ansible_check_mode
+
+    - name: Check no k3s server or agent is still running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get(item, {}).get('state') != 'running'
+        fail_msg: >-
+          {{ item }} is still running on {{ inventory_hostname }}; not
+          deleting /var/lib/rancher. Is control_plane in group_vars/all.yml
+          right?
+        quiet: true
+      loop:
+        - k3s.service
+        - k3s-agent.service
+      when: not ansible_check_mode
+
     - name: Remove /var/lib/rancher
       ansible.builtin.file:
         path: /var/lib/rancher

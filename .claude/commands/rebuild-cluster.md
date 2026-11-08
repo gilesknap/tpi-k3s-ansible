@@ -192,13 +192,16 @@ Run the decommission playbook in the background with a progress Monitor:
      `/tmp/decommission.log` (last ~100 lines) to diagnose. Fix and re-run.
 
 The playbook handles:
+0. Stopping and disabling the etcd backup timer, so no backup runs
+   mid-teardown (the rebuild re-enables it on the control plane)
 1. Stopping ArgoCD reconciliation (orphan cascade + finalizer stripping)
 2. Scaling down stateful workloads and deleting chart-owned PVCs so
    they re-create cleanly on the next sync (and re-bind to the
    preserved static local-nvme PVs)
 3. Uninstalling the ArgoCD Helm release
 4. Deleting all app namespaces
-5. Uninstalling k3s from all nodes (workers first, then control plane)
+5. Uninstalling k3s from all nodes (workers first, then the
+   `control_plane` from `group_vars/all.yml`)
 6. Cleaning up node state (`/var/lib/rancher`, device-mapper leftovers)
    — **does NOT touch `/home/k8s-data` or `/var/lib/k8s-data` unless
    `-e wipe_local_data=true` is passed**
@@ -217,6 +220,8 @@ than expected, check for:
 kubectl get nodes  # should fail — API server down
 ssh ansible@<worker-node> "which k3s"  # should return nothing
 ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
+ssh ansible@<control-plane> "which k3s"           # should return nothing
+ssh ansible@<control-plane> "ls /var/lib/rancher" # should not exist
 # Local PV data preserved (unless wipe_local_data=true):
 ssh ansible@nuc2 "ls /home/k8s-data"            # still has subdirs + data
 ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir
