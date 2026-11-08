@@ -10,7 +10,7 @@ terraform {
 
   # State stays local (gitignored, see docs/how-to/cloudflare-as-code.md)
   # and is encrypted at rest with a passphrase. Plan files are encrypted
-  # too: both can hold secrets such as the GitHub login's client secret.
+  # too: both hold the account's IDs and the owner and viewer emails.
   encryption {
     key_provider "pbkdf2" "main" {
       passphrase = var.state_passphrase

@@ -1,4 +1,4 @@
-# Zero Trust Access: login methods, reusable policies and applications.
+# Zero Trust Access: reusable policies and applications.
 
 # Login methods (identity providers: one-time PIN and GitHub) are set up
 # once in the dashboard and not managed here: Cloudflare never returns an
