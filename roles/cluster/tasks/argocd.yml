@@ -205,7 +205,12 @@
 - name: Collect ntfy token variables for rebuild
   ansible.builtin.set_fact:
     cluster_ntfy_token_env: "{{ cluster_ntfy_token_env | default({}) | combine({item: lookup('ansible.builtin.env', item, default='')}) }}"
-  loop: "{{ lookup('ansible.builtin.pipe', 'python3 ' ~ playbook_dir ~ '/scripts/lib/ntfy_auth.py users --env').splitlines() }}"
+  # The condition is in the loop expression too, as `loop` is evaluated
+  # before `when`: the helper runs only on rebuilds.
+  loop: >-
+    {{ (lookup('ansible.builtin.pipe', 'python3 ' ~ playbook_dir ~ '/scripts/lib/ntfy_auth.py users --env')
+        if lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
+        else '').splitlines() }}
   no_log: true
   when: lookup('ansible.builtin.env', 'GENERATE_SECRETS') | default('') | lower == 'true'
 
