@@ -208,18 +208,45 @@ printf 'bundle: %s\ncreated: %s\nsnapshot: %s\nfresh: %s\n' \
 mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
 log "uploaded $DEST/$name ($size bytes)"
 
-# 5. Ship the newest snapshot of each extra prefix once (e.g. pre-upgrade).
+# oldest_per_name PREFIX: for each snapshot name under PREFIX (k3s calls
+# a file <name>-<node>-<unix time>, e.g. pre-upgrade-v1.34.13-k3s1-node01-
+# 1794099649), the oldest file, one "<name> <path>" line per name, oldest
+# name first. The oldest is the one to keep: the server upgrade Job can
+# retry after k3s restarts under it and save a second, post-upgrade
+# snapshot under the same name (docs/explanations/upgrade-model.md).
+oldest_per_name() {
+    local path base stem
+    find "$SNAP_DIR" -maxdepth 1 -type f -name "$1-*" -printf '%T@ %p\n' \
+        | sort -n | cut -d' ' -f2- | while read -r path; do
+            base=$(basename "$path")
+            stem=${base%-"$NODE"-*}
+            echo "$stem $path"
+        done | awk '!seen[$1]++'
+}
+
+# 5. Ship each extra snapshot name (e.g. one pre-upgrade name per k3s
+#    version) once: its oldest file, unless a bundle of that name from
+#    this node is already on the NAS. Only the newest EXTRA_KEEP names are
+#    considered, as prune would drop anything older straight away.
 for prefix in "${EXTRA_PREFIXES[@]}"; do
-    snap=$(newest_snapshot "$prefix")
-    [[ -n $snap ]] || continue
     extra_dir="$DEST/$prefix"
-    mkdir -p "$extra_dir"
-    extra_name="$(basename "$snap").tar.age"
-    [[ -e $extra_dir/$extra_name ]] && continue
-    bundle "$snap" "$WORK_DIR/$extra_name"
-    ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
-    prune "$extra_dir" "$EXTRA_KEEP"
-    log "uploaded $extra_dir/$extra_name"
+    shipped=0
+    while read -r stem snap; do
+        [[ -n $snap ]] || continue
+        mkdir -p "$extra_dir"
+        extra_name="$(basename "$snap").tar.age"
+        if [[ -e $extra_dir/$extra_name ]] \
+            || compgen -G "$extra_dir/$stem-$NODE-*.tar.age" > /dev/null; then
+            continue
+        fi
+        bundle "$snap" "$WORK_DIR/$extra_name"
+        ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
+        log "uploaded $extra_dir/$extra_name"
+        shipped=1
+    done < <(oldest_per_name "$prefix" | tail -n "$EXTRA_KEEP")
+    if [[ $shipped == 1 ]]; then
+        prune "$extra_dir" "$EXTRA_KEEP"
+    fi
 done
 
 write_metrics 1
