@@ -69,6 +69,32 @@ spec:
               drop:
                 - ALL
 
+          # Generous probes: the first library scan or a database migration
+          # after an upgrade can keep /health slow for minutes. Startup allows
+          # 10 minutes; after that, liveness restarts the pod only after
+          # about 5 minutes of failures.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+
           # No CPU limit: a transcode burst would be throttled. The GPU comes
           # from the Intel GPU device plugin, not a privileged pod.
           resources:
@@ -121,7 +147,10 @@ spec:
           {{- if $jf.trial }}
           # Trial only: mark the config volume as throwaway, so the cutover
           # can clear it safely (it deletes the volume's contents only when
-          # this marker is there). See docs/how-to/jellyfin.md.
+          # this marker is there). The marker is written only on an empty
+          # volume or one already marked, so a trial re-enabled later (for
+          # example by reverting the cutover) never marks real data.
+          # See docs/how-to/jellyfin.md.
           extraInitContainers:
             - name: mark-trial
               image: docker.io/jellyfin/jellyfin:{{ $jf.image_tag }}
@@ -129,7 +158,11 @@ spec:
                 - sh
                 - -c
                 - >-
-                  touch /config/TRIAL-CONFIG-SAFE-TO-DELETE
+                  m=/config/TRIAL-CONFIG-SAFE-TO-DELETE;
+                  if [ -z "$(ls -A /config)" ] || [ -e "$m" ]; then
+                  touch "$m";
+                  else echo "/config holds unmarked data: not marking it as a trial";
+                  fi
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

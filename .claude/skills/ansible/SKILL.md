@@ -125,8 +125,8 @@ There is no replicated block storage (Longhorn was dropped, ADR 0012):
 - **RWO `local-nvme`**: static PVs in `additions/local-storage/`, each
   with `spec.nodeAffinity` pinning its pod (prometheus→node04,
   grafana→node04; jellyfin, scrap's off-NAS backup copy and frozen
-  pre-NFS copy→nuc2). A new workload gets its own PV and node, never ws03. Losing
-  the node takes the workload offline until it's back.
+  pre-NFS copy→nuc2). A new workload gets its own PV and node, never
+  ws03. Losing the node takes the workload offline until it's back.
 - **Shared volumes**: `nfs-stable` is the default StorageClass (one fixed
   NAS folder per PVC, so a rebuild gets the data back). `nfs-rwx` is a
   scratch class, only when named: its folder is deleted with the PVC.

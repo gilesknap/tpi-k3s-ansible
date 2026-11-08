@@ -28,7 +28,7 @@ The cluster wiring is:
 | Deployment and ClusterIP Service on 8096 | Upstream chart, namespace `jellyfin` | One pod, `Recreate` strategy, no PodDisruptionBudget |
 | `/config`: database, metadata, subtitles, plugins, XML config | Static `local-nvme` PV on the node (`local_storage.jellyfin`), claim `jellyfin-config` | Created by the `k8s_data_dirs` role, owned by the pod's uid/gid. Not NFS: the database is SQLite |
 | Media library | Static NFS PV `jellyfin-media-nfs` of `jellyfin.media.nfs_path` on `nfs.server`, claim `jellyfin-media` | Read-only (PV, access mode and mount), at `jellyfin.media.mount_path` |
-| Cache and transcodes | `emptyDir` at `/var/cache/jellyfin`, `jellyfin.cache_size` | Lost on a pod restart, which is harmless |
+| Cache and transcodes | `emptyDir` at `/var/cache/jellyfin`, `jellyfin.cache_size` | Lost on a pod restart, which is harmless; see the note below on its size |
 | GPU | `gpu.intel.com/i915: 1` from the [Intel GPU device plugin](../reference/services.md#intel-gpu-device-plugin) | Not privileged |
 
 The pod:
@@ -46,6 +46,15 @@ The pod:
 The media is mounted at the same path the host install used (for example
 `/media/bigdisk/media`), so the library paths in an imported database match.
 The chart's own `/media` and `/cache` volumes are unused.
+
+:::{note}
+The cache `emptyDir` has a `sizeLimit` (20Gi by default), and the transcode
+segments are written under it. If it fills, kubelet **evicts the pod**, which
+stops every stream. Jellyfin deletes old segments as playback moves on, so
+one stream uses a few GB at most, but several concurrent 4K transcodes, or
+seeking far ahead in them, can reach the limit. Raise `jellyfin.cache_size`
+if you expect that.
+:::
 
 kured may reboot the node: Jellyfin is then down until the node is back, as a
 host install would be.
@@ -103,7 +112,10 @@ it cannot clash with a host install listening on 8096 and 7359.
 Its config starts empty and is throwaway. It is written to the real config
 volume, and an init container marks it with a file
 `TRIAL-CONFIG-SAFE-TO-DELETE` at the volume's root, so the cutover can clear
-it without any hand edits on the node (see [Cutover](#cutover)).
+it without any hand edits on the node (see [Cutover](#cutover)). The init
+container writes the marker only when the volume is empty or already marked,
+so turning the trial back on later (for example by reverting the cutover)
+never marks real data as throwaway.
 
 ### Reach it
 
@@ -160,6 +172,11 @@ An outline of the move from a host install; each step is its own change.
    `sudo systemctl disable --now jellyfin`. Do not uninstall the package or
    touch its data and config directories yet: they are the rollback copy.
 3. **Cutover change**, in git:
+   - stop the trial pod first: the Job mounts the same volume on the same
+     node, and must not run while Jellyfin has the database open. Either set
+     `enable_jellyfin: false` and let ArgoCD remove the trial (the config
+     claim and its data are kept) before the cutover change, or have the Job
+     wait until no Jellyfin pod is running in the namespace;
    - set the image tag to the host's Jellyfin version or newer (a database
      cannot be opened by an older Jellyfin);
    - set `jellyfin.trial: false` and `jellyfin.host_network: true`;
@@ -167,12 +184,16 @@ An outline of the move from a host install; each step is its own change.
      on the node with the host's data and config directories mounted
      read-only, and the config volume read-write. It:
      - empties the volume **only if** `TRIAL-CONFIG-SAFE-TO-DELETE` is at its
-       root, then removes the marker;
+       root, then removes the marker. It refuses to wipe, and fails, if
+       `SEEDED-FROM-HOST` is also there (see below): that is real data. (A
+       database newer than the marker is no sign of real data, since a trial
+       writes its database after every start.);
      - copies the host data **only if** the volume has no database yet,
        mapping the host's layout onto the image's: the data directory (for
        example `/var/lib/jellyfin`) to `/config`, and the config directory
        (for example `/etc/jellyfin`) to `/config/config`;
-     - checks the copied database with `PRAGMA integrity_check`.
+     - checks the copied database with `PRAGMA integrity_check`, then
+       writes `SEEDED-FROM-HOST` at the volume's root.
 
    The media paths are unchanged, so the libraries need no remapping. Check
    the copied config for any remaining absolute paths under the old data
