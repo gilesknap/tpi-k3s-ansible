@@ -1,0 +1,13 @@
+# ntfy message templates, mounted at template-dir (see configmap.yaml). A
+# publisher picks one with ?template=<name>. ntfy reads the file on every
+# publish, so a change needs no pod restart. The files are not rendered by
+# Helm: they are Go templates for ntfy, so .Files.Get passes them through.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-templates
+  labels:
+    app.kubernetes.io/name: ntfy
+data:
+  alertmanager-cluster.yml: |
+{{ .Files.Get "files/alertmanager-cluster.yml" | indent 4 }}

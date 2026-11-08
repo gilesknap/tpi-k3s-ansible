@@ -17,6 +17,11 @@ The Secret's keys:
 - <user>-token for each user: the plain token, for the owner
   (scripts/ntfy-tokens), in-cluster publishers and the rebuild export.
 
+An in-cluster publisher in another namespace cannot read ntfy-auth, so its
+token is also sealed into a Secret of its own (CLUSTER_COPIES, key `token`)
+wherever ntfy-auth is sealed: scripts/seal-ntfy and scripts/seal-from-json
+(through `ntfy_auth.py copies`).
+
 There is no admin user: auth is declarative, so nothing needs one. Users
 authenticate with tokens only, so their passwords are random and thrown
 away. Hashing uses htpasswd (apache2-utils, in the devcontainer), with the
@@ -41,6 +46,16 @@ SENDERS = {
 }
 TOKEN_USERS = tuple(SENDERS)
 
+# "cluster" user -> (namespace, Secret name, SealedSecret file from the repo
+# root) of the copy of its token that its publisher mounts, as key `token`.
+CLUSTER_COPIES = {
+    "alertmanager": (
+        "monitoring",
+        "alertmanager-ntfy",
+        "kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml",
+    ),
+}
+
 # Names become env vars (NTFY_<USER>_TOKEN) and Secret keys.
 USER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 # ntfy's own rule (user/util.go): "tk_" plus 29 characters, 32 in all.
@@ -50,6 +65,9 @@ BCRYPT_COST = "10"  # ntfy's minimum (DefaultUserPasswordBcryptCost)
 for _user in SENDERS:
     if not USER_RE.match(_user):
         raise ValueError(f"ntfy user name {_user!r} must match {USER_RE.pattern}")
+for _user in CLUSTER_COPIES:
+    if SENDERS.get(_user) != "cluster":
+        raise ValueError(f"CLUSTER_COPIES names {_user!r}, not a cluster sender")
 
 
 def env_name(user: str) -> str:
@@ -98,9 +116,15 @@ def secret_data(tokens: dict[str, str]) -> dict[str, str]:
 
 def main(argv: list[str]) -> None:
     """`ntfy_auth.py users [--owner | --env]`, one per line: every user, the
-    users whose tokens the owner hands out, or every user's rebuild env var."""
+    users whose tokens the owner hands out, or every user's rebuild env var.
+    `ntfy_auth.py copies`: one "<user> <namespace> <name> <file>" line per
+    entry in CLUSTER_COPIES."""
+    if argv == ["copies"]:
+        for user, (namespace, name, path) in CLUSTER_COPIES.items():
+            print(user, namespace, name, path)
+        return
     if argv[:1] != ["users"] or argv[1:] not in ([], ["--owner"], ["--env"]):
-        sys.exit("usage: ntfy_auth.py users [--owner | --env]")
+        sys.exit("usage: ntfy_auth.py users [--owner | --env] | copies")
     for user, holder in SENDERS.items():
         if argv[1:] == ["--env"]:
             print(env_name(user))

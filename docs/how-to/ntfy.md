@@ -6,7 +6,8 @@ phone app, subscribed to that topic, shows it as a notification. This
 repository runs a self-hosted, locked-down ntfy at `ntfy.<domain>` for:
 
 - notifications to the owner's Android phone;
-- cluster alerts (an Alertmanager bridge publishing to `cluster-alerts`);
+- cluster alerts (Alertmanager publishing to `cluster-alerts`; see
+  {doc}`monitoring`);
 - alerts from hosts outside the cluster, such as a VPS, publishing to
   `vps-alerts` over HTTPS.
 
@@ -37,7 +38,7 @@ list grants each the least it needs:
 
 | User | Access | Used by |
 |---|---|---|
-| `alertmanager` | write-only on `cluster-alerts` | the Alertmanager bridge |
+| `alertmanager` | write-only on `cluster-alerts` | Alertmanager |
 | `vps` | write-only on `vps-alerts` | the VPS |
 | `phone` | read-only on `cluster-alerts` and `vps-alerts` | the phone app |
 
@@ -61,9 +62,10 @@ longer configured. Nobody runs `ntfy user add`.
 - The user names are listed once, in `SENDERS` in
   `scripts/lib/ntfy_auth.py`; every script derives them from there.
 
-The NetworkPolicy admits only `ingress-nginx` (the `allowed_namespaces`
-value) to the pod. An in-cluster publisher, such as the Alertmanager
-bridge, adds its namespace there. This limits who reaches the pod
+The NetworkPolicy admits only `ingress-nginx` and `monitoring` (the
+`allowed_namespaces` value) to the pod: `monitoring` for Alertmanager, which
+publishes to the Service directly. Another in-cluster publisher adds its
+namespace there. This limits who reaches the pod
 *directly*; anything that can reach ingress-nginx can still talk to ntfy
 through it, so ntfy's token auth is the real gate.
 
@@ -198,6 +200,33 @@ carrying only the message ID, and the app fetches the message from this
 server.
 :::
 
+## Cluster alerts from Alertmanager
+
+Alertmanager (kube-prometheus-stack) publishes to `cluster-alerts` with a
+`webhook_configs` receiver; {doc}`monitoring` lists what is pushed. ntfy
+turns Alertmanager's webhook JSON into a notification itself, with no
+bridge component:
+
+- The publish URL is
+  `http://ntfy.ntfy.svc.cluster.local/cluster-alerts?template=alertmanager-cluster&click=...`.
+  `template=` names a message template, which ntfy renders as Go templates
+  (with sprig functions) over the JSON body, into the title, message and
+  priority.
+- The template is
+  `kubernetes-services/additions/ntfy/files/alertmanager-cluster.yml`,
+  mounted from the `ntfy-templates` ConfigMap at `template-dir`
+  (`/etc/ntfy-templates`). ntfy reads it on every publish, so an edit
+  needs no restart. ntfy's own built-in `alertmanager` template sets no
+  priority and links to Prometheus's internal address, hence this one.
+- ntfy rejects a rendered message over 4 KB (and Alertmanager then drops
+  that notification), so the template truncates annotations and the
+  receiver sends at most 5 alerts (`max_alerts`) per notification.
+- The `alertmanager` token reaches Alertmanager as the `alertmanager-ntfy`
+  Secret in `monitoring`, a copy of `ntfy-auth`'s `alertmanager-token`
+  (`CLUSTER_COPIES` in `scripts/lib/ntfy_auth.py`). `just seal-ntfy`,
+  including `--rotate alertmanager`, and the rebuild seal the copy along
+  with `ntfy-auth`.
+
 ## Publishing from a VPS
 
 Keep the **vps** token in a file only root can read, as the whole header
@@ -252,7 +281,8 @@ The user names are listed once, in `SENDERS` in
 generation, `just ntfy-tokens`) derives them from there.
 
 - **To add a sender:** add it to `SENDERS` (with `"owner"` if you hand its
-  token out yourself, `"cluster"` for an in-cluster publisher), add its
+  token out yourself, `"cluster"` for an in-cluster publisher, which also
+  needs a `CLUSTER_COPIES` entry if it runs outside the `ntfy` namespace), add its
   topic grants to `access` in `kubernetes-services/additions/ntfy/values.yaml`,
   run `just seal-ntfy` (which generates its token), commit, push and
   recreate the pod.

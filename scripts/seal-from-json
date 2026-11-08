@@ -105,19 +105,7 @@ kubectl create secret generic grafana-oauth-secret --namespace=monitoring \
     --dry-run=client -o yaml | seal_to "$BASE/grafana/grafana-oauth-secret.yaml"
 echo "  -> $BASE/grafana/grafana-oauth-secret.yaml"
 
-# 7. alertmanager-slack-secret (monitoring) — optional, only if present in JSON
-if has_secret alertmanager-slack-secret monitoring; then
-    echo "Sealing: alertmanager-slack-secret..."
-    v_webhook_url=$(get_key alertmanager-slack-secret monitoring webhook-url) || exit 1
-    kubectl create secret generic alertmanager-slack-secret --namespace=monitoring \
-        --from-literal=webhook-url="$v_webhook_url" \
-        --dry-run=client -o yaml | seal_to "$BASE/grafana/alertmanager-slack-secret.yaml"
-    echo "  -> $BASE/grafana/alertmanager-slack-secret.yaml"
-else
-    echo "Skipping: alertmanager-slack-secret (not in JSON)"
-fi
-
-# 8. scrap-secrets (scrap) — optional, only if present in JSON
+# 7. scrap-secrets (scrap) — optional, only if present in JSON
 if has_secret scrap-secrets scrap; then
     echo "Sealing: scrap-secrets..."
     v_anthropic_api_key=$(get_key scrap-secrets scrap ANTHROPIC_API_KEY) || exit 1
@@ -131,7 +119,7 @@ else
     echo "Skipping: scrap-secrets (not in JSON)"
 fi
 
-# 9. scrap-publish (scrap and scrap-public) — optional, one token sealed into
+# 8. scrap-publish (scrap and scrap-public) — optional, one token sealed into
 # each namespace. Refuse to seal two different tokens.
 if has_secret scrap-publish scrap && has_secret scrap-publish scrap-public; then
     t_scrap=$(get_key scrap-publish scrap token) || exit 1
@@ -155,7 +143,7 @@ else
     echo "Skipping: scrap-publish (not in JSON)"
 fi
 
-# 10. vps-relay-credentials (vps-relay) — optional, only if present in JSON
+# 9. vps-relay-credentials (vps-relay) — optional, only if present in JSON
 if has_secret vps-relay-credentials vps-relay; then
     echo "Sealing: vps-relay-credentials..."
     v_ts_oauth_client_secret=$(get_key vps-relay-credentials vps-relay ts-oauth-client-secret) || exit 1
@@ -169,7 +157,7 @@ else
     echo "Skipping: vps-relay-credentials (not in JSON)"
 fi
 
-# 11. ntfy-auth (ntfy) — optional, only if present in JSON. One <user>-token
+# 10. ntfy-auth (ntfy) — optional, only if present in JSON. One <user>-token
 # key per user in SENDERS (scripts/lib/ntfy_auth.py).
 if has_secret ntfy-auth ntfy; then
     echo "Sealing: ntfy-auth..."
@@ -187,6 +175,18 @@ if has_secret ntfy-auth ntfy; then
         --dry-run=client -o yaml | seal_to "$BASE/ntfy/templates/ntfy-auth-secret.yaml"
     unset ntfy_args v
     echo "  -> $BASE/ntfy/templates/ntfy-auth-secret.yaml"
+    # An in-cluster publisher's own copy of its token (CLUSTER_COPIES),
+    # e.g. alertmanager-ntfy in monitoring, from the same ntfy-auth data.
+    ntfy_copies=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" copies) || exit 1
+    while read -r user ns name path; do
+        echo "Sealing: $name ($ns)..."
+        v=$(get_key ntfy-auth ntfy "$user-token") || exit 1
+        kubectl create secret generic "$name" --namespace="$ns" \
+            --from-literal=token="$v" \
+            --dry-run=client -o yaml | seal_to "$path"
+        echo "  -> $path"
+    done <<< "$ntfy_copies"
+    unset v
 else
     echo "Skipping: ntfy-auth (not in JSON)"
 fi

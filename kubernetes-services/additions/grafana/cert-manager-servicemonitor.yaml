@@ -1,0 +1,25 @@
+# Scrapes cert-manager's controller metrics (the chart's metrics Service,
+# port 9402), for the certificate expiry alerts in cert-expiry-rules.yaml.
+# It lives here, not in the cert-manager chart's values
+# (prometheus.servicemonitor), because this Application installs the
+# ServiceMonitor CRD: cert-manager syncs early on a fresh bootstrap and
+# would fail on a kind that does not exist yet.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-manager
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - cert-manager
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: controller
+  endpoints:
+    - port: http-metrics
+      interval: 60s

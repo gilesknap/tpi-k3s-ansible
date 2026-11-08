@@ -35,7 +35,7 @@ setup steps.
 
 ### Monitoring-only — dashboards and alerts
 
-Metrics, dashboards, and Slack/email alerting for the cluster and any
+Metrics, dashboards, and push-notification alerting for the cluster and any
 workloads you add. Useful as a standalone observability cluster.
 
 **Install:** kube-prometheus-stack (Grafana + Prometheus + Alertmanager).
@@ -52,8 +52,8 @@ workloads you add. Useful as a standalone observability cluster.
 
 **Other prerequisites:**
 
-- Optional: a Slack webhook for Alertmanager notifications
-  (see {doc}`/how-to/monitoring`)
+- For alerts on a phone: the ntfy service (see {doc}`/how-to/ntfy` and
+  {doc}`/how-to/monitoring`)
 
 ### Minecraft — game servers from world backups
 

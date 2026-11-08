@@ -38,10 +38,10 @@ These secrets are created during the setup guides:
 | `cloudflared-credentials` | `cloudflared` | Cloudflare tunnel token | additions/cloudflared/tunnel-secret.yaml |
 | `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/templates/cloudflare-api-token-secret.yaml |
 | `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
-| `alertmanager-slack-secret` | `monitoring` | Alertmanager Slack webhook URL | additions/grafana/alertmanager-slack-secret.yaml |
 | `vps-relay-credentials` | `vps-relay` | Tailscale OAuth client secret + frp token for the VPS relay (optional — see {doc}`vps-relay`) | additions/vps-relay/templates/vps-relay-secret.yaml |
 | `scrap-secrets` | `scrap` | Claude API key + `/mcp` bearer token for scrap (see {doc}`scrap`) | additions/scrap/templates/scrap-secret.yaml |
 | `ntfy-auth` | `ntfy` | ntfy users (bcrypt hashes) and access tokens (see {doc}`ntfy`) | additions/ntfy/templates/ntfy-auth-secret.yaml |
+| `alertmanager-ntfy` | `monitoring` | Alertmanager's copy of the ntfy `alertmanager` token, sealed with `ntfy-auth` (see {doc}`monitoring`) | additions/grafana/alertmanager-ntfy-secret.yaml |
 | `scrap-publish` | `scrap`, `scrap-public` | scrap's public-pages upload token, the same in both namespaces | additions/scrap/templates/scrap-publish-secret.yaml, additions/scrap/templates/scrap-public-publish-secret.yaml |
 
 ## Prerequisites
@@ -120,7 +120,6 @@ freshly generated values.
 | `argocd-dex-secret` | `argo-cd` | `github` / `argocd` | GitHub OAuth credentials + every Dex static client secret |
 | `argocd-monitor-oauth` | `argocd-monitor` | `monitor` | oauth2-proxy client + fresh cookie secret |
 | `grafana-oauth-secret` | `monitoring` | `grafana` | Grafana Dex client secret |
-| `alertmanager-slack-secret` | `monitoring` | `slack` | Slack incoming webhook URL |
 
 ### Rotate a single secret
 
@@ -134,12 +133,7 @@ scripts/seal-argocd-dex github       # Update GitHub OAuth credentials
 scripts/seal-argocd-dex argocd       # Re-derive argo-cd client from server.secretkey
 scripts/seal-argocd-dex monitor      # Rotate argocd-monitor client + cookie
 scripts/seal-argocd-dex grafana      # Rotate grafana Dex client secret
-scripts/seal-argocd-dex slack        # Re-seal alertmanager Slack webhook
 ```
-
-The `slack` subcommand stands alone (its secret is not part of
-`argocd-dex-secret`). Pass `SLACK_WEBHOOK_URL=...` or it prompts
-interactively.
 
 ### After running
 
