@@ -27,8 +27,8 @@
   (ws03, nuc2, node01) are fine as labelled examples.
 - **Local PV data paths are sacred.** `/home/k8s-data/*` (nuc2) and
   `/var/lib/k8s-data/*` (RK1s) back the static `local-nvme` PVs that
-  carry Grafana/Prometheus state, scrap's frozen pre-Litestream copy and
-  its off-NAS backup copy across rebuilds.
+  carry Grafana/Prometheus state, Jellyfin's config, scrap's frozen
+  pre-Litestream copy and its off-NAS backup copy across rebuilds.
   Do not wipe them. `pb_decommission.yml` preserves them by default;
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
   scrap's live data is on the NAS (`/bigdisk/k8s-cluster/scrap-data`,
@@ -56,7 +56,7 @@
   cannot place a partition over U-Boot.
 - **New RWO `local-nvme` workloads must pin a host explicitly.** The
   existing pinning is prometheus→node04, grafana→node04,
-  scrap's off-NAS backup copy→nuc2. scrap itself is not pinned (ADR
+  jellyfin→nuc2, scrap's off-NAS backup copy→nuc2. scrap itself is not pinned (ADR
   0013). Each local PV in
   `additions/local-storage/` has `spec.nodeAffinity` matching its pod;
   a new workload needs its own PV + node choice, not a shared pool.

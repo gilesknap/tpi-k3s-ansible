@@ -200,6 +200,48 @@ vps_relay:
       protocol: tcp
       ports: 30565-30584
       target: 192.168.1.92
+# Jellyfin media server (upstream jellyfin/jellyfin chart), pinned to one
+# node for its config volume (local_storage.jellyfin) and Intel iGPU. LAN and
+# Tailscale only: no Ingress or Cloudflare route. See docs/how-to/jellyfin.md.
+# Needs, before the first sync: the config directory on the node
+# (`ansible-playbook pb_all.yml --tags k8s_data_dirs --limit <node>`), the
+# node labelled for the Intel GPU (intel_gpu_node: true in hosts.yml), and
+# the chart repo in the AppProject (argo-cd/argo-project.yaml, applied with
+# `--tags cluster`).
+enable_jellyfin: true
+jellyfin:
+  # Each pinned to the newest release at least two weeks old when chosen, as
+  # a supply-chain buffer; keep that rule when bumping. Chart 3.6.0 ships
+  # app 12.3. The image tag is the immutable dated build of 12.3.
+  chart_version: "3.6.0"
+  image_tag: "12.3.20261023-013714"
+  # Trial: a throwaway config on the real config volume, marked as such
+  # (TRIAL-CONFIG-SAFE-TO-DELETE) so the cutover can clear it before copying
+  # the real data in. The cutover sets this false.
+  trial: true
+  # Off for the trial: ClusterIP only, reached by kubectl port-forward, so
+  # the pod cannot clash with a host install's 8096/7359. The cutover turns
+  # it on, so the pod listens on every host interface (both LANs and
+  # tailscale0) and UDP 7359 client discovery works.
+  host_network: false
+  # The node's jellyfin account: files on the volume keep this owner.
+  # SYNC: owner/group of the jellyfin entry in k8s_data_dirs
+  # (group_vars/all.yml).
+  uid: 122
+  gid: 124
+  # The node's render group, for /dev/dri/renderD128 (`getent group render`
+  # on the node). 992 on Ubuntu 24.04: VERIFY after an OS release upgrade,
+  # as it is allocated dynamically.
+  render_gid: 992
+  # The video group, for /dev/dri/card0 (fixed at 44 on Debian/Ubuntu).
+  video_gid: 44
+  # emptyDir for the cache and transcodes; a pod restart losing it is harmless.
+  cache_size: 20Gi
+  media:
+    # Read-only NFS export of the library on nfs.server.
+    nfs_path: /bigdisk/media
+    # Mounted where a host install sees it, so imported library paths match.
+    mount_path: /media/bigdisk/media
 # Personal-cluster policy engine.
 # Disabled for now: the app never settles to Synced on its policies.kyverno.io
 # CRDs (issue #552). No policies were in use.
@@ -257,3 +299,12 @@ local_storage:
     capacity: 10Gi
     claim_namespace: scrap
     claim_name: scrap-backup-copy
+  # Jellyfin's /config (database, metadata, subtitles, plugins). 60Gi is an
+  # estimate: a host install's data was 25G, 22G of it extracted subtitles.
+  # Mounted by kubernetes-services/templates/jellyfin.yaml.
+  jellyfin:
+    node: nuc2
+    path: /home/k8s-data/jellyfin
+    capacity: 60Gi
+    claim_namespace: jellyfin
+    claim_name: jellyfin-config

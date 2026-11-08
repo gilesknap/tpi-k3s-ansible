@@ -1,0 +1,47 @@
+{{- /*
+The media library: a static NFS PV of the NAS directory, pre-bound to its claim
+both ways (claimRef and volumeName). Read-only three times over: the PV's
+nfs.readOnly, the ReadOnlyMany access mode and the pod's readOnly mount, so
+Jellyfin can never write to the media. persistentVolumeReclaimPolicy Retain:
+deleting the PV or claim never touches the NAS. Wave -2: before the chart (0).
+*/}}
+{{- $server := required "media.server is required" .Values.media.server }}
+{{- $path := required "media.path is required" .Values.media.path }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.media.volume }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  capacity:
+    storage: {{ .Values.media.size }}
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.media.claim }}
+  nfs:
+    server: {{ $server | quote }}
+    path: {{ $path | quote }}
+    readOnly: true
+  mountOptions:
+    - vers=4.1
+    - hard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.media.claim }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: ""
+  volumeName: {{ .Values.media.volume }}
+  resources:
+    requests:
+      storage: {{ .Values.media.size }}
