@@ -78,9 +78,9 @@
     k3s_agent_exec: >-
       {% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}
       {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
-      {% if nvidia_gpu_node | default(false) %} --node-label=nvidia.com/gpu.present=true{% endif %}
-      {% if intel_gpu_node | default(false) %} --node-label=intel.feature.node.kubernetes.io/gpu=true{% endif %}
-      {% if workstation | default(false) %} --node-label=node-role=workstation
+      {% if nvidia_gpu_node | default(false) | bool %} --node-label=nvidia.com/gpu.present=true{% endif %}
+      {% if intel_gpu_node | default(false) | bool %} --node-label=intel.feature.node.kubernetes.io/gpu=true{% endif %}
+      {% if workstation | default(false) | bool %} --node-label=node-role=workstation
       --node-taint=workstation=true:NoSchedule{% endif %}
   register: k3s_installed
   changed_when: true
@@ -115,26 +115,26 @@
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} nvidia.com/gpu.present=true --overwrite
   delegate_to: "{{ control_plane }}"
-  when: nvidia_gpu_node | default(false)
+  when: nvidia_gpu_node | default(false) | bool
   changed_when: true
 
 - name: Label Intel iGPU nodes so the Intel GPU device plugin DaemonSet can schedule there
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} intel.feature.node.kubernetes.io/gpu=true --overwrite
   delegate_to: "{{ control_plane }}"
-  when: intel_gpu_node | default(false)
+  when: intel_gpu_node | default(false) | bool
   changed_when: true
 
 - name: Taint workstation nodes with workstation=true:NoSchedule
   ansible.builtin.command:
     cmd: kubectl taint node {{ inventory_hostname }} workstation=true:NoSchedule --overwrite
   delegate_to: "{{ control_plane }}"
-  when: workstation | default(false)
+  when: workstation | default(false) | bool
   changed_when: true
 
 - name: Label workstation nodes with node-role=workstation
   ansible.builtin.command:
     cmd: kubectl label node {{ inventory_hostname }} node-role=workstation --overwrite
   delegate_to: "{{ control_plane }}"
-  when: workstation | default(false)
+  when: workstation | default(false) | bool
   changed_when: true

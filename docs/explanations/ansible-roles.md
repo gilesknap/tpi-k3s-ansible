@@ -535,9 +535,9 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 - Gets the join token from the control plane.
 - Runs the K3s agent installer with `K3S_URL=https://<k3s_api_name>:6443`.
   A new Node object registers with its inventory-driven labels and taint
-  already set (`--node-label`, `--node-taint`): the GPU labels below, and on a workstation
-  node (`workstation: true`) the `node-role=workstation` label and the
-  `workstation=true:NoSchedule` taint. No ordinary pod can land on a
+  already set (`--node-label`, `--node-taint`): the GPU labels below, and on
+  a workstation node (`workstation: true`) the `node-role=workstation` label
+  and the `workstation=true:NoSchedule` taint. No ordinary pod can land on a
   workstation between its registration and the kubectl tasks below, and the
   system-upgrade-controller agent Plan, which selects nodes without
   `node-role=workstation`, never picks it up.
