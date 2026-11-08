@@ -13,6 +13,12 @@ kubectl -n system-upgrade get plans     # target version per plan
 kubectl -n system-upgrade get jobs      # one Job per node being upgraded
 ```
 
+The control plane's Job usually shows two pods: the first is lost when k3s
+restarts under it, and the second completes the Job. Only the first takes a
+`pre-upgrade-*` snapshot; see
+{doc}`/explanations/upgrade-model` for why, and which snapshot to use if
+there are two.
+
 ## Upgrade to a new minor version
 
 The cluster follows one k3s minor line, set by `k3s.minor` in

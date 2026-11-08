@@ -44,15 +44,32 @@ spec:
   # Take an on-demand etcd snapshot before replacing the k3s binary. It
   # lands with the scheduled snapshots in
   # /var/lib/rancher/k3s/server/db/snapshots on the server.
+  #
+  # The upgrade stops k3s, and with it the kubelet, under this Job's pod,
+  # so the Job usually counts that pod as failed and runs a second one
+  # once k3s is back. Skip the snapshot when the host k3s already runs the
+  # target version: by then it would be a post-upgrade snapshot under the
+  # pre-upgrade name (docs/explanations/upgrade-model.md).
   prepare:
     image: busybox:1.38
     command:
       - sh
       - -c
     args:
-      - >-
-        chroot /host /usr/local/bin/k3s etcd-snapshot save
-        --name "pre-upgrade-${SYSTEM_UPGRADE_PLAN_LATEST_VERSION%%+*}"
+      - |
+        set -eu
+        # The controller passes the version with "+" turned into "-"
+        # (v1.34.13-k3s1); k3s --version prints v1.34.13+k3s1.
+        target="$(echo "$SYSTEM_UPGRADE_PLAN_LATEST_VERSION" | tr + -)"
+        current="$(chroot /host /usr/local/bin/k3s --version \
+          | awk 'NR == 1 { print $3 }' | tr + -)"
+        if [ "$current" = "$target" ]; then
+          echo "k3s is already at $target: no pre-upgrade snapshot"
+          exit 0
+        fi
+        echo "k3s $current -> $target: saving a pre-upgrade snapshot"
+        chroot /host /usr/local/bin/k3s etcd-snapshot save \
+          --name "pre-upgrade-${SYSTEM_UPGRADE_PLAN_LATEST_VERSION%%+*}"
     securityContext:
       privileged: true
   upgrade:
