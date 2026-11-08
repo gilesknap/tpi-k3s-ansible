@@ -105,6 +105,7 @@ hardware and want the full experience out of the box.
 | Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
 | Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
+| Intel GPU device plugin | Upstream release manifests (vendored) | v0.37.1 | `intel-gpu-plugin` | — | — | Advertises `gpu.intel.com/i915` on Intel iGPU nodes |
 | kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
@@ -299,6 +300,62 @@ resource on the node.
 Requires the NVIDIA container runtime to be configured in k3s's containerd. The
 `update_packages` role writes a `config.toml.tmpl` that sets the NVIDIA runtime as
 default and survives k3s-agent restarts.
+
+### Intel GPU device plugin
+
+DaemonSet from
+[intel-device-plugins-for-kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes)
+that advertises an Intel iGPU (for example Iris Xe) as the `gpu.intel.com/i915`
+resource, so a pod gets `/dev/dri` for VAAPI or Quick Sync through a resource
+request instead of running privileged. Schedules on nodes with label
+`intel.feature.node.kubernetes.io/gpu=true`, applied by the `k3s` Ansible role
+for `intel_gpu_node` hosts. That is the label Node Feature Discovery would set,
+so NFD can replace the inventory flag later without changing the plugin.
+
+It is the upstream release's plain DaemonSet, vendored in
+`additions/intel-gpu-plugin/upstream/` so that a sync never fetches from GitHub,
+with a kustomize patch for the node selector and `-shared-dev-num`. It needs
+neither the Intel operator nor cert-manager. `-shared-dev-num` sets how many pods
+may share each GPU; it starts at 1, so raise it before running a second GPU pod.
+Like any DaemonSet pod it is not evicted when kured drains the node, and it has
+no PodDisruptionBudget, so it never blocks a reboot.
+
+The i915 kernel driver ships with Ubuntu, so the node needs no extra packages.
+
+**Requesting the GPU:**
+
+```yaml
+resources:
+  limits:
+    gpu.intel.com/i915: 1
+```
+
+The plugin mounts the node's `/dev/dri/card*` and `/dev/dri/renderD*` into the
+container with their host ownership, `root:render` mode `0660`. A container that
+runs as root can use them as they are. A non-root container also needs the
+node's `render` group ID in `supplementalGroups`. Look it up on the node with
+`getent group render`: it differs between distributions and can change across
+an OS release upgrade.
+
+```yaml
+securityContext:
+  supplementalGroups: [993] # the node's render GID
+```
+
+**Verifying:** check the node advertises the resource, then run a test pod
+that lists the devices and queries VAAPI with the `vainfo` bundled in the
+Jellyfin image:
+
+```bash
+kubectl get nodes -o custom-columns='NODE:.metadata.name,I915:.status.allocatable.gpu\.intel\.com/i915'
+kubectl run vainfo --rm -it --restart=Never --image=jellyfin/jellyfin:10.10.7 \
+  --overrides='{"spec":{"containers":[{"name":"vainfo","image":"jellyfin/jellyfin:10.10.7",
+    "command":["sh","-c","ls -l /dev/dri && /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128"],
+    "resources":{"limits":{"gpu.intel.com/i915":"1"}}}]}}'
+```
+
+`vainfo` should list the iHD driver and its `VAProfile...` entrypoints. If the
+render node has another number, use the one `ls` printed.
 
 ### system-upgrade-controller
 

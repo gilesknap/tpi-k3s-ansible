@@ -538,6 +538,9 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 - Labels NVIDIA GPU nodes with `nvidia.com/gpu.present=true` (when `nvidia_gpu_node: true`
   in inventory). This bootstraps scheduling for the NVIDIA device plugin DaemonSet, which
   then takes over and advertises `nvidia.com/gpu` allocatable resources to the scheduler.
+- Labels Intel iGPU nodes with `intel.feature.node.kubernetes.io/gpu=true` (when
+  `intel_gpu_node: true` in inventory), so the Intel GPU device plugin DaemonSet
+  schedules there and advertises `gpu.intel.com/i915`.
 
 ### Kubeconfig (`kubeconfig.yml`)
 

@@ -43,6 +43,7 @@ all_nodes:
 | `type` | For Turing Pi nodes | `rk1`, `pi4` | Compute module type (determines OS image) |
 | `root_dev` | Optional, RK1 only | Device path | The disk to install the OS on (e.g. `/dev/nvme0n1`); the eMMC then holds only U-Boot |
 | `nvidia_gpu_node` | Optional | `true`/`false` | Set `true` for nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true`. Required for GPU workloads. |
+| `intel_gpu_node` | Optional | `true`/`false` | Set `true` for nodes with an Intel iGPU. Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin advertises `gpu.intel.com/i915` there. |
 | `workstation` | Optional | `true`/`false` | Applies `workstation=true:NoSchedule` taint and `node-role=workstation` label. Only tolerating workloads (GPU, monitoring) schedule here. |
 | `node_ip` | Optional | IP address | Forces K3s to use this IP (passed as `--node-ip`). Required for multi-homed nodes where the default route interface is on the wrong subnet. |
 | `flannel_iface` | Optional | Interface name | Forces flannel's VXLAN tunnel to use this interface (passed as `--flannel-iface`). Must match the interface carrying `node_ip`. Required alongside `node_ip` on multi-homed nodes. |
