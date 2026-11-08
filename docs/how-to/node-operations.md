@@ -176,8 +176,18 @@ directory on the host, so deleting the PV object does not delete any data.
    If the workload has a backup ({doc}`backup-restore`), take a fresh one
    now, while it still runs on the old node.
 
-   Merge the change. Until step 3 the `local-storage` app shows a sync
-   error for that PV, as it cannot change its node.
+   Merge the change, then hard-refresh the parent app,
+   `all-cluster-services`, so it re-reads `main` straight away:
+
+   ```bash
+   kubectl -n argo-cd annotate application all-cluster-services \
+     argocd.argoproj.io/refresh=hard --overwrite
+   ```
+
+   The child apps, such as `local-storage` and `backups`, take their values
+   from the parent. Refreshing only a child leaves it on the parent's old
+   commit, still with the old node. Until step 3 the `local-storage` app
+   shows a sync error for that PV, as it cannot change its node.
 2. Delete the PVC and the pod that uses it. The PVC waits for the pod to
    go, and the StatefulSet then re-creates both. The new pod stays
    `Pending`, as the old PV still points at the old claim and node:
@@ -203,6 +213,10 @@ directory on the host, so deleting the PV object does not delete any data.
 
    Then set the namespace back to the one you had before, if it was not
    `argo-cd`.
+
+   The sync can fail with `another operation is already in progress`,
+   while auto-sync retries the app. That is fine: the auto-sync re-creates
+   the PV once `delete-resource` has removed it.
 
    In the ArgoCD UI, the same is: open `local-storage`, delete the PV,
    then **Sync**. `argocd app sync --replace` does not work instead: the
