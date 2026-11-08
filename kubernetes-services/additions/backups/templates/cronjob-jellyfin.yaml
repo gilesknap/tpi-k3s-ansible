@@ -57,16 +57,30 @@ spec:
                   stage=/work/stage
                   rm -rf "$stage"
                   mkdir -p "$stage/data/data"
-                  # A consistent snapshot, read-only: while Jellyfin runs,
-                  # its -wal and -shm exist and a read-only connection uses
-                  # them. With no -wal the database is fully checkpointed
-                  # and a read-only open needs immutable=1.
-                  if [ -e "$db-wal" ]; then
-                    src="file:$db?mode=ro"
-                  else
-                    src="file:$db?immutable=1"
-                  fi
-                  sqlite3 "$src" ".backup $stage/data/data/jellyfin.db"
+                  # A consistent snapshot from a read-only mount. While
+                  # Jellyfin has the database open, its -wal and -shm exist
+                  # and a read-only connection shares their locks. Jellyfin
+                  # closes idle connections, which checkpoints and removes
+                  # the -wal; a read-only open then needs immutable=1, which
+                  # takes no locks, so that copy counts only if the database
+                  # did not change under it (no -wal appeared, and size and
+                  # mtime held). Otherwise try again.
+                  sig() { stat -c '%s %y' "$db"; [ -e "$db-wal" ] && echo wal || true; }
+                  ok=
+                  for try in 1 2 3 4 5 6; do
+                    rm -f "$stage/data/data/jellyfin.db"
+                    if [ -e "$db-wal" ]; then
+                      sqlite3 "file:$db?mode=ro" ".backup $stage/data/data/jellyfin.db" && ok=1
+                    else
+                      before=$(sig)
+                      sqlite3 "file:$db?immutable=1" ".backup $stage/data/data/jellyfin.db" &&
+                        [ "$(sig)" = "$before" ] && ok=1
+                    fi
+                    [ -n "$ok" ] && break
+                    echo "database changed during the copy (try $try): retrying"
+                    sleep 20
+                  done
+                  [ -n "$ok" ] || { echo "no consistent snapshot" >&2; exit 1; }
                   check=$(sqlite3 "$stage/data/data/jellyfin.db" 'PRAGMA quick_check;')
                   if [ "$check" != ok ]; then
                     echo "quick_check of the snapshot failed: $check" >&2
@@ -74,8 +88,9 @@ spec:
                   fi
                   cd /data
                   set --
-                  for p in config data/plugins data/root data/data/playlists \
-                    data/data/ScheduledTasks data/data/*.txt; do
+                  for p in config data/.aspnet data/plugins data/root \
+                    data/data/playlists data/data/ScheduledTasks \
+                    data/data/*.txt; do
                     if [ -e "$p" ]; then set -- "$@" "$p"; fi
                   done
                   tar -cf - "$@" | tar -xf - -C "$stage"

@@ -204,10 +204,12 @@ Markers at the volume's root decide what happens:
 
 1. Does nothing if the volume is `SEEDED-FROM-HOST`.
 2. Refuses (fails, and retries with back-off) while the host service looks
-   live: something listening on port 8096 of the node, or a non-empty
-   `jellyfin.db-wal` in the host's data directory. A clean stop leaves it
-   empty or removes it; after an unclean stop, start and stop the host
-   service once.
+   live: mainly, something listening on port 8096 of the node (on
+   `127.0.0.1` or the node's IP). It also refuses on a non-empty
+   `jellyfin.db-wal` in the host's data directory, though a running
+   Jellyfin often has none, as it closes idle connections; after an unclean
+   stop, start and stop the host service once. Stopping the host service
+   before the change is merged is what really guarantees a quiet copy.
 3. Claims the volume: clears it only if it is empty, trial-marked or already
    `SEED-IN-PROGRESS`. A volume holding anything else fails loudly and is
    never cleared.
@@ -300,7 +302,8 @@ and with the config volume's directory mounted read-only:
 01:45 is after Jellyfin's default 01:00 scheduled tasks and before the kured
 reboot window. Each tarball holds a consistent `sqlite3 .backup` snapshot of
 the database (checked with `PRAGMA quick_check`), and from the volume
-`config/`, `data/plugins/`, `data/root/` (library definitions) and
+`config/`, `data/.aspnet` (data-protection keys), `data/plugins/`,
+`data/root/` (library definitions) and
 `data/data`'s `playlists/`, `ScheduledTasks/` and `*.txt`. It is laid out
 like the volume, so it unpacks at the volume's root. Extracted subtitles and
 metadata are not backed up: a library scan rebuilds them.
@@ -315,6 +318,9 @@ kubectl logs -n backups job/manual-<timestamp> -f
 ### Restore from a backup
 
 1. Set `enable_jellyfin: false` and push, so nothing has the database open.
+   If `jellyfin.seed_from_host` is still on, turn it off in the same change:
+   on a volume without `SEEDED-FROM-HOST` (a new, restored one) the seed
+   refuses to start, as the volume holds unmarked data.
 2. On the node, unpack the tarball over the volume's root as the `jellyfin`
    account, for example with the NAS share mounted on the node:
 
