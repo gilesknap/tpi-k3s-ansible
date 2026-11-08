@@ -18,6 +18,8 @@
   delegate_to: "{{ control_plane }}"
   register: k3s_nodes
   changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
 
 - name: Check if this node is already in the cluster
   ansible.builtin.set_fact:
@@ -44,6 +46,9 @@
   delegate_to: "{{ control_plane }}"
   register: k3s_node_token
   changed_when: false
+  no_log: true
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
 
 - name: Read the k3s version the control plane runs
   ansible.builtin.command:
@@ -51,20 +56,43 @@
   delegate_to: "{{ control_plane }}"
   register: k3s_control_plane_version
   changed_when: false
+  # Read-only: run in --check too, so later tasks see real data.
+  check_mode: false
 
 - name: Install k3s worker node {{ k3s_version | default(k3s_control_plane_version.stdout) }}
   ansible.builtin.command:
     cmd: /usr/local/bin/k3s-install.sh
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version | default(k3s_control_plane_version.stdout) }}"
-    K3S_URL: "https://{{ k3s_control_plane_ip }}:6443"
+    K3S_URL: "https://{{ k3s_api_name }}:6443"
     K3S_TOKEN: "{{ k3s_node_token.stdout }}"
     INSTALL_K3S_EXEC: >-
       {% if node_ip is defined %}--node-ip={{ node_ip }}{% endif %}
       {% if flannel_iface is defined %} --flannel-iface={{ flannel_iface }}{% endif %}
   register: k3s_installed
   changed_when: true
+  # The environment carries K3S_TOKEN.
+  no_log: true
   when: k3s_force or not k3s_in_cluster
+
+# Agents installed before k3s_api_name existed joined the control plane by
+# IP. The installer keeps K3S_URL in this env file; rewrite it so every
+# agent follows the API name, and restart the agent to pick it up. The
+# agent resets its client load balancer when the server URL changes.
+- name: Check for the k3s agent environment file
+  ansible.builtin.stat:
+    path: /etc/systemd/system/k3s-agent.service.env
+  register: k3s_agent_env
+
+- name: Point the k3s agent at {{ k3s_api_name }}
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/system/k3s-agent.service.env
+    regexp: "^K3S_URL="
+    line: "K3S_URL='https://{{ k3s_api_name }}:6443'"
+  when: k3s_agent_env.stat.exists
+  # The file also holds K3S_TOKEN: keep it out of --diff output.
+  diff: false
+  notify: Restart k3s-agent
 
 - name: Set the k3s_install_occurred fact
   ansible.builtin.set_fact:

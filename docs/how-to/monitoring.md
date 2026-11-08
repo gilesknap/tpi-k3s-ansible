@@ -47,7 +47,7 @@ ship a ServiceMonitor manifest alongside the app.
 
 ## Data retention
 
-Prometheus stores metrics data on a static `local-nvme` PV on node02 (40Gi by
+Prometheus stores metrics data on a static `local-nvme` PV on node04 (40Gi by
 default, configured in `kubernetes-services/templates/grafana.yaml`). Default
 retention is 10 days (kube-prometheus-stack default).
 

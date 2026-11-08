@@ -112,7 +112,7 @@ reboot unexpectedly. This has these consequences you must design for:
 ### Storage placement
 There is no replicated block storage (Longhorn was dropped, ADR 0012):
 - **RWO `local-nvme`**: static PVs in `additions/local-storage/`, each
-  with `spec.nodeAffinity` pinning its pod (prometheus→node02,
+  with `spec.nodeAffinity` pinning its pod (prometheus→node04,
   grafana→node03; scrap's off-NAS backup copy and frozen pre-NFS copy
   →nuc2). A new workload gets its own PV and node, never ws03. Losing
   the node takes the workload offline until it's back.
@@ -146,7 +146,7 @@ Notes:
   (or come back, for DaemonSets pinned to that node).
 - Hard power-cycle is unclean for in-flight writes. If the node hosts
   live local-PV data (see CLAUDE.md "Local PV data paths are sacred":
-  Prometheus on node02, Grafana on node03),
+  Prometheus on node04, Grafana on node03),
   expect fsck on boot — check pod logs once the node returns.
 - For the Claude sandbox specifically: the BMC SSH key isn't reachable
   from the sandbox (the `--clearenv` bwrap wrapper strips `SSH_AUTH_SOCK`,
@@ -167,6 +167,13 @@ pins an exact release, but only on the `k3s_minor` line. See
 
 ## Foot-guns
 
+- **`k3s_api_name` must resolve before the `k3s` tag** — agents join,
+  and the kubeconfig points at, `https://<k3s_api_name>:6443` (e.g.
+  `k3s.lan`, a router DNS record), not the control plane's IP. The role
+  asserts it resolves to `control_plane` on every node and the
+  controller (warns only under `--check`). Moving the control plane =
+  change `control_plane` + repoint the record (`just k3s-api-dns <ip>`,
+  OpenWrt `dns_router` via uci); see `docs/how-to/recover-control-plane.md`.
 - **`known_hosts` write tasks need `throttle: 1`** — parallel writes
   race on the shared file. The scans run in parallel; don't add `serial`.
 - **Traefik is disabled** — `--disable=traefik` with NGINX Ingress. Do

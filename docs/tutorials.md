@@ -33,7 +33,7 @@ NFS CronJobs give you off-cluster point-in-time restore.
 
 **Pod-to-node pinning is deliberate.** Because each stateful PV is
 tied to one node, the corresponding Deployment/StatefulSet must also
-land on that node. The existing pinning — `prometheus→node02` and
+land on that node. The existing pinning — `prometheus→node04` and
 `grafana→node03` — is
 not an accident, and new RWO `local-nvme` workloads need to pick
 their own host. This is called out in `CLAUDE.md` as a hard rule.

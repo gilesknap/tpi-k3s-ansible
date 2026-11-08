@@ -1,0 +1,63 @@
+#!/bin/sh
+# Point the k3s API name (k3s_api_name) at a control-plane node, on an
+# OpenWrt router whose dnsmasq serves the LAN's DNS. Runs ON the router,
+# fed over SSH; `just k3s-api-dns <ip>` does that for you:
+#
+#   ssh root@<router> 'NAME=k3s.lan IP=192.168.1.81 sh -s' < scripts/k3s-api-dns
+#
+# NAME  the DNS name to set (k3s_api_name in group_vars/all.yml)
+# IP    the control plane's IPv4 address
+#
+# Idempotent: it updates the existing dhcp 'domain' record for NAME rather
+# than adding a second one, and changes nothing if it already holds IP.
+# dnsmasq serves these records with TTL 0, so clients see a change at once.
+# Other routers need an equivalent local DNS record, with TTL 0 or short.
+set -eu
+
+NAME=${NAME:-}
+IP=${IP:-}
+[ -n "$NAME" ] || { echo "ERROR: NAME is not set" >&2; exit 1; }
+bad_ip() { echo "ERROR: IP '$IP' is not an IPv4 address" >&2; exit 1; }
+case $IP in
+    *[!0-9.]* | "" | *..* | .* | *.) bad_ip ;;
+esac
+old_ifs=$IFS
+IFS=.
+# shellcheck disable=SC2086 # split on dots on purpose
+set -- $IP
+IFS=$old_ifs
+[ $# -eq 4 ] || bad_ip
+for octet in "$@"; do
+    [ "$octet" -le 255 ] || bad_ip
+done
+
+# Find an existing dhcp 'domain' record for NAME.
+idx=""
+i=0
+while uci -q get "dhcp.@domain[$i]" >/dev/null; do
+    if [ "$(uci -q get "dhcp.@domain[$i].name")" = "$NAME" ]; then
+        idx=$i
+        break
+    fi
+    i=$((i + 1))
+done
+
+if [ -z "$idx" ]; then
+    echo "adding $NAME -> $IP"
+    uci add dhcp domain >/dev/null
+    idx=-1
+else
+    old=$(uci -q get "dhcp.@domain[$idx].ip" || true)
+    if [ "$old" = "$IP" ]; then
+        echo "$NAME already points at $IP: nothing to do"
+        exit 0
+    fi
+    echo "updating $NAME: ${old:-<no ip>} -> $IP"
+fi
+uci set "dhcp.@domain[$idx].name=$NAME"
+uci set "dhcp.@domain[$idx].ip=$IP"
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+
+echo "the router now answers:"
+nslookup "$NAME" 127.0.0.1 2>/dev/null | sed -n '/^Name:/,$p'

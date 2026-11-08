@@ -1,0 +1,97 @@
+# Check that https://<k3s_api_name>:6443 presents a certificate that the
+# cluster CA signed for that name. Read-only, so it runs in --check too, but
+# there a failure only warns: the preview runs before the DNS record exists,
+# and before the control plane has restarted with the new tls-san.
+#
+# From the controller, with the CA read from the control plane (written to a
+# scratch file for the uri module, then removed): this covers the
+# kubeconfig and fresh nodes that have no copy of the CA yet. Then from each
+# node that already has the CA, which is the path its agent will use.
+
+- name: Read the cluster's server CA from the control plane
+  ansible.builtin.command:
+    cmd: cat /var/lib/rancher/k3s/server/tls/server-ca.crt
+  delegate_to: "{{ control_plane }}"
+  register: k3s_server_ca
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  run_once: true
+
+- name: Probe the API name from the controller
+  when: k3s_server_ca.rc == 0
+  delegate_to: localhost
+  become: false
+  run_once: true
+  # Read-only apart from a scratch file: run in --check too.
+  check_mode: false
+  block:
+    - name: Create a scratch file for the server CA
+      ansible.builtin.tempfile:
+        suffix: .k3s-server-ca.crt
+      register: k3s_server_ca_file
+      changed_when: false
+
+    - name: Write the server CA to the scratch file
+      ansible.builtin.copy:
+        content: "{{ k3s_server_ca.stdout }}\n"
+        dest: "{{ k3s_server_ca_file.path }}"
+        mode: "0600"
+      changed_when: false
+
+    - name: Fetch the API name's /ping from the controller
+      ansible.builtin.uri:
+        url: https://{{ k3s_api_name }}:6443/ping
+        ca_path: "{{ k3s_server_ca_file.path }}"
+        validate_certs: true
+        timeout: 10
+      register: k3s_api_probe_local
+      failed_when: false
+  always:
+    - name: Remove the server CA scratch file
+      ansible.builtin.file:
+        path: "{{ k3s_server_ca_file.path }}"
+        state: absent
+      changed_when: false
+      when: k3s_server_ca_file.path is defined
+
+- name: Check the control plane's certificate covers {{ k3s_api_name }}
+  ansible.builtin.assert:
+    that:
+      - k3s_server_ca.rc == 0
+      - k3s_api_probe_local.status | default(-1) == 200
+    fail_msg: >-
+      https://{{ k3s_api_name }}:6443 failed from the controller:
+      {{ k3s_api_probe_local.msg | default('no server CA on ' ~ control_plane) }}.
+      {{ k3s_api_cert_hint }}
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+  run_once: true
+
+- name: Check for the cluster CA on this node
+  ansible.builtin.stat:
+    path: /var/lib/rancher/k3s/agent/server-ca.crt
+  register: k3s_agent_ca
+
+- name: Probe the API name from this node
+  ansible.builtin.uri:
+    url: https://{{ k3s_api_name }}:6443/ping
+    ca_path: /var/lib/rancher/k3s/agent/server-ca.crt
+    validate_certs: true
+    return_content: false
+    timeout: 10
+  register: k3s_api_probe
+  failed_when: false
+  check_mode: false
+  when: k3s_agent_ca.stat.exists
+
+- name: Check this node trusts {{ k3s_api_name }}
+  ansible.builtin.assert:
+    that:
+      - k3s_api_probe.status | default(-1) == 200
+    fail_msg: >-
+      https://{{ k3s_api_name }}:6443 failed from {{ inventory_hostname }}:
+      {{ k3s_api_probe.msg | default('no response') }}. {{ k3s_api_cert_hint }}
+    quiet: true
+  when: k3s_agent_ca.stat.exists
+  ignore_errors: "{{ ansible_check_mode }}"

@@ -43,6 +43,21 @@ known_hosts_files:
   - "~/.ssh/known_hosts"
   - /etc/ssh/ssh_known_hosts
 control_plane: node01 # the node name of the (single) control plane
+# Stable name for the Kubernetes API (port 6443). Agents join it, the
+# server certificate carries it as a SAN, and the exported kubeconfig uses
+# it, so moving the control plane to another node means changing
+# control_plane above and pointing this name at the new node. Make it a
+# DNS record on your router (or other LAN DNS) that resolves to the
+# control plane's IP; the k3s role checks it does before changing
+# anything. AAAA records are fine if they are the control plane's too.
+# Without LAN DNS, set it to the control plane's IPv4 address instead; an
+# IPv6 literal does not work (the role builds https://<name>:6443 unbracketed).
+k3s_api_name: k3s.lan
+# SSH target of the router that serves k3s_api_name, used only by
+# `just k3s-api-dns <ip>` (scripts/k3s-api-dns). It must be an OpenWrt
+# router whose dnsmasq is managed with uci; with any other LAN DNS, create
+# the record by hand instead and leave this unused.
+dns_router: root@192.168.1.1
 # age public key (age1...) for the nightly encrypted etcd backup
 # (roles/etcd_backup). Only the public key belongs here: the private key
 # stays offline with the cluster owner, so nothing on the cluster can
@@ -101,7 +116,7 @@ cluster_install_list:
 # never deletes existing data.
 k8s_data_dirs:
   - name: prometheus
-    node: node02
+    node: node04
     path: /var/lib/k8s-data/prometheus
     owner: "1000"
     group: "2000"

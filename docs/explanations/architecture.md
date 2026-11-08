@@ -98,6 +98,11 @@ Notable configuration:
 - **Control plane is tainted** (multi-node only) — `NoSchedule` taint prevents
   workloads from running on the control plane node; skipped for single-node clusters
 - **etcd mode** — single control plane with `--cluster-init` (embedded etcd)
+- **Stable API name** — workers, the server certificate (`tls-san`) and the
+  exported kubeconfig all use `k3s_api_name` (e.g. `k3s.lan`), a LAN DNS
+  record pointing at the control plane, so the control plane can move to
+  another node without re-joining the workers
+  ({doc}`/how-to/recover-control-plane`)
 
 ### GitOps layer (ArgoCD)
 
