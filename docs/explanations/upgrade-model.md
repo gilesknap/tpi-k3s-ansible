@@ -37,8 +37,10 @@ pod once k3s is back. That second pod finds the binary already at the
 target version: its `prepare` step skips the snapshot, and its upgrade step
 does nothing. Before this check, a retry saved a second, post-upgrade
 snapshot under the same `pre-upgrade-<version>` name. If a server shows two
-snapshots for one version, the **earliest** is the real pre-upgrade one;
-the nightly backup ships that one to the NAS (`backups/etcd/pre-upgrade/`).
+snapshots for one version, the **earliest** is the real pre-upgrade one.
+The nightly backup ships only that one to the NAS
+(`backups/etcd/pre-upgrade/`), and replaces a bundle of the same name made
+from a later file.
 
 **Reboots.** [kured](https://kured.dev/) runs on every node except
 workstations. Inside its window it takes a cluster-wide lock, drains the

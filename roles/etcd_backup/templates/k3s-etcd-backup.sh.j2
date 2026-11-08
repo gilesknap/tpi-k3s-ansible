@@ -211,23 +211,30 @@ log "uploaded $DEST/$name ($size bytes)"
 # oldest_per_name PREFIX: for each snapshot name under PREFIX (k3s calls
 # a file <name>-<node>-<unix time>, e.g. pre-upgrade-v1.34.13-k3s1-node01-
 # 1794099649), the oldest file, one "<name> <path>" line per name, oldest
-# name first. The oldest is the one to keep: the server upgrade Job can
+# name first. Age is the unix time in the file name, or the mtime if the
+# name has none. The oldest is the one to keep: the server upgrade Job can
 # retry after k3s restarts under it and save a second, post-upgrade
 # snapshot under the same name (docs/explanations/upgrade-model.md).
 oldest_per_name() {
-    local path base stem
+    local mtime path base stem when
     find "$SNAP_DIR" -maxdepth 1 -type f -name "$1-*" -printf '%T@ %p\n' \
-        | sort -n | cut -d' ' -f2- | while read -r path; do
+        | while read -r mtime path; do
             base=$(basename "$path")
             stem=${base%-"$NODE"-*}
-            echo "$stem $path"
-        done | awk '!seen[$1]++'
+            if [[ $base =~ -([0-9]+)(\.[a-z]+)?$ ]]; then
+                when=${BASH_REMATCH[1]}
+            else
+                when=${mtime%.*}
+            fi
+            echo "$when $stem $path"
+        done | sort -n -k1,1 | cut -d' ' -f2- | awk '!seen[$1]++'
 }
 
 # 5. Ship each extra snapshot name (e.g. one pre-upgrade name per k3s
-#    version) once: its oldest file, unless a bundle of that name from
-#    this node is already on the NAS. Only the newest EXTRA_KEEP names are
-#    considered, as prune would drop anything older straight away.
+#    version) once: its oldest file. A bundle of the same name from this
+#    node made from a different file (an earlier, wrong pick) is replaced,
+#    so the NAS keeps one bundle per name. Only the newest EXTRA_KEEP names
+#    are considered, as prune would drop anything older straight away.
 for prefix in "${EXTRA_PREFIXES[@]}"; do
     extra_dir="$DEST/$prefix"
     shipped=0
@@ -235,14 +242,17 @@ for prefix in "${EXTRA_PREFIXES[@]}"; do
         [[ -n $snap ]] || continue
         mkdir -p "$extra_dir"
         extra_name="$(basename "$snap").tar.age"
-        if [[ -e $extra_dir/$extra_name ]] \
-            || compgen -G "$extra_dir/$stem-$NODE-*.tar.age" > /dev/null; then
-            continue
+        if [[ ! -e $extra_dir/$extra_name ]]; then
+            bundle "$snap" "$WORK_DIR/$extra_name"
+            ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
+            log "uploaded $extra_dir/$extra_name"
+            shipped=1
         fi
-        bundle "$snap" "$WORK_DIR/$extra_name"
-        ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
-        log "uploaded $extra_dir/$extra_name"
-        shipped=1
+        for other in "$extra_dir/$stem-$NODE-"*.tar.age; do
+            [[ -e $other && $other != "$extra_dir/$extra_name" ]] || continue
+            rm -f "$other" "$other.sha256"
+            log "removed $other: not the earliest snapshot of $stem"
+        done
     done < <(oldest_per_name "$prefix" | tail -n "$EXTRA_KEEP")
     if [[ $shipped == 1 ]]; then
         prune "$extra_dir" "$EXTRA_KEEP"
