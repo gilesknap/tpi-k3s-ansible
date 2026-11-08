@@ -129,6 +129,9 @@ locals {
   }
 }
 
+# Not in the provider's schema, so not managed: the live apps other than
+# clusterapps have eager_redirect_cookie_setting = true. An update to one
+# of those apps from here may reset it; check it in the dashboard after.
 resource "cloudflare_zero_trust_access_application" "app" {
   for_each = local.access_apps
 

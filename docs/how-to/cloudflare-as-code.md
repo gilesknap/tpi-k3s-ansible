@@ -35,7 +35,10 @@ token's lifecycle. The service token is looked up by name: its secret is
 shown only once, when it is created, and has to be handed to the client,
 so create or rotate it in the Zero Trust dashboard (**Access > Service
 auth**). The tunnel's own secret is not managed either: `cloudflared`
-runs with the tunnel token held in a SealedSecret.
+runs with the tunnel token held in a SealedSecret. Nor are the zone's
+(empty) custom WAF ruleset, the Zero Trust organization settings, and the
+Access apps' `eager_redirect_cookie_setting`, which the provider's schema
+does not have: check it in the dashboard after changing one of those apps.
 
 To add a service to the edge, add an entry to `tunnel_services` (and, if
 it needs something other than the wildcard Owner app, an entry in
@@ -163,7 +166,8 @@ state:
 just cf-apply
 ```
 
-That apply only writes state (imports make no changes at Cloudflare).
+That apply only writes state (imports make no changes at Cloudflare), so
+the read-only plan token is enough for it: give that at the prompt.
 From then on `just cf-plan` should print `No changes. Your
 infrastructure matches the configuration.` and the import blocks are
 no-ops.
@@ -179,17 +183,22 @@ no-ops.
 Extra arguments pass through to `tofu`, for example
 `just cf-plan -target=cloudflare_dns_record.tunnel`.
 
-### Rotating the GitHub login's client secret
+### The GitHub login's client secret
 
 Cloudflare never returns an identity provider's client secret, so it is a
-sensitive variable that is normally left unset (null), which leaves the
-live secret alone. To rotate it, or whenever you change the GitHub login
-method, supply it for that one apply:
+sensitive variable. An imported login method has no secret in state and
+the variable is left unset (null), which leaves the live secret alone.
+
+To rotate the secret, to change the GitHub login method, or on a fresh
+account (where the first apply creates the login method), put the secret
+in `cloudflare/.secrets/github-client-secret` (gitignored; `just cf-*`
+reads it) and **keep it there**: once applied, state holds the secret,
+and a plan without it would remove it.
 
 ```bash
-read -rsp 'GitHub client secret: ' TF_VAR_github_client_secret && export TF_VAR_github_client_secret
+read -rsp 'GitHub client secret: ' s && printf '%s\n' "$s" > cloudflare/.secrets/github-client-secret && unset s
+chmod 600 cloudflare/.secrets/github-client-secret
 just cf-apply
-unset TF_VAR_github_client_secret
 ```
 
 ## Later: state in an S3-compatible bucket
@@ -222,7 +231,9 @@ cd cloudflare && tofu init -migrate-state
 ```
 
 The state stays encrypted with the same passphrase, so the bucket only
-ever holds ciphertext.
+ever holds ciphertext. This backend has no state locking unless you add
+`use_lockfile = true`, which needs a bucket that supports conditional
+writes; with one operator that is acceptable.
 
 ## Next: removing drift
 

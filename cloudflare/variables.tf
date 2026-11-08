@@ -47,6 +47,12 @@ variable "viewer_email_domains" {
   description = "Email domains allowed by the Viewers policy."
   type        = list(string)
   default     = []
+
+  validation {
+    # The Viewers policy needs at least one include rule.
+    condition     = length(var.viewer_email_domains) + length(var.viewer_emails) > 0
+    error_message = "Set viewer_emails or viewer_email_domains (the Viewers policy cannot be empty)."
+  }
 }
 
 variable "github_client_id" {
@@ -57,8 +63,9 @@ variable "github_client_id" {
 variable "github_client_secret" {
   description = <<-EOT
     Client secret of the GitHub OAuth app. Cloudflare never returns it, so
-    leave it null for day-to-day plans; set it (TF_VAR_github_client_secret)
-    only to rotate the secret or when changing the GitHub login method.
+    an imported login method has none in state and null matches. Once you
+    supply it (scripts/cf-tofu reads cloudflare/.secrets/github-client-secret),
+    keep supplying it: state then holds it, and null would plan its removal.
   EOT
   type        = string
   sensitive   = true

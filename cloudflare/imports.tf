@@ -84,3 +84,15 @@ import {
   to       = cloudflare_zone_setting.this[each.key]
   id       = "${var.zone_id}/${each.key}"
 }
+
+# An import_ids.dns_records key that names no record in the config would
+# otherwise be skipped silently, and the plan would create a duplicate.
+check "dns_import_keys" {
+  assert {
+    condition = alltrue([
+      for k in keys(var.import_ids.dns_records) :
+      contains(concat(keys(local.tunnel_hostnames), keys(var.dns_only_records)), k)
+    ])
+    error_message = "import_ids.dns_records has a key that is neither in tunnel_services nor in dns_only_records."
+  }
+}
