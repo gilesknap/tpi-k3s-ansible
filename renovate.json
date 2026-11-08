@@ -31,6 +31,15 @@
   },
   "packageRules": [
     {
+      "description": "vendored upstream manifests: upgrade by re-vendoring the files, as their kustomization.yaml header describes",
+      "matchFileNames": [
+        "kubernetes-services/additions/system-upgrade-controller/crd.yaml",
+        "kubernetes-services/additions/system-upgrade-controller/system-upgrade-controller.yaml",
+        "kubernetes-services/additions/intel-gpu-plugin/upstream/**"
+      ],
+      "enabled": false
+    },
+    {
       "matchManagers": [
         "argocd"
       ],
@@ -115,21 +124,6 @@
       "labels": [
         "oci artifacts"
       ]
-    }
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "K3S System Upgrade Controller CRD",
-      "fileMatch": [
-        "kubernetes-services/additions/k3s-upgrade-controller/kustomization.yaml$"
-      ],
-      "matchStrings": [
-        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\n.*?-\\s(.*?)\/(?<currentValue>[^/]+)\/[^/]+\n"
-      ],
-      "depNameTemplate": "{{{depName}}}",
-      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
-      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
   ]
 }
