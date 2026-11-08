@@ -16,8 +16,8 @@ flowchart TB
 
     subgraph TuringPi["Turing Pi v2.5"]
         BMC[BMC<br/>SSH + tpi CLI]
-        N1[node01<br/>Control Plane]
-        N2[node02<br/>Worker]
+        N1[node01<br/>Worker]
+        N2[node02<br/>Control Plane]
         N3[node03<br/>Worker]
         N4[node04<br/>Worker]
     end

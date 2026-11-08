@@ -25,9 +25,9 @@ Cloudflare Zero Trust (identity verification + audit logging)
   │  Existing outbound tunnel
   ▼
 cloudflared pod (in cluster)
-  │  Forwards to node01:22
+  │  Forwards to <control-plane>:22
   ▼
-node01 (<node01-ip>) SSH
+control-plane node (<control-plane-ip>) SSH
   │
   kubectl / port-forward to any cluster service
 ```
@@ -56,7 +56,7 @@ The steps below will tell you which dashboard to use at each point.
 
 - A working Cloudflare Tunnel with `cloudflared` deployed in the cluster
   (see {doc}`cloudflare-tunnel`).
-- SSH enabled on `node01` (it is by default after Ansible provisioning).
+- SSH enabled on the control-plane node (it is by default after Ansible provisioning).
 - `cloudflared` installed on your **client machine**:
 
 ```bash
@@ -104,7 +104,7 @@ the SSH hostname.
 |---|---|
 | Subdomain | `ssh` |
 | Domain | `example.com` |
-| Service URL | `ssh://<node01-ip>:22` |
+| Service URL | `ssh://<control-plane-ip>:22` |
 
 After saving, the Routes tab shows all published applications including the new SSH
 route alongside any existing services (echo, headlamp, etc.):
@@ -114,7 +114,7 @@ route alongside any existing services (echo, headlamp, etc.):
 :align: center
 
 The Routes tab showing all published applications. The SSH route forwards to
-`ssh://192.168.1.81:22` on the cluster network. HTTP services route to the
+`ssh://<control-plane-ip>:22` on the cluster network. HTTP services route to the
 ingress-nginx controller.
 ```
 
@@ -125,9 +125,11 @@ ssh.example.com → <tunnel-id>.cfargotunnel.com  (Proxied ☁)
 ```
 
 :::{note}
-The `cloudflared` pod resolves `<node01-ip>` from within the cluster network — it does
+The `cloudflared` pod resolves `<control-plane-ip>` from within the cluster network — it does
 not need a DNS name, just a reachable IP. Using the control-plane IP directly is more
-reliable than a hostname here.
+reliable than a hostname here. Because the route names an IP, update it
+whenever the control plane moves to another node
+([Move the control plane](recover-control-plane.md#move-the-control-plane)).
 :::
 
 ## Part 2: Create a Zero Trust Access Application
@@ -282,7 +284,7 @@ sed -i 's|https://[^/]*:6443|https://127.0.0.1:6443|' \
 
 ```bash
 # Start the port forward in the background
-ssh -fNL 6443:k3s.lan:6443 ssh.example.com   # k3s_api_name, or <node01-ip>
+ssh -fNL 6443:k3s.lan:6443 ssh.example.com   # k3s_api_name, or <control-plane-ip>
 
 # Use the remote kubeconfig
 export KUBECONFIG=~/.kube/k3s-remote.yaml
@@ -321,7 +323,7 @@ Look for connections referencing `ssh.example.com`.
 From a mobile hotspot (off your home network):
 
 ```bash
-ssh ubuntu@<node01-ip>
+ssh ubuntu@<control-plane-ip>
 # Expected: connection refused or timeout — direct access is blocked
 ```
 

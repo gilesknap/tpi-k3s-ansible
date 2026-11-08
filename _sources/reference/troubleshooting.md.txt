@@ -438,13 +438,13 @@ If only the local-resolver lookup fails, you are hitting cached
 
 1. **K3s service running?**
    ```bash
-   ssh node01 sudo systemctl status k3s
+   ssh node02 sudo systemctl status k3s   # your control_plane node
    ```
 2. **Certificates valid?** Check `/var/lib/rancher/k3s/server/tls/` on the
    control plane node.
 3. **Disk full?** etcd can fail if the node runs out of disk space:
    ```bash
-   ssh node01 df -h /
+   ssh node02 df -h /
    ```
 
 ### etcd database too large
@@ -454,7 +454,7 @@ If only the local-resolver lookup fails, you are hitting cached
 **Fix:** Compact and defragment etcd:
 
 ```bash
-ssh node01
+ssh node02
 sudo k3s etcd-snapshot save --name manual-backup
 sudo systemctl restart k3s
 ```

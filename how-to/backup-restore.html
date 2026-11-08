@@ -699,7 +699,7 @@ mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</
 </div>
 </li>
 <li><p>Install the timer:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node01<span class="w"> </span>--tags<span class="w"> </span>etcd_backup
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node02<span class="w"> </span>--tags<span class="w"> </span>etcd_backup<span class="w">   </span><span class="c1"># your control_plane</span>
 just<span class="w"> </span>etcd-backup-now
 </pre></div>
 </div>
@@ -715,8 +715,8 @@ cover this backup: <code class="docutils literal notranslate"><span class="pre">
 <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupStale</span></code> (no bundle for 36 hours),
 <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupNeverSucceeded</span></code> (no bundle yet, 36 hours after the job
 first reported) and <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code>. To check by hand:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>systemctl<span class="w"> </span>list-timers<span class="w"> </span>k3s-etcd-backup.timer
-ssh<span class="w"> </span>node01<span class="w"> </span>journalctl<span class="w"> </span>-u<span class="w"> </span>k3s-etcd-backup<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02<span class="w"> </span>systemctl<span class="w"> </span>list-timers<span class="w"> </span>k3s-etcd-backup.timer
+ssh<span class="w"> </span>node02<span class="w"> </span>journalctl<span class="w"> </span>-u<span class="w"> </span>k3s-etcd-backup<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span>
 ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd/LATEST
 </pre></div>
 </div>
@@ -724,8 +724,8 @@ ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span
 </section>
 <section id="take-or-list-snapshots-by-hand">
 <h3>Take or list snapshots by hand<a class="headerlink" href="#take-or-list-snapshots-by-hand" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual
-ssh<span class="w"> </span>node01<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>list
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual
+ssh<span class="w"> </span>node02<span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>list
 </pre></div>
 </div>
 </section>
@@ -739,7 +739,7 @@ snapshot in place:</p>
 <p>Restoring replaces the entire cluster state. All changes since the snapshot
 are lost.</p>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node01
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02
 sudo<span class="w"> </span>systemctl<span class="w"> </span>stop<span class="w"> </span>k3s
 sudo<span class="w"> </span>k3s<span class="w"> </span>server<span class="w"> </span>--cluster-reset<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--cluster-reset-restore-path<span class="o">=</span>/var/lib/rancher/k3s/server/db/snapshots/&lt;snapshot-name&gt;

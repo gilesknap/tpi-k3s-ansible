@@ -444,9 +444,9 @@ Cloudflare Zero Trust (identity verification + audit logging)
   │  Existing outbound tunnel
   ▼
 cloudflared pod (in cluster)
-  │  Forwards to node01:22
+  │  Forwards to &lt;control-plane&gt;:22
   ▼
-node01 (&lt;node01-ip&gt;) SSH
+control-plane node (&lt;control-plane-ip&gt;) SSH
   │
   kubectl / port-forward to any cluster service
 </pre></div>
@@ -477,7 +477,7 @@ dashboard for managing Access Applications and security policies.</p></li>
 <ul class="simple">
 <li><p>A working Cloudflare Tunnel with <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> deployed in the cluster
 (see <a class="reference internal" href="cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a>).</p></li>
-<li><p>SSH enabled on <code class="docutils literal notranslate"><span class="pre">node01</span></code> (it is by default after Ansible provisioning).</p></li>
+<li><p>SSH enabled on the control-plane node (it is by default after Ansible provisioning).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> installed on your <strong>client machine</strong>:</p></li>
 </ul>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># macOS</span>
@@ -534,7 +534,7 @@ Configure the new public hostname:</p></li>
 <td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>Service URL</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ssh://&lt;node01-ip&gt;:22</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ssh://&lt;control-plane-ip&gt;:22</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -545,7 +545,7 @@ route alongside any existing services (echo, headlamp, etc.):</p>
 <img alt="Tunnel routes showing SSH" src="../_images/cloudflare-03.png" />
 <figcaption>
 <p><span class="caption-text">The Routes tab showing all published applications. The SSH route forwards to
-<code class="docutils literal notranslate"><span class="pre">ssh://192.168.1.81:22</span></code> on the cluster network. HTTP services route to the
+<code class="docutils literal notranslate"><span class="pre">ssh://&lt;control-plane-ip&gt;:22</span></code> on the cluster network. HTTP services route to the
 ingress-nginx controller.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
@@ -555,9 +555,11 @@ ingress-nginx controller.</span><a class="headerlink" href="#id3" title="Link to
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod resolves <code class="docutils literal notranslate"><span class="pre">&lt;node01-ip&gt;</span></code> from within the cluster network — it does
+<p>The <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod resolves <code class="docutils literal notranslate"><span class="pre">&lt;control-plane-ip&gt;</span></code> from within the cluster network — it does
 not need a DNS name, just a reachable IP. Using the control-plane IP directly is more
-reliable than a hostname here.</p>
+reliable than a hostname here. Because the route names an IP, update it
+whenever the control plane moves to another node
+(<a class="reference internal" href="recover-control-plane.html#move-the-control-plane"><span class="std std-ref">Move the control plane</span></a>).</p>
 </div>
 </section>
 <section id="part-2-create-a-zero-trust-access-application">
@@ -754,7 +756,7 @@ sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|htt
 <section id="forward-the-kubernetes-api-port-and-use-kubectl">
 <h3>5.2 Forward the Kubernetes API port and use kubectl<a class="headerlink" href="#forward-the-kubernetes-api-port-and-use-kubectl" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start the port forward in the background</span>
-ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:k3s.lan:6443<span class="w"> </span>ssh.example.com<span class="w">   </span><span class="c1"># k3s_api_name, or &lt;node01-ip&gt;</span>
+ssh<span class="w"> </span>-fNL<span class="w"> </span><span class="m">6443</span>:k3s.lan:6443<span class="w"> </span>ssh.example.com<span class="w">   </span><span class="c1"># k3s_api_name, or &lt;control-plane-ip&gt;</span>
 
 <span class="c1"># Use the remote kubeconfig</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">KUBECONFIG</span><span class="o">=</span>~/.kube/k3s-remote.yaml
@@ -790,7 +792,7 @@ to confirm the application exists and its hostname matches.</p>
 <section id="confirm-the-node-is-not-directly-reachable-from-outside-your-lan">
 <h3>Confirm the node is NOT directly reachable from outside your LAN<a class="headerlink" href="#confirm-the-node-is-not-directly-reachable-from-outside-your-lan" title="Link to this heading">#</a></h3>
 <p>From a mobile hotspot (off your home network):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ubuntu@&lt;node01-ip&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ubuntu@&lt;control-plane-ip&gt;
 <span class="c1"># Expected: connection refused or timeout — direct access is blocked</span>
 </pre></div>
 </div>
