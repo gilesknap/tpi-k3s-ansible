@@ -201,8 +201,12 @@ The playbook handles:
 3. Uninstalling the ArgoCD Helm release
 4. Deleting all app namespaces
 5. Uninstalling k3s from all nodes (workers first, then the
-   `control_plane` from `group_vars/all.yml`)
-6. Cleaning up node state (`/var/lib/rancher`, device-mapper leftovers)
+   `control_plane` from `group_vars/all.yml`), after removing the
+   `k3s-apparmor-profile` and `k3s-etcd-backup` units so the upstream
+   uninstall scripts run their full cleanup (the rebuild reinstalls both)
+6. Cleaning up node state (`/var/lib/rancher`, `/var/lib/kubelet` once
+   nothing is mounted under them, any leftover k3s binary, links and
+   `/etc/rancher/k3s`, device-mapper leftovers)
    — **does NOT touch `/home/k8s-data` or `/var/lib/k8s-data` unless
    `-e wipe_local_data=true` is passed**
 
@@ -218,10 +222,8 @@ than expected, check for:
 
 ```bash
 kubectl get nodes  # should fail — API server down
-ssh ansible@<worker-node> "which k3s"  # should return nothing
-ssh ansible@<worker-node> "ls /var/lib/rancher"  # should not exist
-ssh ansible@<control-plane> "which k3s"           # should return nothing
-ssh ansible@<control-plane> "ls /var/lib/rancher" # should not exist
+# On a worker and on the control plane, each should print nothing:
+ssh ansible@<node> "ls -d /usr/local/bin/k3s* /etc/rancher/k3s /var/lib/rancher /var/lib/kubelet /etc/systemd/system/k3s* 2>/dev/null"
 # Local PV data preserved (unless wipe_local_data=true):
 ssh ansible@nuc2 "ls /home/k8s-data"            # still has subdirs + data
 ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir

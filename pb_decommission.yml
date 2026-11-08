@@ -48,6 +48,11 @@
         path: /etc/systemd/system/k3s-etcd-backup.timer
       register: decommission_etcd_backup_timer
 
+    - name: Check for the etcd backup service
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s-etcd-backup.service
+      register: decommission_etcd_backup_service
+
     - name: Stop and disable the etcd backup timer
       ansible.builtin.systemd_service:
         name: k3s-etcd-backup.timer
@@ -59,7 +64,7 @@
       ansible.builtin.systemd_service:
         name: k3s-etcd-backup.service
         state: stopped
-      when: decommission_etcd_backup_timer.stat.exists
+      when: decommission_etcd_backup_service.stat.exists
 
 # ---------------------------------------------------------------------------
 # Play 1: Stop ArgoCD reconciliation (orphan cascade)
@@ -244,10 +249,59 @@
 # The control plane is control_plane in group_vars/all.yml, never a
 # position in the inventory. Every uninstall is guarded by `removes:` on
 # its script, so a node with neither script (k3s already uninstalled)
-# skips them all. A node with both scripts gets both: each k3s uninstall
-# script leaves the shared files alone while another k3s service remains,
-# so the second one finishes the job. Nothing may keep a k3s server or
-# agent running into Play 5, which deletes /var/lib/rancher.
+# skips them all. A node with both scripts gets both. Nothing may keep a
+# k3s server or agent running into Play 5, which deletes /var/lib/rancher.
+#
+# Each k3s uninstall script stops short of its full cleanup (the k3s
+# binary, killall script, kubectl/crictl/ctr links, /etc/rancher/k3s,
+# /var/lib/kubelet) while any other /etc/systemd/system/k3s*.service
+# exists. That is how a node with both a server and an agent keeps the
+# shared files for the second script, but this repo adds two more such
+# units: k3s-apparmor-profile.service (roles/k3s, every node) and
+# k3s-etcd-backup.service (roles/etcd_backup, control plane). Remove them
+# first so the scripts finish; the rebuild's k3s and etcd_backup roles
+# install them again.
+- name: Remove the units this repo adds beside k3s
+  hosts: all_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Check for the added k3s units
+      ansible.builtin.stat:
+        path: /etc/systemd/system/{{ item }}
+      loop:
+        - k3s-apparmor-profile.service
+        - k3s-etcd-backup.timer
+        - k3s-etcd-backup.service
+      register: decommission_extra_units
+
+    # Stopping the AppArmor unit does not unload the profile (it has no
+    # ExecStop), so the running k3s is unaffected until it is uninstalled.
+    - name: Stop and disable the added k3s units
+      ansible.builtin.systemd_service:
+        name: "{{ item.item }}"
+        state: stopped
+        enabled: false
+      loop: "{{ decommission_extra_units.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.exists
+
+    - name: Remove the added k3s unit files
+      ansible.builtin.file:
+        path: /etc/systemd/system/{{ item.item }}
+        state: absent
+      loop: "{{ decommission_extra_units.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.exists
+      notify: Reload systemd
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
 - name: Uninstall k3s from worker nodes
   hosts: all_nodes
   gather_facts: false
@@ -296,29 +350,89 @@
   become: true
   tasks:
     # Backstop for Play 4: never delete k3s state under a running k3s.
+    # systemd_service with only a name changes nothing and reports the
+    # unit's ActiveState ("inactive" for a unit that does not exist); a
+    # unit that is starting, stopping or reloading counts as running.
     # Skipped in check mode, where Play 4 uninstalls nothing.
-    - name: Gather service state
-      ansible.builtin.service_facts:
-      when: not ansible_check_mode
-
     - name: Check no k3s server or agent is still running
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.services.get(item, {}).get('state') != 'running'
-        fail_msg: >-
-          {{ item }} is still running on {{ inventory_hostname }}; not
-          deleting /var/lib/rancher. Is control_plane in group_vars/all.yml
-          right?
-        quiet: true
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
       loop:
         - k3s.service
         - k3s-agent.service
+      register: decommission_k3s_state
+      failed_when: >-
+        decommission_k3s_state.status.ActiveState | default('inactive')
+        in ['active', 'activating', 'deactivating', 'reloading']
       when: not ansible_check_mode
 
-    - name: Remove /var/lib/rancher
+    # A file-module delete descends into mount points, so a directory with
+    # anything still mounted below it (a bind-mounted local PV under
+    # /var/lib/kubelet, say) is never deleted: the node fails instead.
+    # This lists every mount and filters by path, because
+    # `findmnt -R <dir>` prints nothing when <dir> is not itself a mount
+    # point, however much is mounted below it. Skipped in check mode,
+    # where k3s is still running and its mounts are still there.
+    - name: List mounts
+      ansible.builtin.command:
+        cmd: findmnt --raw --noheadings --output TARGET
+      register: decommission_mounts
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Check nothing is mounted under the k3s state directories
+      ansible.builtin.assert:
+        that:
+          - decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list | length == 0
+        fail_msg: >-
+          Still mounted under {{ item }} on {{ inventory_hostname }}:
+          {{ decommission_mounts.stdout_lines | select('match', item ~ '(/|$)') | list }}.
+          Not deleting it; unmount them or reboot the node, then re-run.
+        quiet: true
+      loop:
+        - /var/lib/rancher
+        - /var/lib/kubelet
+      when: not ansible_check_mode
+
+    - name: Remove /var/lib/rancher and /var/lib/kubelet
       ansible.builtin.file:
-        path: /var/lib/rancher
+        path: "{{ item }}"
         state: absent
+      loop:
+        - /var/lib/rancher
+        - /var/lib/kubelet
+
+    - name: Check the kubectl, crictl and ctr links
+      ansible.builtin.stat:
+        path: /usr/local/bin/{{ item }}
+      loop:
+        - kubectl
+        - crictl
+        - ctr
+      register: decommission_k3s_links
+
+    - name: Remove the kubectl, crictl and ctr links that point at k3s
+      ansible.builtin.file:
+        path: "{{ item.stat.path }}"
+        state: absent
+      loop: "{{ decommission_k3s_links.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - item.stat.islnk | default(false)
+        - item.stat.lnk_source == '/usr/local/bin/k3s'
+
+    # What the uninstall scripts remove, for a node whose scripts are
+    # already gone but left these behind (e.g. a run before the added
+    # units were removed first).
+    - name: Remove leftover k3s binary, killall script and config
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/k3s
+        - /usr/local/bin/k3s-killall.sh
+        - /etc/rancher/k3s
 
     - name: Remove leftover device-mapper devices
       ansible.builtin.shell:
