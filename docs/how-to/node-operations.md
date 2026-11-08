@@ -259,11 +259,14 @@ all_nodes:
 ### Step 2: Bootstrap Ansible access
 
 ```bash
-ansible-playbook pb_add_nodes.yml
+ansible-playbook pb_add_nodes.yml -u <your-username> -K
 ```
 
-This prompts for an existing username and password on the new servers, creates the
-`ansible` user with SSH key authentication and passwordless sudo.
+`-u` is an existing user on the new servers with SSH access and sudo, and `-K`
+prompts for its sudo password. The playbook creates the `ansible` user with SSH key
+authentication and passwordless sudo. Re-running it on an existing node is safe: it
+adds the key from `pub_keys/ansible_rsa.pub` without removing other keys already in
+the `ansible` user's `authorized_keys`.
 
 ### Step 3: Join the cluster
 

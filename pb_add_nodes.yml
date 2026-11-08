@@ -15,6 +15,11 @@
 # -u sets the SSH user (must have sudo on the target node)
 # -K prompts for the sudo (become) password
 #
+# Re-running this on an existing node is safe: it only adds the key(s) in
+# pub_keys/ansible_rsa.pub to the ansible user's authorized_keys, leaving
+# any other keys there in place, and rewrites the sudoers drop-in (validated
+# by visudo before it is installed).
+#
 # Now you can do:
 # - ansible-playbook pb_all.yml
 # the new nodes should get added to your k3s cluster
@@ -39,12 +44,16 @@
         owner: "ansible"
         mode: "0700"
 
+    # authorized_key adds the key(s) without touching any others already in
+    # the file (such as the Claude sandbox key from the claude_key play in
+    # pb_all.yml), and keeps the file owned by ansible with mode 0600. The
+    # .pub file may hold several keys, one per line.
     - name: Add keys to ansible users authorized_keys
-      ansible.builtin.copy:
-        src: "pub_keys/ansible_rsa.pub"
-        dest: "/home/ansible/.ssh/authorized_keys"
-        owner: "ansible"
-        mode: "0600"
+      ansible.posix.authorized_key:
+        user: "ansible"
+        key: "{{ lookup('ansible.builtin.file', 'pub_keys/ansible_rsa.pub') }}"
+        state: present
+        exclusive: false
 
     - name: Add ansible user to passwordless sudoers
       ansible.builtin.copy:

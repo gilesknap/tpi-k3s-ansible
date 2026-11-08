@@ -81,16 +81,15 @@ if you have no Turing Pi hardware.
 Then run the bootstrap playbook:
 
 ```bash
-ansible-playbook pb_add_nodes.yml
+ansible-playbook pb_add_nodes.yml -u <your-username> -K
 ```
 
-You will be prompted for:
-
-- **Username** — an existing SSH user on all servers
-- **Password** — that user's password (used for initial sudo)
+- **`-u`** — an existing SSH user on all servers, with sudo
+- **`-K`** — prompts for that user's sudo password
 
 The playbook creates the `ansible` user with your SSH key and passwordless sudo on
-every server in `extra_nodes`.
+every server in `extra_nodes`. Re-running it later is safe: it adds the key without
+removing other keys already in the `ansible` user's `authorized_keys`.
 
 ## Step 4: Verify SSH access
 
