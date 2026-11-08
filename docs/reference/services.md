@@ -110,7 +110,7 @@ hardware and want the full experience out of the box.
 | kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
 | Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
 | oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
-| ntfy | Local chart (`binwiederhier/ntfy`) | v2.37.2 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
+| ntfy | Local chart (`binwiederhier/ntfy`) | v2.34.0 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
 | scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
