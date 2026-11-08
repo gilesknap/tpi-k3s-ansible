@@ -219,8 +219,13 @@ pins an exact release, but only on the `k3s_minor` line. See
   (This is the rare authorised exception to the no-mutate-ArgoCD-
   managed rule — you're clearing kube-managed runtime state, not
   changing template intent.) Long-term fix tracked in issue #397.
-  Prefer `argocd app sync --replace` over `argocd app delete`/recreate
-  for the `local-nvme`-backed apps: grafana and prometheus.
+  Don't `argocd app delete`/recreate the `local-nvme`-backed apps
+  (grafana, prometheus). To re-pin a PV to another node, follow
+  `docs/how-to/node-operations.md` ("Move a local-nvme PV"):
+  `argocd app delete-resource local-storage --core --kind
+  PersistentVolume --resource-name <pv>`, then `argocd app sync
+  local-storage --core`, with the kube context namespace `argo-cd`.
+  `argocd app sync --replace` is refused: the server disables it.
 
 ## Key files
 - `pb_all.yml` — main playbook

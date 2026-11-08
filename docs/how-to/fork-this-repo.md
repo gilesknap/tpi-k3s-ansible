@@ -135,6 +135,9 @@ The `claim_namespace` and `claim_name` fields in `local_storage` are
 determined by upstream chart naming conventions — don't change them
 unless you also rename Helm releases.
 
+This is all you need before the first deploy. To move a PV that already
+exists, see [](#move-a-local-nvme-pv): its node cannot be changed in place.
+
 ### 5. NFS share for backups
 
 Backup CronJobs write to an NFS

@@ -500,6 +500,8 @@ part of decommissioning, opt in with the destructive flag:
 ansible-playbook pb_decommission.yml -e wipe_local_data=true
 ```
 
+To move a PV to another node, see [](#move-a-local-nvme-pv).
+
 The one-time NFS share setup that hosts the backup CronJob output is a
 separate manual runbook — see {doc}`../how-to/nas-setup`.
 
