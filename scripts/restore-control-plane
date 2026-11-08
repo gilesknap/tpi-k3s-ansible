@@ -179,6 +179,8 @@ fi
 # --token-file and insists on server/token ("does not exist, please pass
 # --token"). Put the token where a server keeps it (root-only, as k3s
 # writes it itself), rather than passing --token on the command line.
+# It stays there after the restore: it is the server's own token file, and
+# every agent holds the same token anyway.
 log "Writing /var/lib/rancher/k3s/server/token"
 install -d -m 0700 /var/lib/rancher/k3s/server
 install -m 0600 "$dir/token" /var/lib/rancher/k3s/server/token
@@ -195,6 +197,12 @@ if ! grep -q 'cluster membership has been reset' "$dir/cluster-reset.log"; then
     log "cluster-reset did not report success; log saved to /root/k3s-cluster-reset.log"
     exit 1
 fi
+
+# A former agent's k3s-agent-uninstall.sh stops before it removes
+# /run/flannel, so without a reboot subnet.env still holds the node's old
+# podCIDR. Pods started before flannel rewrites it get unroutable IPs.
+log "Removing stale /run/flannel"
+rm -rf /run/flannel
 
 log "Starting k3s"
 systemctl enable --now k3s
