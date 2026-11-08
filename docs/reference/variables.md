@@ -113,9 +113,13 @@ ansible-playbook pb_all.yml \
 | `nfs.server` | *(your NFS server IP)* | NFS server for the backup and Minecraft volumes |
 | `nfs.cluster_share_path` | *(your NFS export path)* | Cluster-owned directory on the NFS export (see {doc}`/how-to/nas-setup`) |
 | `enable_jellyfin` | `true` | Deploy Jellyfin ({doc}`/how-to/jellyfin`); needs `local_storage.jellyfin` and its `k8s_data_dirs` entry |
-| `jellyfin.chart_version` / `image_tag` | `3.6.0` / `12.3.…` | The upstream chart version and the Jellyfin image tag |
-| `jellyfin.trial` | `true` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE` |
-| `jellyfin.host_network` | `false` | Run on the node's network (both LANs, Tailscale, UDP 7359 discovery); on after cutover |
+| `jellyfin.chart_version` / `image_tag` | `3.7.0` / `12.4.…` | The upstream chart version and the Jellyfin image tag (never older than the database's Jellyfin) |
+| `jellyfin.trial` | `false` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE`. Not with `seed_from_host` |
+| `jellyfin.seed_from_host` | `true` | One-off copy of a stopped host install into the config volume (init containers); a no-op once the volume is `SEEDED-FROM-HOST` |
+| `jellyfin.seed.sqlite_image` | `docker.io/keinos/sqlite3:3.54.1` | Image with `sqlite3`, for the seed's integrity check and the backup CronJobs |
+| `jellyfin.seed.hardware_decoding_codecs` | `[h264, hevc, …]` | Replaces `HardwareDecodingCodecs` in the copied `encoding.xml`; empty leaves it unchanged |
+| `jellyfin.data_dir` / `config_dir` / `log_dir` / `cache_dir` | `/var/lib/jellyfin` / `/etc/jellyfin` / `/var/log/jellyfin` / `/var/cache/jellyfin` | Jellyfin's paths in the pod, the same as a host install's. The first three are the config volume's `data/`, `config/` and `log/`; the seed copies the host's `data_dir` and `config_dir` |
+| `jellyfin.host_network` | `true` | Run on the node's network (both LANs, Tailscale, UDP 7359 discovery); off for a trial beside a host install |
 | `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |

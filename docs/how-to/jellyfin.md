@@ -26,7 +26,7 @@ The cluster wiring is:
 | Piece | Where | Notes |
 |-------|-------|-------|
 | Deployment and ClusterIP Service on 8096 | Upstream chart, namespace `jellyfin` | One pod, `Recreate` strategy, no PodDisruptionBudget |
-| `/config`: database, metadata, subtitles, plugins, XML config | Static `local-nvme` PV on the node (`local_storage.jellyfin`), claim `jellyfin-config` | Created by the `k8s_data_dirs` role, owned by the pod's uid/gid. Not NFS: the database is SQLite |
+| Data (database, metadata, subtitles, plugins), XML config, logs | Static `local-nvme` PV on the node (`local_storage.jellyfin`), claim `jellyfin-config`: its `data/`, `config/` and `log/` | Created by the `k8s_data_dirs` role, owned by the pod's uid/gid. Not NFS: the database is SQLite |
 | Media library | Static NFS PV `jellyfin-media-nfs` of `jellyfin.media.nfs_path` on `nfs.server`, claim `jellyfin-media` | Read-only (PV, access mode and mount), at `jellyfin.media.mount_path` |
 | Cache and transcodes | `emptyDir` at `/var/cache/jellyfin`, `jellyfin.cache_size` | Lost on a pod restart, which is harmless; see the note below on its size |
 | GPU | `gpu.intel.com/i915: 1` from the [Intel GPU device plugin](../reference/services.md#intel-gpu-device-plugin) | Not privileged |
@@ -43,9 +43,31 @@ The pod:
 - requests 500m CPU and 1Gi memory, with a 4Gi memory limit and no CPU
   limit, so transcode bursts are not throttled.
 
-The media is mounted at the same path the host install used (for example
-`/media/bigdisk/media`), so the library paths in an imported database match.
-The chart's own `/media` and `/cache` volumes are unused.
+Jellyfin sees the same paths as a host install of the Debian/Ubuntu package,
+not the image's `/config` layout:
+
+| Pod path | Variable | Comes from |
+|----------|----------|------------|
+| `/var/lib/jellyfin` (data, and `HOME`) | `jellyfin.data_dir` | the config volume's `data/` |
+| `/etc/jellyfin` (XML config) | `jellyfin.config_dir` | the config volume's `config/` |
+| `/var/log/jellyfin` | `jellyfin.log_dir` | the config volume's `log/` |
+| `/var/cache/jellyfin` | `jellyfin.cache_dir` | the cache `emptyDir` |
+| for example `/media/bigdisk/media` | `jellyfin.media.mount_path` | the media NFS volume |
+
+Jellyfin is pointed at them with its `JELLYFIN_*_DIR` environment variables,
+and the volume's subdirectories are mounted there with `subPath`. So the
+absolute paths stored in a database and XML config copied from a host
+install stay valid, with nothing rewritten, and the host copy stays usable
+for a rollback. The chart's own `/config`, `/media` and `/cache` are unused
+`emptyDir`s.
+
+The pod's init containers, in order, all on the config volume's root:
+
+- `mark-trial` (trial only; see [Trial](#trial));
+- `seed-copy` and `seed-verify` (`jellyfin.seed_from_host` only; see
+  [Seed from a host install](#seed-from-a-host-install));
+- `layout`, which creates `data/`, `config/` and `log/` if missing, as the
+  pod's uid, so kubelet never creates them as root for the `subPath` mounts.
 
 :::{note}
 The cache `emptyDir` has a `sizeLimit` (20Gi by default), and the transcode
@@ -105,14 +127,15 @@ unusable and Jellyfin falls back to software transcoding.
 
 ## Trial
 
-In a trial (`jellyfin.trial: true`, `jellyfin.host_network: false`) the pod
-has no host networking. It is reached only through its ClusterIP Service, so
-it cannot clash with a host install listening on 8096 and 7359.
+In a trial (`jellyfin.trial: true`, `jellyfin.seed_from_host: false`,
+`jellyfin.host_network: false`) the pod has no host networking. It is reached
+only through its ClusterIP Service, so it cannot clash with a host install listening on 8096 and 7359.
 
 Its config starts empty and is throwaway. It is written to the real config
 volume, and an init container marks it with a file
-`TRIAL-CONFIG-SAFE-TO-DELETE` at the volume's root, so the cutover can clear
-it without any hand edits on the node (see [Cutover](#cutover)). The init
+`TRIAL-CONFIG-SAFE-TO-DELETE` at the volume's root, so the seed can clear it
+without any hand edits on the node (see
+[Seed from a host install](#seed-from-a-host-install)). The init
 container writes the marker only when the volume is empty or already marked,
 so turning the trial back on later (for example by reverting the cutover)
 never marks real data as throwaway.
@@ -137,7 +160,7 @@ admin account, and add a library under the media mount path, for example
    **Quality** (bitrate) than the file's.
 3. **Dashboard › Activity** (or the active session on the Dashboard home)
    shows the playback as transcoding. Its FFmpeg log, under
-   `/config/log/FFmpeg.Transcode-*.log` in the pod, shows `vaapi` in the
+   `/var/log/jellyfin/FFmpeg.Transcode-*.log` in the pod, shows `vaapi` in the
    command line and no error opening the device.
 4. Query the GPU from inside the pod with the `vainfo` bundled in the image:
 
@@ -158,57 +181,155 @@ To remove it, set `enable_jellyfin: false` and push. ArgoCD deletes the pod,
 Service and media volume. The config claim is kept (`Prune=false,Delete=false`),
 and the volume's data on the node is never deleted by ArgoCD.
 
+## Seed from a host install
+
+With `jellyfin.seed_from_host: true`, two init containers copy a **stopped**
+host install into the config volume before Jellyfin starts. They mount the
+host's data and config directories (`jellyfin.data_dir`,
+`jellyfin.config_dir`) as read-only `hostPath`s, so the host copy is never
+written. Both run as the pod's uid (the host files' owner) with no
+capabilities; the `Recreate` strategy means the old pod has stopped before
+they run.
+
+Markers at the volume's root decide what happens:
+
+| Marker | Meaning |
+|--------|---------|
+| `SEEDED-FROM-HOST` | Seeded (with a timestamp): both steps do nothing, on every later start |
+| `TRIAL-CONFIG-SAFE-TO-DELETE` | A trial config: the seed may clear it |
+| `SEED-IN-PROGRESS` | The seed owns the volume's contents, and clears and recopies them if interrupted |
+| `SEED-COPY-COMPLETE` | The copy is done, waiting for `seed-verify` |
+
+`seed-copy` (Jellyfin image):
+
+1. Does nothing if the volume is `SEEDED-FROM-HOST`.
+2. Refuses (fails, and retries with back-off) while the host service looks
+   live: something listening on port 8096 of the node, or a non-empty
+   `jellyfin.db-wal` in the host's data directory. A clean stop leaves it
+   empty or removes it; after an unclean stop, start and stop the host
+   service once.
+3. Claims the volume: clears it only if it is empty, trial-marked or already
+   `SEED-IN-PROGRESS`. A volume holding anything else fails loudly and is
+   never cleared.
+4. Copies the host's data and config directories (`cp -a`, keeping modes
+   and times) to temporary names, compares the database byte for byte and
+   each tree's file count and size with the host, then renames them to
+   `data/` and `config/`. Files whose group the pod is not in (`adm`, on a
+   host's config directory) take the volume's group.
+5. If `jellyfin.seed.hardware_decoding_codecs` is set, replaces
+   `HardwareDecodingCodecs` in the **copied** `encoding.xml` with that list.
+
+`seed-verify` (an SQLite image, `jellyfin.seed.sqlite_image`, as the
+Jellyfin image has no `sqlite3`) runs `PRAGMA integrity_check` on the copied
+database and only then writes `SEEDED-FROM-HOST`.
+
+Watch it:
+
+```bash
+kubectl -n jellyfin get pods -w
+kubectl -n jellyfin logs deploy/jellyfin -c seed-copy -f
+kubectl -n jellyfin logs deploy/jellyfin -c seed-verify
+```
+
+About 25 GB on one node takes a few minutes. The seed is safe to leave
+enabled, as it is a no-op once the volume is marked, but a later change
+should set `jellyfin.seed_from_host: false`, which also drops the host
+mounts.
+
 ## Cutover
 
-An outline of the move from a host install; each step is its own change.
+The move from a host install, after a successful trial.
 
 1. **Prepare the host install.** Remove libraries whose paths no longer exist
-   (they would leave stale items and errors). If remote clients use
-   Tailscale, make sure the node is logged in to the tailnet, with key expiry
-   disabled for it. Re-check the `jellyfin` account's uid and gid and the
-   `render` group ID on the node, and update `jellyfin.uid`, `gid` and
-   `render_gid` (and the `k8s_data_dirs` owner) to match.
-2. **Stop the host service, keeping its files:**
+   (they would leave stale items and errors; this can also be done in the UI
+   after the cutover). If remote clients use Tailscale, make sure the node is
+   logged in to the tailnet, with key expiry disabled for it. Re-check the
+   `jellyfin` account's uid and gid and the `render` group ID on the node,
+   and update `jellyfin.uid`, `gid` and `render_gid` (and the
+   `k8s_data_dirs` owner) to match. Note the host's Jellyfin version.
+2. **Create the backup directories on the NAS**, `backups/jellyfin` and
+   `backups/jellyfin/weekly` (see {doc}`nas-setup`).
+3. **Stop the host service, keeping its files:**
    `sudo systemctl disable --now jellyfin`. Do not uninstall the package or
-   touch its data and config directories yet: they are the rollback copy.
-3. **Cutover change**, in git:
-   - stop the trial pod first: the Job mounts the same volume on the same
-     node, and must not run while Jellyfin has the database open. Either set
-     `enable_jellyfin: false` and let ArgoCD remove the trial (the config
-     claim and its data are kept) before the cutover change, or have the Job
-     wait until no Jellyfin pod is running in the namespace;
-   - set the image tag to the host's Jellyfin version or newer (a database
+   touch its data and config directories: they are the rollback copy.
+4. **Cutover change**, in git, then merge:
+   - the image tag at the host's Jellyfin version or newer (a database
      cannot be opened by an older Jellyfin);
-   - set `jellyfin.trial: false` and `jellyfin.host_network: true`;
-   - add a one-off Job (an ArgoCD sync hook, before the Deployment) that runs
-     on the node with the host's data and config directories mounted
-     read-only, and the config volume read-write. It:
-     - empties the volume **only if** `TRIAL-CONFIG-SAFE-TO-DELETE` is at its
-       root, then removes the marker. It refuses to wipe, and fails, if
-       `SEEDED-FROM-HOST` is also there (see below): that is real data. (A
-       database newer than the marker is no sign of real data, since a trial
-       writes its database after every start.);
-     - copies the host data **only if** the volume has no database yet,
-       mapping the host's layout onto the image's: the data directory (for
-       example `/var/lib/jellyfin`) to `/config`, and the config directory
-       (for example `/etc/jellyfin`) to `/config/config`;
-     - checks the copied database with `PRAGMA integrity_check`, then
-       writes `SEEDED-FROM-HOST` at the volume's root.
+   - `jellyfin.trial: false`, `jellyfin.seed_from_host: true` and
+     `jellyfin.host_network: true`.
 
-   The media paths are unchanged, so the libraries need no remapping. Check
-   the copied config for any remaining absolute paths under the old data
-   directory, and fix them in the Job or by a library rescan.
-4. **Verify:** the web UI on each LAN address on port 8096, client
+   ArgoCD replaces the trial pod; the new pod seeds the volume (above) and
+   starts Jellyfin on the node's network.
+5. **Verify:** the web UI on each LAN address on port 8096, client
    auto-discovery (UDP 7359), remote clients over Tailscale, users and watch
-   history, one hardware transcode, and the scheduled tasks.
-5. **Backups:** a nightly CronJob copying the database (`sqlite3 .backup`)
-   and the config to the NAS. Extracted subtitles and metadata stay on the
-   volume but are not backed up: a rescan rebuilds them.
-6. **Retire the host install** after a settling period: remove the packages
+   history, one hardware transcode, and the scheduled tasks. Then run a
+   first backup by hand (see [Backups](#backups)) and check it on the NAS.
+6. **Retire the seed** in a later change (`jellyfin.seed_from_host: false`).
+7. **Retire the host install** after a settling period: remove the packages
    (without purging, so the old data stays as a cold copy for a while) and
    the apt source. Keep the `jellyfin` account, as it owns the files on the
    config volume.
 
-**Rollback** at any point: set `enable_jellyfin: false`, then
-`sudo systemctl enable --now jellyfin` on the host. The host database is as it
-was at step 2.
+### Rollback
+
+The host's data and config were never written, so rollback is:
+
+1. Set `enable_jellyfin: false` and push. ArgoCD removes the pod, which frees
+   port 8096 (the config claim and the volume's data are kept).
+2. On the node: `sudo systemctl enable --now jellyfin`.
+
+The host database is as it was when the host service stopped: watch history
+and changes made in the cluster are not in it.
+
+Switching back to the cluster later reuses the volume as it is: it is
+already `SEEDED-FROM-HOST`, so the seed does not copy again, and changes made
+on the host since are not in it. Nothing in this repository clears a seeded
+volume; recopying from the host means deliberately removing the volume's
+contents on the node first.
+
+## Backups
+
+The `backups` Application runs two CronJobs on the node, as Jellyfin's uid
+and with the config volume's directory mounted read-only:
+
+| CronJob | Schedule (Europe/London) | NAS path | Kept |
+|---------|--------------------------|----------|------|
+| `jellyfin-daily` | 01:45 daily | `backups/jellyfin/<date>_<time>.tar.gz` | 7 days |
+| `jellyfin-weekly` | 01:50 Sundays | `backups/jellyfin/weekly/<date>.tar.gz` | 28 days |
+
+01:45 is after Jellyfin's default 01:00 scheduled tasks and before the kured
+reboot window. Each tarball holds a consistent `sqlite3 .backup` snapshot of
+the database (checked with `PRAGMA quick_check`), and from the volume
+`config/`, `data/plugins/`, `data/root/` (library definitions) and
+`data/data`'s `playlists/`, `ScheduledTasks/` and `*.txt`. It is laid out
+like the volume, so it unpacks at the volume's root. Extracted subtitles and
+metadata are not backed up: a library scan rebuilds them.
+
+Run one now:
+
+```bash
+kubectl create job --from=cronjob/jellyfin-daily manual-$(date +%s) -n backups
+kubectl logs -n backups job/manual-<timestamp> -f
+```
+
+### Restore from a backup
+
+1. Set `enable_jellyfin: false` and push, so nothing has the database open.
+2. On the node, unpack the tarball over the volume's root as the `jellyfin`
+   account, for example with the NAS share mounted on the node:
+
+   ```bash
+   sudo -u jellyfin tar --no-overwrite-dir \
+     -xzf <nas>/backups/jellyfin/<date>_<time>.tar.gz \
+     -C /home/k8s-data/jellyfin
+   sudo -u jellyfin rm -f /home/k8s-data/jellyfin/data/data/jellyfin.db-wal \
+     /home/k8s-data/jellyfin/data/data/jellyfin.db-shm
+   ```
+
+   This replaces the database and the config, and leaves the subtitles and
+   metadata in place. (Without the share on the node, do the same from a
+   pod pinned to the node that mounts the `k8s-cluster-nfs` claim and the
+   volume's directory.)
+3. Set `enable_jellyfin: true` and push. If the volume was empty (a new
+   node), Jellyfin rebuilds the metadata and subtitles by its next library
+   scan.

@@ -1,0 +1,16 @@
+{{- /*
+The scripts of the one-off seed from a host install (init containers in the
+Jellyfin pod; kubernetes-services/templates/jellyfin.yaml). Rendered only
+while jellyfin.seed_from_host is on.
+*/}}
+{{- if .Values.seed.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.seed.configmap }}
+data:
+  seed-copy.sh: |
+{{ .Files.Get "files/seed-copy.sh" | indent 4 }}
+  seed-verify.sh: |
+{{ .Files.Get "files/seed-verify.sh" | indent 4 }}
+{{- end }}

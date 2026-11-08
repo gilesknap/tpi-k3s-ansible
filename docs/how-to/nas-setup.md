@@ -85,7 +85,7 @@ ROOT=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 #    can all write.
 mkdir -p "$ROOT"
 mkdir -p "$ROOT/backups"
-for app in grafana; do
+for app in grafana jellyfin; do
   mkdir -p "$ROOT/backups/$app"
   mkdir -p "$ROOT/backups/$app/weekly"
 done

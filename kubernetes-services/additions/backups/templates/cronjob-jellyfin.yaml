@@ -1,0 +1,119 @@
+{{- /*
+Jellyfin's daily and weekly backups: a consistent sqlite3 .backup of the
+database, plus the small config: config/ (the XML config and
+ScheduledTasks), data/plugins (with their configurations), data/root (the
+library definitions), and data/data's playlists, ScheduledTasks and *.txt.
+Not the extracted subtitles or the metadata (tens of GB, rebuilt by a library
+scan). The tarball mirrors the config volume's layout, so a restore unpacks
+it at the volume's root (docs/how-to/jellyfin.md).
+
+The volume is mounted read-only and the job runs as Jellyfin's uid, so it
+cannot change the live data or leave root-owned files. 01:45 Europe/London:
+after Jellyfin's 01:00 scheduled task, before the kured window (02:30).
+*/}}
+{{- $ls := .Values.local_storage.jellyfin }}
+{{- if and .Values.jellyfin.enabled $ls }}
+{{- $j := .Values.jellyfin }}
+{{- range $run := list
+  (dict "name" "daily" "schedule" "45 1 * * *" "stamp" "%F_%H%M" "subPath" "backups/jellyfin" "keepDays" 7)
+  (dict "name" "weekly" "schedule" "50 1 * * 0" "stamp" "%F" "subPath" "backups/jellyfin/weekly" "keepDays" 28) }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jellyfin-{{ $run.name }}
+  namespace: backups
+spec:
+  schedule: {{ $run.schedule | quote }}
+  timeZone: Europe/London
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          # Pinned to the node hosting the jellyfin local PV.
+          nodeSelector:
+            kubernetes.io/hostname: {{ $ls.node }}
+          securityContext:
+            runAsUser: {{ $j.uid }}
+            runAsGroup: {{ $j.gid }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sqlite-backup
+              image: {{ $j.image }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  db=/data/data/data/jellyfin.db
+                  [ -f "$db" ] || { echo "no database at $db" >&2; exit 1; }
+                  stamp=$(date +{{ $run.stamp }})
+                  stage=/work/stage
+                  rm -rf "$stage"
+                  mkdir -p "$stage/data/data"
+                  # A consistent snapshot, read-only: while Jellyfin runs,
+                  # its -wal and -shm exist and a read-only connection uses
+                  # them. With no -wal the database is fully checkpointed
+                  # and a read-only open needs immutable=1.
+                  if [ -e "$db-wal" ]; then
+                    src="file:$db?mode=ro"
+                  else
+                    src="file:$db?immutable=1"
+                  fi
+                  sqlite3 "$src" ".backup $stage/data/data/jellyfin.db"
+                  check=$(sqlite3 "$stage/data/data/jellyfin.db" 'PRAGMA quick_check;')
+                  if [ "$check" != ok ]; then
+                    echo "quick_check of the snapshot failed: $check" >&2
+                    exit 1
+                  fi
+                  cd /data
+                  set --
+                  for p in config data/plugins data/root data/data/playlists \
+                    data/data/ScheduledTasks data/data/*.txt; do
+                    if [ -e "$p" ]; then set -- "$@" "$p"; fi
+                  done
+                  tar -cf - "$@" | tar -xf - -C "$stage"
+                  tar -czf "/backup/.$stamp.tar.gz.tmp" -C "$stage" config data
+                  mv "/backup/.$stamp.tar.gz.tmp" "/backup/$stamp.tar.gz"
+                  ls -lh /backup
+                  find /backup -maxdepth 1 -type f -name '*.tar.gz' -mtime +{{ $run.keepDays }} -delete
+                  find /backup -maxdepth 1 -type f -name '.*.tmp' -mtime +1 -delete
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+                - name: nfs
+                  mountPath: /backup
+                  subPath: {{ $run.subPath }}
+          volumes:
+            - name: data
+              hostPath:
+                path: {{ $ls.path }}
+                type: Directory
+            - name: work
+              emptyDir:
+                sizeLimit: 2Gi
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: k8s-cluster-nfs
+{{- end }}
+{{- end }}
