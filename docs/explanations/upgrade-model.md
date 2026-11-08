@@ -30,6 +30,18 @@ one etcd member, so a failed server upgrade leaves the API down until it is
 fixed or restored from the `pre-upgrade-*` snapshot in
 `/var/lib/rancher/k3s/server/db/snapshots`.
 
+**The server Job retries.** Upgrading the server stops k3s, and with it the
+kubelet and containerd that run the upgrade Job's pod. The pod's final
+state is lost, so the Job usually counts it as failed and starts a second
+pod once k3s is back. That second pod finds the binary already at the
+target version: its `prepare` step skips the snapshot, and its upgrade step
+does nothing. Before this check, a retry saved a second, post-upgrade
+snapshot under the same `pre-upgrade-<version>` name. If a server shows two
+snapshots for one version, the **earliest** is the real pre-upgrade one.
+The nightly backup ships only that one to the NAS
+(`backups/etcd/pre-upgrade/`), and replaces a bundle of the same name made
+from a later file.
+
 **Reboots.** [kured](https://kured.dev/) runs on every node except
 workstations. Inside its window it takes a cluster-wide lock, drains the
 node, reboots it and uncordons it when it is back, then releases the lock

@@ -208,18 +208,75 @@ printf 'bundle: %s\ncreated: %s\nsnapshot: %s\nfresh: %s\n' \
 mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
 log "uploaded $DEST/$name ($size bytes)"
 
-# 5. Ship the newest snapshot of each extra prefix once (e.g. pre-upgrade).
+# name_time FILE: the unix time at the end of a snapshot or bundle name
+# (<name>-<node>-<unix time>[.tar.age]), or nothing if it has none.
+name_time() {
+    local base=${1##*/}
+    base=${base%.tar.age}
+    [[ $base =~ -([0-9]+)(\.[a-z]+)?$ ]] && echo "${BASH_REMATCH[1]}"
+    return 0
+}
+
+# oldest_per_name PREFIX: for each snapshot name under PREFIX (k3s calls
+# a file <name>-<node>-<unix time>, e.g. pre-upgrade-v1.34.13-k3s1-node01-
+# 1794099649), its oldest local file, one "<name> <time> <path>" line per
+# name, oldest name first. Time is the unix time in the file name, or the
+# mtime if the name has none. The oldest is the one to keep: the server
+# upgrade Job can retry after k3s restarts under it and save a second,
+# post-upgrade snapshot under the same name
+# (docs/explanations/upgrade-model.md).
+oldest_per_name() {
+    local mtime path base stem when
+    find "$SNAP_DIR" -maxdepth 1 -type f -name "$1-*" -printf '%T@ %p\n' \
+        | while read -r mtime path; do
+            base=$(basename "$path")
+            stem=${base%-"$NODE"-*}
+            when=$(name_time "$base")
+            [[ -n $when ]] || when=${mtime%.*}
+            echo "$when $stem $path"
+        done | sort -n -k1,1 | awk '!seen[$2]++ { print $2, $1, $3 }'
+}
+
+# 5. Ship each extra snapshot name (e.g. one pre-upgrade name per k3s
+#    version) once, from its earliest snapshot. The NAS keeps one bundle
+#    per name and node, the earliest seen: the earliest local file, unless
+#    the NAS already holds an earlier one (the local file may since have
+#    been removed). Later bundles of the name (an earlier, wrong pick) are
+#    removed. Only the newest EXTRA_KEEP names are considered, as prune
+#    would drop anything older straight away.
 for prefix in "${EXTRA_PREFIXES[@]}"; do
-    snap=$(newest_snapshot "$prefix")
-    [[ -n $snap ]] || continue
     extra_dir="$DEST/$prefix"
-    mkdir -p "$extra_dir"
-    extra_name="$(basename "$snap").tar.age"
-    [[ -e $extra_dir/$extra_name ]] && continue
-    bundle "$snap" "$WORK_DIR/$extra_name"
-    ship "$WORK_DIR/$extra_name" "$extra_dir" "$extra_name"
-    prune "$extra_dir" "$EXTRA_KEEP"
-    log "uploaded $extra_dir/$extra_name"
+    shipped=0
+    while read -r stem when snap; do
+        [[ -n $snap ]] || continue
+        mkdir -p "$extra_dir"
+        keep="$extra_dir/$(basename "$snap").tar.age"
+        keep_time=$when
+        for other in "$extra_dir/$stem-$NODE-"*.tar.age; do
+            [[ -e $other ]] || continue
+            other_time=$(name_time "$other")
+            if [[ -n $other_time ]] && (( other_time < keep_time )); then
+                keep=$other
+                keep_time=$other_time
+            fi
+        done
+        if [[ $keep == "$extra_dir/$(basename "$snap").tar.age" && ! -e $keep ]]; then
+            bundle "$snap" "$WORK_DIR/${keep##*/}"
+            ship "$WORK_DIR/${keep##*/}" "$extra_dir" "${keep##*/}"
+            log "uploaded $keep"
+            shipped=1
+        fi
+        for other in "$extra_dir/$stem-$NODE-"*.tar.age; do
+            [[ -e $other && $other != "$keep" ]] || continue
+            other_time=$(name_time "$other")
+            [[ -n $other_time ]] && (( other_time > keep_time )) || continue
+            rm -f "$other" "$other.sha256"
+            log "removed $other: $keep is earlier"
+        done
+    done < <(oldest_per_name "$prefix" | tail -n "$EXTRA_KEEP")
+    if [[ $shipped == 1 ]]; then
+        prune "$extra_dir" "$EXTRA_KEEP"
+    fi
 done
 
 write_metrics 1

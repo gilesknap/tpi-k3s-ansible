@@ -150,6 +150,67 @@ kubectl drain node03 --ignore-daemonsets --delete-emptydir-data
 kubectl uncordon node03
 ```
 
+(move-a-local-nvme-pv)=
+## Move a local-nvme PV to another node
+
+Each `local-nvme` PV is pinned to one node by its `nodeAffinity`, which
+Kubernetes does not let you change on an existing PV. To move one, for
+example Grafana's from `node03` to `node02`, delete the PV through ArgoCD
+and let it re-create it. The PV's policy is `Retain` and the data is a
+directory on the host, so deleting the PV object does not delete any data.
+
+1. In `kubernetes-services/values.yaml`, set the new `node` (and `path`, if
+   that node keeps its data elsewhere) on the PV's `local_storage` entry.
+   Make the same change to its `k8s_data_dirs` entry in
+   `group_vars/all.yml`. Create the directory on the new node by hand,
+   with the owner, group and mode of the `k8s_data_dirs` entry, for
+   example:
+
+   ```bash
+   ssh ansible@node02 sudo install -d -o 472 -g 472 -m 2775 /var/lib/k8s-data/grafana
+   ```
+
+   `ansible-playbook pb_all.yml --tags servers --limit node02` creates it
+   too, but that play also runs `move_fs`, `rk1_os` and `update_packages`:
+   on an RK1 still on the vendor image, `rk1_os` drains it, reboots it and
+   can run an Ubuntu release upgrade to convert it.
+
+   Merge the change. Until step 3 the `local-storage` app shows a sync
+   error for that PV, as it cannot change its node.
+2. Delete the PVC and the pod that uses it. The PVC waits for the pod to
+   go, and the StatefulSet then re-creates both. The new pod stays
+   `Pending`, as the old PV still points at the old claim and node:
+
+   ```bash
+   kubectl -n monitoring delete pvc storage-grafana-prometheus-0 --wait=false
+   kubectl -n monitoring delete pod grafana-prometheus-0
+   ```
+
+   To keep the data, copy the directory from the old node to the new one
+   now, while nothing writes to it, keeping its owner and mode.
+3. Delete the PV through ArgoCD and sync, so ArgoCD re-creates it with the
+   new node. `argocd --core` uses the kube context's namespace, so set it
+   to `argo-cd` first:
+
+   ```bash
+   kubectl config set-context --current --namespace=argo-cd
+   argocd app delete-resource local-storage --core \
+     --kind PersistentVolume --resource-name grafana-local
+   argocd app sync local-storage --core
+   ```
+
+   Then set the namespace back to the one you had before, if it was not
+   `argo-cd`.
+
+   In the ArgoCD UI, the same is: open `local-storage`, delete the PV,
+   then **Sync**. `argocd app sync --replace` does not work instead: the
+   ArgoCD server disables sync with replace.
+4. Check that the PVC is `Bound` and the pod runs on the new node:
+   `kubectl -n monitoring get pvc,pod -o wide`.
+
+The old directory stays on the old node. Remove it by hand once the
+workload runs from its new home.
+
 ## Add extra (non-Turing Pi) nodes
 
 To add standalone Linux servers to the cluster:

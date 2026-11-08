@@ -76,7 +76,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | `etcd_backup_mount_point` | `/mnt/k8s-cluster` | Where the share is mounted while the job runs |
 | `etcd_backup_dest_subdir` | `backups/etcd` | Destination directory below the mount point |
 | `etcd_backup_keep` | `14` | Nightly bundles kept on the NAS |
-| `etcd_backup_extra_prefixes` | `[pre-upgrade]` | Snapshot name prefixes also shipped, once each, to `<dest>/<prefix>/` |
+| `etcd_backup_extra_prefixes` | `[pre-upgrade]` | Snapshot name prefixes also shipped to `<dest>/<prefix>/`: the earliest snapshot of each name, once |
 | `etcd_backup_extra_keep` | `4` | Bundles kept per extra prefix |
 | `etcd_backup_on_calendar` | `*-*-* 23:15:00 Europe/London` | systemd `OnCalendar` schedule |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
