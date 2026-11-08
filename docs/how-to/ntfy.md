@@ -227,7 +227,9 @@ bridge component:
   Secret in `monitoring`, a copy of `ntfy-auth`'s `alertmanager-token`
   (`CLUSTER_COPIES` in `scripts/lib/ntfy_auth.py`). `just seal-ntfy`,
   including `--rotate alertmanager`, and the rebuild seal the copy along
-  with `ntfy-auth`.
+  with `ntfy-auth`. After a rotation, recreate the ntfy pod as soon as both
+  have synced: Alertmanager uses the new token straight away, and ntfy
+  rejects it (and so drops those alerts) until the new pod starts.
 
 ## Publishing from a VPS
 

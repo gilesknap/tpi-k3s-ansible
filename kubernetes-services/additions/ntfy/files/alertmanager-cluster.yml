@@ -13,8 +13,10 @@
 # Criticals and warnings never share a group: they reach the receiver
 # through different routes, so a truncated group cannot hide a critical.
 #
-# For alerts on kube-state-metrics or node-exporter series, namespace and
-# pod are the exporter's own, not the affected object's, so are left out.
+# namespace and pod are left out where they are the exporter's own, not the
+# affected object's: on node-exporter series, and on node-scoped
+# kube-state-metrics series (those with a node label). Label values are
+# truncated too, to keep five alerts well inside the limit.
 title: |
   {{- $name := (first .alerts).labels.alertname -}}
   {{- if eq .status "resolved" -}}
@@ -24,13 +26,14 @@ title: |
   {{- end -}}
 message: |
   {{- range .alerts }}
-  {{ if eq .status "firing" }}FIRING{{ else }}resolved{{ end }} · {{ default "no severity" .labels.severity }}
-  {{- with .labels.node }} · node {{ . }}{{ else }}{{ with .labels.instance }} · {{ . }}{{ end }}{{ end }}
-  {{- $exporter := has (default "" .labels.job) (list "kube-state-metrics" "node-exporter") }}
-  {{- if not $exporter }}{{ with .labels.namespace }} · {{ . }}{{ end }}{{ end }}
-  {{- with .labels.persistentvolumeclaim }} · pvc {{ . }}{{ end }}
-  {{- with .labels.mountpoint }} · {{ . }}{{ end }}
-  {{- if not $exporter }}{{ with .labels.pod }} · pod {{ . }}{{ end }}{{ end }}
+  {{ if eq .status "firing" }}FIRING{{ else }}resolved{{ end }} · {{ default "no severity" .labels.severity | trunc 20 }}
+  {{- with .labels.node }} · node {{ trunc 63 . }}{{ else }}{{ with .labels.instance }} · {{ trunc 63 . }}{{ end }}{{ end }}
+  {{- $job := default "" .labels.job }}
+  {{- $exporter := or (eq $job "node-exporter") (and (eq $job "kube-state-metrics") .labels.node) }}
+  {{- if not $exporter }}{{ with .labels.namespace }} · {{ trunc 63 . }}{{ end }}{{ end }}
+  {{- with .labels.persistentvolumeclaim }} · pvc {{ trunc 63 . }}{{ end }}
+  {{- with .labels.mountpoint }} · {{ trunc 63 . }}{{ end }}
+  {{- if not $exporter }}{{ with .labels.pod }} · pod {{ trunc 63 . }}{{ end }}{{ end }}
   {{- with .annotations.summary }}
   {{ trunc 160 . }}
   {{- end }}

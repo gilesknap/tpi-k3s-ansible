@@ -104,8 +104,9 @@ block in `kubernetes-services/templates/grafana.yaml`.
   `KubeDaemonSetMisScheduled` and `TargetDown` cluster-wide (they carry no
   node label to match on). So a powered-off node is one push, not a dozen
   alerts.
-- **Planned outages:** powering a node off fires `KubeNodeNotReady` after 15
-  minutes (cordoning or draining does not). Silence it first in the
+- **Planned outages:** `KubeNodeNotReady` ignores cordoned nodes, so a node
+  drained (which cordons it) before it is powered off pushes nothing. To
+  power a node off without draining it, silence the alert first in the
   Alertmanager UI, or with:
 
   ```bash
@@ -124,8 +125,11 @@ Bearer token read from the `alertmanager-ntfy` Secret (key `token`). That
 Secret is a copy of the `alertmanager-token` key of `ntfy-auth`, as a pod can
 only mount a Secret from its own namespace; `just seal-ntfy` and the rebuild
 (`scripts/seal-from-json`) seal both together, so they stay in step.
-Alertmanager reads the token file on every notification, so a rotated token
-needs no restart.
+Alertmanager reads the token file on every notification, so it needs no
+restart for a rotated token (`just seal-ntfy --rotate alertmanager`). ntfy
+accepts the new token only once its pod is recreated, and until then
+publishes fail, so recreate the ntfy pod as soon as both Secrets have
+synced (see {doc}`ntfy`).
 
 :::{note}
 Nothing pushes when the cluster, Alertmanager or ntfy itself is down. The
