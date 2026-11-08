@@ -39,16 +39,49 @@ To upgrade outside the window, edit `k3s.upgrade_window` in the same file.
 
 Workstation nodes (`workstation: true` in the inventory) are excluded from
 automatic upgrades. Upgrade them after the rest of the cluster, when the
-workstation can be interrupted:
+workstation can be interrupted. For example, for a workstation named `ws03`:
+
+```bash
+just upgrade-workstation ws03
+```
+
+:::{important}
+Run this in the project's devcontainer terminal (for instance the
+devcontainer running on the workstation itself), where your SSH key reaches
+`ansible@<node>` and `kubectl` works. It does not work on the workstation
+host, which has no Ansible, or from the claude-sandbox, which deliberately
+cannot SSH to its own host. The script checks SSH first and stops with a
+message if it cannot connect.
+:::
+
+The script:
+
+1. Refuses a node that is not `workstation: true` in the inventory.
+2. Shows the node's k3s version and the control plane's.
+3. Drains the node if it is Ready; a NotReady node is not drained (the
+   playbook deletes it and lets it rejoin).
+4. Runs `ansible-playbook pb_all.yml --limit <node> --tags known_hosts,k3s
+   -e k3s_force=true`, which reinstalls the K3s agent at the version the
+   control plane runs. Extra arguments are passed on to `ansible-playbook`,
+   e.g. `just upgrade-workstation ws03 -K` to prompt for a sudo password.
+5. Waits for the node to be Ready again, uncordons it, and prints the node
+   and its taints (the `workstation=true:NoSchedule` taint is reapplied).
+
+Done by hand, the core steps are below. Run them one at a time and stop
+if one fails; unlike the script, they do not skip the drain for a NotReady
+node or wait for the node to be Ready before uncordoning it:
 
 ```bash
 kubectl drain ws03 --ignore-daemonsets --delete-emptydir-data
-ansible-playbook pb_all.yml --tags k3s --limit ws03 -e k3s_force=true
+ansible-playbook pb_all.yml --tags known_hosts,k3s --limit ws03 -e k3s_force=true
 kubectl uncordon ws03
 ```
 
-`k3s_force=true` reinstalls the K3s agent at the version the control plane
-runs, and the node rejoins the cluster.
+A workstation's agent lags behind the automatic upgrades until you run
+this. That does not block cluster upgrades: Kubernetes supports kubelets up
+to three minor versions older than the API server, so the control plane and
+the other workers can move ahead. Upgrade the workstation before it falls
+that far behind.
 
 ## Fresh installs and Ansible re-runs
 
