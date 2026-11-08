@@ -574,7 +574,7 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-odd"><td><p>Jellyfin</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jellyfin/jellyfin</span></code></p></td>
-<td><p>3.6.0 (image 12.3)</p></td>
+<td><p>3.7.0 (image 12.4)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
 <td><p>— (LAN and Tailscale)</p></td>
 <td><p>Jellyfin users</p></td>
@@ -761,14 +761,18 @@ Prometheus. See <a class="reference internal" href="../explanations/upgrade-mode
 <h3>Jellyfin<a class="headerlink" href="#jellyfin" title="Link to this heading">#</a></h3>
 <p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code>). The upstream
 <a class="reference external" href="https://github.com/jellyfin/jellyfin-helm">jellyfin/jellyfin</a> chart, pinned
-to one node: <code class="docutils literal notranslate"><span class="pre">/config</span></code> is a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV there
-(<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), and the pod requests that node’s Intel iGPU
+to one node: its data, config and logs are a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV there
+(<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), mounted at a host install’s paths
+(<code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin</span></code>), and the pod requests that node’s Intel iGPU
 (<code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915:</span> <span class="pre">1</span></code>, see <a class="reference internal" href="#intel-gpu-device-plugin">Intel GPU device plugin</a>)
 with the node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> groups in <code class="docutils literal notranslate"><span class="pre">supplementalGroups</span></code>. It runs as
 a fixed uid/gid (<code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>/<code class="docutils literal notranslate"><span class="pre">gid</span></code>). The media library is a static
 read-only NFS PV, mounted at the path a host install used. No Ingress and no
 Cloudflare route: LAN and Tailscale only, with <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code> (off in a trial,
-<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code>). No PodDisruptionBudget, so kured can drain the node.</p>
+<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code>). No PodDisruptionBudget, so kured can drain the node.
+Init containers can seed the volume once from a host install
+(<code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code>), and the <code class="docutils literal notranslate"><span class="pre">backups</span></code> app backs up the database and
+config nightly (<code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code>).</p>
 <p>See <a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>.</p>
 </section>
 <section id="minecraft-dashboard">

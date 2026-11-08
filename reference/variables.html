@@ -740,16 +740,32 @@
 <td><p>Deploy Jellyfin (<a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>); needs <code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code> and its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.chart_version</span></code> / <code class="docutils literal notranslate"><span class="pre">image_tag</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">3.6.0</span></code> / <code class="docutils literal notranslate"><span class="pre">12.3.…</span></code></p></td>
-<td><p>The upstream chart version and the Jellyfin image tag</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3.7.0</span></code> / <code class="docutils literal notranslate"><span class="pre">12.4.…</span></code></p></td>
+<td><p>The upstream chart version and the Jellyfin image tag (never older than the database’s Jellyfin)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.trial</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Throwaway trial config: marks the config volume <code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code>. Not with <code class="docutils literal notranslate"><span class="pre">seed_from_host</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
-<td><p>Throwaway trial config: marks the config volume <code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code></p></td>
+<td><p>One-off copy of a stopped host install into the config volume (init containers); a no-op once the volume is <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">docker.io/keinos/sqlite3:3.54.1</span></code></p></td>
+<td><p>Image with <code class="docutils literal notranslate"><span class="pre">sqlite3</span></code>, for the seed’s integrity check and the backup CronJobs</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.hardware_decoding_codecs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[h264,</span> <span class="pre">hevc,</span> <span class="pre">…]</span></code></p></td>
+<td><p>Replaces <code class="docutils literal notranslate"><span class="pre">HardwareDecodingCodecs</span></code> in the copied <code class="docutils literal notranslate"><span class="pre">encoding.xml</span></code>; empty leaves it unchanged</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.data_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">config_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">log_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">cache_dir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/var/cache/jellyfin</span></code></p></td>
+<td><p>Jellyfin’s paths in the pod, the same as a host install’s. The first three are the config volume’s <code class="docutils literal notranslate"><span class="pre">data/</span></code>, <code class="docutils literal notranslate"><span class="pre">config/</span></code> and <code class="docutils literal notranslate"><span class="pre">log/</span></code>; the seed copies the host’s <code class="docutils literal notranslate"><span class="pre">data_dir</span></code> and <code class="docutils literal notranslate"><span class="pre">config_dir</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Run on the node’s network (both LANs, Tailscale, UDP 7359 discovery); on after cutover</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Run on the node’s network (both LANs, Tailscale, UDP 7359 discovery); off for a trial beside a host install</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">122</span></code> / <code class="docutils literal notranslate"><span class="pre">124</span></code></p></td>

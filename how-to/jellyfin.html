@@ -456,8 +456,8 @@ AppProject’s <code class="docutils literal notranslate"><span class="pre">sour
 <td><p>Upstream chart, namespace <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
 <td><p>One pod, <code class="docutils literal notranslate"><span class="pre">Recreate</span></code> strategy, no PodDisruptionBudget</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/config</span></code>: database, metadata, subtitles, plugins, XML config</p></td>
-<td><p>Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on the node (<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), claim <code class="docutils literal notranslate"><span class="pre">jellyfin-config</span></code></p></td>
+<tr class="row-odd"><td><p>Data (database, metadata, subtitles, plugins), XML config, logs</p></td>
+<td><p>Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on the node (<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), claim <code class="docutils literal notranslate"><span class="pre">jellyfin-config</span></code>: its <code class="docutils literal notranslate"><span class="pre">data/</span></code>, <code class="docutils literal notranslate"><span class="pre">config/</span></code> and <code class="docutils literal notranslate"><span class="pre">log/</span></code></p></td>
 <td><p>Created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role, owned by the pod’s uid/gid. Not NFS: the database is SQLite</p></td>
 </tr>
 <tr class="row-even"><td><p>Media library</p></td>
@@ -487,9 +487,53 @@ so files on the volume have the owner a host install would give them;</p></li>
 <li><p>requests 500m CPU and 1Gi memory, with a 4Gi memory limit and no CPU
 limit, so transcode bursts are not throttled.</p></li>
 </ul>
-<p>The media is mounted at the same path the host install used (for example
-<code class="docutils literal notranslate"><span class="pre">/media/bigdisk/media</span></code>), so the library paths in an imported database match.
-The chart’s own <code class="docutils literal notranslate"><span class="pre">/media</span></code> and <code class="docutils literal notranslate"><span class="pre">/cache</span></code> volumes are unused.</p>
+<p>Jellyfin sees the same paths as a host install of the Debian/Ubuntu package,
+not the image’s <code class="docutils literal notranslate"><span class="pre">/config</span></code> layout:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Pod path</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>Comes from</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> (data, and <code class="docutils literal notranslate"><span class="pre">HOME</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.data_dir</span></code></p></td>
+<td><p>the config volume’s <code class="docutils literal notranslate"><span class="pre">data/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code> (XML config)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.config_dir</span></code></p></td>
+<td><p>the config volume’s <code class="docutils literal notranslate"><span class="pre">config/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.log_dir</span></code></p></td>
+<td><p>the config volume’s <code class="docutils literal notranslate"><span class="pre">log/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/var/cache/jellyfin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.cache_dir</span></code></p></td>
+<td><p>the cache <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>for example <code class="docutils literal notranslate"><span class="pre">/media/bigdisk/media</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.media.mount_path</span></code></p></td>
+<td><p>the media NFS volume</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Jellyfin is pointed at them with its <code class="docutils literal notranslate"><span class="pre">JELLYFIN_*_DIR</span></code> environment variables,
+and the volume’s subdirectories are mounted there with <code class="docutils literal notranslate"><span class="pre">subPath</span></code>. So the
+absolute paths stored in a database and XML config copied from a host
+install stay valid, with nothing rewritten, and the host copy stays usable
+for a rollback. The chart’s own <code class="docutils literal notranslate"><span class="pre">/config</span></code>, <code class="docutils literal notranslate"><span class="pre">/media</span></code> and <code class="docutils literal notranslate"><span class="pre">/cache</span></code> are unused
+<code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>s.</p>
+<p>The pod’s init containers, in order, all on the config volume’s root:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mark-trial</span></code> (trial only; see <a class="reference internal" href="#trial">Trial</a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seed-copy</span></code> and <code class="docutils literal notranslate"><span class="pre">seed-verify</span></code> (<code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code> only; see
+<a class="reference internal" href="#seed-from-a-host-install">Seed from a host install</a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">layout</span></code>, which creates <code class="docutils literal notranslate"><span class="pre">data/</span></code>, <code class="docutils literal notranslate"><span class="pre">config/</span></code> and <code class="docutils literal notranslate"><span class="pre">log/</span></code> if missing, as the
+pod’s uid, so kubelet never creates them as root for the <code class="docutils literal notranslate"><span class="pre">subPath</span></code> mounts.</p></li>
+</ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The cache <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code> has a <code class="docutils literal notranslate"><span class="pre">sizeLimit</span></code> (20Gi by default), and the transcode
@@ -545,13 +589,14 @@ pod in <a class="reference internal" href="nas-setup.html"><span class="doc">Set
 </section>
 <section id="trial">
 <h2>Trial<a class="headerlink" href="#trial" title="Link to this heading">#</a></h2>
-<p>In a trial (<code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">false</span></code>) the pod
-has no host networking. It is reached only through its ClusterIP Service, so
-it cannot clash with a host install listening on 8096 and 7359.</p>
+<p>In a trial (<code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code>,
+<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">false</span></code>) the pod has no host networking. It is reached
+only through its ClusterIP Service, so it cannot clash with a host install listening on 8096 and 7359.</p>
 <p>Its config starts empty and is throwaway. It is written to the real config
 volume, and an init container marks it with a file
-<code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code> at the volume’s root, so the cutover can clear
-it without any hand edits on the node (see <a class="reference internal" href="#cutover">Cutover</a>). The init
+<code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code> at the volume’s root, so the seed can clear it
+without any hand edits on the node (see
+<a class="reference internal" href="#seed-from-a-host-install">Seed from a host install</a>). The init
 container writes the marker only when the volume is empty or already marked,
 so turning the trial back on later (for example by reverting the cutover)
 never marks real data as throwaway.</p>
@@ -575,7 +620,7 @@ supports, and save.</p></li>
 <strong>Quality</strong> (bitrate) than the file’s.</p></li>
 <li><p><strong>Dashboard › Activity</strong> (or the active session on the Dashboard home)
 shows the playback as transcoding. Its FFmpeg log, under
-<code class="docutils literal notranslate"><span class="pre">/config/log/FFmpeg.Transcode-*.log</span></code> in the pod, shows <code class="docutils literal notranslate"><span class="pre">vaapi</span></code> in the
+<code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin/FFmpeg.Transcode-*.log</span></code> in the pod, shows <code class="docutils literal notranslate"><span class="pre">vaapi</span></code> in the
 command line and no error opening the device.</p></li>
 <li><p>Query the GPU from inside the pod with the <code class="docutils literal notranslate"><span class="pre">vainfo</span></code> bundled in the image:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>deploy/jellyfin<span class="w"> </span>--<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/dev/dri
@@ -597,65 +642,191 @@ Service and media volume. The config claim is kept (<code class="docutils litera
 and the volume’s data on the node is never deleted by ArgoCD.</p>
 </section>
 </section>
+<section id="seed-from-a-host-install">
+<h2>Seed from a host install<a class="headerlink" href="#seed-from-a-host-install" title="Link to this heading">#</a></h2>
+<p>With <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">true</span></code>, two init containers copy a <strong>stopped</strong>
+host install into the config volume before Jellyfin starts. They mount the
+host’s data and config directories (<code class="docutils literal notranslate"><span class="pre">jellyfin.data_dir</span></code>,
+<code class="docutils literal notranslate"><span class="pre">jellyfin.config_dir</span></code>) as read-only <code class="docutils literal notranslate"><span class="pre">hostPath</span></code>s, so the host copy is never
+written. Both run as the pod’s uid (the host files’ owner) with no
+capabilities; the <code class="docutils literal notranslate"><span class="pre">Recreate</span></code> strategy means the old pod has stopped before
+they run.</p>
+<p>Markers at the volume’s root decide what happens:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Marker</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code></p></td>
+<td><p>Seeded (with a timestamp): both steps do nothing, on every later start</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code></p></td>
+<td><p>A trial config: the seed may clear it</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SEED-IN-PROGRESS</span></code></p></td>
+<td><p>The seed owns the volume’s contents, and clears and recopies them if interrupted</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SEED-COPY-COMPLETE</span></code></p></td>
+<td><p>The copy is done, waiting for <code class="docutils literal notranslate"><span class="pre">seed-verify</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">seed-copy</span></code> (Jellyfin image):</p>
+<ol class="arabic simple">
+<li><p>Does nothing if the volume is <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>.</p></li>
+<li><p>Refuses (fails, and retries with back-off) while the host service looks
+live: mainly, something listening on port 8096 of the node (on
+<code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code> or the node’s IP). It also refuses on a non-empty
+<code class="docutils literal notranslate"><span class="pre">jellyfin.db-wal</span></code> in the host’s data directory, though a running
+Jellyfin often has none, as it closes idle connections; after an unclean
+stop, start and stop the host service once. Stopping the host service
+before the change is merged is what really guarantees a quiet copy.</p></li>
+<li><p>Claims the volume: clears it only if it is empty, trial-marked or already
+<code class="docutils literal notranslate"><span class="pre">SEED-IN-PROGRESS</span></code>. A volume holding anything else fails loudly and is
+never cleared.</p></li>
+<li><p>Copies the host’s data and config directories (<code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code>, keeping modes
+and times) to temporary names, compares the database byte for byte and
+each tree’s file count and size with the host, then renames them to
+<code class="docutils literal notranslate"><span class="pre">data/</span></code> and <code class="docutils literal notranslate"><span class="pre">config/</span></code>. Files whose group the pod is not in (<code class="docutils literal notranslate"><span class="pre">adm</span></code>, on a
+host’s config directory) take the volume’s group.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">jellyfin.seed.hardware_decoding_codecs</span></code> is set, replaces
+<code class="docutils literal notranslate"><span class="pre">HardwareDecodingCodecs</span></code> in the <strong>copied</strong> <code class="docutils literal notranslate"><span class="pre">encoding.xml</span></code> with that list.</p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">seed-verify</span></code> (an SQLite image, <code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code>, as the
+Jellyfin image has no <code class="docutils literal notranslate"><span class="pre">sqlite3</span></code>) runs <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code> on the copied
+database and only then writes <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>.</p>
+<p>Watch it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-w
+kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span>logs<span class="w"> </span>deploy/jellyfin<span class="w"> </span>-c<span class="w"> </span>seed-copy<span class="w"> </span>-f
+kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span>logs<span class="w"> </span>deploy/jellyfin<span class="w"> </span>-c<span class="w"> </span>seed-verify
+</pre></div>
+</div>
+<p>About 25 GB on one node takes a few minutes. The seed is safe to leave
+enabled, as it is a no-op once the volume is marked, but a later change
+should set <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code>, which also drops the host
+mounts.</p>
+</section>
 <section id="cutover">
 <h2>Cutover<a class="headerlink" href="#cutover" title="Link to this heading">#</a></h2>
-<p>An outline of the move from a host install; each step is its own change.</p>
+<p>The move from a host install, after a successful trial.</p>
 <ol class="arabic">
 <li><p><strong>Prepare the host install.</strong> Remove libraries whose paths no longer exist
-(they would leave stale items and errors). If remote clients use
-Tailscale, make sure the node is logged in to the tailnet, with key expiry
-disabled for it. Re-check the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account’s uid and gid and the
-<code class="docutils literal notranslate"><span class="pre">render</span></code> group ID on the node, and update <code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>, <code class="docutils literal notranslate"><span class="pre">gid</span></code> and
-<code class="docutils literal notranslate"><span class="pre">render_gid</span></code> (and the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> owner) to match.</p></li>
+(they would leave stale items and errors; this can also be done in the UI
+after the cutover). If remote clients use Tailscale, make sure the node is
+logged in to the tailnet, with key expiry disabled for it. Re-check the
+<code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account’s uid and gid and the <code class="docutils literal notranslate"><span class="pre">render</span></code> group ID on the node,
+and update <code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>, <code class="docutils literal notranslate"><span class="pre">gid</span></code> and <code class="docutils literal notranslate"><span class="pre">render_gid</span></code> (and the
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> owner) to match. Note the host’s Jellyfin version.</p></li>
+<li><p><strong>Create the backup directories on the NAS</strong>, <code class="docutils literal notranslate"><span class="pre">backups/jellyfin</span></code> and
+<code class="docutils literal notranslate"><span class="pre">backups/jellyfin/weekly</span></code> (see <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>).</p></li>
 <li><p><strong>Stop the host service, keeping its files:</strong>
 <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">disable</span> <span class="pre">--now</span> <span class="pre">jellyfin</span></code>. Do not uninstall the package or
-touch its data and config directories yet: they are the rollback copy.</p></li>
-<li><p><strong>Cutover change</strong>, in git:</p>
+touch its data and config directories: they are the rollback copy.</p></li>
+<li><p><strong>Cutover change</strong>, in git, then merge:</p>
 <ul class="simple">
-<li><p>stop the trial pod first: the Job mounts the same volume on the same
-node, and must not run while Jellyfin has the database open. Either set
-<code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and let ArgoCD remove the trial (the config
-claim and its data are kept) before the cutover change, or have the Job
-wait until no Jellyfin pod is running in the namespace;</p></li>
-<li><p>set the image tag to the host’s Jellyfin version or newer (a database
+<li><p>the image tag at the host’s Jellyfin version or newer (a database
 cannot be opened by an older Jellyfin);</p></li>
-<li><p>set <code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">false</span></code> and <code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">true</span></code>;</p></li>
-<li><p>add a one-off Job (an ArgoCD sync hook, before the Deployment) that runs
-on the node with the host’s data and config directories mounted
-read-only, and the config volume read-write. It:</p>
-<ul>
-<li><p>empties the volume <strong>only if</strong> <code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code> is at its
-root, then removes the marker. It refuses to wipe, and fails, if
-<code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> is also there (see below): that is real data. (A
-database newer than the marker is no sign of real data, since a trial
-writes its database after every start.);</p></li>
-<li><p>copies the host data <strong>only if</strong> the volume has no database yet,
-mapping the host’s layout onto the image’s: the data directory (for
-example <code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code>) to <code class="docutils literal notranslate"><span class="pre">/config</span></code>, and the config directory
-(for example <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>) to <code class="docutils literal notranslate"><span class="pre">/config/config</span></code>;</p></li>
-<li><p>checks the copied database with <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code>, then
-writes <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> at the volume’s root.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">jellyfin.trial:</span> <span class="pre">false</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">true</span></code> and
+<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network:</span> <span class="pre">true</span></code>.</p></li>
 </ul>
-</li>
-</ul>
-<p>The media paths are unchanged, so the libraries need no remapping. Check
-the copied config for any remaining absolute paths under the old data
-directory, and fix them in the Job or by a library rescan.</p>
+<p>ArgoCD replaces the trial pod; the new pod seeds the volume (above) and
+starts Jellyfin on the node’s network.</p>
 </li>
 <li><p><strong>Verify:</strong> the web UI on each LAN address on port 8096, client
 auto-discovery (UDP 7359), remote clients over Tailscale, users and watch
-history, one hardware transcode, and the scheduled tasks.</p></li>
-<li><p><strong>Backups:</strong> a nightly CronJob copying the database (<code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>)
-and the config to the NAS. Extracted subtitles and metadata stay on the
-volume but are not backed up: a rescan rebuilds them.</p></li>
+history, one hardware transcode, and the scheduled tasks. Then run a
+first backup by hand (see <a class="reference internal" href="#backups">Backups</a>) and check it on the NAS.</p></li>
+<li><p><strong>Retire the seed</strong> in a later change (<code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code>).</p></li>
 <li><p><strong>Retire the host install</strong> after a settling period: remove the packages
 (without purging, so the old data stays as a cold copy for a while) and
 the apt source. Keep the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account, as it owns the files on the
 config volume.</p></li>
 </ol>
-<p><strong>Rollback</strong> at any point: set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code>, then
-<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">enable</span> <span class="pre">--now</span> <span class="pre">jellyfin</span></code> on the host. The host database is as it
-was at step 2.</p>
+<section id="rollback">
+<h3>Rollback<a class="headerlink" href="#rollback" title="Link to this heading">#</a></h3>
+<p>The host’s data and config were never written, so rollback is:</p>
+<ol class="arabic simple">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push. ArgoCD removes the pod, which frees
+port 8096 (the config claim and the volume’s data are kept).</p></li>
+<li><p>On the node: <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">enable</span> <span class="pre">--now</span> <span class="pre">jellyfin</span></code>.</p></li>
+</ol>
+<p>The host database is as it was when the host service stopped: watch history
+and changes made in the cluster are not in it.</p>
+<p>Switching back to the cluster later reuses the volume as it is: it is
+already <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>, so the seed does not copy again, and changes made
+on the host since are not in it. Nothing in this repository clears a seeded
+volume; recopying from the host means deliberately removing the volume’s
+contents on the node first.</p>
+</section>
+</section>
+<section id="backups">
+<h2>Backups<a class="headerlink" href="#backups" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">backups</span></code> Application runs two CronJobs on the node, as Jellyfin’s uid
+and with the config volume’s directory mounted read-only:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>CronJob</p></th>
+<th class="head"><p>Schedule (Europe/London)</p></th>
+<th class="head"><p>NAS path</p></th>
+<th class="head"><p>Kept</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code></p></td>
+<td><p>01:45 daily</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/jellyfin/&lt;date&gt;_&lt;time&gt;.tar.gz</span></code></p></td>
+<td><p>7 days</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code></p></td>
+<td><p>01:50 Sundays</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/jellyfin/weekly/&lt;date&gt;.tar.gz</span></code></p></td>
+<td><p>28 days</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>01:45 is after Jellyfin’s default 01:00 scheduled tasks and before the kured
+reboot window. Each tarball holds a consistent <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> snapshot of
+the database (checked with <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">quick_check</span></code>), and from the volume
+<code class="docutils literal notranslate"><span class="pre">config/</span></code>, <code class="docutils literal notranslate"><span class="pre">data/.aspnet</span></code> (data-protection keys), <code class="docutils literal notranslate"><span class="pre">data/plugins/</span></code>,
+<code class="docutils literal notranslate"><span class="pre">data/root/</span></code> (library definitions) and
+<code class="docutils literal notranslate"><span class="pre">data/data</span></code>’s <code class="docutils literal notranslate"><span class="pre">playlists/</span></code>, <code class="docutils literal notranslate"><span class="pre">ScheduledTasks/</span></code> and <code class="docutils literal notranslate"><span class="pre">*.txt</span></code>. It is laid out
+like the volume, so it unpacks at the volume’s root. Extracted subtitles and
+metadata are not backed up: a library scan rebuilds them.</p>
+<p>Run one now:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>create<span class="w"> </span>job<span class="w"> </span>--from<span class="o">=</span>cronjob/jellyfin-daily<span class="w"> </span>manual-<span class="k">$(</span>date<span class="w"> </span>+%s<span class="k">)</span><span class="w"> </span>-n<span class="w"> </span>backups
+kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>backups<span class="w"> </span>job/manual-&lt;timestamp&gt;<span class="w"> </span>-f
+</pre></div>
+</div>
+<section id="restore-from-a-backup">
+<h3>Restore from a backup<a class="headerlink" href="#restore-from-a-backup" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push, so nothing has the database open.
+If <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code> is still on, turn it off in the same change:
+on a volume without <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> (a new, restored one) the seed
+refuses to start, as the volume holds unmarked data.</p></li>
+<li><p>On the node, unpack the tarball over the volume’s root as the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code>
+account, for example with the NAS share mounted on the node:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>-u<span class="w"> </span>jellyfin<span class="w"> </span>tar<span class="w"> </span>--no-overwrite-dir<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-xzf<span class="w"> </span>&lt;nas&gt;/backups/jellyfin/&lt;date&gt;_&lt;time&gt;.tar.gz<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-C<span class="w"> </span>/home/k8s-data/jellyfin
+sudo<span class="w"> </span>-u<span class="w"> </span>jellyfin<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>/home/k8s-data/jellyfin/data/data/jellyfin.db-wal<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/home/k8s-data/jellyfin/data/data/jellyfin.db-shm
+</pre></div>
+</div>
+<p>This replaces the database and the config, and leaves the subtitles and
+metadata in place. (Without the share on the node, do the same from a
+pod pinned to the node that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> claim and the
+volume’s directory.)</p>
+</li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">true</span></code> and push. If the volume was empty (a new
+node), Jellyfin rebuilds the metadata and subtitles by its next library
+scan.</p></li>
+</ol>
+</section>
 </section>
 </section>
 
@@ -714,7 +885,15 @@ was at step 2.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#end-a-trial">End a trial</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cutover">Cutover</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#seed-from-a-host-install">Seed from a host install</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cutover">Cutover</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#backups">Backups</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-a-backup">Restore from a backup</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
