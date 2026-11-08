@@ -143,6 +143,14 @@ ansible-playbook pb_all.yml --limit <control-plane-node> --tags k3s
 If going from 1 to 2+ nodes, check if cloudflared should increase from 1 to 2
 replicas (the default for multi-node clusters).
 
+### Minecraft RCON allow-list
+
+Pods on a cluster node reach world RCON as that node's IP, so cluster node
+IPs must be in the `except` list of `minecraft.worlds.rcon_allowed_cidrs` in
+`kubernetes-services/values.yaml`. Add the new node's IP there, unless it is
+the world node or a tainted workstation that runs RCON clients (like ws03),
+which stay allowed on purpose.
+
 ### Newly unlocked features
 
 If the new node enables features that weren't previously available, inform the
