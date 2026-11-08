@@ -324,14 +324,14 @@ Cloudflare's built-in protections (DDoS mitigation, bot management, managed rule
 apply automatically to all proxied traffic. **No custom rules are needed** for this
 setup — only explicitly tunnelled hostnames receive traffic from the internet.
 
-Optionally add a rate-limiting rule in **Security → WAF → Rate Limiting Rules**:
-
-| Field | Value |
-|---|---|
-| Rule name | `Echo rate limit` |
-| Match | Hostname equals `echo.example.com` |
-| Rate | 30 requests per 1 minute |
-| Action | Block |
+Optionally add a rate-limiting rule in **Security → WAF → Rate Limiting Rules**,
+for example one that blocks a client IP sending more than about 100
+requests a minute to a public service. What a rule may match on and its
+periods depend on your plan: the Free plan allows one rule, matching on
+the URI path only (not the hostname), with a 10-second period and
+block. If you manage Cloudflare with {doc}`cloudflare-as-code`, the
+rule is in `cloudflare/waf.tf` instead (it holds the zone's one Free
+rule, for ntfy; see "Rate limiting on the Free plan" there).
 
 ## Making a LAN-only service externally accessible
 
@@ -372,8 +372,8 @@ To move a service from LAN-only to publicly accessible through the tunnel:
      zero cluster overhead. See {doc}`cloudflare-ssh-tunnel` for an example.
    - **oauth2-proxy** — in-cluster OAuth. See {doc}`oauth-setup`.
 
-5. **Optionally add a rate-limiting rule** in **Security → WAF → Rate Limiting Rules**
-   for the newly public hostname.
+5. **Optionally add a rate-limiting rule** for the newly public service
+   (see [4.5 WAF](#45-waf-web-application-firewall) for the plan limits).
 
 ### Reverting to LAN-only
 

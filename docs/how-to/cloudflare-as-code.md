@@ -74,8 +74,10 @@ Cloudflare's Free plan allows one rate-limiting rule, with a 10-second
 counting period and a 10-second block, counted per client IP, and an
 expression that may only use the URI path (and Verified Bot), not the
 hostname. The rule in `waf.tf` fits those limits: it matches ntfy's
-paths, 20 requests in 10 seconds (about 100 a minute) per IP, then
-blocks for 10 seconds. On a paid plan you can match on the hostname and
+topic paths, `/v1/` and `/` (on every host in the zone, as it cannot
+name one), allows 17 requests in 10 seconds (about 100 a minute) per
+IP, then blocks for 10 seconds. The zone's one rule is then taken, so a
+second rule, for another service, needs a paid plan. On a paid plan you can match on the hostname and
 use longer periods; see Cloudflare's
 [rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/)
 for what each plan allows. Only the edit token can ask Cloudflare to
@@ -270,7 +272,8 @@ writes; with one operator that is acceptable.
 Delete its entry from `tunnel_services` or `dns_only_records` (and any
 Access app that only served it), and its ID from `import_ids` in
 `live.auto.tfvars` (an import block for an object no longer in the
-code is skipped, and a check warns about the stale key). Check that
+code is skipped; for DNS records a check also warns about the stale
+key). Check that
 `just cf-plan` destroys exactly those objects, and apply. Imported
 configuration often carries such drift: entries for services the
 cluster no longer runs, left behind by earlier dashboard edits.

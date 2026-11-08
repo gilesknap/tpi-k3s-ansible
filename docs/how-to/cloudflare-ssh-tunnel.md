@@ -21,9 +21,10 @@ If you manage Cloudflare with {doc}`cloudflare-as-code`, add the route
 there instead of in the dashboard: an entry
 `{ name = "ssh", service = "ssh://<control-plane-ip>:22" }` in
 `tunnel_services` (`cloudflare/locals.tf`) creates both the route and
-its DNS record, and the wildcard Owner application already gates it (add
-an entry to `local.access_apps` in `access.tf` for a different policy).
-Part 1 and Part 2 below are then done by `just cf-apply`.
+its DNS record, and the wildcard Owner application already gates it.
+Part 1 below is then done by `just cf-apply`, and Part 2 is covered by
+the wildcard application unless you add an entry to `local.access_apps`
+in `access.tf` for a dedicated `ssh` application.
 :::
 
 This guide walks through setting up secure remote access to your K3s cluster via an

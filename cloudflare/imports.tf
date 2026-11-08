@@ -61,7 +61,7 @@ import {
 }
 
 import {
-  for_each = var.import_ids.access_apps
+  for_each = { for k, v in var.import_ids.access_apps : k => v if contains(keys(local.access_apps), k) }
   to       = cloudflare_zero_trust_access_application.app[each.key]
   id       = "accounts/${var.account_id}/${each.value}"
 }

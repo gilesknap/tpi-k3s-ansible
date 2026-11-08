@@ -135,13 +135,16 @@ The edge configuration for ntfy is in `cloudflare/` (see
   `bypass` policy; it is more specific than the wildcard, so it takes
   precedence for `ntfy.<domain>`.
 - **Rate limit:** as the hostname is open to the internet, a WAF
-  rate-limiting rule (`cloudflare/waf.tf`) blocks a client IP that
-  sends more than 20 requests to ntfy's paths in 10 seconds (about 100
-  a minute), for 10 seconds. These are the Free plan's limits, which
-  also rule out matching on the hostname, so the rule matches ntfy's
-  topic paths and `/v1/` instead; keep its topic list in step with
-  `access` in `kubernetes-services/additions/ntfy/values.yaml`. ntfy's
-  own per-visitor limits still apply behind it.
+  rate-limiting rule (`cloudflare/waf.tf`) blocks, for 10 seconds, a
+  client IP that sends more than 17 requests in 10 seconds (about 100 a
+  minute) to ntfy's topic paths (including comma-joined topics),
+  `/v1/` or `/`. These are the Free plan's limits, which also rule out
+  matching on the hostname, so the rule matches those paths on every
+  host in the zone instead. Requests to other paths, such as an unknown
+  topic, are not counted; ntfy denies them. Keep the rule's topic list
+  in step with `access` in
+  `kubernetes-services/additions/ntfy/values.yaml`. ntfy's own
+  per-visitor limits still apply behind it.
 
 If you do not manage Cloudflare with that code, make the same three
 changes in the [dashboard](https://dash.cloudflare.com/): a tunnel
