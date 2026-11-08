@@ -67,7 +67,9 @@ The script:
 5. Waits for the node to be Ready again, uncordons it, and prints the node
    and its taints (the `workstation=true:NoSchedule` taint is reapplied).
 
-It is the equivalent of:
+Done by hand, the core steps are below. Run them one at a time and stop
+if one fails; unlike the script, they do not skip the drain for a NotReady
+node or wait for the node to be Ready before uncordoning it:
 
 ```bash
 kubectl drain ws03 --ignore-daemonsets --delete-emptydir-data
