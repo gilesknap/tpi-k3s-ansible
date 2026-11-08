@@ -29,17 +29,20 @@ ntfy's own authentication is the only gate, so the server is locked down:
 | `enable-signup: false`, `enable-login: false` | No accounts can be created and there is no browser login |
 | `web-root: disable` | No web app; the server is an API only |
 | no `attachment-cache-dir` | Attachments are off; messages are text, at most 4 KB |
-| `behind-proxy: true`, `proxy-forwarded-header: CF-Connecting-IP` | Visitor rate limits (ntfy defaults) apply per real client, not to the tunnel |
+| `behind-proxy: true`, `proxy-forwarded-header: CF-Connecting-IP` | For tunnel traffic, visitor rate limits (ntfy defaults) apply per real client, not to the tunnel (but see the caveat below) |
+| `visitor-message-daily-limit: 500` | At most 500 messages a day per visitor, so a leaked token cannot push thousands a day from one address |
 
 There is one account per sender, each with an access token, and the access
 list grants each the least it needs:
 
-| User | Role | Access | Used by |
-|---|---|---|---|
-| `alertmanager` | user | write-only on `cluster-alerts` | the Alertmanager bridge |
-| `vps` | user | write-only on `vps-alerts` | the VPS |
-| `phone` | user | read-only on `cluster-alerts` and `vps-alerts` | the phone app |
-| `admin` | admin | every topic | the owner, for tests and administration |
+| User | Access | Used by |
+|---|---|---|
+| `alertmanager` | write-only on `cluster-alerts` | the Alertmanager bridge |
+| `vps` | write-only on `vps-alerts` | the VPS |
+| `phone` | read-only on `cluster-alerts` and `vps-alerts` | the phone app |
+
+There is no admin user: auth is declarative, so nothing needs one, and it
+would be an internet-facing password login.
 
 Auth is **declarative**: since 2.14, ntfy provisions users, access entries
 and tokens from its configuration at every start (`auth-users`,
@@ -52,15 +55,28 @@ longer configured. Nobody runs `ntfy user add`.
 - The access list is not secret. It is in
   `kubernetes-services/additions/ntfy/values.yaml` (`access`) and rendered
   into `server.yml`.
-- `ntfy-auth` also holds the plain admin password and each token
-  (`admin-password`, `<user>-token`), so they can be read back for clients
-  and kept across a rebuild. The client users' passwords are random and
-  discarded: they authenticate with tokens only.
+- `ntfy-auth` also holds each plain token (`<user>-token`), so it can be
+  read back for clients and kept across a rebuild. The users' passwords
+  are random and discarded: they authenticate with tokens only.
+- The user names are listed once, in `SENDERS` in
+  `scripts/lib/ntfy_auth.py`; every script derives them from there.
 
 The NetworkPolicy admits only `ingress-nginx` (the `allowed_namespaces`
-value), so nothing else in the cluster can reach the pod directly. An
-in-cluster publisher, such as the Alertmanager bridge, adds its namespace
-there.
+value) to the pod. An in-cluster publisher, such as the Alertmanager
+bridge, adds its namespace there. This limits who reaches the pod
+*directly*; anything that can reach ingress-nginx can still talk to ntfy
+through it, so ntfy's token auth is the real gate.
+
+:::{warning}
+`CF-Connecting-IP` is trusted from anyone who reaches ingress-nginx. On the
+tunnel path Cloudflare's edge sets it, but a LAN host (through
+ingress-nginx's LoadBalancer IPs) or a pod (through its ClusterIP) can send
+any value, and so dodge the per-IP rate limits and the daily cap. ntfy
+counts users without a tier per IP, so the daily cap is also per address,
+not per account: a leaked token used from many addresses gets 500 messages
+a day from each. Spoofing the header grants no access; it only evades the
+limits.
+:::
 
 ### State
 
@@ -68,8 +84,9 @@ Both of ntfy's SQLite databases are on the pod's `emptyDir`, so the pod is
 not pinned to a node and moves freely, for example when a node is drained
 or fenced:
 
-- The **user database** (`auth-file`) is rebuilt from the declarative
-  configuration at every start, so nothing in it needs to persist.
+- The **user database** (`auth-file`) is provisioned from the declarative
+  configuration at every start, so nothing in it needs to persist. A new
+  pod starts with an empty one.
 - The **message cache** (`cache-file`, `cache-duration: 12h`) only serves
   messages to clients that were offline when they were sent. A pod move
   loses at most the messages an offline phone has not yet fetched;
@@ -175,18 +192,20 @@ server.
 
 ## Publishing from a VPS
 
-Keep the **vps** token in a file only root can read:
+Keep the **vps** token in a file only root can read, as the whole header
+line, so it is never on a command line (where `ps` would show it):
 
 ```bash
-sudo install -m 600 -o root -g root /dev/null /etc/ntfy-token
-sudoedit /etc/ntfy-token        # paste the vps token, one line
+sudo install -m 600 -o root -g root /dev/null /etc/ntfy-header
+sudoedit /etc/ntfy-header
+# one line:  Authorization: Bearer <vps token>
 ```
 
-Then, from a root cron job, systemd unit or script:
+Then, from a root cron job, systemd unit or script (`-H @file` needs curl
+7.55 or later):
 
 ```bash
-TOKEN=$(cat /etc/ntfy-token)
-curl -fsS -H "Authorization: Bearer $TOKEN" \
+curl -fsS -H @/etc/ntfy-header \
   -H "Title: backup failed" -H "Priority: high" \
   -d "nightly backup on $(hostname) exited 1" \
   https://ntfy.<domain>/vps-alerts
@@ -197,38 +216,49 @@ anything or publish to other topics.
 
 ## Revoking or rotating tokens
 
-Rotate one token (or `admin`, or `all`) with:
+Rotate one token (or `all`) with:
 
 ```bash
 just seal-ntfy --rotate vps
 ```
 
-This generates a new value for that user only, keeps the others, and
+This generates a new token for that user only, keeps the others, and
 re-seals `ntfy-auth`. Commit and push, wait for ArgoCD to sync the Secret,
-then restart the pod so ntfy re-provisions from the new values:
+then **recreate the pod** (delete it; do not just restart the container):
 
 ```bash
 kubectl delete pod -n ntfy -l app.kubernetes.io/name=ntfy
 ```
 
-The old token stops working as soon as the new pod starts, since a
-provisioned token that is no longer configured is removed. Give the
-client its new token (`just ntfy-tokens`).
+Recreating matters because any token holder can mint extra tokens for its
+own user through ntfy's account API (`POST /v1/account/token`, with an
+expiry of its choosing). Those tokens are not provisioned: they live only
+in the user database on the pod's `emptyDir`, which survives a container
+restart but not a new pod. A new pod starts with an empty database and
+provisions only the configured tokens, so the old token and anything
+minted from it stop working. Give the client its new token
+(`just ntfy-tokens`).
 
-To revoke a sender for good, remove the user from `USERS` and
-`TOKEN_USERS` in `scripts/lib/ntfy_auth.py` and its entries from `access`
-in `kubernetes-services/additions/ntfy/values.yaml`, then re-seal, commit
-and restart as above. To add a sender, do the reverse: add the user and its
-access, then `just seal-ntfy` generates its token.
+The user names are listed once, in `SENDERS` in
+`scripts/lib/ntfy_auth.py`. Every script (sealing, the rebuild export and
+generation, `just ntfy-tokens`) derives them from there.
+
+- **To add a sender:** add it to `SENDERS` (with `"owner"` if you hand its
+  token out yourself, `"cluster"` for an in-cluster publisher), add its
+  topic grants to `access` in `kubernetes-services/additions/ntfy/values.yaml`,
+  run `just seal-ntfy` (which generates its token), commit, push and
+  recreate the pod.
+- **To revoke a sender for good:** remove it from `SENDERS` and its
+  entries from `access`, then re-seal, commit, push and recreate the pod.
 
 ## Rebuilds
 
-`scripts/export-external-creds` exports `NTFY_ADMIN_PASSWORD`,
-`NTFY_ALERTMANAGER_TOKEN`, `NTFY_VPS_TOKEN` and `NTFY_PHONE_TOKEN` from the
-running cluster, and `just generate-and-seal-all` seals them into
-`ntfy-auth` on the new cluster, so the phone and the VPS keep working.
-Any of them left unset is generated, and a warning says so. To rotate a
-token during a rebuild, remove its line from `.env`.
+`scripts/export-external-creds` exports one `NTFY_<USER>_TOKEN` per user
+(for example `NTFY_PHONE_TOKEN`) from the running cluster, and
+`just generate-and-seal-all` seals them into `ntfy-auth` on the new
+cluster, so the phone and the VPS keep working. Any left unset is
+generated, and a warning says so. To rotate a token during a rebuild,
+remove its line from `.env`.
 
 ## Monitoring
 

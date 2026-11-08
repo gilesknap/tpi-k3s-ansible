@@ -169,23 +169,23 @@ else
     echo "Skipping: vps-relay-credentials (not in JSON)"
 fi
 
-# 11. ntfy-auth (ntfy) — optional, only if present in JSON
+# 11. ntfy-auth (ntfy) — optional, only if present in JSON. One <user>-token
+# key per user in SENDERS (scripts/lib/ntfy_auth.py).
 if has_secret ntfy-auth ntfy; then
     echo "Sealing: ntfy-auth..."
-    v_users=$(get_key ntfy-auth ntfy NTFY_AUTH_USERS) || exit 1
-    v_tokens=$(get_key ntfy-auth ntfy NTFY_AUTH_TOKENS) || exit 1
-    v_admin_password=$(get_key ntfy-auth ntfy admin-password) || exit 1
-    v_alertmanager_token=$(get_key ntfy-auth ntfy alertmanager-token) || exit 1
-    v_vps_token=$(get_key ntfy-auth ntfy vps-token) || exit 1
-    v_phone_token=$(get_key ntfy-auth ntfy phone-token) || exit 1
-    kubectl create secret generic ntfy-auth --namespace=ntfy \
-        --from-literal=NTFY_AUTH_USERS="$v_users" \
-        --from-literal=NTFY_AUTH_TOKENS="$v_tokens" \
-        --from-literal=admin-password="$v_admin_password" \
-        --from-literal=alertmanager-token="$v_alertmanager_token" \
-        --from-literal=vps-token="$v_vps_token" \
-        --from-literal=phone-token="$v_phone_token" \
+    ntfy_args=()
+    for key in NTFY_AUTH_USERS NTFY_AUTH_TOKENS; do
+        v=$(get_key ntfy-auth ntfy "$key") || exit 1
+        ntfy_args+=(--from-literal="$key=$v")
+    done
+    ntfy_users=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" users) || exit 1
+    for user in $ntfy_users; do
+        v=$(get_key ntfy-auth ntfy "$user-token") || exit 1
+        ntfy_args+=(--from-literal="$user-token=$v")
+    done
+    kubectl create secret generic ntfy-auth --namespace=ntfy "${ntfy_args[@]}" \
         --dry-run=client -o yaml | seal_to "$BASE/ntfy/templates/ntfy-auth-secret.yaml"
+    unset ntfy_args v
     echo "  -> $BASE/ntfy/templates/ntfy-auth-secret.yaml"
 else
     echo "Skipping: ntfy-auth (not in JSON)"

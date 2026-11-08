@@ -12,15 +12,22 @@ image: binwiederhier/ntfy:v2.34.0
 # for what they missed (the Android app does this after being offline).
 cache_duration: 12h
 
+# Most messages a visitor may publish a day, so a leaked token cannot push
+# thousands a day from one address. ntfy counts users without a tier (all of
+# ours) per client IP, not per account, so a leaked token used from many
+# addresses gets this much per address. The request-rate limits stay at
+# ntfy's defaults.
+message_daily_limit: 500
+
 # Namespaces whose pods may reach ntfy directly. ingress-nginx carries all
 # external traffic (Cloudflare tunnel); add a namespace here only for an
 # in-cluster publisher, such as an Alertmanager bridge.
 allowed_namespaces:
   - ingress-nginx
 
-# Topic access for the provisioned users. Every user named here must exist
-# in NTFY_AUTH_USERS in the ntfy-auth SealedSecret (scripts/lib/ntfy_auth.py
-# defines them), or ntfy refuses to start. Anything not listed is denied
+# Topic access for the provisioned users. Every user named here must be in
+# SENDERS in scripts/lib/ntfy_auth.py (and so in the ntfy-auth
+# SealedSecret), or ntfy refuses to start. Anything not listed is denied
 # (auth-default-access: deny-all).
 access:
   - user: alertmanager

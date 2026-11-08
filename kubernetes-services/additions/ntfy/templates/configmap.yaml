@@ -29,11 +29,17 @@ data:
       - "{{ .user }}:{{ .topic }}:{{ .permission }}"
 {{- end }}
 
-    # Behind Cloudflare -> cloudflared -> ingress-nginx. CF-Connecting-IP is
-    # set by Cloudflare's edge to the real client address, so the visitor
-    # rate limits (left at their defaults) apply per client, not to the proxy.
+    # Behind Cloudflare -> cloudflared -> ingress-nginx. Cloudflare's edge
+    # sets CF-Connecting-IP to the real client address, so for tunnel
+    # traffic the visitor rate limits (ntfy's defaults) apply per client.
+    # The header is trusted from anyone who reaches ingress-nginx, though:
+    # a LAN host (via its LoadBalancer IPs) or a pod (via its ClusterIP) can
+    # set any value and so dodge the per-IP limits, including the daily
+    # message cap below (counted per IP for users without a tier). Token
+    # auth still holds: spoofing the header grants no access.
     behind-proxy: true
     proxy-forwarded-header: CF-Connecting-IP
+    visitor-message-daily-limit: {{ .Values.message_daily_limit }}
 
     # No web app, no sign-up, no browser login, no reservations: clients use
     # access tokens only.

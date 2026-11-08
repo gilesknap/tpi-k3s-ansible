@@ -1,21 +1,26 @@
 """Build the data of the ntfy-auth Secret (namespace ntfy).
 
-Shared by scripts/generate-secrets (rebuild) and scripts/seal-ntfy (first
-seal and rotation), so both produce the same keys:
+SENDERS below is the one list of ntfy's users. Everything else derives from
+it: scripts/seal-ntfy and scripts/generate-secrets (through secret_data),
+and the bash scripts seal-from-json, export-external-creds and ntfy-tokens
+(through `scripts/lib/ntfy_auth.py users [--owner | --env]`), and the
+cluster role's rebuild task (`users --env`). To add or remove a
+sender, change SENDERS here and the `access` list in
+kubernetes-services/additions/ntfy/values.yaml (every user named there must
+be here, or ntfy refuses to start).
 
-- NTFY_AUTH_USERS: "<user>:<bcrypt-hash>:<role>", comma-separated, read by
+The Secret's keys:
+
+- NTFY_AUTH_USERS: "<user>:<bcrypt-hash>:user", comma-separated, read by
   ntfy as the declarative auth-users list;
-- NTFY_AUTH_TOKENS: "<user>:<token>:<label>", comma-separated (auth-tokens);
-- admin-password and <user>-token for each client: the plain values, for
-  the owner (scripts/ntfy-tokens) and later in-cluster publishers.
+- NTFY_AUTH_TOKENS: "<user>:<token>:<user>", comma-separated (auth-tokens);
+- <user>-token for each user: the plain token, for the owner
+  (scripts/ntfy-tokens), in-cluster publishers and the rebuild export.
 
-The access list (auth-access) is not secret and lives in
-kubernetes-services/additions/ntfy/values.yaml; every user it names must be
-in USERS here.
-
-Client users authenticate with tokens only, so their passwords are random
-and thrown away. Hashing uses htpasswd (apache2-utils, in the devcontainer),
-with the password on stdin, never on a command line.
+There is no admin user: auth is declarative, so nothing needs one. Users
+authenticate with tokens only, so their passwords are random and thrown
+away. Hashing uses htpasswd (apache2-utils, in the devcontainer), with the
+password on stdin, never on a command line.
 """
 
 from __future__ import annotations
@@ -24,31 +29,38 @@ import re
 import secrets
 import string
 import subprocess
+import sys
 
-# user -> ntfy role. Only "user" roles can hold access entries; "admin" has
-# access to every topic.
-USERS = {
-    "admin": "admin",
-    "alertmanager": "user",
-    "vps": "user",
-    "phone": "user",
+# user -> who holds its token. "owner" tokens are handed out by hand (the
+# owner reads them with `just ntfy-tokens`); "cluster" tokens are read from
+# the Secret by an in-cluster publisher and never printed.
+SENDERS = {
+    "alertmanager": "cluster",
+    "vps": "owner",
+    "phone": "owner",
 }
-# Users that get an access token, in this order.
-TOKEN_USERS = ("alertmanager", "vps", "phone")
+TOKEN_USERS = tuple(SENDERS)
 
+# Names become env vars (NTFY_<USER>_TOKEN) and Secret keys.
+USER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 # ntfy's own rule (user/util.go): "tk_" plus 29 characters, 32 in all.
 TOKEN_RE = re.compile(r"^tk_[-_A-Za-z0-9]{29}$")
 BCRYPT_COST = "10"  # ntfy's minimum (DefaultUserPasswordBcryptCost)
+
+for _user in SENDERS:
+    if not USER_RE.match(_user):
+        raise ValueError(f"ntfy user name {_user!r} must match {USER_RE.pattern}")
+
+
+def env_name(user: str) -> str:
+    """The rebuild env var holding `user`'s token."""
+    return f"NTFY_{user.upper()}_TOKEN"
 
 
 def new_token() -> str:
     """A new token in the form `ntfy token generate` makes (lower-case alnum)."""
     alphabet = string.ascii_lowercase + string.digits
     return "tk_" + "".join(secrets.choice(alphabet) for _ in range(29))
-
-
-def new_password() -> str:
-    return secrets.token_urlsafe(24)
 
 
 def bcrypt_hash(password: str) -> str:
@@ -65,25 +77,36 @@ def bcrypt_hash(password: str) -> str:
     return hash_.replace("$2y$", "$2a$", 1)
 
 
-def secret_data(admin_password: str, tokens: dict[str, str]) -> dict[str, str]:
-    """The ntfy-auth Secret data, from the admin password and the client tokens."""
-    if not admin_password:
-        raise ValueError("ntfy admin password is empty")
+def secret_data(tokens: dict[str, str]) -> dict[str, str]:
+    """The ntfy-auth Secret data, from each user's token."""
     for user in TOKEN_USERS:
         if not TOKEN_RE.match(tokens.get(user, "")):
             raise ValueError(
                 f"ntfy token for {user!r} is missing or not in ntfy's form "
                 "(tk_ plus 29 letters, digits, - or _)"
             )
-    users = []
-    for user, role in USERS.items():
-        password = admin_password if user == "admin" else new_password()
-        users.append(f"{user}:{bcrypt_hash(password)}:{role}")
     data = {
-        "NTFY_AUTH_USERS": ",".join(users),
+        "NTFY_AUTH_USERS": ",".join(
+            f"{u}:{bcrypt_hash(secrets.token_urlsafe(24))}:user" for u in TOKEN_USERS
+        ),
         "NTFY_AUTH_TOKENS": ",".join(f"{u}:{tokens[u]}:{u}" for u in TOKEN_USERS),
-        "admin-password": admin_password,
     }
     for user in TOKEN_USERS:
         data[f"{user}-token"] = tokens[user]
     return data
+
+
+def main(argv: list[str]) -> None:
+    """`ntfy_auth.py users [--owner | --env]`, one per line: every user, the
+    users whose tokens the owner hands out, or every user's rebuild env var."""
+    if argv[:1] != ["users"] or argv[1:] not in ([], ["--owner"], ["--env"]):
+        sys.exit("usage: ntfy_auth.py users [--owner | --env]")
+    for user, holder in SENDERS.items():
+        if argv[1:] == ["--env"]:
+            print(env_name(user))
+        elif argv[1:] == [] or holder == "owner":
+            print(user)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

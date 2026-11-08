@@ -297,8 +297,9 @@ Push-notification server ([ntfy](https://ntfy.sh)), locked down:
 attachments. Users, tokens and access are declarative: the users and tokens
 come from the `ntfy-auth` SealedSecret, the access list from the chart's
 values, so no `ntfy user add` is ever run. One write-only user per sender
-(`alertmanager` on `cluster-alerts`, `vps` on `vps-alerts`), a read-only
-`phone` user and an `admin`. One replica with its SQLite user database and
+(`alertmanager` on `cluster-alerts`, `vps` on `vps-alerts`) and a
+read-only `phone` user; no admin user. A daily cap of 500 messages per
+visitor. One replica with its SQLite user database and
 message cache (12h) on an `emptyDir`, so it is not pinned to a node. A
 NetworkPolicy admits only `ingress-nginx`. Non-root (10001) with a
 read-only root filesystem; probes on `/v1/health`. Resource limits:
@@ -309,8 +310,8 @@ log in to Access.
 **Additional manifests:** `additions/ntfy/`
 - `templates/deployment.yaml`, `templates/service.yaml`,
   `templates/configmap.yaml` (`server.yml`), `templates/networkpolicy.yaml`
-- `templates/ntfy-auth-secret.yaml` — SealedSecret with the users, tokens
-  and admin password (`just seal-ntfy`)
+- `templates/ntfy-auth-secret.yaml` — SealedSecret with the users and
+  tokens (`just seal-ntfy`)
 
 See {doc}`/how-to/ntfy` for setup.
 
