@@ -430,7 +430,8 @@ phone app, subscribed to that topic, shows it as a notification. This
 repository runs a self-hosted, locked-down ntfy at <code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code> for:</p>
 <ul class="simple">
 <li><p>notifications to the owner’s Android phone;</p></li>
-<li><p>cluster alerts (an Alertmanager bridge publishing to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>);</p></li>
+<li><p>cluster alerts (Alertmanager publishing to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>; see
+<a class="reference internal" href="monitoring.html"><span class="doc">Monitoring with Grafana and Prometheus</span></a>);</p></li>
 <li><p>alerts from hosts outside the cluster, such as a VPS, publishing to
 <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code> over HTTPS.</p></li>
 </ul>
@@ -486,7 +487,7 @@ list grants each the least it needs:</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">alertmanager</span></code></p></td>
 <td><p>write-only on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code></p></td>
-<td><p>the Alertmanager bridge</p></td>
+<td><p>Alertmanager</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps</span></code></p></td>
 <td><p>write-only on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code></p></td>
@@ -519,8 +520,9 @@ are random and discarded: they authenticate with tokens only.</p></li>
 <code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code>; every script derives them from there.</p></li>
 </ul>
 <p>The NetworkPolicy admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> (the <code class="docutils literal notranslate"><span class="pre">allowed_namespaces</span></code>
-value) to the pod. An in-cluster publisher, such as the Alertmanager
-bridge, adds its namespace there. This limits who reaches the pod
+value) and the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>), which
+publish to the Service directly. Another in-cluster publisher adds its pods
+to <code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>. This limits who reaches the pod
 <em>directly</em>; anything that can reach ingress-nginx can still talk to ntfy
 through it, so ntfy’s token auth is the real gate.</p>
 <div class="admonition warning">
@@ -563,8 +565,10 @@ yet (a fork) or the cluster’s sealing key has changed:</p>
 </div>
 <p>It keeps every value already in the live <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> Secret and generates
 the rest, then seals the result into
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml</span></code>.
-No value is printed. Commit and push it. A cluster rebuild does this
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml</span></code>,
+and Alertmanager’s copy of its token into
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml</span></code>.
+No value is printed. Commit and push both. A cluster rebuild does this
 for you (see <a class="reference internal" href="#rebuilds">Rebuilds</a>).</p>
 </li>
 <li><p>Add the tunnel route, the Access bypass and the rate limit
@@ -654,6 +658,36 @@ carrying only the message ID, and the app fetches the message from this
 server.</p>
 </div>
 </section>
+<section id="cluster-alerts-from-alertmanager">
+<h2>Cluster alerts from Alertmanager<a class="headerlink" href="#cluster-alerts-from-alertmanager" title="Link to this heading">#</a></h2>
+<p>Alertmanager (kube-prometheus-stack) publishes to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> with a
+<code class="docutils literal notranslate"><span class="pre">webhook_configs</span></code> receiver; <a class="reference internal" href="monitoring.html"><span class="doc">Monitoring with Grafana and Prometheus</span></a> lists what is pushed. ntfy
+turns Alertmanager’s webhook JSON into a notification itself, with no
+bridge component:</p>
+<ul class="simple">
+<li><p>The publish URL is
+<code class="docutils literal notranslate"><span class="pre">http://ntfy.ntfy.svc.cluster.local/cluster-alerts?template=alertmanager-cluster&amp;click=...</span></code>.
+<code class="docutils literal notranslate"><span class="pre">template=</span></code> names a message template, which ntfy renders as Go templates
+(with sprig functions) over the JSON body, into the title, message and
+priority.</p></li>
+<li><p>The template is
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/files/alertmanager-cluster.yml</span></code>,
+mounted from the <code class="docutils literal notranslate"><span class="pre">ntfy-templates</span></code> ConfigMap at <code class="docutils literal notranslate"><span class="pre">template-dir</span></code>
+(<code class="docutils literal notranslate"><span class="pre">/etc/ntfy-templates</span></code>). ntfy reads it on every publish, so an edit
+needs no restart. ntfy’s own built-in <code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> template sets no
+priority and links to Prometheus’s internal address, hence this one.</p></li>
+<li><p>ntfy rejects a rendered message over 4 KB (and Alertmanager then drops
+that notification), so the template truncates annotations and the
+receiver sends at most 5 alerts (<code class="docutils literal notranslate"><span class="pre">max_alerts</span></code>) per notification.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> token reaches Alertmanager as the <code class="docutils literal notranslate"><span class="pre">alertmanager-ntfy</span></code>
+Secret in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>, a copy of <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>’s <code class="docutils literal notranslate"><span class="pre">alertmanager-token</span></code>
+(<code class="docutils literal notranslate"><span class="pre">CLUSTER_COPIES</span></code> in <code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code>). <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code>,
+including <code class="docutils literal notranslate"><span class="pre">--rotate</span> <span class="pre">alertmanager</span></code>, and the rebuild seal the copy along
+with <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>. After a rotation, recreate the ntfy pod as soon as both
+have synced: Alertmanager uses the new token straight away, and ntfy
+rejects it (and so drops those alerts) until the new pod starts.</p></li>
+</ul>
+</section>
 <section id="publishing-from-a-vps">
 <h2>Publishing from a VPS<a class="headerlink" href="#publishing-from-a-vps" title="Link to this heading">#</a></h2>
 <p>Keep the <strong>vps</strong> token in a file only root can read, as the whole header
@@ -699,7 +733,8 @@ minted from it stop working. Give the client its new token
 generation, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">ntfy-tokens</span></code>) derives them from there.</p>
 <ul class="simple">
 <li><p><strong>To add a sender:</strong> add it to <code class="docutils literal notranslate"><span class="pre">SENDERS</span></code> (with <code class="docutils literal notranslate"><span class="pre">&quot;owner&quot;</span></code> if you hand its
-token out yourself, <code class="docutils literal notranslate"><span class="pre">&quot;cluster&quot;</span></code> for an in-cluster publisher), add its
+token out yourself, <code class="docutils literal notranslate"><span class="pre">&quot;cluster&quot;</span></code> for an in-cluster publisher, which also
+needs a <code class="docutils literal notranslate"><span class="pre">CLUSTER_COPIES</span></code> entry if it runs outside the <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> namespace), add its
 topic grants to <code class="docutils literal notranslate"><span class="pre">access</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/values.yaml</span></code>,
 run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> (which generates its token), commit, push and
 recreate the pod.</p></li>
@@ -782,6 +817,7 @@ the uptime service’s own email.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#android-app">Android app</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-alerts-from-alertmanager">Cluster alerts from Alertmanager</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#publishing-from-a-vps">Publishing from a VPS</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#revoking-or-rotating-tokens">Revoking or rotating tokens</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rebuilds">Rebuilds</a></li>
