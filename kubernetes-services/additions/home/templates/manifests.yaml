@@ -204,11 +204,11 @@ data:
              the two probes in the script below). The badge on each card
              says which network its link needs: "LAN only" for a LAN
              address, "Tailnet" for a Tailscale IP (100.x). -->
-        <a class="card card-net disabled" href="http://192.168.1.1">
+        <a class="card card-net disabled" aria-disabled="true" tabindex="-1" href="http://192.168.1.1">
           <h2>OpenWRT<span class="badge badge-lan">LAN only</span></h2>
           <p>Network router administration</p>
         </a>
-        <a class="card card-net disabled" href="http://100.125.90.58:8096/web/#/home">
+        <a class="card card-net disabled" aria-disabled="true" tabindex="-1" href="http://100.125.90.58:8096/web/#/home">
           <h2>Jellyfin<span class="badge badge-tailnet">Tailnet</span></h2>
           <p>Media server</p>
         </a>
@@ -234,13 +234,16 @@ data:
           function enableNet() {
             document.querySelectorAll('.card-net').forEach(function(el) {
               el.classList.remove('disabled');
+              el.removeAttribute('aria-disabled');
+              el.removeAttribute('tabindex');
             });
           }
           // Two probes, run in parallel, detect whether the browser is on the
           // LAN or on the tailnet. Both hostnames are DNS-only (grey-clouded)
           // records backed by the same home service through the ingress:
           //   home-lan     -> a LAN IP of a node running the ingress
-          //                   LoadBalancer (not a tainted control plane)
+          //                   LoadBalancer's ServiceLB pod (not a tainted
+          //                   control plane, which has none)
           //   home-tailnet -> a tailnet (100.x) IP of such a node
           // Each fetch is no-cors: it resolves if the TLS connection is made
           // (the browser can reach that IP) and rejects otherwise, or is
