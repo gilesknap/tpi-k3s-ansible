@@ -1,12 +1,18 @@
 # Network Policies
 
 This page explains Kubernetes NetworkPolicies and how they could be applied
-to this cluster. NetworkPolicies are **not deployed** by default because
-the maintenance overhead outweighs the benefit for a single-admin homelab. The one exception is scrap, whose chart ships a NetworkPolicy
-admitting only `ingress-nginx`, and a second one for its public pages site in
-the `scrap-public` namespace (see {doc}`/how-to/scrap`). cloudflared also
-has a policy that denies all inbound traffic to its pods, since the tunnel only
-dials out (see {doc}`/how-to/cloudflare-tunnel`).
+to this cluster. There is **no cluster-wide default-deny**: the maintenance
+overhead outweighs the benefit for a single-admin homelab. A few services
+ship their own policies instead:
+
+- **scrap** admits only `ingress-nginx`, and its public pages site in the
+  `scrap-public` namespace has a second policy (see {doc}`/how-to/scrap`).
+- **ntfy** admits only `ingress-nginx` and in-cluster publishers such as
+  Alertmanager (see {doc}`/how-to/ntfy`).
+- **minecraft** limits the worlds' RCON ports to LAN sources (see
+  {doc}`/how-to/minecraft`).
+- **cloudflared** denies all inbound traffic to its pods, since the tunnel
+  only dials out (see {doc}`/how-to/cloudflare-tunnel`).
 
 ## What are NetworkPolicies?
 
