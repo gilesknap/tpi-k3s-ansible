@@ -34,15 +34,29 @@ spec:
           oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
 
-    # LAN-only probe endpoint. Backs the same home service at a grey-clouded
-    # hostname so the landing page's JS can detect "am I on the LAN" by
-    # fetching /healthz — TCP connects only when the client is on the LAN.
+    # Network probe endpoints. home-lan and home-tailnet back the same home
+    # service at two DNS-only (grey-clouded) hostnames, pointing at a LAN IP
+    # and a tailnet IP of a node running the ingress LoadBalancer. The landing
+    # page's JS fetches /healthz on both: a connection succeeds only when the
+    # browser is on the LAN or on the tailnet respectively.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
       helm:
         valuesObject:
           name: home-lan
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: home
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: home-tailnet
           cluster_domain: {{ .Values.cluster_domain }}
           service_name: home
           service_port: 80

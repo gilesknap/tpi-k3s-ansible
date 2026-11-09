@@ -103,15 +103,13 @@ data:
         .badge-sso { background: #1e3a5f; color: #7dd3fc; }
         .badge-lan { background: #3a3a3a; color: #888; font-size: 0.6rem; }
         .badge-tailnet { background: #3b2a5c; color: #c4b5fd; }
-        .card-lan.disabled {
+        .card-net.disabled {
           opacity: 0.45;
           pointer-events: none;
           cursor: default;
         }
-        .card-lan.disabled h2 { color: #666; }
-        .card-lan.disabled p { color: #444; }
-        .lan-badge { display: none; }
-        .card-lan.disabled .lan-badge { display: inline-block; }
+        .card-net.disabled h2 { color: #666; }
+        .card-net.disabled p { color: #444; }
         .footer {
           margin-top: 3rem;
           padding-top: 1.5rem;
@@ -201,15 +199,16 @@ data:
              They're intentionally not templated through values.yaml because
              each fork has a different mix of LAN-only and tailnet services
              and editing HTML directly is simpler than designing a generic
-             schema. LAN links (card-lan) start disabled and are enabled by
-             the home-lan probe below; tailnet links are always enabled and
-             point at a Tailscale IP (100.x), which is only reachable from
-             devices on the tailnet. -->
-        <a class="card card-lan disabled" href="http://192.168.1.1">
-          <h2>OpenWRT<span class="badge badge-lan lan-badge">LAN only</span></h2>
+             schema. Network cards (card-net) start disabled and are enabled
+             together when the browser is on the LAN or on the tailnet (see
+             the two probes in the script below). The badge on each card
+             says which network its link needs: "LAN only" for a LAN
+             address, "Tailnet" for a Tailscale IP (100.x). -->
+        <a class="card card-net disabled" href="http://192.168.1.1">
+          <h2>OpenWRT<span class="badge badge-lan">LAN only</span></h2>
           <p>Network router administration</p>
         </a>
-        <a class="card" href="http://100.125.90.58:8096/web/#/home">
+        <a class="card card-net disabled" href="http://100.125.90.58:8096/web/#/home">
           <h2>Jellyfin<span class="badge badge-tailnet">Tailnet</span></h2>
           <p>Media server</p>
         </a>
@@ -232,20 +231,31 @@ data:
       </div>
       <script>
         (function() {
-          function enableLan() {
-            document.querySelectorAll('.card-lan').forEach(function(el) {
+          function enableNet() {
+            document.querySelectorAll('.card-net').forEach(function(el) {
               el.classList.remove('disabled');
             });
           }
-          // Probe home-lan (grey-clouded LAN-only hostname) to detect network.
-          // Fetch in no-cors mode: resolves if TCP connects (on LAN), rejects
-          // otherwise. LAN cards start disabled in the HTML so WAN visitors
-          // never see a flash of active links; we only enable on success.
-          var ctrl = new AbortController();
-          var timer = setTimeout(function() { ctrl.abort(); }, 3000);
-          fetch('https://home-lan.{{ .Values.cluster_domain }}/healthz', {mode:'no-cors', signal:ctrl.signal})
-            .then(function() { clearTimeout(timer); enableLan(); })
-            .catch(function() { clearTimeout(timer); });
+          // Two probes, run in parallel, detect whether the browser is on the
+          // LAN or on the tailnet. Both hostnames are DNS-only (grey-clouded)
+          // records backed by the same home service through the ingress:
+          //   home-lan     -> a LAN IP of a node running the ingress
+          //                   LoadBalancer (not a tainted control plane)
+          //   home-tailnet -> a tailnet (100.x) IP of such a node
+          // Each fetch is no-cors: it resolves if the TLS connection is made
+          // (the browser can reach that IP) and rejects otherwise, or is
+          // aborted after 3 s. Network cards start disabled in the HTML so
+          // visitors on neither network never see a flash of active links;
+          // the first probe to succeed enables all of them.
+          function probe(url) {
+            var ctrl = new AbortController();
+            var timer = setTimeout(function() { ctrl.abort(); }, 3000);
+            fetch(url, {mode:'no-cors', signal:ctrl.signal})
+              .then(function() { clearTimeout(timer); enableNet(); })
+              .catch(function() { clearTimeout(timer); });
+          }
+          probe('https://home-lan.{{ .Values.cluster_domain }}/healthz');
+          probe('https://home-tailnet.{{ .Values.cluster_domain }}/healthz');
         })();
       </script>
     </body>

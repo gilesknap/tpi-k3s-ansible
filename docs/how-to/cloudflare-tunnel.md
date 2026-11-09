@@ -147,9 +147,14 @@ Replace the IPs with the LAN addresses of your worker nodes (e.g.
 `headlamp`, `home-lan`, `oauth2`.
 
 :::{note}
-`home-lan` backs the landing page's LAN-detection probe. The page
-JavaScript fetches `https://home-lan.<domain>/healthz` — it only
-resolves when the browser is on the LAN, enabling LAN-only UI elements.
+`home-lan` and `home-tailnet` back the landing page's network-detection
+probes. The page JavaScript fetches `https://home-lan.<domain>/healthz`
+and `https://home-tailnet.<domain>/healthz` in parallel; if either
+connects, the browser is on the LAN or on the tailnet and the page
+enables its network links. Point `home-lan` at the LAN IP of a node that
+runs the ingress LoadBalancer (a worker, not a tainted control plane
+that runs no ingress pod), and `home-tailnet` at that node's tailnet
+(`100.x`) IP. Leave out `home-tailnet` if you don't use Tailscale.
 :::
 
 These resolve to private RFC-1918 addresses — only reachable from your LAN.
