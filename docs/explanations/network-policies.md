@@ -1,10 +1,20 @@
 # Network Policies
 
 This page explains Kubernetes NetworkPolicies and how they could be applied
-to this cluster. NetworkPolicies are **not deployed** by default because
-the maintenance overhead outweighs the benefit for a single-admin homelab. The one exception is scrap, whose chart ships a NetworkPolicy
-admitting only `ingress-nginx`, and a second one for its public pages site in
-the `scrap-public` namespace (see {doc}`/how-to/scrap`).
+to this cluster. There is **no cluster-wide default-deny**: the maintenance
+overhead outweighs the benefit for a single-admin homelab. A few services
+ship their own policies instead:
+
+- **scrap** admits only `ingress-nginx`, and its public pages site in the
+  `scrap-public` namespace has a second policy (see {doc}`/how-to/scrap`).
+- **ntfy** admits only `ingress-nginx` and in-cluster publishers such as
+  Alertmanager (see {doc}`/how-to/ntfy`).
+- **minecraft** limits the worlds' RCON ports to LAN sources (see
+  {doc}`/how-to/minecraft`).
+- **cloudflared** denies inbound traffic to its pods from other pods and
+  hosts, since the tunnel only dials out. As with every policy here, traffic
+  from the pod's own node (the kubelet, and host-network pods on that node)
+  is still admitted (see {doc}`/how-to/cloudflare-tunnel`).
 
 ## What are NetworkPolicies?
 
@@ -69,6 +79,7 @@ would be:
 | `scrap` (scrap's pod) | `scrap-public` (receiver) | 8081 | scrap pushes public pages; only allowed source. The namespace has no egress at all |
 | `cert-manager` | external | 443 | ACME DNS-01 |
 | `cloudflared` | `ingress-nginx` | 80/443 | Tunnel traffic |
+| *(none)* | `cloudflared` | — | No inbound traffic from other pods or hosts; traffic from the pod's own node (kubelet probe, host-network pods) is still admitted |
 | `argo-cd` | all namespaces | various | GitOps sync |
 
 ## When to add NetworkPolicies
@@ -86,7 +97,9 @@ maintaining rules as services change) is significant.
 
 ## CNI requirements
 
-K3s ships with Flannel as the default CNI. Flannel supports NetworkPolicy
-enforcement via the `kube-router` backend. If you need NetworkPolicies,
-you may need to switch to Calico or Cilium. Check the K3s documentation
-for CNI configuration options.
+K3s ships with Flannel as the default CNI, and enforces NetworkPolicies
+with an embedded network policy controller (kube-router's), enabled unless
+K3s runs with `--disable-network-policy`. That controller always admits
+traffic from a pod's own node, so kubelet liveness and readiness probes keep
+working under a deny-all ingress policy. Switch to Calico or Cilium only if
+you need features beyond standard NetworkPolicy.
