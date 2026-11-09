@@ -1,9 +1,10 @@
-# Deny all inbound traffic to the cloudflared pods. The tunnel only dials out
-# to Cloudflare, and nothing in the cluster scrapes its metrics port (20241),
-# whose debug endpoints exposed the process command line before 2026.10.4.
-# The kubelet's liveness probe still works: k3s's network policy controller
-# (kube-router) always admits traffic from the pod's own node ("from local
-# node" rule). Egress is unrestricted.
+# Deny inbound traffic to the cloudflared pods from other pods and hosts. The
+# tunnel only dials out to Cloudflare, and nothing in the cluster scrapes its
+# metrics port (20241), whose debug endpoints exposed the process command line
+# before 2026.10.4. The kubelet's liveness probe still works: k3s's network
+# policy controller (kube-router) always admits traffic from the pod's own
+# node ("from local node" rule), which also lets host-network pods on that
+# node in. Egress is unrestricted.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

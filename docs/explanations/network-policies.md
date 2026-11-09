@@ -11,8 +11,10 @@ ship their own policies instead:
   Alertmanager (see {doc}`/how-to/ntfy`).
 - **minecraft** limits the worlds' RCON ports to LAN sources (see
   {doc}`/how-to/minecraft`).
-- **cloudflared** denies all inbound traffic to its pods, since the tunnel
-  only dials out (see {doc}`/how-to/cloudflare-tunnel`).
+- **cloudflared** denies inbound traffic to its pods from other pods and
+  hosts, since the tunnel only dials out. As with every policy here, traffic
+  from the pod's own node (the kubelet, and host-network pods on that node)
+  is still admitted (see {doc}`/how-to/cloudflare-tunnel`).
 
 ## What are NetworkPolicies?
 
@@ -77,7 +79,7 @@ would be:
 | `scrap` (scrap's pod) | `scrap-public` (receiver) | 8081 | scrap pushes public pages; only allowed source. The namespace has no egress at all |
 | `cert-manager` | external | 443 | ACME DNS-01 |
 | `cloudflared` | `ingress-nginx` | 80/443 | Tunnel traffic |
-| *(none)* | `cloudflared` | — | No inbound traffic; cloudflared ships a deny-all ingress policy (the kubelet probe from the pod's node is still admitted) |
+| *(none)* | `cloudflared` | — | No inbound traffic from other pods or hosts; traffic from the pod's own node (kubelet probe, host-network pods) is still admitted |
 | `argo-cd` | all namespaces | various | GitOps sync |
 
 ## When to add NetworkPolicies
