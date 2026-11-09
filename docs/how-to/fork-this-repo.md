@@ -172,12 +172,16 @@ enable_cloudflare_tunnel: false  # if you don't expose services to the internet
 Whole-service Application templates can also be removed by deleting
 the corresponding file in `kubernetes-services/templates/`.
 
-### 8. (Optional) Customise the home page LAN links
+### 8. (Optional) Customise the home page network links
 
 The home page (`kubernetes-services/additions/home/templates/manifests.yaml`)
-hard-codes a couple of LAN-only service links (router, media server).
-These are intentionally not templated — every fork's local network is
-different. Edit the HTML directly to match your LAN.
+hard-codes a few network service links in its Network section: LAN-only
+links (e.g. the router), which carry a "LAN only" badge and are enabled
+only when the browser is on the LAN, and tailnet links (e.g. a media
+server at its Tailscale `100.x` IP), which carry a "Tailnet" badge and
+work from any device on your tailnet. These are intentionally not
+templated — every fork's network is different. Edit the HTML directly
+to match yours.
 
 ## What's NOT templated (by design)
 
@@ -188,7 +192,7 @@ different. Edit the HTML directly to match your LAN.
   machines. Edit it directly.
 - Sealed secrets — bound to the cluster controller key, must be
   re-sealed per cluster.
-- Home page LAN service links — too varied per fork to design a
+- Home page LAN and tailnet service links — too varied per fork to design a
   generic schema; just edit the HTML.
 
 ## Verifying your fork

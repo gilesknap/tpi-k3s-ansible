@@ -102,6 +102,7 @@ data:
         .badge-oauth { background: #134e4a; color: #5eead4; }
         .badge-sso { background: #1e3a5f; color: #7dd3fc; }
         .badge-lan { background: #3a3a3a; color: #888; font-size: 0.6rem; }
+        .badge-tailnet { background: #3b2a5c; color: #c4b5fd; }
         .card-lan.disabled {
           opacity: 0.45;
           pointer-events: none;
@@ -183,6 +184,10 @@ data:
           <h2>Pages</h2>
           <p>Public pages published from scrap</p>
         </a>
+        <a class="card" href="https://ntfy.{{ .Values.cluster_domain }}">
+          <h2>ntfy</h2>
+          <p>Push notifications for cluster alerts</p>
+        </a>
 {{- if .Values.enable_minecraft }}
         <a class="card" href="https://minecraft.{{ .Values.cluster_domain }}">
           <h2>Minecraft<span class="badge badge-oauth">OAuth</span></h2>
@@ -192,16 +197,20 @@ data:
       </div>
       <h2 class="section-heading">Network</h2>
       <div class="grid">
-        <!-- FORK: customise these LAN links for your network. They're
-             intentionally not templated through values.yaml because each
-             fork has a different mix of LAN-only services and editing
-             HTML directly is simpler than designing a generic schema. -->
+        <!-- FORK: customise these LAN and tailnet links for your network.
+             They're intentionally not templated through values.yaml because
+             each fork has a different mix of LAN-only and tailnet services
+             and editing HTML directly is simpler than designing a generic
+             schema. LAN links (card-lan) start disabled and are enabled by
+             the home-lan probe below; tailnet links are always enabled and
+             point at a Tailscale IP (100.x), which is only reachable from
+             devices on the tailnet. -->
         <a class="card card-lan disabled" href="http://192.168.1.1">
           <h2>OpenWRT<span class="badge badge-lan lan-badge">LAN only</span></h2>
           <p>Network router administration</p>
         </a>
-        <a class="card card-lan disabled" href="http://192.168.1.92:8096/web/#/home">
-          <h2>JellyFin<span class="badge badge-lan lan-badge">LAN only</span></h2>
+        <a class="card" href="http://100.125.90.58:8096/web/#/home">
+          <h2>Jellyfin<span class="badge badge-tailnet">Tailnet</span></h2>
           <p>Media server</p>
         </a>
         <a class="card" href="https://login.tailscale.com/admin/machines">
