@@ -87,7 +87,7 @@ headlamp-token:
     @kubectl create token headlamp -n headlamp --duration=2400h
 
 # Rotate a single Dex-related secret in the live cluster. Subcommand required:
-# github, argocd, monitor, grafana, slack (see scripts/seal-argocd-dex help)
+# github, argocd, monitor, grafana (see scripts/seal-argocd-dex help)
 seal-argocd-dex target:
     scripts/seal-argocd-dex {{ target }}
 

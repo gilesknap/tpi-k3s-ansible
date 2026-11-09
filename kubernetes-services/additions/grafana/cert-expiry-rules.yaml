@@ -1,0 +1,52 @@
+# Alerts for cert-manager certificates nearing expiry, from the metrics
+# scraped by cert-manager-servicemonitor.yaml. cert-manager renews a
+# Let's Encrypt certificate 30 days before it expires, so one still under
+# 14 days means renewals are failing (check `kubectl describe certificate`
+# and the cert-manager logs). Both are pushed to the phone; an inhibit rule
+# (grafana.yaml) mutes a certificate's warning while its critical fires. A Certificate
+# not issued yet reports 0, which is not an expiry and is left out.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-expiry
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  groups:
+    - name: cert-expiry
+      rules:
+        - alert: CertManagerCertificateExpiringSoon
+          expr: >-
+            certmanager_certificate_expiration_timestamp_seconds - time()
+            < 14 * 86400
+            and certmanager_certificate_expiration_timestamp_seconds > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Certificate {{ $labels.namespace }}/{{ $labels.name }} expires
+              in under 14 days.
+            description: >-
+              It expires in {{ $value | humanizeDuration }}. cert-manager
+              should have renewed it 30 days before expiry; check
+              `kubectl describe certificate -n {{ $labels.namespace }}
+              {{ $labels.name }}` and the cert-manager logs.
+        - alert: CertManagerCertificateExpiringSoon
+          expr: >-
+            certmanager_certificate_expiration_timestamp_seconds - time()
+            < 7 * 86400
+            and certmanager_certificate_expiration_timestamp_seconds > 0
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              Certificate {{ $labels.namespace }}/{{ $labels.name }} expires
+              in under 7 days.
+            description: >-
+              It expires in {{ $value | humanizeDuration }}. cert-manager
+              should have renewed it 30 days before expiry; check
+              `kubectl describe certificate -n {{ $labels.namespace }}
+              {{ $labels.name }}` and the cert-manager logs.

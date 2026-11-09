@@ -1,0 +1,57 @@
+# ntfy message template for Alertmanager's webhook payload, used by
+# publishing with ?template=alertmanager-cluster (see
+# kubernetes-services/templates/grafana.yaml). ntfy renders title, message
+# and priority as Go templates (with sprig functions) over the JSON body.
+#
+# ntfy rejects a rendered message over 4096 bytes, and Alertmanager would then
+# drop the notification, so the output is bounded: Alertmanager sends at most
+# max_alerts alerts per notification, and the annotations are truncated here.
+#
+# Priority: 5 (urgent) while any critical alert in the group is firing,
+# 3 (default) for other firing alerts, 2 (low) once the group has resolved.
+# ntfy cannot template tags, so the title carries the state instead.
+# Criticals and warnings never share a group: they reach the receiver
+# through different routes, so a truncated group cannot hide a critical.
+#
+# namespace and pod are left out where they are the exporter's own, not the
+# affected object's: on node-exporter series, and on node-scoped
+# kube-state-metrics series (those with a node label). Label values are
+# truncated too, to keep five alerts well inside the limit.
+title: |
+  {{- $name := (first .alerts).labels.alertname -}}
+  {{- if eq .status "resolved" -}}
+  ✅ Resolved: {{ $name }}
+  {{- else -}}
+  🚨 {{ $name }}
+  {{- end -}}
+message: |
+  {{- range .alerts }}
+  {{ if eq .status "firing" }}FIRING{{ else }}resolved{{ end }} · {{ default "no severity" .labels.severity | trunc 20 }}
+  {{- with .labels.node }} · node {{ trunc 63 . }}{{ else }}{{ with .labels.instance }} · {{ trunc 63 . }}{{ end }}{{ end }}
+  {{- $job := default "" .labels.job }}
+  {{- $exporter := or (eq $job "node-exporter") (and (eq $job "kube-state-metrics") .labels.node) }}
+  {{- if not $exporter }}{{ with .labels.namespace }} · {{ trunc 63 . }}{{ end }}{{ end }}
+  {{- with .labels.persistentvolumeclaim }} · pvc {{ trunc 63 . }}{{ end }}
+  {{- with .labels.mountpoint }} · {{ trunc 63 . }}{{ end }}
+  {{- if not $exporter }}{{ with .labels.pod }} · pod {{ trunc 63 . }}{{ end }}{{ end }}
+  {{- with .annotations.summary }}
+  {{ trunc 160 . }}
+  {{- end }}
+  {{- with .annotations.description }}
+  {{ trunc 280 . }}
+  {{- end }}
+  {{ end }}
+  {{- with .truncatedAlerts }}
+  ... and {{ . }} more
+  {{ end }}
+  {{ trimSuffix "/" .externalURL }}/#/alerts?filter={{ printf "{alertname=\"%s\"}" (first .alerts).labels.alertname | urlquery }}
+priority: |
+  {{- $p := 3 -}}
+  {{- if eq .status "resolved" -}}
+  {{- $p = 2 -}}
+  {{- else -}}
+  {{- range .alerts -}}
+  {{- if and (eq .status "firing") (eq (default "" .labels.severity) "critical") }}{{ $p = 5 }}{{ end -}}
+  {{- end -}}
+  {{- end -}}
+  {{ $p }}

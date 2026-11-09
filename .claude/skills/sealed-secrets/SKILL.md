@@ -37,11 +37,11 @@ and reseal later — never a literal `REPLACE_ME`.
 ## `scripts/seal-argocd-dex` — per-secret subcommands
 
 Running `seal-argocd-dex` bare (or with `all`) re-seals everything and
-prompts for GitHub creds + Slack webhook. To rotate just one secret
+prompts for GitHub creds. To rotate just one secret
 without re-entering unrelated values, use a subcommand:
 
 ```
-seal-argocd-dex [github|argocd|monitor|grafana|slack]
+seal-argocd-dex [github|argocd|monitor|grafana]
 ```
 
 Subcommands read existing keys from the running `argocd-dex-secret` to

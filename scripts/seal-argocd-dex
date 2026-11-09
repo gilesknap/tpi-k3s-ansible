@@ -12,7 +12,6 @@
 #   argocd      Re-derive argo-cd client secret from server.secretkey
 #   monitor     Rotate argocd-monitor client + cookie secrets
 #   grafana     Rotate grafana client secret
-#   slack       Re-seal alertmanager Slack webhook (standalone, not in argocd-dex-secret)
 #
 # The argo-cd client secret is auto-derived from server.secretkey so it
 # matches ArgoCD's internal value. All Dex static client secrets are stored
@@ -24,7 +23,6 @@ set -euo pipefail
 DEX_SECRET_FILE=kubernetes-services/additions/argocd/argocd-dex-secret.yaml
 MONITOR_SECRET_FILE=kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml
 GRAFANA_SECRET_FILE=kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
-SLACK_SECRET_FILE=kubernetes-services/additions/grafana/alertmanager-slack-secret.yaml
 
 # Read a dotted key from the running argocd-dex-secret (base64-decoded).
 # The caller must backslash-escape dots so jsonpath treats them as literal.
@@ -108,25 +106,8 @@ seal_grafana_secret() {
     echo "Sealed: $GRAFANA_SECRET_FILE"
 }
 
-# Re-seal alertmanager Slack webhook. Errors on blank input.
-seal_slack_secret() {
-    local slack_webhook="${SLACK_WEBHOOK_URL:-}"
-    if [ -z "$slack_webhook" ]; then
-        read -p "Slack Webhook URL: " slack_webhook < /dev/tty
-    fi
-    if [ -z "$slack_webhook" ]; then
-        echo "ERROR: Slack Webhook URL is required" >&2
-        exit 1
-    fi
-    kubectl create secret generic alertmanager-slack-secret \
-      --namespace monitoring \
-      --from-literal=webhook-url="$slack_webhook" \
-      --dry-run=client -o yaml | seal_to "$SLACK_SECRET_FILE"
-    echo "Sealed: $SLACK_SECRET_FILE"
-}
-
 usage() {
-    echo "Usage: $0 {github|argocd|monitor|grafana|slack}" >&2
+    echo "Usage: $0 {github|argocd|monitor|grafana}" >&2
     echo "Run '$0 help' for details." >&2
 }
 
@@ -155,11 +136,8 @@ case "$cmd" in
         seal_dex_secret
         seal_grafana_secret
         ;;
-    slack)
-        seal_slack_secret
-        ;;
     -h|--help|help)
-        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "")
