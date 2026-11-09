@@ -736,6 +736,14 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </pre></div>
 </div>
 <p>Once connected, the Cloudflare UI shows <strong>“Tunnel connected successfully”</strong>.</p>
+<p>The pod takes the token from the <code class="docutils literal notranslate"><span class="pre">TUNNEL_TOKEN</span></code> environment variable only,
+never as a <code class="docutils literal notranslate"><span class="pre">--token</span></code> argument, so it does not appear in the process command
+line. A NetworkPolicy (<code class="docutils literal notranslate"><span class="pre">additions/cloudflared/networkpolicy.yaml</span></code>) denies
+inbound traffic to the cloudflared pods from other pods and hosts, since the
+tunnel only dials out. K3s’s network policy controller always admits traffic
+from the pod’s own node: the kubelet’s liveness probe on the metrics port
+(20241) comes from there, and so can host-network pods on that node. If you add
+something that scrapes cloudflared’s metrics, allow it in that policy.</p>
 <figure class="align-center" id="id2">
 <img alt="Tunnel connected successfully" src="../_images/tunnel_success.png" />
 <figcaption>

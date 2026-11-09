@@ -426,10 +426,21 @@
   <section id="network-policies">
 <h1>Network Policies<a class="headerlink" href="#network-policies" title="Link to this heading">#</a></h1>
 <p>This page explains Kubernetes NetworkPolicies and how they could be applied
-to this cluster. NetworkPolicies are <strong>not deployed</strong> by default because
-the maintenance overhead outweighs the benefit for a single-admin homelab. The one exception is scrap, whose chart ships a NetworkPolicy
-admitting only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, and a second one for its public pages site in
-the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace (see <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a>).</p>
+to this cluster. There is <strong>no cluster-wide default-deny</strong>: the maintenance
+overhead outweighs the benefit for a single-admin homelab. A few services
+ship their own policies instead:</p>
+<ul class="simple">
+<li><p><strong>scrap</strong> admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, and its public pages site in the
+<code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace has a second policy (see <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a>).</p></li>
+<li><p><strong>ntfy</strong> admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> and in-cluster publishers such as
+Alertmanager (see <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>).</p></li>
+<li><p><strong>minecraft</strong> limits the worlds’ RCON ports to LAN sources (see
+<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>).</p></li>
+<li><p><strong>cloudflared</strong> denies inbound traffic to its pods from other pods and
+hosts, since the tunnel only dials out. As with every policy here, traffic
+from the pod’s own node (the kubelet, and host-network pods on that node)
+is still admitted (see <a class="reference internal" href="../how-to/cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a>).</p></li>
+</ul>
 <section id="what-are-networkpolicies">
 <h2>What are NetworkPolicies?<a class="headerlink" href="#what-are-networkpolicies" title="Link to this heading">#</a></h2>
 <p>NetworkPolicies are Kubernetes resources that control pod-to-pod and
@@ -524,7 +535,12 @@ would be:</p>
 <td><p>80/443</p></td>
 <td><p>Tunnel traffic</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code></p></td>
+<tr class="row-odd"><td><p><em>(none)</em></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<td><p>—</p></td>
+<td><p>No inbound traffic from other pods or hosts; traffic from the pod’s own node (kubelet probe, host-network pods) is still admitted</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code></p></td>
 <td><p>all namespaces</p></td>
 <td><p>various</p></td>
 <td><p>GitOps sync</p></td>
@@ -548,10 +564,12 @@ maintaining rules as services change) is significant.</p>
 </section>
 <section id="cni-requirements">
 <h2>CNI requirements<a class="headerlink" href="#cni-requirements" title="Link to this heading">#</a></h2>
-<p>K3s ships with Flannel as the default CNI. Flannel supports NetworkPolicy
-enforcement via the <code class="docutils literal notranslate"><span class="pre">kube-router</span></code> backend. If you need NetworkPolicies,
-you may need to switch to Calico or Cilium. Check the K3s documentation
-for CNI configuration options.</p>
+<p>K3s ships with Flannel as the default CNI, and enforces NetworkPolicies
+with an embedded network policy controller (kube-router’s), enabled unless
+K3s runs with <code class="docutils literal notranslate"><span class="pre">--disable-network-policy</span></code>. That controller always admits
+traffic from a pod’s own node, so kubelet liveness and readiness probes keep
+working under a deny-all ingress policy. Switch to Calico or Cilium only if
+you need features beyond standard NetworkPolicy.</p>
 </section>
 </section>
 
