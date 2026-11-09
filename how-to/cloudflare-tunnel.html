@@ -614,15 +614,23 @@ Cloudflare will round-robin across them:</p>
 </div>
 <p>Replace the IPs with the LAN addresses of your worker nodes (e.g.
 <code class="docutils literal notranslate"><span class="pre">192.168.1.82</span></code>, <code class="docutils literal notranslate"><span class="pre">.83</span></code>, <code class="docutils literal notranslate"><span class="pre">.84</span></code>). Services to add: <code class="docutils literal notranslate"><span class="pre">argocd</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana</span></code>,
-<code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code>. These resolve to private RFC-1918
+addresses — only reachable from your LAN. For a single-node cluster, one
+A record per service is sufficient.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code> backs the landing page’s LAN-detection probe. The page
-JavaScript fetches <code class="docutils literal notranslate"><span class="pre">https://home-lan.&lt;domain&gt;/healthz</span></code> — it only
-resolves when the browser is on the LAN, enabling LAN-only UI elements.</p>
+<p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> back the landing page’s network-detection
+probes. The page JavaScript fetches <code class="docutils literal notranslate"><span class="pre">https://home-lan.&lt;domain&gt;/healthz</span></code>
+and <code class="docutils literal notranslate"><span class="pre">https://home-tailnet.&lt;domain&gt;/healthz</span></code> in parallel; if either
+connects, the browser is on the LAN or on the tailnet and the page
+enables its network links. Each needs only one A record. Point
+<code class="docutils literal notranslate"><span class="pre">home-lan</span></code> at the LAN IP of a node listed in the ingress LoadBalancer
+Service’s external IPs (one that runs a ServiceLB <code class="docutils literal notranslate"><span class="pre">svclb-</span></code> pod; a
+tainted control plane has none), and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> at that node’s
+tailnet (<code class="docutils literal notranslate"><span class="pre">100.x</span></code>) IP. That node must itself be on your tailnet, and your
+tailnet policy must let clients reach it on port 443. Leave out
+<code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> if you don’t use Tailscale.</p>
 </div>
-<p>These resolve to private RFC-1918 addresses — only reachable from your LAN.
-For a single-node cluster, one A record per service is sufficient.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p><strong>DNS rebinding protection</strong> — many routers and DNS resolvers silently drop DNS

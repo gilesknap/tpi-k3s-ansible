@@ -144,16 +144,23 @@ Cloudflare will round-robin across them:
 
 Replace the IPs with the LAN addresses of your worker nodes (e.g.
 `192.168.1.82`, `.83`, `.84`). Services to add: `argocd`, `grafana`,
-`headlamp`, `home-lan`, `oauth2`.
+`headlamp`, `home-lan`, `oauth2`. These resolve to private RFC-1918
+addresses — only reachable from your LAN. For a single-node cluster, one
+A record per service is sufficient.
 
 :::{note}
-`home-lan` backs the landing page's LAN-detection probe. The page
-JavaScript fetches `https://home-lan.<domain>/healthz` — it only
-resolves when the browser is on the LAN, enabling LAN-only UI elements.
+`home-lan` and `home-tailnet` back the landing page's network-detection
+probes. The page JavaScript fetches `https://home-lan.<domain>/healthz`
+and `https://home-tailnet.<domain>/healthz` in parallel; if either
+connects, the browser is on the LAN or on the tailnet and the page
+enables its network links. Each needs only one A record. Point
+`home-lan` at the LAN IP of a node listed in the ingress LoadBalancer
+Service's external IPs (one that runs a ServiceLB `svclb-` pod; a
+tainted control plane has none), and `home-tailnet` at that node's
+tailnet (`100.x`) IP. That node must itself be on your tailnet, and your
+tailnet policy must let clients reach it on port 443. Leave out
+`home-tailnet` if you don't use Tailscale.
 :::
-
-These resolve to private RFC-1918 addresses — only reachable from your LAN.
-For a single-node cluster, one A record per service is sufficient.
 
 :::{warning}
 **DNS rebinding protection** — many routers and DNS resolvers silently drop DNS

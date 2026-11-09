@@ -176,10 +176,12 @@ the corresponding file in `kubernetes-services/templates/`.
 
 The home page (`kubernetes-services/additions/home/templates/manifests.yaml`)
 hard-codes a few network service links in its Network section: LAN-only
-links (e.g. the router), which carry a "LAN only" badge and are enabled
-only when the browser is on the LAN, and tailnet links (e.g. a media
-server at its Tailscale `100.x` IP), which carry a "Tailnet" badge and
-work from any device on your tailnet. These are intentionally not
+links (e.g. the router), which carry a "LAN only" badge, and tailnet
+links (e.g. a media server at its Tailscale `100.x` IP), which carry a
+"Tailnet" badge. These cards are greyed out unless the browser is on
+the LAN or on the tailnet, detected by probing the DNS-only
+`home-lan.<domain>` and `home-tailnet.<domain>` records (see
+{doc}`/how-to/cloudflare-tunnel`). These are intentionally not
 templated — every fork's network is different. Edit the HTML directly
 to match yours.
 
