@@ -39,13 +39,15 @@ spec:
         runAsUser: 65532
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:2026.10.0
+          image: cloudflare/cloudflared:2026.10.7
+          # `tunnel run` reads its --token flag from the TUNNEL_TOKEN env var,
+          # so the token is not passed in args and stays out of the process
+          # command line (which /debug/vars on the metrics port exposed
+          # before 2026.10.4).
           args:
             - tunnel
             - --no-autoupdate
             - run
-            - --token
-            - $(TUNNEL_TOKEN)
           env:
             - name: TUNNEL_TOKEN
               valueFrom:
