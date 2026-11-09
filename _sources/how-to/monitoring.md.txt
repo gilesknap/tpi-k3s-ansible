@@ -151,8 +151,12 @@ kubectl exec -n monitoring \
   amtool --alertmanager.url=http://localhost:9093 alert add \
   alertname=NtfyTestAlert severity=critical \
   '--annotation=summary="Test alert, please ignore"' \
+  --start="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --end="$(date -u -d '+5 minutes' +%Y-%m-%dT%H:%M:%SZ)"
 ```
+
+Give the start time explicitly: without it, Alertmanager starts the alert
+at its end time, so it does not fire when you expect.
 
 To see which receiver a set of labels would reach, without sending
 anything:
