@@ -27,6 +27,16 @@ variable "tunnel_name" {
   type        = string
 }
 
+variable "tunnel_secret_rotation" {
+  description = <<-EOT
+    Any string; change it (e.g. "1" to "2") to generate a new tunnel secret,
+    which rotates the tunnel token. Then reseal it with
+    `just cf-seal-tunnel-token`.
+  EOT
+  type        = string
+  default     = "1"
+}
+
 variable "owner_emails" {
   description = "Emails allowed by the Owner policy (full access to every service)."
   type        = list(string)

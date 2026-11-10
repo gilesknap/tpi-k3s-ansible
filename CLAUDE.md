@@ -9,6 +9,8 @@
   Exceptions: `kubeseal` (reads the cluster key; output is committed);
   `ansible-playbook --tags cluster` (sanctioned bootstrap/update path);
   `kubectl annotate ... argocd.argoproj.io/refresh=hard` (force repo re-fetch);
+  restarting a workload (`kubectl rollout restart`, or deleting a pod for
+  its controller to recreate), e.g. after a reseal: no repo change needed;
   `just node-fence <node>` / `just node-unfence <node>` (the
   `out-of-service` taint), only for a node the user has confirmed is
   powered off (see `docs/how-to/node-operations.md`).

@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Force every connector of the cluster's tunnel to disconnect, then list
+# the connectors that are connected again. Run after rotating the tunnel
+# token and restarting cloudflared: a new secret only refuses new
+# connections, so a connector started with the old token (including one
+# started by whoever leaked it) stays connected until it is cut off here.
+# See "Rotate the tunnel token" in docs/how-to/cloudflare-as-code.md.
+#
+# The cluster's own cloudflared pods reconnect within seconds, with the
+# new token, so expect a brief blip in public traffic.
+#
+# Edit token: $CF_APPLY_TOKEN, else a prompt (never read from a file, never
+# printed, and kept out of curl's command line).
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+. scripts/lib/cf-secrets.sh
+
+for cmd in curl jq; do
+    command -v "$cmd" >/dev/null || { echo "ERROR: $cmd not found" >&2; exit 1; }
+done
+
+# The IDs come from the state (state passphrase only).
+if ! ids=$(scripts/cf-tofu output -json tunnel_ids); then
+    echo "ERROR: could not read the tunnel_ids output. Run this from the main checkout," >&2
+    echo "  where the state and cloudflare/live.auto.tfvars are; has 'just cf-apply' run?" >&2
+    exit 1
+fi
+account=$(jq -r '.account_id // empty' <<<"$ids")
+tunnel=$(jq -r '.tunnel_id // empty' <<<"$ids")
+[[ $account =~ ^[0-9a-f]{32}$ ]] || { echo "ERROR: bad account ID in tunnel_ids" >&2; exit 1; }
+[[ $tunnel =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || {
+    echo "ERROR: bad tunnel ID in tunnel_ids" >&2
+    exit 1
+}
+url="https://api.cloudflare.com/client/v4/accounts/$account/cfd_tunnel/$tunnel/connections"
+
+token=$(read_secret CF_APPLY_TOKEN "" "Cloudflare edit (apply) API token")
+
+# api METHOD: call the connections endpoint. The Authorization header goes
+# to curl on stdin (printf is a shell builtin), never in its arguments.
+api() {
+    local out
+    if ! out=$(printf 'Authorization: Bearer %s\n' "$token" |
+        curl -sS -X "$1" -H @- "$url"); then
+        echo "ERROR: $1 $url failed" >&2
+        exit 1
+    fi
+    if ! jq -e '.success == true' >/dev/null 2>&1 <<<"$out"; then
+        echo "ERROR: $1 $url: $(jq -c '.errors // .' <<<"$out" 2>/dev/null || echo "$out")" >&2
+        exit 1
+    fi
+    printf '%s' "$out"
+}
+
+# list_connections: one line per connection, and one per connector with
+# none (so a registered stray is not hidden); nothing here is secret.
+# Empty fields print as "-" so the columns stay aligned.
+list_connections() {
+    api GET | jq -r '
+        def f: if . == null or . == "" then "-" else tostring end;
+        ["CONNECTOR", "VERSION", "ORIGIN_IP", "COLO", "OPENED_AT"],
+        ((.result // [])[] | .id as $c | .version as $v
+            | if ((.conns // []) | length) == 0
+              then [$c, $v, "(no connections)", null, null]
+              else (.conns[] | [$c, $v, .origin_ip, .colo_name, .opened_at])
+              end
+            | map(f))
+        | @tsv' | column -t -s $'\t'
+}
+
+echo "Connections now:"
+list_connections
+echo ""
+read -rp "Disconnect all of them (the cluster's pods reconnect within seconds)? [y/N] " answer </dev/tty
+[[ $answer == [yY] ]] || { echo "Nothing changed."; exit 0; }
+
+api DELETE >/dev/null
+echo "Disconnected every connection; waiting 20s for the cluster's pods to reconnect..."
+sleep 20
+
+echo ""
+echo "Connections now:"
+list_connections
+unset token
+
+# The connector IDs of the cluster's own pods, from their logs (read-only).
+# Any connector above that is not in this list is not one of them.
+echo ""
+echo "Connector IDs of the cluster's cloudflared pods:"
+if ! kubectl -n cloudflared logs -l app=cloudflared --tail=-1 --prefix 2>/dev/null |
+    grep 'Generated Connector ID:' |
+    sed -E 's|^\[pod/([^/]*)/[^]]*\].*Generated Connector ID: *([^ ]*).*|\1 \2|' | column -t; then
+    echo "  (could not read the pods' logs; check with kubectl -n cloudflared logs -l app=cloudflared)"
+fi
