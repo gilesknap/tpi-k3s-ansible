@@ -428,7 +428,14 @@ Prepares each node for K3s:
    included), without rebooting, nightly at 00:00 Europe/London
    (`update_packages_upgrade_on_calendar`). kured does the reboot; see
    {doc}`/explanations/upgrade-model`.
-6. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
+6. **All nodes, workstations and the control plane included:** disable
+   Multipath TCP (`net.mptcp.enabled=0`), live and persisted in
+   `/etc/sysctl.d/90-disable-mptcp.conf`. This mitigates a kernel MPTCP
+   vulnerability (CVE-2026-98432); nothing in the cluster uses MPTCP. It is
+   set here rather than by the `kernel-settings` DaemonSet because that
+   DaemonSet does not run on tainted nodes. `--tags sysctl` runs this task
+   alone.
+7. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
    - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
    - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA

@@ -600,6 +600,21 @@ Cloudflare Access email-gate policy.</p>
 the rationale and guidance on implementing them if needed.</p>
 </section>
 </section>
+<section id="node-kernel-mitigations">
+<h2>Node kernel mitigations<a class="headerlink" href="#node-kernel-mitigations" title="Link to this heading">#</a></h2>
+<p>Kernel settings that every node needs for security are managed by Ansible,
+not by the <code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code> DaemonSet, because that DaemonSet does not run on
+tainted nodes (workstations, the control plane). The <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role
+currently sets one:</p>
+<ul class="simple">
+<li><p><strong>Multipath TCP is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">net.mptcp.enabled=0</span></code>, persisted in
+<code class="docutils literal notranslate"><span class="pre">/etc/sysctl.d/90-disable-mptcp.conf</span></code>) as a mitigation for a kernel MPTCP
+vulnerability (CVE-2026-98432). Nothing in the cluster uses MPTCP, so
+disabling it costs nothing. Apply it to existing nodes with
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">sysctl</span></code>.</p></li>
+</ul>
+<p>See <a class="reference internal" href="ansible-roles.html"><span class="doc">Ansible Roles in Detail</span></a> for the role details.</p>
+</section>
 <section id="tls-everywhere">
 <h2>TLS everywhere<a class="headerlink" href="#tls-everywhere" title="Link to this heading">#</a></h2>
 <p>All ingress endpoints use TLS certificates from Let’s Encrypt (production CA):</p>
@@ -691,6 +706,7 @@ the rationale and guidance on implementing them if needed.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networkpolicies">NetworkPolicies</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-kernel-mitigations">Node kernel mitigations</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tls-everywhere">TLS everywhere</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommendations">Recommendations</a></li>
 </ul>

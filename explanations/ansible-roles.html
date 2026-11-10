@@ -1322,6 +1322,13 @@ from the <code class="docutils literal notranslate"><span class="pre">-updates</
 included), without rebooting, nightly at 00:00 Europe/London
 (<code class="docutils literal notranslate"><span class="pre">update_packages_upgrade_on_calendar</span></code>). kured does the reboot; see
 <a class="reference internal" href="upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p></li>
+<li><p><strong>All nodes, workstations and the control plane included:</strong> disable
+Multipath TCP (<code class="docutils literal notranslate"><span class="pre">net.mptcp.enabled=0</span></code>), live and persisted in
+<code class="docutils literal notranslate"><span class="pre">/etc/sysctl.d/90-disable-mptcp.conf</span></code>. This mitigates a kernel MPTCP
+vulnerability (CVE-2026-98432); nothing in the cluster uses MPTCP. It is
+set here rather than by the <code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code> DaemonSet because that
+DaemonSet does not run on tainted nodes. <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">sysctl</span></code> runs this task
+alone.</p></li>
 <li><p><strong>NVIDIA GPU nodes only</strong> (when <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in inventory):</p>
 <ul class="simple">
 <li><p>Install <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers-common</span></code> and run <code class="docutils literal notranslate"><span class="pre">ubuntu-drivers</span> <span class="pre">install</span></code> to install the GPU driver</p></li>
