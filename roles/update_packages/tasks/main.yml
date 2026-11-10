@@ -71,6 +71,22 @@
     dest: /etc/modules-load.d/vhci_hcd.conf
     mode: "0644"
 
+# Kernel mitigation: Multipath TCP is turned off on every node, as a
+# mitigation for a kernel MPTCP vulnerability (CVE-2026-98432) until all
+# nodes run a fixed kernel. Nothing in the cluster uses MPTCP. Runs on
+# workstations and the control plane too, which the kernel-settings
+# DaemonSet cannot reach (tainted nodes). Sets the live value and persists
+# it; a node that already has this file reports no change.
+# Run alone with --tags sysctl.
+- name: Disable Multipath TCP
+  ansible.posix.sysctl:
+    name: net.mptcp.enabled
+    value: "0"
+    sysctl_file: /etc/sysctl.d/90-disable-mptcp.conf
+    sysctl_set: true
+    state: present
+  tags: sysctl
+
 # NVIDIA container toolkit — only installed on nodes with nvidia_gpu_node: true in inventory.
 # Required so that containerd can pass GPU devices into pods requesting nvidia.com/gpu.
 # Set nvidia_gpu_node: true in host_vars/<nodename>.yml for each GPU node.

@@ -132,6 +132,21 @@ Cloudflare Access email-gate policy.
 NetworkPolicies are not deployed by default. See {doc}`network-policies` for
 the rationale and guidance on implementing them if needed.
 
+## Node kernel mitigations
+
+Kernel settings that every node needs for security are managed by Ansible,
+not by the `kernel-settings` DaemonSet, because that DaemonSet does not run on
+tainted nodes (workstations, the control plane). The `update_packages` role
+currently sets one:
+
+- **Multipath TCP is disabled** (`net.mptcp.enabled=0`, persisted in
+  `/etc/sysctl.d/90-disable-mptcp.conf`) as a mitigation for a kernel MPTCP
+  vulnerability (CVE-2026-98432). Nothing in the cluster uses MPTCP, so
+  disabling it costs nothing. Apply it to existing nodes with
+  `ansible-playbook pb_all.yml --tags sysctl`.
+
+See {doc}`ansible-roles` for the role details.
+
 ## TLS everywhere
 
 All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
