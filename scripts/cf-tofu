@@ -13,6 +13,7 @@
 # Apply token: $CF_APPLY_TOKEN, else a prompt (never read from a file).
 set -euo pipefail
 
+. "$(dirname "$0")/lib/cf-secrets.sh"
 cd "$(dirname "$0")/../cloudflare"
 secrets=.secrets
 
@@ -22,21 +23,6 @@ action=$1
 shift
 
 command -v tofu >/dev/null || { echo "ERROR: tofu not found; run this in the devcontainer" >&2; exit 1; }
-
-# read_secret VAR FILE PROMPT: print the value of $VAR, else FILE's
-# contents, else what the user types (not echoed).
-read_secret() {
-    local value=${!1:-}
-    if [[ -z $value && -n $2 && -r $2 ]]; then
-        value=$(<"$2")
-    fi
-    if [[ -z $value ]]; then
-        read -rsp "$3: " value </dev/tty
-        echo >&2
-    fi
-    [[ -n $value ]] || { echo "ERROR: no value for $1" >&2; exit 1; }
-    printf '%s' "$value"
-}
 
 need_tfvars() {
     [[ -f live.auto.tfvars ]] || {

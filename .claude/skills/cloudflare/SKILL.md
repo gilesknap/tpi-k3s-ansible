@@ -32,9 +32,13 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
   `cloudflare/tunnel.tf`, output `tunnel_token`. Rotate: bump
   `tunnel_secret_rotation`, owner runs `just cf-apply`, then
   `just cf-seal-tunnel-token` (seals it, updates `.env`'s
-  `CLOUDFLARE_TUNNEL_TOKEN` if present, never prints it), PR/merge,
-  `kubectl -n cloudflared rollout restart deployment/cloudflared`
-  (docs/how-to/cloudflare-as-code.md)
+  `CLOUDFLARE_TUNNEL_TOKEN` if present, never prints it), PR/merge, wait
+  for sync, `kubectl -n cloudflared rollout restart deployment/cloudflared`,
+  then `just cf-tunnel-disconnect` (old connections survive a rotation)
+  and check only the pods' connector IDs reconnect. Never rotate in the
+  dashboard: tofu doesn't read the secret back, so it would reseal a dead
+  one. The first `cf-apply` on an imported tunnel rotates it. Run `cf-`
+  recipes from the main checkout (docs/how-to/cloudflare-as-code.md)
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
   - ws03 had `systemd-resolved` overridden to `1.1.1.1` which broke `node01.lan` resolution
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`

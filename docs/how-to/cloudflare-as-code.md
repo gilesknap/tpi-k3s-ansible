@@ -271,6 +271,10 @@ After a change of providers in `cloudflare/versions.tf` (such as the
 `hashicorp/random` provider for the tunnel secret), run `just cf-init`
 once to install it.
 
+Run `just cf-plan`, `just cf-apply` and the other `cf-` recipes from
+the main checkout, where the state and `live.auto.tfvars` are; a git
+worktree has neither.
+
 1. Change `cloudflare/` in a branch.
 2. `just cf-plan` and check that the plan does what you meant.
 3. Open the PR; CI runs `tofu fmt -check` and `tofu validate` (no
@@ -289,6 +293,17 @@ local, encrypted state, and the `tunnel_token` output is the token
 keep it, and its passphrase, private. A new secret is an in-place update
 of the tunnel: its ID, DNS records and public hostnames do not change.
 
+Rotate only by changing `tunnel_secret_rotation`, never with **Rotate
+token** in the dashboard. OpenTofu does not read the secret back from
+Cloudflare, so after a dashboard rotation the state keeps the old,
+dead secret and `just cf-seal-tunnel-token` would seal it.
+
+Run every step from the main checkout of the repo, where the state and
+`live.auto.tfvars` are, not from a git worktree. Do the whole procedure
+in one go: from the apply onwards, the running `cloudflared` pods hold a
+token that Cloudflare no longer accepts, and crash-loop the next time
+they restart.
+
 To rotate the token, for example after it has leaked:
 
 1. In a branch, change `tunnel_secret_rotation` to any new value, either
@@ -297,37 +312,45 @@ To rotate the token, for example after it has leaked:
 2. `just cf-plan` should show `random_bytes.tunnel_secret` replaced and
    `cloudflare_zero_trust_tunnel_cloudflared.cluster` **updated in
    place**, never replaced.
-3. `just cf-apply`. Cloudflare now accepts only the new token. Connections
-   already up may last a while, but a connector that restarts or
-   reconnects with the old token fails, so do the next steps straight
-   away.
+3. `just cf-apply`. Cloudflare now refuses new connections that use the
+   old token, but connections already up stay up until they are
+   disconnected (step 7), including any connector someone else started
+   with a leaked token.
 4. `just cf-seal-tunnel-token`. It reads the token from the state (it
    asks for the state passphrase only, not an API token) and seals it into
    `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` without
    printing it. If `.env` at the repo root (from
    `just export-external-creds`, for a rebuild) has a
    `CLOUDFLARE_TUNNEL_TOKEN` line, it updates that too, so a rebuild does
-   not reseal the old token.
+   not reseal the old token. The rebuild playbook reads
+   `CLOUDFLARE_TUNNEL_TOKEN` from the environment, so source `.env` again
+   (or open a new shell) before any rebuild.
 5. Commit the SealedSecret (and the variable change), open the PR and
    merge it.
-6. Once ArgoCD has synced it, restart `cloudflared` so that it reads the
-   new Secret:
+6. Wait for ArgoCD to sync it, then restart `cloudflared` so that it reads
+   the new Secret:
 
    ```bash
    kubectl -n cloudflared rollout restart deployment/cloudflared
    kubectl -n cloudflared rollout status deployment/cloudflared
    ```
 
-7. Check that the connectors are back: **Networking > Tunnels** in the
-   dashboard shows the tunnel healthy with connectors from the new pods
-   (or `cloudflared tunnel info <tunnel name>`, with an account login),
-   and the pods' logs show `Registered tunnel connection`.
+7. `just cf-tunnel-disconnect`. It asks for the edit token, lists the
+   tunnel's connections, and after you confirm, disconnects every one of
+   them. The cluster's pods reconnect within seconds with the new token,
+   so expect a brief blip in public traffic; a connector that holds only
+   the old token cannot reconnect.
+8. Check the list it prints after reconnecting: every connector ID must be
+   one of the cluster's pods (it prints their IDs from the pods' logs
+   below the list), and every origin IP your own public address. Any
+   other connector means something still holds a valid token: rotate
+   again.
 
 :::{note}
-The tunnel was adopted with an `import` block, and an imported tunnel has
-no secret in state. So the first `just cf-apply` after the secret came
-under this code sets a new one: it is a rotation, and needs steps 4 to 7
-too.
+If the tunnel was adopted with an `import` block, it has no secret in
+state, so the first `just cf-apply` after the secret came under this code
+sets a new one. That apply is a rotation, whatever it was run for: do
+steps 4 to 8 straight after it.
 :::
 
 ## Later: state in an S3-compatible bucket

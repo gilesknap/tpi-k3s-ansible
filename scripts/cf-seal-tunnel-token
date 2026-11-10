@@ -20,13 +20,15 @@ if ! token=$(scripts/cf-tofu output -raw tunnel_token); then
     exit 1
 fi
 if [[ -z $token ]]; then
-    echo "ERROR: the tunnel_token output is empty" >&2
+    echo "ERROR: the tunnel_token output is empty; has 'just cf-apply' run?" >&2
     exit 1
 fi
 # A tunnel token is base64 of JSON with the account (a), secret (s) and
 # tunnel ID (t). Check the shape without showing any of it.
 if ! printf '%s' "$token" | base64 -d 2>/dev/null |
-    jq -e 'has("a") and has("s") and has("t")' >/dev/null 2>&1; then
+    jq -e '(.a | type) == "string" and (.a | length) > 0
+        and (.s | type) == "string" and (.s | length) > 0
+        and (.t | type) == "string" and (.t | length) > 0' >/dev/null 2>&1; then
     echo "ERROR: the tunnel_token output is not a tunnel token" >&2
     exit 1
 fi
@@ -40,15 +42,19 @@ echo "  -> $dest"
 
 if [[ -f .env ]] && grep -q '^CLOUDFLARE_TUNNEL_TOKEN=' .env; then
     tmp=$(umask 077 && mktemp .env.XXXXXX)
+    # Never leave a partial copy (which holds the token) behind.
+    trap 'rm -f "$tmp"' EXIT
     TOKEN=$token awk '
         /^CLOUDFLARE_TUNNEL_TOKEN=/ { print "CLOUDFLARE_TUNNEL_TOKEN=" ENVIRON["TOKEN"]; next }
         { print }
     ' .env > "$tmp"
     mv "$tmp" .env
-    echo "Updated CLOUDFLARE_TUNNEL_TOKEN in .env"
+    trap - EXIT
+    echo "Updated CLOUDFLARE_TUNNEL_TOKEN in .env: source it again before a rebuild"
 fi
 unset token
 
 echo ""
 echo "Next: commit $dest, open a PR and merge it. Once ArgoCD has synced it,"
 echo "restart cloudflared: kubectl -n cloudflared rollout restart deployment/cloudflared"
+echo "then disconnect every old connection: just cf-tunnel-disconnect"

@@ -50,3 +50,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "cluster" {
     ingress = local.tunnel_ingress
   }
 }
+
+# The IDs scripts/cf-tunnel-disconnect needs for the API (not secret).
+output "tunnel_ids" {
+  description = "The account ID and tunnel ID of the cluster's tunnel."
+  value = {
+    account_id = var.account_id
+    tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.cluster.id
+  }
+}
