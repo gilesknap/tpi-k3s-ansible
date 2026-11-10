@@ -5,6 +5,7 @@
 #   scripts/cf-tofu init           # download the provider
 #   scripts/cf-tofu plan  [args]   # read-only token
 #   scripts/cf-tofu apply [args]   # edit token, asks before changing anything
+#   scripts/cf-tofu output [args]  # read outputs from state (no API token)
 #
 # State encryption passphrase: $TF_VAR_state_passphrase, else
 #   cloudflare/.secrets/state-passphrase, else a prompt.
@@ -15,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../cloudflare"
 secrets=.secrets
 
-usage() { echo "usage: $0 init|plan|apply [tofu args]" >&2; exit 1; }
+usage() { echo "usage: $0 init|plan|apply|output [tofu args]" >&2; exit 1; }
 [[ $# -ge 1 ]] || usage
 action=$1
 shift
@@ -51,6 +52,11 @@ export TF_VAR_state_passphrase
 case $action in
     init)
         tofu init -input=false "$@"
+        ;;
+    output)
+        # Reads the local state only: no Cloudflare API call, no token.
+        need_tfvars
+        tofu output "$@"
         ;;
     plan)
         need_tfvars

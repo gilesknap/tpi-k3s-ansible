@@ -278,6 +278,11 @@ kubectl logs -n cloudflared deployment/cloudflared | tail -20
 
 Once connected, the Cloudflare UI shows **"Tunnel connected successfully"**.
 
+If you manage Cloudflare as code ({doc}`cloudflare-as-code`), the tunnel's
+secret is generated there instead: seal the token with
+`just cf-seal-tunnel-token`, and see "Rotate the tunnel token" in that
+guide to replace it.
+
 The pod takes the token from the `TUNNEL_TOKEN` environment variable only,
 never as a `--token` argument, so it does not appear in the process command
 line. A NetworkPolicy (`additions/cloudflared/networkpolicy.yaml`) denies

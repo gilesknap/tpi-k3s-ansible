@@ -67,6 +67,8 @@ etc.), you must restart pods in these namespaces:
   tokens and any minted through the account API (docs/how-to/ntfy.md)
 - `monitoring` (`kubectl rollout restart sts grafana-prometheus -n monitoring`)
 - `headlamp`
+- `cloudflared` (`kubectl -n cloudflared rollout restart deployment/cloudflared`;
+  reseal its token with `just cf-seal-tunnel-token`)
 
 ## `cookie-secret` generation
 

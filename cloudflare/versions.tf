@@ -6,6 +6,10 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "5.28.1"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.7.2"
+    }
   }
 
   # State stays local (gitignored, see docs/how-to/cloudflare-as-code.md)

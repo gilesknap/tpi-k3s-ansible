@@ -28,6 +28,13 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
   is drift that the next apply reverts. Live per-account values (IDs,
   emails) are in the gitignored `cloudflare/live.auto.tfvars`; state is
   local, encrypted, gitignored. Never run `cf-apply` / `tofu apply` yourself.
+- **Tunnel token is tofu-managed**: `random_bytes.tunnel_secret` in
+  `cloudflare/tunnel.tf`, output `tunnel_token`. Rotate: bump
+  `tunnel_secret_rotation`, owner runs `just cf-apply`, then
+  `just cf-seal-tunnel-token` (seals it, updates `.env`'s
+  `CLOUDFLARE_TUNNEL_TOKEN` if present, never prints it), PR/merge,
+  `kubectl -n cloudflared rollout restart deployment/cloudflared`
+  (docs/how-to/cloudflare-as-code.md)
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
   - ws03 had `systemd-resolved` overridden to `1.1.1.1` which broke `node01.lan` resolution
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Seal the cloudflared tunnel token from the OpenTofu state into
+# kubernetes-services/additions/cloudflared/tunnel-secret.yaml, without
+# printing it. Run after `just cf-apply` has set a new tunnel secret; see
+# "Rotate the tunnel token" in docs/how-to/cloudflare-as-code.md.
+#
+# If .env at the repo root (written by scripts/export-external-creds for a
+# rebuild) has a CLOUDFLARE_TUNNEL_TOKEN line, it is updated too, so that
+# a rebuild from that .env does not reseal the old token.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+. scripts/lib/seal.sh
+
+dest=kubernetes-services/additions/cloudflared/tunnel-secret.yaml
+
+# Reads only the local, encrypted state (state passphrase, no API token).
+if ! token=$(scripts/cf-tofu output -raw tunnel_token); then
+    echo "ERROR: could not read the tunnel_token output; has 'just cf-apply' run since tunnel.tf gained it?" >&2
+    exit 1
+fi
+if [[ -z $token ]]; then
+    echo "ERROR: the tunnel_token output is empty" >&2
+    exit 1
+fi
+# A tunnel token is base64 of JSON with the account (a), secret (s) and
+# tunnel ID (t). Check the shape without showing any of it.
+if ! printf '%s' "$token" | base64 -d 2>/dev/null |
+    jq -e 'has("a") and has("s") and has("t")' >/dev/null 2>&1; then
+    echo "ERROR: the tunnel_token output is not a tunnel token" >&2
+    exit 1
+fi
+
+echo "Sealing: cloudflared-credentials..."
+printf '%s' "$token" |
+    kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
+        --from-file=TUNNEL_TOKEN=/dev/stdin \
+        --dry-run=client -o yaml | seal_to "$dest"
+echo "  -> $dest"
+
+if [[ -f .env ]] && grep -q '^CLOUDFLARE_TUNNEL_TOKEN=' .env; then
+    tmp=$(umask 077 && mktemp .env.XXXXXX)
+    TOKEN=$token awk '
+        /^CLOUDFLARE_TUNNEL_TOKEN=/ { print "CLOUDFLARE_TUNNEL_TOKEN=" ENVIRON["TOKEN"]; next }
+        { print }
+    ' .env > "$tmp"
+    mv "$tmp" .env
+    echo "Updated CLOUDFLARE_TUNNEL_TOKEN in .env"
+fi
+unset token
+
+echo ""
+echo "Next: commit $dest, open a PR and merge it. Once ArgoCD has synced it,"
+echo "restart cloudflared: kubectl -n cloudflared rollout restart deployment/cloudflared"

@@ -72,6 +72,11 @@ cf-plan *args:
 cf-apply *args:
     scripts/cf-tofu apply {{ args }}
 
+# Seal the tunnel token from the tofu state into cloudflared's SealedSecret
+# (after a cf-apply that rotated it; the token is never printed)
+cf-seal-tunnel-token:
+    scripts/cf-seal-tunnel-token
+
 # After scrap's move to NFS: list writes in the frozen old database
 # that the live one lacks (read-only on both sides)
 scrap-cutover-check node="nuc2":
