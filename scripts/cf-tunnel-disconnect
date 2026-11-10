@@ -22,7 +22,8 @@ done
 
 # The IDs come from the state (state passphrase only).
 if ! ids=$(scripts/cf-tofu output -json tunnel_ids); then
-    echo "ERROR: could not read the tunnel_ids output; has 'just cf-apply' run?" >&2
+    echo "ERROR: could not read the tunnel_ids output. Run this from the main checkout," >&2
+    echo "  where the state and cloudflare/live.auto.tfvars are; has 'just cf-apply' run?" >&2
     exit 1
 fi
 account=$(jq -r '.account_id // empty' <<<"$ids")
@@ -52,13 +53,20 @@ api() {
     printf '%s' "$out"
 }
 
-# list_connections: one line per connection, not secret.
+# list_connections: one line per connection, and one per connector with
+# none (so a registered stray is not hidden); nothing here is secret.
+# Empty fields print as "-" so the columns stay aligned.
 list_connections() {
     api GET | jq -r '
+        def f: if . == null or . == "" then "-" else tostring end;
         ["CONNECTOR", "VERSION", "ORIGIN_IP", "COLO", "OPENED_AT"],
-        (.result[] | .id as $c | .version as $v | (.conns // [])[]
-            | [$c, $v, .origin_ip, .colo_name, .opened_at])
-        | @tsv' | column -t
+        ((.result // [])[] | .id as $c | .version as $v
+            | if ((.conns // []) | length) == 0
+              then [$c, $v, "(no connections)", null, null]
+              else (.conns[] | [$c, $v, .origin_ip, .colo_name, .opened_at])
+              end
+            | map(f))
+        | @tsv' | column -t -s $'\t'
 }
 
 echo "Connections now:"
