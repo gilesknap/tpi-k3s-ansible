@@ -315,7 +315,9 @@ To rotate the token, for example after it has leaked:
 3. `just cf-apply`. Cloudflare now refuses new connections that use the
    old token, but connections already up stay up until they are
    disconnected (step 7), including any connector someone else started
-   with a leaked token.
+   with a leaked token. If such a connector is a live threat, you can run
+   `just cf-tunnel-disconnect` straight away as well; the tunnel is then
+   down until step 6 has deployed the new token.
 4. `just cf-seal-tunnel-token`. It reads the token from the state (it
    asks for the state passphrase only, not an API token) and seals it into
    `kubernetes-services/additions/cloudflared/tunnel-secret.yaml` without
@@ -323,14 +325,20 @@ To rotate the token, for example after it has leaked:
    `just export-external-creds`, for a rebuild) has a
    `CLOUDFLARE_TUNNEL_TOKEN` line, it updates that too, so a rebuild does
    not reseal the old token. The rebuild playbook reads
-   `CLOUDFLARE_TUNNEL_TOKEN` from the environment, so source `.env` again
-   (or open a new shell) before any rebuild.
+   `CLOUDFLARE_TUNNEL_TOKEN` from the environment, so before a rebuild run
+   `set -a && source .env && set +a` again in the shell that runs the
+   playbook.
 5. Commit the SealedSecret (and the variable change), open the PR and
    merge it.
-6. Wait for ArgoCD to sync it, then restart `cloudflared` so that it reads
-   the new Secret:
+6. Wait for ArgoCD to sync it and for the sealed-secrets controller to
+   update the Secret: the SealedSecret's observed generation must equal its
+   generation, with `Synced` `True` (this prints no secret). A restart
+   before that starts the pods with the old token. Then restart
+   `cloudflared` so that it reads the new Secret:
 
    ```bash
+   kubectl -n cloudflared get sealedsecret cloudflared-credentials -o \
+     jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.conditions[?(@.type=="Synced")].status}{"\n"}'
    kubectl -n cloudflared rollout restart deployment/cloudflared
    kubectl -n cloudflared rollout status deployment/cloudflared
    ```
