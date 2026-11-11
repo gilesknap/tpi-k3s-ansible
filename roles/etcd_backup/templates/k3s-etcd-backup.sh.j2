@@ -40,6 +40,7 @@ mounted_here=false
 fresh=0
 size=0
 keys=0
+key_count=0
 
 write_metrics() {
     local success=$1 now last_success=0 prom tmp
@@ -67,7 +68,7 @@ k3s_etcd_backup_last_snapshot_fresh $fresh
 # HELP k3s_etcd_backup_last_size_bytes Size of the last encrypted bundle.
 # TYPE k3s_etcd_backup_last_size_bytes gauge
 k3s_etcd_backup_last_size_bytes $size
-# HELP k3s_etcd_backup_sealed_secrets_keys Sealing keys in the last encrypted sealed-secrets key export, 0 if it failed.
+# HELP k3s_etcd_backup_sealed_secrets_keys Sealing keys the last run exported to the NAS, 0 if it exported none.
 # TYPE k3s_etcd_backup_sealed_secrets_keys gauge
 k3s_etcd_backup_sealed_secrets_keys $keys
 EOF
@@ -209,12 +210,13 @@ prune() {
 }
 
 # export_keys OUT: encrypt the sealed-secrets controller's sealing key
-# Secrets to OUT. The YAML is piped straight into age. Sets keys to the
-# number exported; returns non-zero, with keys=0, if there are none or
-# the API server cannot list them.
+# Secrets to OUT. The YAML is piped straight into age. Sets key_count to
+# the number exported; returns non-zero if there are none or the API
+# server cannot list or read them.
 export_keys() {
     local out=$1 names
-    keys=0
+    local -a objs
+    key_count=0
     if ! names=$(k3s kubectl get secret -n "$KEYS_NS" -l "$KEYS_SELECTOR" \
         -o name --request-timeout=60s 2> "$WORK_DIR/keys.log"); then
         log "ERROR: could not list the sealed-secrets keys:"
@@ -225,7 +227,9 @@ export_keys() {
         log "ERROR: no sealed-secrets keys ($KEYS_SELECTOR) in $KEYS_NS"
         return 1
     fi
-    if ! k3s kubectl get secret -n "$KEYS_NS" -l "$KEYS_SELECTOR" \
+    # Export exactly the Secrets listed, so the count matches the file.
+    mapfile -t objs <<< "$names"
+    if ! k3s kubectl get -n "$KEYS_NS" "${objs[@]}" \
         -o yaml --request-timeout=60s 2> "$WORK_DIR/keys.log" \
         | age -R "$RECIPIENTS" -o "$out"; then
         log "ERROR: could not export the sealed-secrets keys:"
@@ -233,7 +237,7 @@ export_keys() {
         rm -f "$out"
         return 1
     fi
-    keys=$(grep -c . <<< "$names")
+    key_count=$(grep -c . <<< "$names")
 }
 
 # 4. Nightly bundle.
@@ -246,6 +250,9 @@ printf 'bundle: %s\ncreated: %s\nsnapshot: %s\nfresh: %s\n' \
     "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$snapshot")" "$fresh" \
     > "$DEST/.LATEST.tmp"
 mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
+# The bundle is on the NAS: record that now, so a later failure in this
+# run (e.g. the key export) does not also make the backup look stale.
+date +%s > "$STATE_DIR/last_success"
 log "uploaded $DEST/$name ($size bytes)"
 
 # 5. Sealed-secrets keys: a fixed-name copy next to the bundles, replaced
@@ -258,6 +265,7 @@ if export_keys "$WORK_DIR/$keys_name"; then
     ship "$WORK_DIR/$keys_name" "$KEYS_DIR" "$keys_name"
     ship "$WORK_DIR/$keys_name" "$DEST" "$KEYS_LATEST"
     prune "$KEYS_DIR" "$KEEP" '*.yaml.age'
+    keys=$key_count
     log "uploaded $DEST/$KEYS_LATEST ($keys keys)"
 else
     keys_failed=1

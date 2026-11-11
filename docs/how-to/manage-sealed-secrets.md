@@ -246,7 +246,9 @@ the value itself, then reseal it ({ref}`rotate-a-secret`).
 
 The controller makes a new key at startup when its newest key is older than
 its `--key-cutoff-time` (the chart's `keycutofftime` value, in RFC 1123
-form with a numeric zone, as `date -R` prints it). Set it through Git:
+form with a numeric zone, as `date -R` prints it). The controller also
+makes one on `SIGUSR1`, but its image has no shell to send that from, so
+set the cutoff through Git:
 
 1. Add the current time to the chart values in
    `kubernetes-services/templates/sealed-secrets.yaml`:

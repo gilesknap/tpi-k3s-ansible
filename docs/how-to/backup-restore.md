@@ -231,6 +231,15 @@ store them unencrypted, and never in Git.
 
 ### Restore the keys
 
+Fetch the nightly copy and check it, or use your offline copy:
+
+```bash
+NAS_DIR=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
+scp "nas:$NAS_DIR/sealed-secrets-keys.yaml.age" \
+  "nas:$NAS_DIR/sealed-secrets-keys.yaml.age.sha256" .
+sha256sum -c sealed-secrets-keys.yaml.age.sha256
+```
+
 Put the keys back before the controller starts, or restart it afterwards
 so that it loads them:
 
@@ -241,8 +250,8 @@ kubectl -n kube-system rollout restart deployment/sealed-secrets
 ```
 
 If the controller had already made a key of its own, it keeps it and seals
-new secrets with it, since it is the newest; the restored keys still
-decrypt the SealedSecrets in Git.
+new secrets with it, since its certificate is the newest; the restored keys
+still decrypt the SealedSecrets in Git.
 
 ## etcd backup and restore
 
