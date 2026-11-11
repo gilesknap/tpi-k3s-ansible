@@ -446,9 +446,9 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 <td><p>NFS NAS, database replicated by Litestream</p></td>
 <td><p>scrap chart’s CronJobs → NFS NAS, nightly copy off the NAS</p></td>
 </tr>
-<tr class="row-even"><td><p>Sealed Secrets private key</p></td>
+<tr class="row-even"><td><p>Sealed Secrets private keys</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace</p></td>
-<td><p>manual export</p></td>
+<td><p>nightly age-encrypted export → NFS NAS, plus your own offline copy</p></td>
 </tr>
 <tr class="row-odd"><td><p>etcd snapshot + k3s token</p></td>
 <td><p>control plane</p></td>
@@ -628,29 +628,89 @@ for the details and the refusals you may meet.</p>
 </section>
 </section>
 <section id="sealed-secrets-key-backup">
-<h2>Sealed Secrets key backup<a class="headerlink" href="#sealed-secrets-key-backup" title="Link to this heading">#</a></h2>
-<p>If you rebuild the cluster, the sealed-secrets controller generates a new keypair.
-Existing SealedSecret YAML files in the repo will become undecryptable.</p>
-<section id="export-the-key">
-<h3>Export the key<a class="headerlink" href="#export-the-key" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-l<span class="w"> </span>sealedsecrets.bitnami.com/sealed-secrets-key<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-o<span class="w"> </span>yaml<span class="w"> </span>&gt;<span class="w"> </span>sealed-secrets-key-backup.yaml
+<span id="id1"></span><h2>Sealed Secrets key backup<a class="headerlink" href="#sealed-secrets-key-backup" title="Link to this heading">#</a></h2>
+<p>The sealed-secrets controller decrypts SealedSecrets with private keys
+kept as Secrets in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code>. A rebuilt cluster’s controller makes a
+new key, and the SealedSecrets in Git cannot be decrypted without the old
+ones.</p>
+<p><strong>A planned rebuild does not need the old keys.</strong> The rebuild path reads
+the plaintext values from the old cluster (<code class="docutils literal notranslate"><span class="pre">scripts/export-external-creds</span></code>)
+and reseals everything against the new key (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).
+The key backup is for a cluster that died: with it you can restore the keys
+before the controller starts, so the SealedSecrets in Git decrypt as they
+are, or decrypt them offline with
+<code class="docutils literal notranslate"><span class="pre">kubeseal</span> <span class="pre">--recovery-unseal</span> <span class="pre">--recovery-private-key</span> <span class="pre">&lt;keys.yaml&gt;</span></code>
+(<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>). That pair, the SealedSecrets in Git and the
+key backup, is the recovery copy of every sealed credential. The <code class="docutils literal notranslate"><span class="pre">.env</span></code>
+that a rebuild exports is not: delete it once the rebuild is verified.</p>
+<section id="key-renewal-is-off">
+<h3>Key renewal is off<a class="headerlink" href="#key-renewal-is-off" title="Link to this heading">#</a></h3>
+<p>The controller’s automatic key renewal (every 30 days by default) is turned
+off (<code class="docutils literal notranslate"><span class="pre">keyrenewperiod:</span> <span class="pre">&quot;0&quot;</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/sealed-secrets.yaml</span></code>).
+Renewal only adds a key: it keeps every old key, so it does not cut off
+anything sealed with them, and it re-encrypts nothing. What it did do was
+make every offline key export stale within a month. With it off, an export
+stays valid until you rotate the key by hand
+(<a class="reference internal" href="manage-sealed-secrets.html#rotate-sealing-key"><span class="std std-ref">Rotate the key by hand</span></a>) or rebuild the cluster.</p>
+</section>
+<section id="nightly-encrypted-copy-on-the-nas">
+<h3>Nightly encrypted copy on the NAS<a class="headerlink" href="#nightly-encrypted-copy-on-the-nas" title="Link to this heading">#</a></h3>
+<p>The nightly etcd backup (<a class="reference internal" href="#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>) also exports the key
+Secrets, encrypted with age to the same public key as the etcd bundles:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys.yaml.age</span></code>: the current keys, replaced
+each night;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys/sealed-secrets-keys-&lt;UTC</span> <span class="pre">time&gt;.yaml.age</span></code>:
+dated copies, the newest 14 kept.</p></li>
+</ul>
+<p>The run fails, and <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code> fires, if it finds no keys or
+cannot export them; the etcd bundle is still uploaded.</p>
+</section>
+<section id="keep-an-offline-copy">
+<h3>Keep an offline copy<a class="headerlink" href="#keep-an-offline-copy" title="Link to this heading">#</a></h3>
+<p>The NAS copy is lost with the NAS, so keep one elsewhere too (password
+manager, encrypted drive), encrypted to your age key. Pipe the export
+straight into age, so the plaintext keys never touch a disk:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">f</span><span class="o">=</span>sealed-secrets-keys-<span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span>.yaml.age
+kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-l<span class="w"> </span>sealedsecrets.bitnami.com/sealed-secrets-key<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>age<span class="w"> </span>-r<span class="w"> </span>age1...<span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w">   </span><span class="c1"># your etcd_backup_age_recipient</span>
+<span class="c1"># Check it holds the keys (prints a count, not the keys):</span>
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;^  kind: Secret$&#39;</span>
 </pre></div>
 </div>
+<p>A new file per export means a failed <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> cannot overwrite a good copy;
+the count must match <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">secret</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">-l</span> <span class="pre">sealedsecrets.bitnami.com/sealed-secrets-key</span></code>.</p>
+<p>Or copy the nightly file from the NAS. Right after a rebuild or a rotation
+it still holds the old keys, so run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">etcd-backup-now</span></code> first. Re-export the offline copy after
+every manual rotation and <strong>after every cluster rebuild</strong>: a rebuild makes
+a new key and reseals everything with it, so the old copy no longer opens
+the SealedSecrets in Git.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Store this file <strong>securely</strong> (e.g. password manager, encrypted drive) — never in Git.
-It can decrypt all your SealedSecrets.</p>
+<p>The decrypted keys can decrypt every SealedSecret sealed with them. Never
+store them unencrypted, and never in Git.</p>
 </div>
 </section>
-<section id="restore-after-rebuild">
-<h3>Restore after rebuild<a class="headerlink" href="#restore-after-rebuild" title="Link to this heading">#</a></h3>
-<p>Before ArgoCD deploys the sealed-secrets controller on a new cluster:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>sealed-secrets-key-backup.yaml
+<section id="restore-the-keys">
+<h3>Restore the keys<a class="headerlink" href="#restore-the-keys" title="Link to this heading">#</a></h3>
+<p>Fetch the nightly copy and check it, or use your offline copy:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NAS_DIR</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
+scp<span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/sealed-secrets-keys.yaml.age&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/sealed-secrets-keys.yaml.age.sha256&quot;</span><span class="w"> </span>.
+sha256sum<span class="w"> </span>-c<span class="w"> </span>sealed-secrets-keys.yaml.age.sha256
 </pre></div>
 </div>
-<p>The new controller will pick up the restored key and can decrypt existing SealedSecrets.</p>
+<p>Put the keys back before the controller starts, or restart it afterwards
+so that it loads them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>sealed-secrets-keys.yaml.age<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/sealed-secrets
+</pre></div>
+</div>
+<p>If the controller had already made a key of its own, it keeps it and seals
+new secrets with it, since its certificate is the newest; the restored keys
+still decrypt the SealedSecrets in Git.</p>
 </section>
 </section>
 <section id="etcd-backup-and-restore">
@@ -682,6 +742,9 @@ upgrade) once to <code class="docutils literal notranslate"><span class="pre">ba
 two for one version, it ships the earliest: a later one is a
 post-upgrade copy from a retried upgrade Job
 (<a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>);</p></li>
+<li><p>exports the sealed-secrets keys, encrypted the same way, to
+<code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys.yaml.age</span></code>, with dated copies in
+<code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys/</span></code> (<a class="reference internal" href="#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>);</p></li>
 <li><p>writes <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics for node-exporter’s textfile
 collector.</p></li>
 </ol>
@@ -718,7 +781,8 @@ just<span class="w"> </span>etcd-backup-now
 <section id="alerts-and-manual-checks">
 <h4>Alerts and manual checks<a class="headerlink" href="#alerts-and-manual-checks" title="Link to this heading">#</a></h4>
 <p>Four alerts in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/etcd-backup-rules.yaml</span></code>
-cover this backup: <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code> (the last run failed),
+cover this backup: <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code> (the last run failed, including
+a failed sealed-secrets key export),
 <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupStale</span></code> (no bundle for 36 hours),
 <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupNeverSucceeded</span></code> (no bundle yet, 36 hours after the job
 first reported) and <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code>. To check by hand:</p>
@@ -765,7 +829,9 @@ instead: <a class="reference internal" href="recover-control-plane.html"><span c
 <li><p>Run the one-time NAS setup (<code class="docutils literal notranslate"><span class="pre">docs/how-to/nas-setup.md</span></code>) so the
 cluster-owned <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> share exists on the NAS.</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">-e</span> <span class="pre">do_flash=true</span></code>.</p></li>
-<li><p>Restore the sealed-secrets key (if backed up).</p></li>
+<li><p>Restore the sealed-secrets keys if the old cluster died
+(<a class="reference internal" href="#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>). A planned rebuild reseals instead;
+re-export your offline key copy afterwards.</p></li>
 <li><p>Re-create the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (see <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>).</p></li>
 <li><p>ArgoCD auto-syncs all services from Git.</p></li>
 <li><p>If <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> was used on decommission, restore stateful
@@ -846,8 +912,10 @@ folders.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets-key-backup">Sealed Secrets key backup</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#export-the-key">Export the key</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-after-rebuild">Restore after rebuild</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-renewal-is-off">Key renewal is off</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nightly-encrypted-copy-on-the-nas">Nightly encrypted copy on the NAS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-an-offline-copy">Keep an offline copy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-the-keys">Restore the keys</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-and-restore">etcd backup and restore</a><ul class="nav section-nav flex-column">

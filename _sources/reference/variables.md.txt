@@ -81,6 +81,7 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | `etcd_backup_extra_prefixes` | `[pre-upgrade]` | Snapshot name prefixes also shipped to `<dest>/<prefix>/`: the earliest snapshot of each name, once |
 | `etcd_backup_extra_keep` | `4` | Bundles kept per extra prefix |
 | `etcd_backup_on_calendar` | `*-*-* 23:15:00 Europe/London` | systemd `OnCalendar` schedule |
+| `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
 
 ### `cluster` role (`roles/cluster/vars/main.yml`)

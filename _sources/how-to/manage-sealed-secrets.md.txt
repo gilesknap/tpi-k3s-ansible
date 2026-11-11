@@ -143,6 +143,7 @@ secrets via `envFrom` or `secretKeyRef` (Dex, Grafana,
 Headlamp, argocd-monitor) cache values at startup, so the script also
 rolls out the affected workloads automatically.
 
+(rotate-a-secret)=
 ## Rotate a secret
 
 To update an existing SealedSecret with a new value:
@@ -199,17 +200,86 @@ same way, since the phone app and the VPS hold copies; any left unset is
 generated. To rotate one on a live cluster, use
 `just seal-ntfy --rotate <user>` (see {doc}`ntfy`).
 
-:::{tip}
-Back up the sealed-secrets controller's private key if you want to preserve the ability
-to re-use existing SealedSecrets after a rebuild:
+A planned rebuild does not need the old sealing keys: it reads the
+plaintext values from the old cluster and reseals them. It does make a new
+key, so re-export your offline key copy afterwards
+({ref}`sealed-secrets-key-backup`). The key backup is for a cluster that
+died before you could export its values.
+
+### Decrypt SealedSecrets without a cluster
+
+With a key backup, `kubeseal` can decrypt the SealedSecrets in Git offline.
+`--recovery-private-key` takes the exported key Secrets as they are:
 
 ```bash
-kubectl get secret -n kube-system -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  -o yaml > sealed-secrets-key-backup.yaml
+kubeseal --recovery-unseal \
+  --recovery-private-key <(age -d -i ~/k3s-etcd-backup.agekey sealed-secrets-keys.yaml.age) \
+  < kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
 ```
 
-Store this backup **securely** (not in Git!) — it can decrypt all your SealedSecrets.
-:::
+This prints the Secret in plaintext: read the value you need, and don't
+save it to a file.
+
+(sealing-key-renewal)=
+## Sealing keys and renewal
+
+The controller seals with the newest of its keys and decrypts with any of
+them. Its automatic renewal, which by default adds a new key every 30 days,
+is turned off here (`keyrenewperiod: "0"` in
+`kubernetes-services/templates/sealed-secrets.yaml`):
+
+- Renewal never retires the old keys, so anything sealed with them still
+  decrypts, and an attacker holding an old key loses nothing.
+- It re-encrypts nothing: the SealedSecrets in Git stay sealed with
+  whichever key was newest when they were made.
+- It makes every offline export of the keys stale within a month.
+
+With renewal off, the key changes only when you rotate it by hand or rebuild
+the cluster, and an offline export stays valid until then. Keep that export
+up to date: {ref}`sealed-secrets-key-backup`.
+
+Rotating the key does not protect a secret value that has leaked. Change
+the value itself, then reseal it ({ref}`rotate-a-secret`).
+
+(rotate-sealing-key)=
+### Rotate the key by hand
+
+The controller makes a new key at startup when its newest key is older than
+its `--key-cutoff-time` (the chart's `keycutofftime` value, in RFC 1123
+form with a numeric zone, as `date -R` prints it). The controller also
+makes one on `SIGUSR1`, but its image has no shell to send that from, so
+set the cutoff through Git:
+
+1. Add the current time to the chart values in
+   `kubernetes-services/templates/sealed-secrets.yaml`:
+
+   ```yaml
+   helm:
+     valuesObject:
+       keyrenewperiod: "0"
+       keycutofftime: "Wed, 11 Nov 2026 10:00:00 +0000"   # date -R
+   ```
+
+2. Commit and push. When Argo CD syncs, the controller restarts and adds a
+   new key; its log says `New key written`. Old keys stay, so every
+   existing SealedSecret still decrypts. The setting can stay: on later
+   restarts the newest key is newer than the cutoff, so nothing happens.
+3. Optionally, re-encrypt the SealedSecrets in Git with the new key. This
+   reads the live controller and changes nothing in the cluster:
+
+   ```bash
+   for f in $(grep -rl '^kind: SealedSecret' kubernetes-services); do
+     kubeseal --re-encrypt --controller-name sealed-secrets \
+       --controller-namespace kube-system -o yaml < "$f" > "$f.new" \
+       && mv "$f.new" "$f"
+   done
+   ```
+
+   Commit and push the result. The old keys can be deleted only once
+   nothing sealed with them is left, in Git or in the cluster; leaving
+   them costs nothing.
+4. Re-export the offline copy of the keys ({ref}`sealed-secrets-key-backup`).
+   The nightly NAS copy picks up the new key by itself.
 
 ## Gotchas
 

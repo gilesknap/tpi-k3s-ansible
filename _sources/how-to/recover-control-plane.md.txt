@@ -104,6 +104,10 @@ The bundle unpacks to:
 | `config.yaml` | the server's `/etc/rancher/k3s/config.yaml`, for reference |
 | `MANIFEST` | node, time, k3s version and checksums |
 
+`sealed-secrets-keys.yaml.age`, next to the bundles, holds only the
+sealed-secrets keys ({ref}`sealed-secrets-key-backup`); the etcd snapshot
+holds them too.
+
 `pre-upgrade/` holds the snapshot taken just before each automatic k3s
 upgrade. Use one of those if the latest nightly was taken after a bad
 upgrade.
@@ -252,8 +256,10 @@ If something is off:
   `node-password` restored): run
   `kubectl -n kube-system delete secret <node>.node-password.k3s`.
 - **SealedSecrets fail with `no key could decrypt secret`:** the sealing key
-  was rotated after the snapshot. Restore the key from your sealed-secrets
-  key backup ({doc}`backup-restore`) or re-seal ({doc}`manage-sealed-secrets`).
+  was rotated after the snapshot. Restore the keys from
+  `backups/etcd/sealed-secrets-keys.yaml.age`, the nightly encrypted copy
+  next to the bundles, or from your offline copy
+  ({ref}`sealed-secrets-key-backup`), or re-seal ({doc}`manage-sealed-secrets`).
 - **Pods on a former worker are unreachable** (e.g. a readiness probe that
   times out), with IPs outside the node's podCIDR. The node re-registers
   with a new podCIDR, but until a reboot `/run/flannel/subnet.env` still

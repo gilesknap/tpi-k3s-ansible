@@ -554,6 +554,9 @@ cat<span class="w"> </span>MANIFEST
 </tbody>
 </table>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">sealed-secrets-keys.yaml.age</span></code>, next to the bundles, holds only the
+sealed-secrets keys (<a class="reference internal" href="backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>); the etcd snapshot
+holds them too.</p>
 <p><code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code> holds the snapshot taken just before each automatic k3s
 upgrade. Use one of those if the latest nightly was taken after a bad
 upgrade.</p>
@@ -684,8 +687,10 @@ Once the worker is <code class="docutils literal notranslate"><span class="pre">
 <code class="docutils literal notranslate"><span class="pre">node-password</span></code> restored): run
 <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">delete</span> <span class="pre">secret</span> <span class="pre">&lt;node&gt;.node-password.k3s</span></code>.</p></li>
 <li><p><strong>SealedSecrets fail with <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">key</span> <span class="pre">could</span> <span class="pre">decrypt</span> <span class="pre">secret</span></code>:</strong> the sealing key
-was rotated after the snapshot. Restore the key from your sealed-secrets
-key backup (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and Restore</span></a>) or re-seal (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
+was rotated after the snapshot. Restore the keys from
+<code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys.yaml.age</span></code>, the nightly encrypted copy
+next to the bundles, or from your offline copy
+(<a class="reference internal" href="backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>), or re-seal (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
 <li><p><strong>Pods on a former worker are unreachable</strong> (e.g. a readiness probe that
 times out), with IPs outside the node’s podCIDR. The node re-registers
 with a new podCIDR, but until a reboot <code class="docutils literal notranslate"><span class="pre">/run/flannel/subnet.env</span></code> still
