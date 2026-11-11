@@ -13,7 +13,7 @@ What is **not** in Git and needs separate backup:
 |------|-----------------|-----------------|
 | Stateful app data | static local-nvme PVs on worker nodes | nightly CronJob → NFS NAS |
 | scrap | NFS NAS, database replicated by Litestream | scrap chart's CronJobs → NFS NAS, nightly copy off the NAS |
-| Sealed Secrets private key | `kube-system` namespace | manual export |
+| Sealed Secrets private keys | `kube-system` namespace | nightly age-encrypted export → NFS NAS, plus your own offline copy |
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
 | ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
@@ -165,33 +165,84 @@ See scrap's
 [restore with Litestream](https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#k8s-restore-litestream)
 for the details and the refusals you may meet.
 
+(sealed-secrets-key-backup)=
 ## Sealed Secrets key backup
 
-If you rebuild the cluster, the sealed-secrets controller generates a new keypair.
-Existing SealedSecret YAML files in the repo will become undecryptable.
+The sealed-secrets controller decrypts SealedSecrets with private keys
+kept as Secrets in `kube-system`. A rebuilt cluster's controller makes a
+new key, and the SealedSecrets in Git cannot be decrypted without the old
+ones.
 
-### Export the key
+**A planned rebuild does not need the old keys.** The rebuild path reads
+the plaintext values from the old cluster (`scripts/export-external-creds`)
+and reseals everything against the new key ({doc}`manage-sealed-secrets`).
+The key backup is for a cluster that died: with it you can restore the keys
+before the controller starts, so the SealedSecrets in Git decrypt as they
+are, or decrypt them offline with
+`kubeseal --recovery-unseal --recovery-private-key <keys.yaml>`
+({doc}`manage-sealed-secrets`). That pair, the SealedSecrets in Git and the
+key backup, is the recovery copy of every sealed credential. The `.env`
+that a rebuild exports is not: delete it once the rebuild is verified.
+
+### Key renewal is off
+
+The controller's automatic key renewal (every 30 days by default) is turned
+off (`keyrenewperiod: "0"` in `kubernetes-services/templates/sealed-secrets.yaml`).
+Renewal only adds a key: it keeps every old key, so it does not cut off
+anything sealed with them, and it re-encrypts nothing. What it did do was
+make every offline key export stale within a month. With it off, an export
+stays valid until you rotate the key by hand
+({ref}`rotate-sealing-key`) or rebuild the cluster.
+
+### Nightly encrypted copy on the NAS
+
+The nightly etcd backup ({ref}`etcd-offsite-backup`) also exports the key
+Secrets, encrypted with age to the same public key as the etcd bundles:
+
+- `backups/etcd/sealed-secrets-keys.yaml.age`: the current keys, replaced
+  each night;
+- `backups/etcd/sealed-secrets-keys/sealed-secrets-keys-<UTC time>.yaml.age`:
+  dated copies, the newest 14 kept.
+
+The run fails, and `K3sEtcdBackupFailed` fires, if it finds no keys or
+cannot export them; the etcd bundle is still uploaded.
+
+### Keep an offline copy
+
+The NAS copy is lost with the NAS, so keep one elsewhere too (password
+manager, encrypted drive), encrypted to your age key. Pipe the export
+straight into age, so the plaintext keys never touch a disk:
 
 ```bash
 kubectl get secret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  -o yaml > sealed-secrets-key-backup.yaml
+  -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
+  | age -r age1... -o sealed-secrets-keys.yaml.age   # your etcd_backup_age_recipient
 ```
+
+Or copy the nightly file from the NAS. Re-export the offline copy after
+every manual rotation and **after every cluster rebuild**: a rebuild makes
+a new key and reseals everything with it, so the old copy no longer opens
+the SealedSecrets in Git.
 
 :::{warning}
-Store this file **securely** (e.g. password manager, encrypted drive) — never in Git.
-It can decrypt all your SealedSecrets.
+The decrypted keys can decrypt every SealedSecret sealed with them. Never
+store them unencrypted, and never in Git.
 :::
 
-### Restore after rebuild
+### Restore the keys
 
-Before ArgoCD deploys the sealed-secrets controller on a new cluster:
+Put the keys back before the controller starts, or restart it afterwards
+so that it loads them:
 
 ```bash
-kubectl apply -f sealed-secrets-key-backup.yaml
+age -d -i ~/k3s-etcd-backup.agekey sealed-secrets-keys.yaml.age \
+  | kubectl apply -f -
+kubectl -n kube-system rollout restart deployment/sealed-secrets
 ```
 
-The new controller will pick up the restored key and can decrypt existing SealedSecrets.
+If the controller had already made a key of its own, it keeps it and seals
+new secrets with it, since it is the newest; the restored keys still
+decrypt the SealedSecrets in Git.
 
 ## etcd backup and restore
 
@@ -225,7 +276,10 @@ upgrade windows, it:
    two for one version, it ships the earliest: a later one is a
    post-upgrade copy from a retried upgrade Job
    ({doc}`/explanations/upgrade-model`);
-5. writes `k3s_etcd_backup_*` metrics for node-exporter's textfile
+5. exports the sealed-secrets keys, encrypted the same way, to
+   `backups/etcd/sealed-secrets-keys.yaml.age`, with dated copies in
+   `backups/etcd/sealed-secrets-keys/` ({ref}`sealed-secrets-key-backup`);
+6. writes `k3s_etcd_backup_*` metrics for node-exporter's textfile
    collector.
 
 Nothing on the cluster holds the private key, so the cluster can make and
@@ -264,7 +318,8 @@ empty the job fails on every run and uploads nothing.
 #### Alerts and manual checks
 
 Four alerts in `kubernetes-services/additions/grafana/etcd-backup-rules.yaml`
-cover this backup: `K3sEtcdBackupFailed` (the last run failed),
+cover this backup: `K3sEtcdBackupFailed` (the last run failed, including
+a failed sealed-secrets key export),
 `K3sEtcdBackupStale` (no bundle for 36 hours),
 `K3sEtcdBackupNeverSucceeded` (no bundle yet, 36 hours after the job
 first reported) and `K3sEtcdBackupMetricsMissing`. To check by hand:
@@ -313,7 +368,9 @@ To rebuild a cluster from scratch:
 2. Run the one-time NAS setup (`docs/how-to/nas-setup.md`) so the
    cluster-owned `/bigdisk/k8s-cluster` share exists on the NAS.
 3. Run `ansible-playbook pb_all.yml -e do_flash=true`.
-4. Restore the sealed-secrets key (if backed up).
+4. Restore the sealed-secrets keys if the old cluster died
+   ({ref}`sealed-secrets-key-backup`). A planned rebuild reseals instead;
+   re-export your offline key copy afterwards.
 5. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
 6. ArgoCD auto-syncs all services from Git.
 7. If `wipe_local_data=true` was used on decommission, restore stateful

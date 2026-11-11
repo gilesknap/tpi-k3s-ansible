@@ -562,4 +562,12 @@ Tell the user:
   ```
   (No `--extra-vars` needed — `group_vars/all.yml` already has `repo_branch: main`.)
 - `/tmp/cluster-secrets/` has been deleted
+- The rebuild made a new sealing key, so their offline copy of the
+  sealed-secrets keys is now stale: re-export it as in
+  `docs/how-to/backup-restore.md` ("Keep an offline copy"). The nightly
+  NAS copy updates itself.
+- Once they have verified the rebuild, delete `.env` (`rm .env` at the
+  repo root): it holds the external credentials in plaintext and exists
+  only for the rebuild. The recovery copy of those credentials is the
+  SealedSecrets in Git plus the sealing-key backup, not `.env`.
 - Any issues discovered and how they were fixed

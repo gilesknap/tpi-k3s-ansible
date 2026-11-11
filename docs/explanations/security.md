@@ -159,7 +159,7 @@ All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
 ## Recommendations
 
 1. **Rotate SealedSecrets periodically** — re-seal with fresh values.
-3. **Back up the sealed-secrets key** — without it, a cluster rebuild requires re-creating all secrets.
+3. **Keep an offline copy of the sealed-secrets keys** — without them, the SealedSecrets in Git cannot be decrypted once the cluster is lost. The nightly etcd backup puts an encrypted copy on the NAS; re-export your own after a key rotation or a rebuild (see {ref}`sealed-secrets-key-backup`).
 4. **Keep nodes updated** — unattended-upgrades, kured and system-upgrade-controller patch and reboot nodes nightly (see {doc}`/explanations/upgrade-model`).
 5. **Monitor for alerts** — Prometheus Alertmanager captures security-relevant events.
 6. **Review the production checklist** — see {doc}`/reference/production-checklist`.
