@@ -214,12 +214,20 @@ manager, encrypted drive), encrypted to your age key. Pipe the export
 straight into age, so the plaintext keys never touch a disk:
 
 ```bash
+f=sealed-secrets-keys-$(date +%F).yaml.age
 kubectl get secret -n kube-system \
   -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
-  | age -r age1... -o sealed-secrets-keys.yaml.age   # your etcd_backup_age_recipient
+  | age -r age1... -o "$f"   # your etcd_backup_age_recipient
+# Check it holds the keys (prints a count, not the keys):
+age -d -i ~/k3s-etcd-backup.agekey "$f" | grep -c '^  kind: Secret$'
 ```
 
-Or copy the nightly file from the NAS. Re-export the offline copy after
+A new file per export means a failed `kubectl` cannot overwrite a good copy;
+the count must match `kubectl get secret -n kube-system -l
+sealedsecrets.bitnami.com/sealed-secrets-key`.
+
+Or copy the nightly file from the NAS. Right after a rebuild or a rotation
+it still holds the old keys, so run `just etcd-backup-now` first. Re-export the offline copy after
 every manual rotation and **after every cluster rebuild**: a rebuild makes
 a new key and reseals everything with it, so the old copy no longer opens
 the SealedSecrets in Git.

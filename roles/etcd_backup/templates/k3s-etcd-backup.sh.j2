@@ -255,22 +255,6 @@ mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
 date +%s > "$STATE_DIR/last_success"
 log "uploaded $DEST/$name ($size bytes)"
 
-# 5. Sealed-secrets keys: a fixed-name copy next to the bundles, replaced
-#    each night, plus dated copies kept like the bundles. A failure here
-#    does not stop the rest of the run, but fails it at the end.
-keys_failed=0
-keys_name="sealed-secrets-keys-$(date -u +%Y%m%dT%H%M%SZ).yaml.age"
-if export_keys "$WORK_DIR/$keys_name"; then
-    mkdir -p "$KEYS_DIR"
-    ship "$WORK_DIR/$keys_name" "$KEYS_DIR" "$keys_name"
-    ship "$WORK_DIR/$keys_name" "$DEST" "$KEYS_LATEST"
-    prune "$KEYS_DIR" "$KEEP" '*.yaml.age'
-    keys=$key_count
-    log "uploaded $DEST/$KEYS_LATEST ($keys keys)"
-else
-    keys_failed=1
-fi
-
 # name_time FILE: the unix time at the end of a snapshot or bundle name
 # (<name>-<node>-<unix time>[.tar.age]), or nothing if it has none.
 name_time() {
@@ -300,7 +284,7 @@ oldest_per_name() {
         done | sort -n -k1,1 | awk '!seen[$2]++ { print $2, $1, $3 }'
 }
 
-# 6. Ship each extra snapshot name (e.g. one pre-upgrade name per k3s
+# 5. Ship each extra snapshot name (e.g. one pre-upgrade name per k3s
 #    version) once, from its earliest snapshot. The NAS keeps one bundle
 #    per name and node, the earliest seen: the earliest local file, unless
 #    the NAS already holds an earlier one (the local file may since have
@@ -342,7 +326,20 @@ for prefix in "${EXTRA_PREFIXES[@]}"; do
     fi
 done
 
-if [[ $keys_failed == 1 ]]; then
-    die "the sealed-secrets key export failed; the etcd bundle was uploaded"
+# 6. Sealed-secrets keys: a fixed-name copy next to the bundles, replaced
+#    each night, plus dated copies kept like the bundles. Last, so that
+#    nothing here can stop the bundles above from shipping; a failed
+#    export still fails the run.
+keys_name="sealed-secrets-keys-$(date -u +%Y%m%dT%H%M%SZ).yaml.age"
+if export_keys "$WORK_DIR/$keys_name"; then
+    mkdir -p "$KEYS_DIR"
+    ship "$WORK_DIR/$keys_name" "$KEYS_DIR" "$keys_name"
+    ship "$WORK_DIR/$keys_name" "$DEST" "$KEYS_LATEST"
+    prune "$KEYS_DIR" "$KEEP" '*.yaml.age'
+    keys=$key_count
+    log "uploaded $DEST/$KEYS_LATEST ($keys keys)"
+else
+    die "the sealed-secrets key export failed; the etcd bundles were uploaded"
 fi
+
 write_metrics 1
