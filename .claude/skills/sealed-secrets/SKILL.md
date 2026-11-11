@@ -86,6 +86,21 @@ produces a different ciphertext each run. This is expected. Don't try
 to diff-match sealed ciphertexts — diff the underlying plaintext via
 the generator script or compare decrypted `Secret` contents on-cluster.
 
+## Sealing keys: renewal off, backed up nightly
+
+- Automatic key renewal is **off** (`keyrenewperiod: "0"` in
+  `kubernetes-services/templates/sealed-secrets.yaml`), so the key changes
+  only on a manual rotation or a rebuild. To rotate, set the chart's
+  `keycutofftime` (`date -R`) through Git; the controller makes a new key
+  when it restarts. Then optionally `kubeseal --re-encrypt` the repo's
+  SealedSecrets. See `docs/how-to/manage-sealed-secrets.md`.
+- The nightly `k3s-etcd-backup` job exports the key Secrets, age-encrypted,
+  to `backups/etcd/sealed-secrets-keys.yaml.age` on the NAS. Never write
+  the decrypted keys to disk or print them; pipe `age -d` straight into
+  `kubectl apply -f -` or `kubeseal --recovery-private-key <(...)`.
+- After a rebuild or rotation the user's offline key copy is stale:
+  remind them to re-export it (`docs/how-to/backup-restore.md`).
+
 ## Key files
 
 - `scripts/seal-argocd-dex` — main Dex/OAuth sealing entry point

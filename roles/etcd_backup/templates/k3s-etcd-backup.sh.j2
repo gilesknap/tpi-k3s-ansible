@@ -6,8 +6,11 @@
 # Takes an etcd snapshot, bundles it with the server token, the node
 # password and the k3s config into a tar stream, encrypts the stream with
 # age to the public key(s) in /etc/k3s-etcd-backup/recipients, and copies
-# the result to the NAS. Plaintext is only ever piped into age, never
-# written to disk or to the NAS. This host cannot decrypt the bundles.
+# the result to the NAS. Also exports the sealed-secrets controller's
+# sealing keys, encrypted the same way, to a small file of their own, so
+# they can be restored without etcd tooling. Plaintext is only ever piped
+# into age, never written to disk or to the NAS. This host cannot decrypt
+# the bundles.
 #
 # Run by k3s-etcd-backup.timer. Writes node-exporter textfile metrics so
 # a failed or stale backup raises an alert.
@@ -25,6 +28,10 @@ KEEP={{ etcd_backup_keep }}
 EXTRA_PREFIXES=({{ etcd_backup_extra_prefixes | map('quote') | join(' ') }})
 EXTRA_KEEP={{ etcd_backup_extra_keep }}
 TEXTFILE_DIR={{ etcd_backup_textfile_dir }}
+KEYS_DIR="$DEST/sealed-secrets-keys"
+KEYS_LATEST=sealed-secrets-keys.yaml.age
+KEYS_NS={{ etcd_backup_sealed_secrets_namespace | quote }}
+KEYS_SELECTOR=sealedsecrets.bitnami.com/sealed-secrets-key
 NODE=$(hostname -s)
 
 log() { echo "k3s-etcd-backup: $*" >&2; }
@@ -32,6 +39,8 @@ log() { echo "k3s-etcd-backup: $*" >&2; }
 mounted_here=false
 fresh=0
 size=0
+keys=0
+key_count=0
 
 write_metrics() {
     local success=$1 now last_success=0 prom tmp
@@ -59,6 +68,9 @@ k3s_etcd_backup_last_snapshot_fresh $fresh
 # HELP k3s_etcd_backup_last_size_bytes Size of the last encrypted bundle.
 # TYPE k3s_etcd_backup_last_size_bytes gauge
 k3s_etcd_backup_last_size_bytes $size
+# HELP k3s_etcd_backup_sealed_secrets_keys Sealing keys the last run exported to the NAS, 0 if it exported none.
+# TYPE k3s_etcd_backup_sealed_secrets_keys gauge
+k3s_etcd_backup_sealed_secrets_keys $keys
 EOF
     chmod 0644 "$tmp"
     mv -f "$tmp" "$prom"
@@ -183,17 +195,49 @@ ship() {
     echo "$want  $name" > "$dir/$name.sha256"
 }
 
-# prune DIR KEEP: keep the newest KEEP bundles by mtime (not by name,
-# which starts with the node name), and drop stray .partial files from
-# failed runs once they are a day old.
+# prune DIR KEEP [GLOB]: keep the newest KEEP files matching GLOB
+# (default *.tar.age) by mtime (not by name, which starts with the node
+# name), and drop stray .partial files from failed runs once they are a
+# day old.
 prune() {
-    local dir=$1 keep=$2 old
-    find "$dir" -maxdepth 1 -type f -name '*.tar.age' -printf '%T@ %f\n' \
+    local dir=$1 keep=$2 glob=${3:-*.tar.age} old
+    find "$dir" -maxdepth 1 -type f -name "$glob" -printf '%T@ %f\n' \
         | sort -n | cut -d' ' -f2- \
         | head -n -"$keep" | while read -r old; do
             rm -f "$dir/$old" "$dir/$old.sha256"
         done
     find "$dir" -maxdepth 1 -type f -name '.*.partial' -mmin +1440 -delete
+}
+
+# export_keys OUT: encrypt the sealed-secrets controller's sealing key
+# Secrets to OUT. The YAML is piped straight into age. Sets key_count to
+# the number exported; returns non-zero if there are none or the API
+# server cannot list or read them.
+export_keys() {
+    local out=$1 names
+    local -a objs
+    key_count=0
+    if ! names=$(k3s kubectl get secret -n "$KEYS_NS" -l "$KEYS_SELECTOR" \
+        -o name --request-timeout=60s 2> "$WORK_DIR/keys.log"); then
+        log "ERROR: could not list the sealed-secrets keys:"
+        cat "$WORK_DIR/keys.log" >&2
+        return 1
+    fi
+    if [[ -z $names ]]; then
+        log "ERROR: no sealed-secrets keys ($KEYS_SELECTOR) in $KEYS_NS"
+        return 1
+    fi
+    # Export exactly the Secrets listed, so the count matches the file.
+    mapfile -t objs <<< "$names"
+    if ! k3s kubectl get -n "$KEYS_NS" "${objs[@]}" \
+        -o yaml --request-timeout=60s 2> "$WORK_DIR/keys.log" \
+        | age -R "$RECIPIENTS" -o "$out"; then
+        log "ERROR: could not export the sealed-secrets keys:"
+        cat "$WORK_DIR/keys.log" >&2
+        rm -f "$out"
+        return 1
+    fi
+    key_count=$(grep -c . <<< "$names")
 }
 
 # 4. Nightly bundle.
@@ -206,6 +250,9 @@ printf 'bundle: %s\ncreated: %s\nsnapshot: %s\nfresh: %s\n' \
     "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$snapshot")" "$fresh" \
     > "$DEST/.LATEST.tmp"
 mv -f "$DEST/.LATEST.tmp" "$DEST/LATEST"
+# The bundle is on the NAS: record that now, so a later failure in this
+# run (e.g. the key export) does not also make the backup look stale.
+date +%s > "$STATE_DIR/last_success"
 log "uploaded $DEST/$name ($size bytes)"
 
 # name_time FILE: the unix time at the end of a snapshot or bundle name
@@ -278,5 +325,21 @@ for prefix in "${EXTRA_PREFIXES[@]}"; do
         prune "$extra_dir" "$EXTRA_KEEP"
     fi
 done
+
+# 6. Sealed-secrets keys: a fixed-name copy next to the bundles, replaced
+#    each night, plus dated copies kept like the bundles. Last, so that
+#    nothing here can stop the bundles above from shipping; a failed
+#    export still fails the run.
+keys_name="sealed-secrets-keys-$(date -u +%Y%m%dT%H%M%SZ).yaml.age"
+if export_keys "$WORK_DIR/$keys_name"; then
+    mkdir -p "$KEYS_DIR"
+    ship "$WORK_DIR/$keys_name" "$KEYS_DIR" "$keys_name"
+    ship "$WORK_DIR/$keys_name" "$DEST" "$KEYS_LATEST"
+    prune "$KEYS_DIR" "$KEEP" '*.yaml.age'
+    keys=$key_count
+    log "uploaded $DEST/$KEYS_LATEST ($keys keys)"
+else
+    die "the sealed-secrets key export failed; the etcd bundles were uploaded"
+fi
 
 write_metrics 1
