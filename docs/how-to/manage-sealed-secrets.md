@@ -37,7 +37,7 @@ These secrets are created during the setup guides:
 |--------|-----------|---------|------|
 | `cloudflared-credentials` | `cloudflared` | Cloudflare tunnel token | additions/cloudflared/tunnel-secret.yaml |
 | `cloudflare-api-token` | `cert-manager` | DNS-01 API token | additions/cert-manager/templates/cloudflare-api-token-secret.yaml |
-| `oauth2-proxy-secret` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
+| `oauth2-proxy-credentials` | `oauth2-proxy` | OAuth2 cookie + client secrets | additions/oauth2-proxy/oauth2-proxy-secret.yaml |
 | `vps-relay-credentials` | `vps-relay` | Tailscale OAuth client secret + frp token for the VPS relay (optional — see {doc}`vps-relay`) | additions/vps-relay/templates/vps-relay-secret.yaml |
 | `scrap-secrets` | `scrap` | Claude API key + `/mcp` bearer token for scrap (see {doc}`scrap`) | additions/scrap/templates/scrap-secret.yaml |
 | `ntfy-auth` | `ntfy` | ntfy users (bcrypt hashes) and access tokens (see {doc}`ntfy`) | additions/ntfy/templates/ntfy-auth-secret.yaml |
@@ -140,8 +140,11 @@ scripts/seal-argocd-dex grafana      # Rotate grafana Dex client secret
 Commit the updated `*-secret.yaml` files and push. ArgoCD syncs them
 and the sealed-secrets controller decrypts them. Pods that read
 secrets via `envFrom` or `secretKeyRef` (Dex, Grafana,
-Headlamp, argocd-monitor) cache values at startup, so the script also
-rolls out the affected workloads automatically.
+argocd-monitor) cache values at startup, so restart them once ArgoCD
+has synced the new SealedSecret: `just restart-dex` for Dex,
+`kubectl -n monitoring rollout restart sts grafana-prometheus` for
+grafana, and `kubectl -n argocd-monitor rollout restart deployment` for
+monitor. The script itself restarts nothing.
 
 (rotate-a-secret)=
 ## Rotate a secret

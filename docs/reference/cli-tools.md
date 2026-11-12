@@ -41,21 +41,30 @@ kubeseal --fetch-cert > pub-cert.pem
 
 See {doc}`/how-to/manage-sealed-secrets` for the full workflow.
 
+### argocd
+
+ArgoCD CLI (pinned version). Installed to `$BIN_DIR` and linked into
+`/usr/local/bin/argocd`.
+
+```bash
+argocd app list --core
+```
+
 ## Port-forward scripts
 
-The `tools` role installs convenience scripts to `/usr/local/bin/` for accessing
-services when ingress is unavailable or from the devcontainer.
+The `tools` role installs convenience scripts to `$BIN_DIR` (default `/root/bin`,
+which the role adds to `PATH`) for accessing services when ingress is unavailable
+or from the devcontainer.
 
 ### `argo.sh`
 
-Opens a port-forward to the ArgoCD server and prints the initial admin password.
+Opens a port-forward to the ArgoCD server in the background.
 
 ```text
 ArgoCD will be available at:
   https://argocd.<domain>
-  or https://localhost:8080
-  Username: admin
-  Initial Password: <printed>
+  or http://localhost:8080
+  Login via GitHub (Dex)
 ```
 
 ### `grafana.sh`
@@ -84,7 +93,7 @@ The role configures these for both bash and zsh:
 
 - `k` alias for `kubectl`
 - Shell completions for `kubectl`, `helm`, `kubeseal`
-- `KUBECONFIG` set to the cluster kubeconfig
+- kubeconfig written to `~/.kube/config`
 
 ## Additional packages
 

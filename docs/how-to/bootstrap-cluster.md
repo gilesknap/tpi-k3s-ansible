@@ -6,20 +6,17 @@ all services. Follow these steps to finish the setup.
 :::{tip}
 **NAS prerequisite for backups.** The daily and weekly backup CronJobs write
 to an NFS export on a NAS. If you intend to run backups (recommended for any
-stateful workload — Grafana, Prometheus), set up the
+stateful workload — Grafana, Jellyfin), set up the
 NAS share **before** the first backup runs. See {doc}`nas-setup` — this is a
 one-time manual runbook on the NAS itself.
 :::
 
 ## Set Up the Shared Admin Password
 
-Several services share a common admin password via a Kubernetes secret called
-`admin-auth`. This secret is **not managed by ArgoCD** — it is created manually.
-
-| Service | How it uses `admin-auth` |
-|---------|-------------------------|
-| ArgoCD | Admin password via `argocd-secret` patch |
-| Grafana | `admin.existingSecret` references `admin-auth` |
+Grafana's built-in admin account reads its password from a Kubernetes secret
+called `admin-auth` (via `admin.existingSecret`). This secret is **not managed
+by ArgoCD** — it is created manually. ArgoCD does not use it: the ArgoCD
+local admin account is disabled and all logins go through Dex (GitHub).
 
 The quickest way to set the password is with the Justfile target:
 
@@ -29,7 +26,7 @@ just set-admin-password
 
 This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
 creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
-Grafana), patches the ArgoCD admin password, and restarts the ArgoCD server.
+Grafana).
 
 To update the password later, re-run the same command and restart cached
 services:
@@ -44,10 +41,11 @@ kubectl -n monitoring rollout restart statefulset grafana-prometheus
 Access ArgoCD via port-forward to check that all services are deploying:
 
 ```bash
-kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
+kubectl port-forward svc/argocd-server -n argo-cd 8080:80
 ```
 
-Login with `admin` and the password you just set. You should see
+Open http://localhost:8080 and click **Log in via GitHub** (Dex); your email
+must be in `admin_emails` for admin rights. You should see
 `all-cluster-services` and its child applications. Allow a few minutes for all
 services to reach `Synced / Healthy`.
 
@@ -58,26 +56,16 @@ kubectl patch application all-cluster-services -n argo-cd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
-## Verify Headlamp OIDC Login
+## Verify Headlamp Login
 
-Headlamp authenticates via Dex (GitHub SSO). After ArgoCD syncs, visit
-``https://headlamp.<your-domain>`` and click **Sign in**. You will be
-redirected to GitHub via Dex. Admin emails get ``cluster-admin`` access;
-viewer emails get read-only ``view`` access.
-
-:::{note}
-Headlamp OIDC requires the K3s API server to be configured with OIDC
-flags. The Ansible ``k3s`` role deploys these automatically via
-``/etc/rancher/k3s/config.yaml``. If you see token validation errors,
-verify the config is deployed and k3s has been restarted.
-:::
-
-## Clean Up the Initial Admin Secret
-
-After verifying everything works, delete the auto-generated secret:
+Headlamp sits behind the cluster-wide oauth2-proxy. After ArgoCD syncs, visit
+``https://headlamp.<your-domain>`` and pass the GitHub oauth2-proxy gate (only
+emails in ``admin_emails`` are let through). Headlamp then asks for a token:
+paste one from
 
 ```bash
-kubectl -n argo-cd delete secret argocd-initial-admin-secret
+just headlamp-token
+# or: kubectl create token headlamp -n headlamp
 ```
 
 ## Next Steps

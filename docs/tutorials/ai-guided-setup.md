@@ -38,14 +38,19 @@ Claude will guide you through:
 1. **Hardware inventory** — Turing Pi slots and node types, or generic server
    hostnames
 2. **Cluster personalisation** — domain name, email, GitHub fork URL
-3. **Optional features** — NFS storage, OAuth, Cloudflare tunnel
+3. **Optional features** — NFS storage, and whether you already have the
+   GitHub OAuth and Cloudflare credentials (all six are needed to generate
+   every secret in one go; otherwise OAuth and Cloudflare are set up later)
 4. **File configuration** — edits `hosts.yml`, `group_vars/all.yml`, and
    `kubernetes-services/values.yaml` based on your answers
 5. **SSH key setup** — checks for an existing key or walks you through
    generating one
 6. **Playbook execution** — runs the Ansible playbook to flash nodes (Turing Pi)
    or configure servers, install K3s, and deploy ArgoCD
-7. **Secret generation** — creates the shared admin password
+7. **Secret generation** — with all OAuth and Cloudflare credentials
+   exported, `GENERATE_SECRETS=true` generates and seals every secret during
+   the playbook run; without them, `just set-admin-password` creates just
+   the shared admin password
 8. **Credentials file** — writes everything to `/tmp/cluster-credentials.txt`
    for safekeeping
 

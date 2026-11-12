@@ -26,7 +26,7 @@ The rest of this page explains what makes it possible.
 
 ### Guardrails before capabilities
 
-The project's `CLAUDE.md` file (68 lines) establishes hard boundaries before
+The project's `CLAUDE.md` file (about 110 lines) establishes hard boundaries before
 granting any capabilities. The most important rules:
 
 - **Never mutate the live cluster** — no `kubectl apply/patch/delete` on
@@ -45,16 +45,15 @@ Credentials are scoped per-repository via named Docker volumes.
 
 ### Encoded operational knowledge
 
-The `.claude/` directory contains **1,506 lines** across 14 files — more
+The `.claude/` directory contains **about 2,000 lines** across 10 files — more
 configuration surface than many of the services it manages:
 
 | Type | Count | Total lines | Purpose |
 |------|-------|-------------|---------|
-| Commands | 6 | 1,106 | Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash, memo) |
-| Skills | 4 | 355 | On-demand domain knowledge (ansible, sealed-secrets, oauth, cloudflare) |
-| Settings | 2 | 45 | Permission model and hooks |
+| Commands | 5 | about 1,300 | Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash) |
+| Skills | 5 | about 700 | On-demand domain knowledge (ansible, argocd, sealed-secrets, oauth, cloudflare) |
 
-The largest single file is `rebuild-cluster.md` at 375 lines — an 8-phase
+The largest single file is `rebuild-cluster.md` at about 570 lines — an 8-phase
 runbook encoding knowledge from real incidents: WaitForFirstConsumer PV
 binding, Prometheus webhook bootstrap races, OAuth cookie collisions across
 namespaces, and the precise order of Dex restarts after a reseal.
@@ -65,11 +64,12 @@ every time, without forgetting steps.
 
 ### Configuration concentration
 
-Almost every cluster-level choice lives in two files totalling **135 lines**:
+Almost every cluster-level choice lives in two files totalling **about 500
+lines**, much of it comments:
 
-- `group_vars/all.yml` (59 lines) — cluster domain, admin emails, repo URL,
+- `group_vars/all.yml` (about 170 lines) — cluster domain, admin emails, repo URL,
   storage paths
-- `kubernetes-services/values.yaml` (76 lines) — service toggles and
+- `kubernetes-services/values.yaml` (about 340 lines) — service toggles and
   version pins
 
 A third file, `hosts.yml`, owns the hardware topology
@@ -78,7 +78,7 @@ through the other two — hardware varies too much between forks. But
 it is still a small, single place to look when the agent needs to
 know which physical node runs what.
 
-Four boolean flags control which optional services are deployed. When Claude
+Six `enable_*` flags control which optional services and features are deployed. When Claude
 needs to enable or disable a service, there is exactly one place to look.
 This concentration is deliberate: a small change surface means fewer places
 for an agent to make mistakes, and fewer files to read before understanding
@@ -128,8 +128,8 @@ code alone.
 - The **plan-clean-execute cycle**: plan in one context, `/clear`, execute
   in fresh context with the plan file as the guide — avoids stale
   assumptions accumulating
-- Always [`/memo`](https://github.com/gilesknap/tpi-k3s-ansible/blob/main/.claude/commands/memo.md) before `/clear`. This custom
-  command reviews the current conversation and automatically promotes what
+- Always `/memo` before `/clear`. This custom command (a user-level skill,
+  not part of this repo) reviews the current conversation and automatically promotes what
   was learned into the right permanent home: foot-guns and constraints go
   to CLAUDE.md, procedural knowledge goes to skills, troubleshooting
   patterns go to repo docs, and transient state goes to memory. It then
@@ -228,7 +228,7 @@ These are concrete, actionable steps drawn from the patterns above.
 
 2. **Concentrate configuration.** The fewer files an agent needs to read to
    understand system state, the fewer mistakes it will make. Two config
-   files plus an inventory file totalling 135 lines is better than 20
+   files plus an inventory file totalling a few hundred lines is better than 20
    files totalling 2,000 lines, even if the latter is more "modular."
 
 3. **Use GitOps or equivalent reconciliation.** If mistakes are fixed by
@@ -239,7 +239,7 @@ These are concrete, actionable steps drawn from the patterns above.
 
 4. **Encode operational knowledge as runbooks.** Complex multi-step
    procedures (rebuilds, migrations, incident response) should be
-   machine-readable command files, not wiki pages. A 375-line runbook that
+   machine-readable command files, not wiki pages. A 570-line runbook that
    an agent follows precisely is more reliable than a human following a
    checklist from memory.
 
@@ -275,9 +275,9 @@ These are concrete, actionable steps drawn from the patterns above.
     the knowledge ratchet: each session leaves the system smarter than it
     found it.
 
-11. **Reuse project-agnostic commands.** Two commands in this repo's
-    `.claude/commands/` directory — `/memo` and `/pr-squash` — are not
-    specific to K3s or Ansible. Copy them into your own project to get the
+11. **Reuse project-agnostic commands.** One command in this repo's
+    `.claude/commands/` directory, `/pr-squash`, is not specific to K3s or
+    Ansible, and neither is the user-level `/memo` skill. Copy them into your own project to get the
     same workflow benefits without writing them from scratch.
 
 12. **Keep long-running output out of context.** Commands like

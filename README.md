@@ -8,8 +8,8 @@ An **Infrastructure-as-Code** Ansible project that commissions a
 [Turing Pi](https://turingpi.com/) v2.5 boards (RK1 / CM4 compute modules)
 and arbitrary additional Linux servers — fully idempotent and repeatable.
 
-All cluster customisation lives in just **two files**
-(`group_vars/all.yml` and `kubernetes-services/values.yaml`),
+All cluster customisation lives in **three files**
+(`hosts.yml`, `group_vars/all.yml` and `kubernetes-services/values.yaml`),
 so you can fork the repo, edit those files, and have your own cluster running
 in minutes.
 
@@ -37,10 +37,10 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 
 ### Infrastructure
 
-- **Automated flashing** of Turing Pi compute modules with Ubuntu 24.04 LTS
+- **Automated flashing** of Turing Pi compute modules with stock Ubuntu (26.04 on RK1, 24.04 on CM4)
 - **Optional NVMe migration** — move the root filesystem to fast storage
 - **K3s cluster** with one control-plane node and multiple workers
-- **Works with any modern Linux server** — Turing Pi hardware is optional
+- **Works with any Ubuntu server** — Turing Pi hardware is optional
 - **Kernel tuning** — DaemonSet for network buffers and multipathd fixes
 
 ### GitOps & Deployment
@@ -84,7 +84,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 
 1. Install [Podman](https://podman.io/) and VS Code
 2. Fork this repo, clone it, and reopen in the devcontainer
-3. Edit `group_vars/all.yml` and `kubernetes-services/values.yaml`
+3. Edit `hosts.yml`, `group_vars/all.yml` and `kubernetes-services/values.yaml`
    to match your environment
 4. Run:
 

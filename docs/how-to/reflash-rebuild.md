@@ -13,7 +13,6 @@ force flags to override this behaviour:
 | `-e flash_force=true` | Re-flash all nodes (erases eMMC even if OS is installed, and on RK1s with `root_dev` the NVMe) |
 | `-e do_flash=true` | Enable flashing, but only of nodes that don't answer SSH. On an RK1 with `root_dev` it never wipes an NVMe that has a partition table: the play stops and asks for `flash_force` |
 | `-e k3s_force=true` | Uninstall and reinstall K3s on all nodes |
-| `-e cluster_force=true` | Force reinstall of ArgoCD and cluster services |
 
 ## Re-flash and rebuild the entire cluster
 
@@ -58,8 +57,8 @@ ansible-playbook pb_all.yml --tags k3s,cluster -e k3s_force=true
 This uninstalls K3s from every node, reinstalls it, and redeploys ArgoCD and all services.
 Stateful workload data under `/home/k8s-data/*` (nuc2) and `/var/lib/k8s-data/*`
 (RK1 nodes) is preserved by default — these host directories back the static
-`local-nvme` PVs and are left untouched unless `-e wipe_local_data=true` is
-passed. NFS backups on the NAS are always preserved (they live outside the
+`local-nvme` PVs and are left untouched (only `pb_decommission.yml -e
+wipe_local_data=true` or a re-flash removes them). NFS backups on the NAS are always preserved (they live outside the
 cluster), and so is scrap's data, which is on static NFS volumes there.
 
 ## Reinstall K3s on a single worker
@@ -74,10 +73,10 @@ as a worker.
 ## Redeploy cluster services only
 
 ```bash
-ansible-playbook pb_all.yml --tags cluster -e cluster_force=true
+ansible-playbook pb_all.yml --tags cluster
 ```
 
-This reinstalls ArgoCD. After ArgoCD is up, it resynchronises all services from Git.
+This re-runs the ArgoCD helm install/upgrade. After ArgoCD is up, it resynchronises all services from Git.
 
 ## Run a single stage
 
@@ -95,7 +94,7 @@ ansible-playbook pb_all.yml --tags cluster      # Install/update ArgoCD + servic
 
 | Operation | eMMC | NVMe | `local-nvme` data dirs | NFS backups on NAS | ArgoCD state |
 |-----------|------|------|-------------------------|--------------------|--------------|
-| Re-flash (CM4, or RK1 without `root_dev`) | Erased | Unchanged | Preserved (on host) | Preserved (external) | Redeployed from Git |
+| Re-flash (CM4, or RK1 without `root_dev`) | Erased | Unchanged | **Lost** (on the erased root fs) | Preserved (external) | Redeployed from Git |
 | Re-flash (RK1 with `root_dev`) | Erased (U-Boot only) | Erased, fresh install | **Lost** on that node | Preserved (external) | Redeployed from Git |
 | K3s reinstall | Unchanged | Unchanged | Preserved | Preserved | Redeployed from Git |
 | Cluster redeploy | Unchanged | Unchanged | Preserved | Preserved | Reinstalled |

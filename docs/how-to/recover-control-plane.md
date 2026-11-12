@@ -53,7 +53,7 @@ For a spare node, set it as the control plane first, on a branch:
 ```yaml
 # group_vars/all.yml
 control_plane: node03
-standby_control_plane: node04 # the next spare, or empty for none
+standby_control_plane: "" # or the next spare: a node with no local-nvme PV
 ```
 
 Repoint or clear `standby_control_plane` in the same change. The `cluster`

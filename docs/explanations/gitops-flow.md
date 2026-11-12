@@ -91,7 +91,7 @@ The only legitimate `kubectl` commands during normal operation are **read-only**
 
 ```bash
 kubectl get pods -A
-kubectl logs -n monitoring deployment/grafana
+kubectl logs -n monitoring statefulset/grafana-prometheus -c grafana
 kubectl describe node node02
 kubectl get applications -n argo-cd
 ```
@@ -100,10 +100,11 @@ These commands inspect cluster state without modifying it.
 
 ## What if ArgoCD is down?
 
-If ArgoCD itself is broken, the `cluster` Ansible role can reinstall it:
+If ArgoCD itself is broken, re-running the `cluster` Ansible role re-runs the
+ArgoCD helm install/upgrade:
 
 ```bash
-ansible-playbook pb_all.yml --tags cluster -e cluster_force=true
+ansible-playbook pb_all.yml --tags cluster
 ```
 
 Once ArgoCD is back, it re-syncs all services from Git automatically.

@@ -100,18 +100,24 @@ For services that need HTTP/HTTPS ingress, use the reusable ingress sub-chart at
   path: kubernetes-services/additions/ingress
   helm:
     valuesObject:
+      name: my-service   # host is my-service.<cluster_domain>
       cluster_domain: {{ "{{" }} .Values.cluster_domain {{ "}}" }}
       service_name: my-service
       service_port: 8080
       # Optional:
+      # oauth2_proxy: true   # Gate with the cluster-wide oauth2-proxy
+      # ssl_redirect: false  # No HTTP->HTTPS redirect (e.g. behind the tunnel)
       # basic_auth: true     # Enable nginx basic-auth (uses admin-auth secret)
+      # extra_annotations:   # Any other Ingress annotations
+      #   nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 ```
 
 The ingress sub-chart creates a standard Ingress resource with:
 
-- TLS using the `letsencrypt-prod` ClusterIssuer
-- Host-based routing (`my-service.<cluster_domain>`)
-- Optional nginx basic-auth
+- TLS using the cluster wildcard certificate (served by ingress-nginx as its
+  default certificate)
+- Host-based routing (`<name>.<cluster_domain>`)
+- Optional oauth2-proxy gating, nginx basic-auth and extra annotations
 
 ### Step 4: Commit and push
 
