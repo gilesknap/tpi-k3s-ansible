@@ -85,12 +85,18 @@ Grafana will be available at:
 
 ### `dashboard.sh`
 
-Generates a Headlamp login token and opens a port-forward on port 8443.
+Opens a port-forward to Headlamp on port 4466 in the background and prints a
+24 hour token for the `headlamp` ServiceAccount, to paste into Headlamp's login
+page (after the GitHub sign-in when going through the ingress).
 
 ```text
-Login Token: <printed>
-URL: https://dashboard.<domain>
- or: https://localhost:8443
+Login Token:
+<printed>
+
+Headlamp will be available at:
+  https://headlamp.<domain>
+or
+  http://localhost:4466
 ```
 
 ## Shell configuration

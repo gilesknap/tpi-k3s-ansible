@@ -41,7 +41,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 - **Optional NVMe migration** — move the root filesystem to fast storage
 - **K3s cluster** with one control-plane node and multiple workers
 - **Works with any Ubuntu server** — Turing Pi hardware is optional
-- **Kernel tuning** — DaemonSet for network buffers and multipathd fixes
+- **Kernel tuning** — DaemonSet for network buffer sizes
 
 ### GitOps & Deployment
 

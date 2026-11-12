@@ -26,10 +26,7 @@ just set-admin-password
 
 This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment)
 and creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
-Grafana). The script still also writes a leftover ``admin-auth`` secret into a
-``longhorn`` namespace and sets ``admin.password`` in ``argocd-secret``
-(restarting ``argocd-server``); neither has any effect now that Longhorn is
-gone and the ArgoCD admin account is disabled.
+Grafana).
 
 Grafana reads this password only when it first creates its database, so
 re-running `just set-admin-password` later does not change the password of a
