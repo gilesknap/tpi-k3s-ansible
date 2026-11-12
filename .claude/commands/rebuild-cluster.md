@@ -422,7 +422,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
 - [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)
 - [ ] scrap restored its data: `kubectl -n scrap logs deploy/scrap -c db-init`
       says it restored the replica, never that it made a new database
-- [ ] Jellyfin back on its config: the `jellyfin` app is Healthy and its
+- [ ] Jellyfin (skip if `enable_jellyfin` is false) back on its config: the `jellyfin` app is Healthy and its
       config PVC is Bound to the `jellyfin-local` PV
       (`kubectl get pvc -n jellyfin`)
 

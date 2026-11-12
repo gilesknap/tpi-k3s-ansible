@@ -63,6 +63,11 @@ export CLOUDFLARE_TUNNEL_TOKEN=...
 just generate-and-seal-all
 ```
 
+If scrap is enabled, also export `SCRAP_ANTHROPIC_API_KEY` (and optionally
+`SCRAP_MCP_TOKEN` and `SCRAP_PUBLISH_TOKEN`; see `scripts/generate-secrets`).
+Without it scrap's secrets are skipped, and on a new cluster scrap cannot
+start.
+
 This generates and seals `argocd-dex-secret`, `grafana-oauth-secret`,
 `argocd-monitor-oauth` and `oauth2-proxy-credentials` together, along
 with the other cluster secrets. The `argo-cd` Dex client secret is derived
@@ -121,6 +126,7 @@ restart pods that read secrets from environment variables:
 ```bash
 kubectl rollout restart statefulset/grafana-prometheus -n monitoring
 just restart-dex   # Dex and argocd-server
+kubectl -n argocd-monitor rollout restart deployment
 ```
 
 ### Adding a new Dex static client

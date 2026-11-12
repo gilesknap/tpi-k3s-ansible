@@ -54,8 +54,8 @@ values and OAuth/service login fails with errors like
 `invalid client_secret` — even though the Kubernetes `Secret` object
 itself is correct.
 
-`seal-argocd-dex` does not restart anything. After any reseal, restart
-pods in these namespaces:
+`seal-argocd-dex` does not restart anything. After a reseal, restart
+only the pods that consume the secrets you changed, from these namespaces:
 
 - `argo-cd` (`just restart-dex`) / `argocd-monitor`
   (`kubectl -n argocd-monitor rollout restart deployment`)

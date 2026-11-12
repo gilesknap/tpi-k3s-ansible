@@ -146,11 +146,19 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 
 **Fix:** Disable admission webhooks in the chart values:
 
+The value path depends on the chart (both are already set in
+`kubernetes-services/templates/`):
+
 ```yaml
-# In kubernetes-services/templates/<app>.yaml, under helm.valuesObject
-# (already set for kube-prometheus-stack and ingress-nginx)
-admissionWebhooks:
-  enabled: false
+# kube-prometheus-stack (grafana.yaml), under helm.valuesObject
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+
+# ingress-nginx (ingress.yaml), under helm.valuesObject
+controller:
+  admissionWebhooks:
+    enabled: false
 ```
 
 If the operation is already stuck, clear it manually:

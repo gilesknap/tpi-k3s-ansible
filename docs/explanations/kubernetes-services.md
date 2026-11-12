@@ -124,7 +124,9 @@ a standardised Ingress resource. It supports:
 - `basic_auth: true` — nginx basic-auth via the `admin-auth` secret
 - `oauth2_proxy: true` — protect with oauth2-proxy authentication gateway
 - `ssl_redirect: false` — disable HTTP→HTTPS redirect (default true)
-- `service_port: 443` — switches on the HTTPS backend and ssl-passthrough
+- `service_port: 443` — talks HTTPS to the backend; TLS still terminates at
+  ingress-nginx (the template's `ssl-passthrough` annotation has no effect,
+  as the controller does not run with `--enable-ssl-passthrough`)
 - `extra_annotations` — a map of extra annotations to add to the Ingress
 
 This avoids duplicating ingress boilerplate across services.

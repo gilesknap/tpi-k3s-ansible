@@ -16,7 +16,7 @@ What is **not** in Git and needs separate backup:
 | Sealed Secrets private keys | `kube-system` namespace | nightly age-encrypted export → NFS NAS, plus your own offline copy |
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
-| Cloudflare OpenTofu state + passphrase | `cloudflare/terraform.tfstate` (gitignored), `cloudflare/.secrets/state-passphrase` | copy to the NAS / password manager; recreatable by import ({doc}`cloudflare-as-code`) |
+| Cloudflare OpenTofu state + passphrase | `cloudflare/terraform.tfstate` (gitignored), `cloudflare/.secrets/state-passphrase` | copy to the NAS / password manager; recreatable by import ({doc}`cloudflare-as-code`), except the tunnel secret: a re-created state makes a new one, so its first apply rotates the tunnel token (reseal with `just cf-seal-tunnel-token`, restart cloudflared) |
 | Default dynamic NFS volumes (`nfs-stable`), incl. Minecraft worlds | NFS NAS, `<nfs_csi.stable_share>/<namespace>/<pvc>` | survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots) |
 | Scratch dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
 
@@ -85,12 +85,13 @@ snapshot of `grafana.db` plus the `provisioning/` directory. To restore one:
        - name: restore
          image: alpine:3.24
          command:
-           - tar
-           - -xzf
-           - /backup/<YYYY-MM-DD_HHMM>.tar.gz   # weekly: weekly/<YYYY-MM-DD>.tar.gz
-           - -C
-           - /data
-           - grafana.db
+           - sh
+           - -c
+           # weekly: /backup/weekly/<YYYY-MM-DD>.tar.gz. Removing stale
+           # SQLite journal/WAL files stops them replaying onto the restore.
+           - >-
+             rm -f /data/grafana.db-journal /data/grafana.db-wal /data/grafana.db-shm &&
+             tar -xzf /backup/<YYYY-MM-DD_HHMM>.tar.gz -C /data grafana.db
          volumeMounts:
            - { name: data, mountPath: /data }
            - { name: backup, mountPath: /backup, readOnly: true }

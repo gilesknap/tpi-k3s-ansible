@@ -143,8 +143,10 @@ ansible-playbook pb_all.yml --tags cluster
 ### Cloudflared replicas
 
 `additions/cloudflared/deployment.yaml` runs 2 replicas with required pod
-anti-affinity. If a single-node cluster lowered `replicas` by hand, set it
-back to 2 now that there are two schedulable nodes.
+anti-affinity and no control-plane toleration. If a single-node cluster
+lowered `replicas` by hand, set it back to 2 only once there are two
+schedulable workers: adding a node to a one-node cluster taints the control
+plane, so a single new worker is still the only place cloudflared can run.
 
 ### Minecraft RCON allow-list
 

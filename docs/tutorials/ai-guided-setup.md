@@ -50,7 +50,11 @@ Claude will guide you through:
 7. **Secret generation** — with all OAuth and Cloudflare credentials
    exported, `GENERATE_SECRETS=true` generates and seals every secret during
    the playbook run; without them, `just set-admin-password` sets
-   the shared admin password (Grafana's `admin-auth` secret)
+   the shared admin password (Grafana's `admin-auth` secret). Grafana stays
+   unusable until {doc}`/how-to/oauth-setup` is done, as it needs
+   `grafana-oauth-secret` and has its password login form turned off. If
+   scrap is enabled, `SCRAP_ANTHROPIC_API_KEY` is needed too, or its secrets
+   are skipped
 8. **Credentials file** — writes everything to `/tmp/cluster-credentials.txt`
    for safekeeping
 

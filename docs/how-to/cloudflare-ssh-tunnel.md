@@ -291,7 +291,9 @@ Once the SSH tunnel is working, you can use it to reach the Kubernetes API remot
 ```bash
 # Fetch the kubeconfig from the control plane (root-only there), or copy the
 # devcontainer's ~/.kube/config instead
-ssh ssh.example.com sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/k3s-remote.yaml
+# (umask 077 keeps the cluster-admin credentials readable only by you)
+(umask 077 && rm -f ~/.kube/k3s-remote.yaml && \
+  ssh ssh.example.com sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/k3s-remote.yaml)
 
 # Patch the server address (k3s_api_name or an IP) to use a local forwarded port
 sed -i 's|https://[^/]*:6443|https://127.0.0.1:6443|' \

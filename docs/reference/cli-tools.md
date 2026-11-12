@@ -47,6 +47,8 @@ ArgoCD CLI (pinned version). Installed to `$BIN_DIR` and linked into
 `/usr/local/bin/argocd`.
 
 ```bash
+# core mode uses the current kubeconfig context's namespace
+kubectl config set-context --current --namespace argo-cd
 argocd app list --core
 ```
 

@@ -159,6 +159,11 @@ themselves (`-K` prompts for that user's sudo password; this seeds the
 Confirm with the user before running. Which form to use depends on
 question 8.
 
+ArgoCD deploys from the fork's Git branch, not the local checkout, so the
+Phase 2 edits (`kubernetes-services/values.yaml` above all) must be committed
+and pushed before the `cluster` role runs. Ask the user for permission, then
+commit and push them.
+
 ### Without OAuth/Cloudflare credentials (default)
 
 Run the playbook without `GENERATE_SECRETS`, then set the shared admin
@@ -234,7 +239,10 @@ Synced/Healthy.
 Write all generated credentials to `/tmp/cluster-credentials.txt` with clear
 labels. Include:
 
-- Admin password (from `/tmp/cluster-secrets/admin-password.txt`)
+- Admin password: from `/tmp/cluster-secrets/admin-password.txt` only on the
+  `GENERATE_SECRETS=true` path; `just set-admin-password` does not write that
+  file (a copy there may be stale), so on the default path use the password
+  the user typed
 
 Warn the user to save this file somewhere secure and that `/tmp` is ephemeral.
 

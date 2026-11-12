@@ -31,12 +31,14 @@ Grafana). The script still also writes a leftover ``admin-auth`` secret into a
 (restarting ``argocd-server``); neither has any effect now that Longhorn is
 gone and the ArgoCD admin account is disabled.
 
-To update the password later, re-run the same command and restart cached
-services:
+Grafana reads this password only when it first creates its database, so
+re-running `just set-admin-password` later does not change the password of a
+running Grafana. To rotate it, update the secret and reset it in Grafana too:
 
 ```bash
 just set-admin-password
-kubectl -n monitoring rollout restart statefulset grafana-prometheus
+kubectl -n monitoring exec statefulset/grafana-prometheus -c grafana -- \
+  grafana cli admin reset-admin-password '<new-password>'
 ```
 
 ## Verify ArgoCD Sync
@@ -53,7 +55,8 @@ minutes for all services to reach `Synced / Healthy`.
 The ArgoCD web UI has no local admin account: it signs in through Dex
 (GitHub), which needs the sealed OAuth credentials from {doc}`oauth-setup` and
 redirects back to `https://argocd.<domain>`. Until that is set up, use
-`kubectl` (or `argocd app list --core`) instead of the UI.
+`kubectl` instead of the UI (or `argocd app list --core`, with the current
+kubeconfig context's namespace set to `argo-cd`).
 
 If any applications are stuck, force a refresh:
 
@@ -64,9 +67,11 @@ kubectl patch application all-cluster-services -n argo-cd \
 
 ## Verify Headlamp Login
 
-Headlamp sits behind the cluster-wide oauth2-proxy. After ArgoCD syncs, visit
-``https://headlamp.<your-domain>`` and pass the GitHub oauth2-proxy gate (only
-emails in ``admin_emails`` are let through). Headlamp then asks for a token:
+With ``enable_oauth2_proxy: true``, Headlamp sits behind the cluster-wide
+oauth2-proxy. After ArgoCD syncs, visit ``https://headlamp.<your-domain>`` and
+pass the GitHub oauth2-proxy gate (only emails in ``admin_emails`` are let
+through); with it ``false`` there is no gate in front of Headlamp. Headlamp
+then asks for a token:
 paste one from
 
 ```bash

@@ -277,8 +277,10 @@ These are concrete, actionable steps drawn from the patterns above.
 
 11. **Reuse project-agnostic commands.** One command in this repo's
     `.claude/commands/` directory, `/pr-squash`, is not specific to K3s or
-    Ansible, and neither is the user-level `/memo` skill. Copy them into your own project to get the
-    same workflow benefits without writing them from scratch.
+    Ansible: copy it into your own project to get the same workflow
+    benefits without writing it from scratch. `/memo` is a user-level skill
+    that is not in this repository; the idea (save state, promote lessons
+    to skills) is easy to recreate.
 
 12. **Keep long-running output out of context.** Commands like
     `ansible-playbook` or `helm install` can produce thousands of lines.

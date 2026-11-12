@@ -140,6 +140,10 @@ nfs_csi:
   stable_share: /path/to/k8s-dynamic/stable # Subfolder of share for nfs-stable
 ```
 
+`nfs-stable` is the default StorageClass, and its PVCs stay `Pending` until
+`stable_share` exists on the NAS. Create it before ArgoCD deploys workloads
+that use it ({ref}`nfs-csi-nas-share`).
+
 :::{important}
 **NFS is a prerequisite for backups.** The daily and weekly backup
 CronJobs write stateful-service dumps (Grafana, …) to a
