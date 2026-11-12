@@ -260,7 +260,7 @@ longest-running command (~10-20 minutes) and the biggest context saving:
 
 3. When the background command completes:
    - **Exit 0**: rebuild succeeded. Grep the log for the admin password:
-     `grep -A1 'admin.password' /tmp/rebuild.log || cat /tmp/cluster-secrets/admin-password.txt`
+     `grep 'Admin password:' /tmp/rebuild.log || cat /tmp/cluster-secrets/admin-password.txt`
      Then proceed to "Verify rebuild".
    - **Non-zero or `fatal:`/`FAILED` in Monitor stream**: Read
      `/tmp/rebuild.log` (last ~150 lines) to diagnose.
