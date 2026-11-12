@@ -56,6 +56,12 @@ Current SealedSecrets:
 - `kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml` — argocd-monitor Dex client + cookie secret
 - `kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml` — GitHub OAuth App credentials + cookie secret
 - `kubernetes-services/additions/vps-relay/templates/vps-relay-secret.yaml` — Tailscale OAuth client secret + frp token (optional VPS relay)
+- `kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml` — ntfy users and access tokens
+- `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml` — Alertmanager's ntfy token
+- `kubernetes-services/additions/scrap/templates/scrap-secret.yaml` — scrap's Claude API key + `/mcp` bearer token
+- `kubernetes-services/additions/scrap/templates/scrap-publish-secret.yaml`, `scrap-public-publish-secret.yaml` — scrap's public-pages upload token
+
+{doc}`/how-to/manage-sealed-secrets` has the full table.
 
 ### Admin access
 
@@ -80,10 +86,13 @@ development (Claude Code) and prompt injection attacks:
   explicit fine-grained PAT via `gh auth login`.
 - **GitHub CLI credentials are per-repo**. A dedicated Docker volume
   (`gh-auth-<project>`) stores the PAT, scoped to only the repositories needed.
-- **Claude Code is devcontainer-only**. A `UserPromptSubmit` hook blocks
-  execution outside the container.
-- **Network escape vectors require confirmation**. `ssh`, `scp`, `rsync`, and
-  similar commands in Claude Code prompt for human approval.
+- **Claude Code runs only inside the claude-sandbox wrapper**. A global
+  integrity guard fails closed if Claude is launched unwrapped, and a
+  fail-closed network egress jail blocks private addresses except the
+  cluster hosts listed as `allow-ip` entries.
+- **Claude has its own revocable SSH key**. Claude reaches the nodes'
+  `ansible` account with a dedicated key, not yours; revoke it with
+  `just claude-ssh-bootstrap revoke`.
 
 See {doc}`/how-to/claude-code` for setup instructions.
 
@@ -124,8 +133,10 @@ No inbound ports need to be opened on your router for public-facing services.
 
 ### Cloudflare Access
 
-All services are routed through the Cloudflare tunnel and protected by a
-Cloudflare Access email-gate policy.
+Tunnelled services sit behind a Cloudflare Access email-gate policy, except
+the public ones allowlisted for bypass (such as ntfy and the scrap pages
+site) and scrap's `/mcp` endpoint, which uses a service-token policy. Rate
+limiting is one path-based Free-plan rule in `cloudflare/waf.tf`.
 
 ### NetworkPolicies
 
@@ -154,7 +165,8 @@ All ingress endpoints use TLS certificates from Let's Encrypt (production CA):
 - Certificates are automatically issued and renewed by cert-manager
 - DNS-01 validation via Cloudflare API (works for LAN-only services too)
 - HSTS headers are set by ingress-nginx by default
-- ArgoCD uses TLS passthrough (handles its own certificate)
+- ArgoCD serves plain HTTP (`server.insecure`) and TLS ends at ingress-nginx
+  like every other service
 
 ## Recommendations
 

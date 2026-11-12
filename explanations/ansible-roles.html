@@ -860,7 +860,7 @@ window.addEventListener("load", load);</script>
                   
   <section id="ansible-roles-in-detail">
 <h1>Ansible Roles in Detail<a class="headerlink" href="#ansible-roles-in-detail" title="Link to this heading">#</a></h1>
-<p>The playbook <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> runs nine roles in sequence. Each role is fully idempotent —
+<p>The playbook <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> runs eleven roles in sequence. Each role is fully idempotent —
 it checks state before acting and does nothing if the desired state is already achieved.</p>
 <section id="execution-order">
 <h2>Execution order<a class="headerlink" href="#execution-order" title="Link to this heading">#</a></h2>
@@ -873,15 +873,20 @@ flowchart TD
     MF --&gt; RO[&quot;rk1_os&lt;br/&gt;&lt;i&gt;RK1 nodes, one at a time&lt;/i&gt;&quot;]
     RO --&gt; UP[&quot;update_packages&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
     UP --&gt; DD[&quot;k8s_data_dirs&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
-    DD --&gt; K[&quot;k3s&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
-    K --&gt; C[&quot;cluster&lt;br/&gt;&lt;i&gt;localhost&lt;/i&gt;&quot;]
-    </pre><p>Each role is tagged with its own name, so you can run individual stages:</p>
+    DD --&gt; NR[&quot;node_reboot&lt;br/&gt;&lt;i&gt;only with reboot_now, one at a time&lt;/i&gt;&quot;]
+    NR --&gt; K[&quot;k3s&lt;br/&gt;&lt;i&gt;all_nodes&lt;/i&gt;&quot;]
+    K --&gt; EB[&quot;etcd_backup&lt;br/&gt;&lt;i&gt;control plane&lt;/i&gt;&quot;]
+    EB --&gt; C[&quot;cluster&lt;br/&gt;&lt;i&gt;localhost&lt;/i&gt;&quot;]
+    </pre><p>Plays are tagged by stage: <code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">flash</span></code>, <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">servers</span></code>
+(<code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, <code class="docutils literal notranslate"><span class="pre">node_reboot</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>), <code class="docutils literal notranslate"><span class="pre">k3s</span></code>
+(<code class="docutils literal notranslate"><span class="pre">k3s</span></code>, <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code>), <code class="docutils literal notranslate"><span class="pre">cluster</span></code>. <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> and <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code>
+also have their own tags; there is no <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> or <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> tag, so
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">update_packages</span></code> silently runs nothing.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>tools
-ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>flash
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers
 <span class="c1"># etc.</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">servers</span></code> tag covers <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>.</p>
 </section>
 <hr class="docutils" />
 <section id="tools-cli-tool-installation">
@@ -913,6 +918,10 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <td><p>plugin</p></td>
 <td><p>Shows Helm upgrade diffs</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code></p></td>
+<td><p>3.3.2</p></td>
+<td><p>ArgoCD CLI</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -929,7 +938,10 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <li><p><code class="docutils literal notranslate"><span class="pre">helm.yml</span></code> — Helm binary + helm-diff plugin</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubectl.yml</span></code> — kubectl binary + completions</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubeseal.yml</span></code> — kubeseal binary</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">argocd.yml</span></code> — ArgoCD CLI binary</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">scripts.yml</span></code> — port-forward helper scripts</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubeconfig.yml</span></code> — copies the kubeconfig from the control plane to
+<code class="docutils literal notranslate"><span class="pre">~/.kube/config</span></code> (skipped gracefully if the control plane is unreachable)</p></li>
 </ul>
 </section>
 <hr class="docutils" />
@@ -1394,22 +1406,22 @@ on its target node (guarded by <code class="docutils literal notranslate"><span 
 <tbody>
 <tr class="row-even"><td><p>node04</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code></p></td>
-<td><p>1000:2000 / 0755</p></td>
+<td><p>1000:2000 / 2775</p></td>
 <td><p>monitoring</p></td>
 </tr>
 <tr class="row-odd"><td><p>node04</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
-<td><p>472:472 / 0755</p></td>
+<td><p>472:472 / 2775</p></td>
 <td><p>monitoring</p></td>
 </tr>
 <tr class="row-even"><td><p>nuc2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code></p></td>
-<td><p>10001:10001 / 0750</p></td>
+<td><p>10001:10001 / 2770</p></td>
 <td><p>scrap (frozen pre-Litestream copy)</p></td>
 </tr>
 <tr class="row-odd"><td><p>nuc2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap-backup-copy</span></code></p></td>
-<td><p>10001:10001 / 0750</p></td>
+<td><p>10001:10001 / 2770</p></td>
 <td><p>scrap (off-NAS backup copy)</p></td>
 </tr>
 <tr class="row-even"><td><p>nuc2</p></td>
@@ -1503,6 +1515,18 @@ check fails (in <code class="docutils literal notranslate"><span class="pre">--c
 </section>
 </section>
 <hr class="docutils" />
+<section id="etcd-backup-nightly-etcd-and-sealed-secrets-key-backup">
+<h2><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> — Nightly etcd and sealed-secrets key backup<a class="headerlink" href="#etcd-backup-nightly-etcd-and-sealed-secrets-key-backup" title="Link to this heading">#</a></h2>
+<p><strong>Runs on:</strong> the control plane only
+<strong>Tags:</strong> <code class="docutils literal notranslate"><span class="pre">k3s</span></code>, <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p>
+<p>Installs a systemd timer on the control plane (a timer, so it still runs when
+the API server is down). Each night it takes an etcd snapshot, bundles it with
+the k3s token, encrypts the bundle with <code class="docutils literal notranslate"><span class="pre">age</span></code> to <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>
+and writes it to the NAS. The same job also exports the sealed-secrets
+controller’s keys, age-encrypted to the same recipient, to the NAS. See
+<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and Restore</span></a>.</p>
+</section>
+<hr class="docutils" />
 <section id="cluster-argocd-and-service-deployment">
 <h2><code class="docutils literal notranslate"><span class="pre">cluster</span></code> — ArgoCD and service deployment<a class="headerlink" href="#cluster-argocd-and-service-deployment" title="Link to this heading">#</a></h2>
 <p><strong>Runs on:</strong> localhost (devcontainer)
@@ -1515,16 +1539,29 @@ Also gives the <code class="docutils literal notranslate"><span class="pre">stan
 <code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/standby-control-plane:PreferNoSchedule</span></code> taint and
 removes that taint from any other node. Both use <code class="docutils literal notranslate"><span class="pre">k8s_taint</span></code>, which adds to
 a node’s existing taints rather than replacing them.</p></li>
-<li><p><strong>Install ArgoCD</strong> — deploys the ArgoCD OCI Helm chart (v9.4.17).</p></li>
-<li><p><strong>Patch ConfigMap</strong> — adds a custom Lua health check for <code class="docutils literal notranslate"><span class="pre">monitoring.coreos.com/Prometheus</span></code>
-(respects a <code class="docutils literal notranslate"><span class="pre">skip-health-check</span></code> annotation).</p></li>
+<li><p><strong>Install ArgoCD</strong> — deploys the ArgoCD OCI Helm chart (v9.4.17), then
+upgrades it with the full configuration (Dex, RBAC, <code class="docutils literal notranslate"><span class="pre">server.insecure</span></code>).</p></li>
+<li><p><strong>Health check</strong> — the Helm values add a custom Lua health check for
+<code class="docutils literal notranslate"><span class="pre">monitoring.coreos.com/Prometheus</span></code> (respects a <code class="docutils literal notranslate"><span class="pre">skip-health-check</span></code> annotation).</p></li>
 <li><p><strong>Create AppProject</strong> — creates the <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> ArgoCD project allowing access to
 all repos, namespaces, and cluster-scoped resources.</p></li>
+<li><p><strong>Create ArgoCD Ingress</strong> — an Ingress for <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code> to
+<code class="docutils literal notranslate"><span class="pre">argocd-server:80</span></code> (TLS at ingress-nginx).</p></li>
+<li><p><strong>Bootstrap sealed-secrets</strong> — applies the sealed-secrets Application on
+its own and waits for the controller to be ready.</p></li>
+<li><p><strong>Generate secrets</strong> (only with <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code>) — runs
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code>, then commits and pushes the sealed files
+before the root app is created.</p></li>
 <li><p><strong>Create root Application</strong> — creates <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> pointing at
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> in the repository. Passes <code class="docutils literal notranslate"><span class="pre">repo_remote</span></code>, <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">domain_email</span></code> as Helm values.</p></li>
-<li><p><strong>Create ArgoCD Ingress</strong> — creates an Ingress for <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code> with
-SSL passthrough.</p></li>
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> in the repository. Passes <code class="docutils literal notranslate"><span class="pre">repo_remote</span></code>, <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code>,
+<code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code>, and <code class="docutils literal notranslate"><span class="pre">domain_email</span></code> as Helm values.</p></li>
+<li><p><strong>Dex secret</strong> — applies the <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> SealedSecret and labels the
+Secret <code class="docutils literal notranslate"><span class="pre">app.kubernetes.io/part-of:</span> <span class="pre">argocd</span></code> so <code class="docutils literal notranslate"><span class="pre">dex.config</span></code> can resolve it.</p></li>
+<li><p><strong>CoreDNS split-horizon</strong> — once ArgoCD has provisioned ingress-nginx,
+creates the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that resolves <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code>
+to the ingress ClusterIP from inside the cluster.</p></li>
+<li><p><strong>Prometheus admission secret</strong> — creates the kube-prometheus-stack
+admission webhook TLS secret.</p></li>
 </ol>
 <p>After this role completes, ArgoCD takes over and syncs all services defined in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>.</p>
@@ -1607,6 +1644,7 @@ managed by ArgoCD once it’s running.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#force-reinstall">Force reinstall</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-nightly-etcd-and-sealed-secrets-key-backup"><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> — Nightly etcd and sealed-secrets key backup</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-argocd-and-service-deployment"><code class="docutils literal notranslate"><span class="pre">cluster</span></code> — ArgoCD and service deployment</a></li>
 </ul>
   </nav></div>

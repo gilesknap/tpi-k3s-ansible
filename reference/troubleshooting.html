@@ -525,9 +525,17 @@ never reaches <code class="docutils literal notranslate"><span class="pre">Synce
 admission webhook jobs with <code class="docutils literal notranslate"><span class="pre">helm.sh/hook-delete-policy:</span> <span class="pre">hook-succeeded</span></code>. The
 job deletes itself before ArgoCD records completion, leaving the operation stuck.</p>
 <p><strong>Fix:</strong> Disable admission webhooks in the chart values:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># In kubernetes-services/values.yaml (under the affected app)</span>
-<span class="nt">admissionWebhooks</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<p>The value path depends on the chart (both are already set in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># kube-prometheus-stack (grafana.yaml), under helm.valuesObject</span>
+<span class="nt">prometheusOperator</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">admissionWebhooks</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="c1"># ingress-nginx (ingress.yaml), under helm.valuesObject</span>
+<span class="nt">controller</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">admissionWebhooks</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
 <p>If the operation is already stuck, clear it manually:</p>
@@ -638,7 +646,7 @@ This avoids polluting your browser cache with intermediate states.</p>
 <section id="static-pv-not-bound">
 <h3>Static PV not bound<a class="headerlink" href="#static-pv-not-bound" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> A pod stuck <code class="docutils literal notranslate"><span class="pre">Pending</span></code> with events like <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">persistent</span> <span class="pre">volumes</span> <span class="pre">available</span> <span class="pre">for</span> <span class="pre">this</span> <span class="pre">claim</span></code>.</p>
-<p><strong>Check:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">-l</span> <span class="pre">type=local-nvme</span></code> — every PV listed in
+<p><strong>Check:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">-o</span> <span class="pre">custom-columns=NAME:.metadata.name,CLASS:.spec.storageClassName,STATUS:.status.phase,CLAIM:.spec.claimRef.name</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">local-nvme</span></code> — every PV listed in
 <code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code> should be <code class="docutils literal notranslate"><span class="pre">Bound</span></code>.</p>
 <p><strong>Fix:</strong> Verify the data directory exists on the target node (the
 <code class="docutils literal notranslate"><span class="pre">node</span></code>/<code class="docutils literal notranslate"><span class="pre">path</span></code> pair in its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry, e.g.
@@ -784,8 +792,10 @@ dig<span class="w"> </span>new-hostname.example.com<span class="w">           </
 <li><p><strong>Export path correct?</strong> Check <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> matches
 the NFS server’s <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code>.</p></li>
 <li><p><strong>PV exists and is Available?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code></p></li>
-<li><p><strong>StorageClass mismatch?</strong> NFS PVs in this project do not use a StorageClass
-— the PVC binds directly by name.</p></li>
+<li><p><strong>StorageClass mismatch?</strong> Static NFS PVs (backups, scrap, jellyfin media)
+have no StorageClass and bind by name; dynamic ones come from the
+<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class: check <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">sc</span></code> and the
+csi-driver-nfs controller logs.</p></li>
 </ol>
 </section>
 </section>

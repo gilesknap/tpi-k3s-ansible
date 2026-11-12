@@ -16,7 +16,7 @@ What is **not** in Git and needs separate backup:
 | Sealed Secrets private keys | `kube-system` namespace | nightly age-encrypted export → NFS NAS, plus your own offline copy |
 | etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
 | Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
-| ArgoCD initial admin secret | `argo-cd` namespace | regenerated on install |
+| Cloudflare OpenTofu state + passphrase | `cloudflare/terraform.tfstate` (gitignored), `cloudflare/.secrets/state-passphrase` | copy to the NAS / password manager; recreatable by import ({doc}`cloudflare-as-code`), except the tunnel secret: a re-created state makes a new one, so its first apply rotates the tunnel token (reseal with `just cf-seal-tunnel-token`, restart cloudflared) |
 | Default dynamic NFS volumes (`nfs-stable`), incl. Minecraft worlds | NFS NAS, `<nfs_csi.stable_share>/<namespace>/<pvc>` | survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots) |
 | Scratch dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
 
@@ -29,16 +29,18 @@ workload-specific `subPath` so it only sees its own target subdirectory.
 
 | Workload | Backup method | NFS path |
 |----------|---------------|----------|
-| Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` | `backups/grafana/{,weekly}/<date>.db` |
-| Jellyfin database and config | `sqlite3 .backup` of the database, plus the config, plugins and library definitions, from its config volume (not subtitles or metadata); see {doc}`jellyfin` | `backups/jellyfin/{,weekly}/<date>.tar.gz` |
+| Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana`, tarred with `provisioning/` | `backups/grafana/<date>_<HHMM>.tar.gz` (daily), `backups/grafana/weekly/<date>.tar.gz` (weekly), each containing `grafana.db` and `provisioning/` |
+| Jellyfin database and config | `sqlite3 .backup` of the database, plus the config, plugins and library definitions, from its config volume (not subtitles or metadata); see {doc}`jellyfin` | `backups/jellyfin/<date>_<HHMM>.tar.gz` (daily), `backups/jellyfin/weekly/<date>.tar.gz` (weekly) |
 
 Prometheus is deliberately **not** backed up — metrics are reconstructible
 via re-scrape, and the snapshot-API dance is not worth the complexity.
 
 ### Retention
 
-- Daily CronJobs run at `02:00` and keep 7 files (`find -mtime +7 -delete`).
-- Weekly CronJobs run Sunday `03:00` and keep 4 files (`find -mtime +28 -delete`).
+- Grafana: daily at `02:45`, weekly on Sunday at `03:45` (cluster time).
+  Jellyfin: daily at `01:45`, weekly on Sunday at `01:50` (Europe/London).
+- Daily backups older than 7 days and weekly backups older than 28 days are
+  deleted (`find -mtime +7` / `+28`).
 
 ### Trigger a one-off backup
 
@@ -55,20 +57,60 @@ ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/'
 
 ### Restore — Grafana sqlite
 
-The Grafana daily backup uses `sqlite3 .backup` (a consistent live snapshot,
-unlike a raw tar of the db file). To restore:
+Each Grafana backup is a gzip tarball holding a consistent `sqlite3 .backup`
+snapshot of `grafana.db` plus the `provisioning/` directory. To restore one:
 
-```bash
-kubectl scale -n monitoring sts/grafana-prometheus --replicas=0
-ssh ansible@node04 '
-  sudo cp /mnt/nfs/k8s-cluster/backups/grafana/YYYY-MM-DD.db \
-          /var/lib/k8s-data/grafana/grafana.db
-'
-kubectl scale -n monitoring sts/grafana-prometheus --replicas=1
-```
+1. **Stop Grafana through Git.** Set the grafana sub-chart's `replicas: 0`
+   in `kubernetes-services/templates/grafana.yaml` (under
+   `valuesObject.grafana`), commit, push and let ArgoCD sync. Scaling the
+   StatefulSet with `kubectl` does not stick: ArgoCD's self-heal reverts it.
 
-(If the NFS share is not pre-mounted on the node, run the copy in a
-debug pod that mounts the `k8s-cluster-nfs` PVC instead.)
+2. **Restore in a one-off pod** in the `monitoring` namespace that mounts the
+   Grafana PVC and the NAS backup directory. Fill in your NAS address and
+   `nfs.cluster_share_path` from `kubernetes-services/values.yaml`, and the
+   backup to restore:
+
+   ```yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: grafana-restore
+     namespace: monitoring
+   spec:
+     restartPolicy: Never
+     securityContext:
+       runAsUser: 472
+       runAsGroup: 472
+     containers:
+       - name: restore
+         image: alpine:3.24
+         command:
+           - sh
+           - -c
+           # weekly: /backup/weekly/<YYYY-MM-DD>.tar.gz. Removing stale
+           # SQLite journal/WAL files stops them replaying onto the restore.
+           - >-
+             rm -f /data/grafana.db-journal /data/grafana.db-wal /data/grafana.db-shm &&
+             tar -xzf /backup/<YYYY-MM-DD_HHMM>.tar.gz -C /data grafana.db
+         volumeMounts:
+           - { name: data, mountPath: /data }
+           - { name: backup, mountPath: /backup, readOnly: true }
+     volumes:
+       - name: data
+         persistentVolumeClaim:
+           claimName: storage-grafana-prometheus-0
+       - name: backup
+         nfs:
+           server: <nfs.server>
+           path: <nfs.cluster_share_path>/backups/grafana
+           readOnly: true
+   ```
+
+   The PVC is bound to a `local-nvme` PV, so the pod lands on the Grafana
+   node by itself. Check `kubectl -n monitoring logs grafana-restore`, then
+   `kubectl -n monitoring delete pod grafana-restore`.
+
+3. **Start Grafana again** by reverting the `replicas: 0` commit and pushing.
 
 ## scrap
 

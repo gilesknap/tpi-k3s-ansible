@@ -7,16 +7,17 @@ playbooks for you.
 :::
 
 This tutorial walks you through deploying a K3s cluster on **any set of Linux servers**
-that are already running a modern Linux distribution — no Turing Pi hardware required.
+that are already running Ubuntu — no Turing Pi hardware required.
 
-All Ansible roles except the BMC flashing step work identically on standalone servers,
-Intel NUCs, Raspberry Pis, VMs, or cloud instances.
+All Ansible roles except the BMC flashing step run unchanged on standalone Ubuntu
+servers: Intel NUCs, Raspberry Pis, VMs, or cloud instances.
 
 ## Prerequisites
 
 ### Target Servers
 
-- **One or more** Linux servers running a **modern Linux distribution** (Ubuntu, Debian, Fedora, etc.)
+- **One or more** Linux servers running **Ubuntu (24.04 or later)** — the
+  package-update role is apt-based and installs Ubuntu-specific packages
 - SSH access from your workstation to each server
 - All servers on the **same subnet** (or with routable network connectivity)
 - One server designated as the **control plane**; any extras are **workers**
@@ -123,11 +124,12 @@ Ensure `control_plane` matches one of the hostnames in your `extra_nodes` group.
 Since your servers already have an OS installed, skip the `flash` tag and run:
 
 ```bash
-ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
+ansible-playbook pb_all.yml --tags tools,known_hosts,servers,k3s,cluster
 ```
 
 This runs only the relevant stages:
 
+0. **`tools`** — installs helm, kubectl, kubeseal and friends into the devcontainer
 1. **`known_hosts`** — updates SSH known_hosts for all nodes
 2. **`servers`** — dist-upgrade and installs base dependencies
 3. **`k3s`** — installs K3s control plane and worker nodes

@@ -84,12 +84,6 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
 
-### `cluster` role (`roles/cluster/vars/main.yml`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `cluster_force` | `false` | Force ArgoCD reinstall |
-
 ## Command-line overrides
 
 Variables can be overridden on the command line with `-e`:
@@ -108,11 +102,17 @@ ansible-playbook pb_all.yml \
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
-| `enable_oauth2_proxy` | `false` | Enable OAuth2 proxy authentication on protected services. Set `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
-| `enable_cloudflare_tunnel` | `false` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. Set `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
+| `enable_oauth2_proxy` | `true` | Enable OAuth2 proxy authentication on protected services. A new fork starts with `false` and sets `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
+| `enable_cloudflare_tunnel` | `true` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. A new fork starts with `false` and sets `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
 | `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
 | `nfs.server` | *(your NFS server IP)* | NFS server for the backup and Minecraft volumes |
 | `nfs.cluster_share_path` | *(your NFS export path)* | Cluster-owned directory on the NFS export (see {doc}`/how-to/nas-setup`) |
+| `nfs_csi.server` | *(your NFS server IP)* | NFS server for the dynamic StorageClasses |
+| `nfs_csi.share` | `/k8s-dynamic` | Export for `nfs-rwx` scratch volumes (a new folder per PV) |
+| `nfs_csi.stable_share` | `/k8s-dynamic/stable` | Folder for `nfs-stable` volumes (one fixed folder per PVC); keep it a subfolder of `share` |
+| `nfs_csi.chart_version` | `4.13.4` | csi-driver-nfs chart version |
+| `nfs_csi.fresh_storage_class` | `nfs-rwx` | Name of the scratch StorageClass, used only when named |
+| `nfs_csi.stable_storage_class` | `nfs-stable` | Name of the default StorageClass |
 | `enable_jellyfin` | `true` | Deploy Jellyfin ({doc}`/how-to/jellyfin`); needs `local_storage.jellyfin` and its `k8s_data_dirs` entry |
 | `jellyfin.chart_version` / `image_tag` | `3.7.0` / `12.4.…` | The upstream chart version and the Jellyfin image tag (never older than the database's Jellyfin) |
 | `jellyfin.trial` | `false` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE`. Not with `seed_from_host` |
@@ -125,7 +125,7 @@ ansible-playbook pb_all.yml \
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
-| `minecraft.chart_version` | `0.2.0` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
+| `minecraft.chart_version` | `0.5.2` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
 | `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
 | `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>` |
@@ -133,17 +133,18 @@ ansible-playbook pb_all.yml \
 | `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
 | `minecraft.worlds.rcon_port_min` / `rcon_port_max` | `30600` / `30619` | Inclusive NodePort range for per-world RCON (LAN only; never relay it) |
 | `minecraft.worlds.rcon_allowed_cidrs` | LAN CIDRs | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`); except every cluster node's IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node's IP |
-| `enable_vps_relay` | `false` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
+| `enable_vps_relay` | `true` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
 | `vps_relay.vps_tailnet_host` | *(tailnet IP or name)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
 | `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |
 | `vps_relay.forwards` | *(minecraft entry)* | List of `name`, `protocol` (`tcp`/`udp`), `ports` (port or `min-max`) and `target`; each publishes `ports` on the VPS and relays them to the same ports on `target`. The VPS's `allowPorts` and firewall must match |
 
-The `repo_branch` value is self-referential — ArgoCD reads it from the same branch it
-is tracking. Each branch must set this to match its own branch name.
+The root Application passes `repo_branch` in from Ansible, so the copy in values.yaml is
+only a default; switch branches with `just switch-branch <branch>`.
 
-The `nfs.*` values are the **single source of truth** for NFS configuration.
-ArgoCD injects them directly into the Helm charts that use them; no corresponding Ansible
-variable is needed because Ansible does not create the PersistentVolume.
+The `nfs.*` values feed the static backup, Minecraft and scrap volumes and Jellyfin's
+media, and the `etcd_backup`
+role reads them from `values.yaml` for its NAS mount. The `nfs_csi.*` values configure
+the dynamic NFS StorageClasses separately.
 
 ## Environment variables
 

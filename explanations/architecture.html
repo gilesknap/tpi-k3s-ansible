@@ -874,15 +874,15 @@ node names and counts will vary.</em></p>
 
     subgraph TuringPi[&quot;Turing Pi v2.5&quot;]
         BMC[BMC&lt;br/&gt;SSH + tpi CLI]
-        N1[node01&lt;br/&gt;Worker]
         N2[node02&lt;br/&gt;Control Plane]
-        N3[node03&lt;br/&gt;Worker]
+        N3[node03&lt;br/&gt;Standby worker]
         N4[node04&lt;br/&gt;Worker]
     end
 
     subgraph Extra[&quot;Extra Nodes&quot;]
-        E1[ws03&lt;br/&gt;Worker]
+        E1[ws03&lt;br/&gt;Workstation]
         E2[nuc2&lt;br/&gt;Worker]
+        E3[nuc1&lt;br/&gt;Worker]
     end
 
     subgraph Cluster[&quot;K3s Cluster&quot;]
@@ -896,12 +896,12 @@ node names and counts will vary.</em></p>
     end
 
     DC --&gt;|&quot;1. Flash (via BMC)&quot;| BMC
-    BMC --&gt;|&quot;tpi flash&quot;| N1 &amp; N2 &amp; N3 &amp; N4
+    BMC --&gt;|&quot;tpi flash&quot;| N2 &amp; N3 &amp; N4
     DC --&gt;|&quot;2. Install K3s&quot;| K3S
     DC --&gt;|&quot;3. Deploy ArgoCD&quot;| ARGO
     ARGO --&gt;|&quot;4. Sync services&quot;| SVC
     REPO --&gt;|&quot;GitOps&quot;| ARGO
-    DC --&gt;|&quot;SSH&quot;| E1 &amp; E2
+    DC --&gt;|&quot;SSH&quot;| E1 &amp; E2 &amp; E3
     </pre></section>
 <section id="layers">
 <h2>Layers<a class="headerlink" href="#layers" title="Link to this heading">#</a></h2>
@@ -912,7 +912,7 @@ node names and counts will vary.</em></p>
 <li><p><strong>Turing Pi nodes</strong> — compute modules (RK1, CM4) installed in a Turing Pi v2.5 board.
 The BMC provides remote management (flashing, power control) via SSH and the <code class="docutils literal notranslate"><span class="pre">tpi</span></code> CLI.</p></li>
 <li><p><strong>Extra nodes</strong> — any standalone Linux server (Intel NUC, Raspberry Pi, VM, etc.)
-with a modern Linux distribution and SSH access.</p></li>
+running Ubuntu (24.04 or later) with SSH access.</p></li>
 </ul>
 <p>Both types join the same K3s cluster as either the control plane or workers.</p>
 </section>
@@ -921,7 +921,7 @@ with a modern Linux distribution and SSH access.</p></li>
 <p>Ansible orchestrates the entire setup through a sequence of roles:</p>
 <pre  class="mermaid">
         flowchart TB
-    T[tools] --&gt; F[flash] --&gt; KH[known_hosts] --&gt; S[servers] --&gt; K[k3s] --&gt; C[cluster]
+    T[tools] --&gt; F[flash] --&gt; KH[known_hosts] --&gt; S[&quot;move_fs / rk1_os / update_packages / k8s_data_dirs&lt;br/&gt;(servers tag)&quot;] --&gt; K[&quot;k3s / etcd_backup&lt;br/&gt;(k3s tag)&quot;] --&gt; C[cluster]
     </pre><div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Role</p></th>
@@ -954,11 +954,23 @@ with a modern Linux distribution and SSH access.</p></li>
 <td><p>dist-upgrade, install dependencies</p></td>
 <td><p>All nodes</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
+<td><p>Create the host directories behind the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs</p></td>
+<td><p>Each PV’s node</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node_reboot</span></code></p></td>
+<td><p>Drained reboot, one node at a time (only with <code class="docutils literal notranslate"><span class="pre">reboot_now</span></code>)</p></td>
+<td><p>Nodes needing a reboot</p></td>
+</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
 <td><p>Install K3s control plane and workers</p></td>
 <td><p>All nodes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p></td>
+<td><p>Nightly encrypted etcd + sealed-secrets key backup to the NAS</p></td>
+<td><p>Control plane</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
 <td><p>Deploy ArgoCD, bootstrap services</p></td>
 <td><p>localhost</p></td>
 </tr>
@@ -1024,7 +1036,7 @@ another node without re-joining the workers
 <td><p>Mature, excellent UI, widely adopted</p></td>
 </tr>
 <tr class="row-even"><td><p>NGINX Ingress over Traefik</p></td>
-<td><p>More widely documented, better TLS passthrough support</p></td>
+<td><p>More widely documented, mature <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> support for oauth2-proxy</p></td>
 </tr>
 <tr class="row-odd"><td><p>Static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs + NFS backup CronJobs over distributed block storage</p></td>
 <td><p>Lower overhead, simpler failure modes, known host pinning; the NAS was already present so backups reuse existing infrastructure</p></td>

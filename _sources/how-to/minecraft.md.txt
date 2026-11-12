@@ -53,7 +53,7 @@ record that points straight at the VPS.
   published. Check before enabling:
 
   ```bash
-  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.2.0
+  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.5.2
   ```
 
 ## Step 1: Create the NAS directories
@@ -148,9 +148,13 @@ command), too slow for building.
 
 ## Step 4: Add the dashboard tunnel route
 
-Tunnel routes are managed in the Cloudflare dashboard, not in this repository.
-Add a route for the dashboard exactly as for the other web services in
-{doc}`cloudflare-web-tunnel` (Part 2):
+With Cloudflare managed as code ({doc}`cloudflare-as-code`), add
+`{ name = "minecraft" }` to `tunnel_services` in `cloudflare/locals.tf` and an
+`mc` A record (the VPS IP, not proxied) to `dns_only_records` in
+`cloudflare/live.auto.tfvars`, then run `just cf-apply`.
+
+Otherwise, add a route for the dashboard in the Cloudflare dashboard exactly as
+for the other web services in {doc}`cloudflare-web-tunnel` (Part 2):
 
 | Subdomain | Domain | URL |
 |-----------|--------|-----|
@@ -167,7 +171,9 @@ Edit `kubernetes-services/values.yaml`:
 ```yaml
 enable_minecraft: true
 minecraft:
-  chart_version: "0.2.0"          # must be published (see Prerequisites)
+  chart_version: "0.5.2"          # must be published (see Prerequisites)
+  image:
+    repository: ghcr.io/gilesknap/k3s-minecraft
   archive_path: /bigdisk/minecraft-archive
   store_subdir: minecraft         # under nfs.cluster_share_path
   dns_name: mc                    # players use mc.<cluster_domain>
@@ -290,6 +296,8 @@ it deletes the data (`reclaimPolicy: Delete`).
 
 Then set `enable_minecraft: false` and push. ArgoCD prunes the dashboard
 and its ingress. The NAS archive and store directories are
-static NFS volumes and are never deleted by the cluster; remove the `mc` DNS
-record and the `minecraft` tunnel route by hand, and remove the
+static NFS volumes and are never deleted by the cluster. Remove the `mc` DNS
+record and the `minecraft` tunnel route (from `dns_only_records` and
+`tunnel_services`, then `just cf-apply`; or in the dashboard if you do not
+manage Cloudflare as code), and remove the
 `minecraft` entry from `vps_relay.forwards` and its ports on the VPS.

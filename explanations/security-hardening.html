@@ -484,9 +484,10 @@ are available.</p>
 <h2>RBAC principles<a class="headerlink" href="#rbac-principles" title="Link to this heading">#</a></h2>
 <section id="headlamp-dashboard">
 <h3>Headlamp dashboard<a class="headerlink" href="#headlamp-dashboard" title="Link to this heading">#</a></h3>
-<p>Headlamp uses Dex OIDC with per-user Kubernetes RBAC. Admin emails
-receive <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBindings; viewer emails receive
-<code class="docutils literal notranslate"><span class="pre">view</span></code> ClusterRoleBindings. There is no shared ServiceAccount.</p>
+<p>Headlamp is gated by the cluster-wide oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> only).
+Users then paste a token for the <code class="docutils literal notranslate"><span class="pre">headlamp</span></code> ServiceAccount
+(<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code>), which the chart binds to <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>, so anyone
+past oauth2-proxy has full cluster access.</p>
 </section>
 <section id="argocd-project">
 <h3>ArgoCD project<a class="headerlink" href="#argocd-project" title="Link to this heading">#</a></h3>
@@ -500,9 +501,7 @@ deploying arbitrary manifests from untrusted repositories.</p>
 <h2>Secret management<a class="headerlink" href="#secret-management" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>All sensitive values are stored as SealedSecrets (encrypted in Git).</p></li>
-<li><p>The ArgoCD initial admin password is not displayed in plaintext during
-provisioning — the bootstrap script directs users to retrieve it
-securely via <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>.</p></li>
+<li><p>The ArgoCD admin account is disabled; all logins go through Dex (GitHub).</p></li>
 <li><p>The <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret (used by Grafana and basic-auth services) is
 created manually during bootstrap and not stored in Git.</p></li>
 </ul>

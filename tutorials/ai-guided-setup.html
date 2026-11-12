@@ -450,14 +450,23 @@ you run the playbook. No additional installation is needed on your workstation.<
 <li><p><strong>Hardware inventory</strong> — Turing Pi slots and node types, or generic server
 hostnames</p></li>
 <li><p><strong>Cluster personalisation</strong> — domain name, email, GitHub fork URL</p></li>
-<li><p><strong>Optional features</strong> — NFS storage, OAuth, Cloudflare tunnel</p></li>
+<li><p><strong>Optional features</strong> — NFS storage, and whether you already have the
+GitHub OAuth and Cloudflare credentials (all six are needed to generate
+every secret in one go; otherwise OAuth and Cloudflare are set up later)</p></li>
 <li><p><strong>File configuration</strong> — edits <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> based on your answers</p></li>
 <li><p><strong>SSH key setup</strong> — checks for an existing key or walks you through
 generating one</p></li>
 <li><p><strong>Playbook execution</strong> — runs the Ansible playbook to flash nodes (Turing Pi)
 or configure servers, install K3s, and deploy ArgoCD</p></li>
-<li><p><strong>Secret generation</strong> — creates the shared admin password</p></li>
+<li><p><strong>Secret generation</strong> — with all OAuth and Cloudflare credentials
+exported, <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> generates and seals every secret during
+the playbook run; without them, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code> sets
+the shared admin password (Grafana’s <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret). Grafana stays
+unusable until <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> is done, as it needs
+<code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret</span></code> and has its password login form turned off. If
+scrap is enabled, <code class="docutils literal notranslate"><span class="pre">SCRAP_ANTHROPIC_API_KEY</span></code> is needed too, or its secrets
+are skipped</p></li>
 <li><p><strong>Credentials file</strong> — writes everything to <code class="docutils literal notranslate"><span class="pre">/tmp/cluster-credentials.txt</span></code>
 for safekeeping</p></li>
 </ol>

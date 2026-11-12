@@ -570,7 +570,7 @@ kubectl<span class="w"> </span>uncordon<span class="w"> </span>node03
 <span id="move-a-local-nvme-pv"></span><h2>Move a local-nvme PV to another node<a class="headerlink" href="#move-a-local-nvme-pv-to-another-node" title="Link to this heading">#</a></h2>
 <p>Each <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV is pinned to one node by its <code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>, which
 Kubernetes does not let you change on an existing PV. To move one, for
-example Grafana’s from <code class="docutils literal notranslate"><span class="pre">node03</span></code> to <code class="docutils literal notranslate"><span class="pre">node02</span></code>, delete the PV through ArgoCD
+example Grafana’s from <code class="docutils literal notranslate"><span class="pre">node04</span></code> to <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, delete the PV through ArgoCD
 and let it re-create it. The PV’s policy is <code class="docutils literal notranslate"><span class="pre">Retain</span></code> and the data is a
 directory on the host, so deleting the PV object does not delete any data.</p>
 <ol class="arabic">
@@ -580,7 +580,7 @@ Make the same change to its <code class="docutils literal notranslate"><span cla
 <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. On the branch, let the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role
 create the directory on the new node, with that entry’s owner, group
 and mode. Do not create it by hand:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>k8s_data_dirs<span class="w"> </span>--limit<span class="w"> </span>node02
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>k8s_data_dirs<span class="w"> </span>--limit<span class="w"> </span>nuc1
 </pre></div>
 </div>
 <p>The tag runs only that role. <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code> would also run

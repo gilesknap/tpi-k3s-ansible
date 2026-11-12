@@ -719,7 +719,7 @@ the Access Application — showing a “Why have I been blocked?” page or
 <h3>4.1 Add a ProxyCommand entry to <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code><a class="headerlink" href="#add-a-proxycommand-entry-to-ssh-config" title="Link to this heading">#</a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Host ssh.example.com
     ProxyCommand cloudflared access ssh --hostname %h
-    User ubuntu
+    User ansible
     StrictHostKeyChecking no
 </pre></div>
 </div>
@@ -763,8 +763,11 @@ re-authentication. When the token expires, re-run <code class="docutils literal 
 <p>Once the SSH tunnel is working, you can use it to reach the Kubernetes API remotely.</p>
 <section id="copy-and-patch-your-kubeconfig">
 <h3>5.1 Copy and patch your kubeconfig<a class="headerlink" href="#copy-and-patch-your-kubeconfig" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copy kubeconfig from the control plane</span>
-scp<span class="w"> </span>ssh.example.com:~/.kube/config<span class="w"> </span>~/.kube/k3s-remote.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Fetch the kubeconfig from the control plane (root-only there), or copy the</span>
+<span class="c1"># devcontainer&#39;s ~/.kube/config instead</span>
+<span class="c1"># (umask 077 keeps the cluster-admin credentials readable only by you)</span>
+<span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>~/.kube/k3s-remote.yaml<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>ssh<span class="w"> </span>ssh.example.com<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span>/etc/rancher/k3s/k3s.yaml<span class="w"> </span>&gt;<span class="w"> </span>~/.kube/k3s-remote.yaml<span class="o">)</span>
 
 <span class="c1"># Patch the server address (k3s_api_name or an IP) to use a local forwarded port</span>
 sed<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;s|https://[^/]*:6443|https://127.0.0.1:6443|&#39;</span><span class="w"> </span><span class="se">\</span>
@@ -811,7 +814,7 @@ to confirm the application exists and its hostname matches.</p>
 <section id="confirm-the-node-is-not-directly-reachable-from-outside-your-lan">
 <h3>Confirm the node is NOT directly reachable from outside your LAN<a class="headerlink" href="#confirm-the-node-is-not-directly-reachable-from-outside-your-lan" title="Link to this heading">#</a></h3>
 <p>From a mobile hotspot (off your home network):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ubuntu@&lt;control-plane-ip&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@&lt;control-plane-ip&gt;
 <span class="c1"># Expected: connection refused or timeout — direct access is blocked</span>
 </pre></div>
 </div>

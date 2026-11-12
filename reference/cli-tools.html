@@ -431,21 +431,34 @@ kubeseal<span class="w"> </span>--fetch-cert<span class="w"> </span>&gt;<span cl
 </div>
 <p>See <a class="reference internal" href="../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> for the full workflow.</p>
 </section>
+<section id="argocd">
+<h3>argocd<a class="headerlink" href="#argocd" title="Link to this heading">#</a></h3>
+<p>ArgoCD CLI (pinned version). Installed to <code class="docutils literal notranslate"><span class="pre">$BIN_DIR</span></code> and linked into
+<code class="docutils literal notranslate"><span class="pre">/usr/local/bin/argocd</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># core mode uses the current kubeconfig context&#39;s namespace</span>
+kubectl<span class="w"> </span>config<span class="w"> </span>set-context<span class="w"> </span>--current<span class="w"> </span>--namespace<span class="w"> </span>argo-cd
+argocd<span class="w"> </span>app<span class="w"> </span>list<span class="w"> </span>--core
+</pre></div>
+</div>
+</section>
 </section>
 <section id="port-forward-scripts">
 <h2>Port-forward scripts<a class="headerlink" href="#port-forward-scripts" title="Link to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">tools</span></code> role installs convenience scripts to <code class="docutils literal notranslate"><span class="pre">/usr/local/bin/</span></code> for accessing
-services when ingress is unavailable or from the devcontainer.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">tools</span></code> role installs convenience scripts to <code class="docutils literal notranslate"><span class="pre">$BIN_DIR</span></code> (default <code class="docutils literal notranslate"><span class="pre">$HOME/bin</span></code>,
+which the role adds to <code class="docutils literal notranslate"><span class="pre">PATH</span></code>) for accessing services when ingress is unavailable
+or from the devcontainer.</p>
 <section id="argo-sh">
 <h3><code class="docutils literal notranslate"><span class="pre">argo.sh</span></code><a class="headerlink" href="#argo-sh" title="Link to this heading">#</a></h3>
-<p>Opens a port-forward to the ArgoCD server and prints the initial admin password.</p>
+<p>Opens a port-forward to the ArgoCD server in the background.</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ArgoCD will be available at:
   https://argocd.&lt;domain&gt;
-  or https://localhost:8080
-  Username: admin
-  Initial Password: &lt;printed&gt;
+  or http://localhost:8080
+  Login via GitHub (Dex)
 </pre></div>
 </div>
+<p>GitHub sign-in through Dex redirects back to <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;domain&gt;</span></code>, so it
+works only once ingress and the sealed OAuth credentials are in place; the
+localhost port-forward does not complete a Dex login.</p>
 </section>
 <section id="grafana-sh">
 <h3><code class="docutils literal notranslate"><span class="pre">grafana.sh</span></code><a class="headerlink" href="#grafana-sh" title="Link to this heading">#</a></h3>
@@ -472,7 +485,7 @@ URL: https://dashboard.&lt;domain&gt;
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">k</span></code> alias for <code class="docutils literal notranslate"><span class="pre">kubectl</span></code></p></li>
 <li><p>Shell completions for <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">KUBECONFIG</span></code> set to the cluster kubeconfig</p></li>
+<li><p>kubeconfig written to <code class="docutils literal notranslate"><span class="pre">~/.kube/config</span></code></p></li>
 </ul>
 </section>
 <section id="additional-packages">
@@ -557,6 +570,7 @@ URL: https://dashboard.&lt;domain&gt;
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kubectl">kubectl</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#helm">helm</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kubeseal">kubeseal</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">argocd</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#port-forward-scripts">Port-forward scripts</a><ul class="nav section-nav flex-column">

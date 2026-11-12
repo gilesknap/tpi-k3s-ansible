@@ -42,8 +42,8 @@ workloads you add. Useful as a standalone observability cluster.
 
 **Hardware prerequisites:**
 
-- One x86 node for Prometheus and Grafana (both pinned to `node04`); they
-  can be split across two nodes
+- One node (arm64 or amd64) for Prometheus and Grafana (both pinned to
+  `node04` in this cluster's values); they can be split across two nodes
 
 **Storage prerequisites:**
 
@@ -60,8 +60,8 @@ workloads you add. Useful as a standalone observability cluster.
 An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.
 
-**Install:** Minecraft dashboard (`enable_minecraft: true`), plus either
-the VPS relay (`enable_vps_relay: true`).
+**Install:** Minecraft dashboard (`enable_minecraft: true`), plus the VPS
+relay (`enable_vps_relay: true`).
 
 **Hardware prerequisites:**
 
@@ -87,7 +87,7 @@ hardware and want the full experience out of the box.
 
 **Minimum hardware:**
 
-- An x86 node for Prometheus and Grafana pinning (`node04`)
+- A node for Prometheus and Grafana pinning (`node04` in this cluster)
 - A NAS with an NFS export for backups
 
 **Other prerequisites:**
@@ -98,25 +98,31 @@ hardware and want the full experience out of the box.
 
 | Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
 |---------|---------------|---------|-----------|-------------|------|---------|
-| cert-manager | `jetstack/cert-manager` | v1.20.1 | `cert-manager` | — | — | TLS certificate management |
-| cloudflared | Plain manifests | 2026.10.0 | `cloudflared` | — | — | Cloudflare tunnel connector |
+| argocd-monitor | `ghcr.io/epics-containers/charts/argocd-monitor` (OCI) | 1.2.0 | `argocd-monitor` | `argocd-monitor.<domain>` | Dex (OIDC) | Dashboard of ArgoCD application status |
+| backups | Local chart | — | `backups` | — | — | Grafana and Jellyfin backup CronJobs to the NAS |
+| cert-manager | `jetstack/cert-manager` | v1.21.3 | `cert-manager` | — | — | TLS certificate management |
+| cloudflared | Plain manifests | 2026.10.7 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | CoreDNS HA | Plain manifests | — | `kube-system` | — | — | Holds K3s's bundled CoreDNS at 2 replicas |
 | echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
-| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 83.0.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.43.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
+| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 93.2.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
+| Headlamp | `headlamp/headlamp` | 0.46.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
+| home | Local chart | — | `home` | `home.<domain>` | None | Landing page with links to the cluster's services |
 | ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
 | Intel GPU device plugin | Upstream release manifests (vendored) | v0.37.1 | `intel-gpu-plugin` | — | — | Advertises `gpu.intel.com/i915` on Intel iGPU nodes |
-| kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | Jellyfin | `jellyfin/jellyfin` | 3.7.0 (image 12.4) | `jellyfin` | — (LAN and Tailscale) | Jellyfin users | Media server with Intel GPU transcoding (optional) |
+| kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
 | kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
-| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.2.0 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.4.2 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
+| kyverno | `kyverno/kyverno` | 3.9.1 | `kyverno` | — | — | Policy engine; disabled (`enable_kyverno: false`) |
+| local-storage | Local chart | — | `kube-system` (cluster-scoped) | — | — | `local-nvme` StorageClass and the static node-pinned PVs |
+| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.5.2 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
+| nfs-csi | `csi-driver-nfs` | 4.13.4 | `nfs-csi` | — | — | Dynamic NFS volumes: classes `nfs-stable` (the default) and `nfs-rwx` |
 | ntfy | Local chart (`binwiederhier/ntfy`) | v2.34.0 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
-| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.19.0 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| scrap | Helm chart from `github.com/gilesknap/scrap` | 0.2.0 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
-| VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
-| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.18.4 | `kube-system` | — | — | Encrypted secrets in Git |
+| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.20.1 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.7.4 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager, the Minecraft dashboard and scrap |
+| scrap | OCI chart `ghcr.io/gilesknap/charts/scrap` | 1.9.2 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
+| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.22.0 | `kube-system` | — | — | Encrypted secrets in Git |
 | system-upgrade-controller | Upstream release manifests (vendored) | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |
+| VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
 
 ## Service details
 
@@ -149,7 +155,8 @@ for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel wi
 Image pinned to `0.9.2`.
 
 **Additional manifests:** `additions/echo/`
-- `manifests.yaml` — Deployment, Service, and Ingress
+- `manifests.yaml` — Deployment and Service (the Ingress comes from
+  `additions/ingress`)
 
 ### Grafana + Prometheus (kube-prometheus-stack)
 
@@ -209,7 +216,7 @@ to the CoreDNS Deployment that K3s manages. See {doc}`/explanations/upgrade-mode
 DaemonSet that applies system tuning on all nodes:
 - Sets `rmem_max` and `wmem_max` to 7500000 (network buffers)
 
-All busybox images pinned to `1.37`.
+All busybox images pinned to `1.38`.
 
 ### kured
 
@@ -271,8 +278,13 @@ plus scrap's own bearer token (`SCRAP_MCP_TOKEN`, from `scrap-secrets`).
 - `templates/backup-copy.yaml` — the nightly off-NAS backup copy
 - `templates/legacy-pvc.yaml`, `templates/migrate-job.yaml` — the pre-Litestream
   claims, kept as a frozen copy, and the one-off move to NFS
-- `templates/scrap-secret.yaml` — SealedSecret `scrap-secrets` holding the
-  Claude API key (created by you; not shipped)
+- `templates/scrap-secret.yaml` — SealedSecret `scrap-secrets`
+  (`ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN`; sealed per cluster)
+- `templates/public-namespace.yaml` — the `scrap-public` namespace for the
+  public pages site
+- `templates/scrap-publish-secret.yaml`, `templates/scrap-public-publish-secret.yaml`
+  — SealedSecrets `scrap-publish` (the public-pages upload token) in `scrap`
+  and `scrap-public`
 
 See {doc}`/how-to/scrap` for setup.
 
@@ -427,9 +439,10 @@ directly by the Ansible `cluster` role using the OCI Helm chart (v9.4.17). It is
 foundation that all other services depend on.
 
 Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
-emails to `role:admin` or `role:readonly` via `argocd-rbac-cm.yml`.
+emails to `role:admin` or `role:readonly` via `configs.rbac` in
+`roles/cluster/tasks/argocd.yml`.
 
-Access: `argocd.<domain>` (via Cloudflare tunnel) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:8080`.
+Access: `argocd.<domain>` (via Cloudflare tunnel) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:80`.
 
 See {doc}`/explanations/authentication` for details on how Dex is shared
 across services.

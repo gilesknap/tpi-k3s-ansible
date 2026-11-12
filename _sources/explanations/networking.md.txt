@@ -38,11 +38,11 @@ The Cloudflare API token for DNS management is stored as a SealedSecret at
 
 ### Certificate lifecycle
 
-cert-manager automatically:
-
-- Creates certificates for each Ingress resource
-- Renews certificates before expiry (default: 30 days before)
-- Stores certificates as Kubernetes Secrets
+cert-manager issues one wildcard certificate (`*.<domain>` and `<domain>`)
+through DNS-01 and stores it in the secret `cert-manager/wildcard-tls`.
+ingress-nginx serves it as the default certificate for every Ingress, so
+Ingresses carry no cert-manager annotations. cert-manager renews it
+automatically before expiry (default: 30 days before).
 
 ## Cloudflare tunnel
 

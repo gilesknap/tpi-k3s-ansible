@@ -520,7 +520,12 @@ controller can decrypt them.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/argocd-monitor/argocd-monitor-oauth-secret.yaml</span></code> — argocd-monitor Dex client + cookie secret</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/oauth2-proxy/oauth2-proxy-secret.yaml</span></code> — GitHub OAuth App credentials + cookie secret</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/vps-relay/templates/vps-relay-secret.yaml</span></code> — Tailscale OAuth client secret + frp token (optional VPS relay)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml</span></code> — ntfy users and access tokens</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml</span></code> — Alertmanager’s ntfy token</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/templates/scrap-secret.yaml</span></code> — scrap’s Claude API key + <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> bearer token</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/templates/scrap-publish-secret.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-public-publish-secret.yaml</span></code> — scrap’s public-pages upload token</p></li>
 </ul>
+<p><a class="reference internal" href="../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> has the full table.</p>
 </section>
 <section id="admin-access">
 <h3>Admin access<a class="headerlink" href="#admin-access" title="Link to this heading">#</a></h3>
@@ -546,10 +551,13 @@ auto-injected OAuth helper is overridden, so remote pushes require an
 explicit fine-grained PAT via <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">login</span></code>.</p></li>
 <li><p><strong>GitHub CLI credentials are per-repo</strong>. A dedicated Docker volume
 (<code class="docutils literal notranslate"><span class="pre">gh-auth-&lt;project&gt;</span></code>) stores the PAT, scoped to only the repositories needed.</p></li>
-<li><p><strong>Claude Code is devcontainer-only</strong>. A <code class="docutils literal notranslate"><span class="pre">UserPromptSubmit</span></code> hook blocks
-execution outside the container.</p></li>
-<li><p><strong>Network escape vectors require confirmation</strong>. <code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">scp</span></code>, <code class="docutils literal notranslate"><span class="pre">rsync</span></code>, and
-similar commands in Claude Code prompt for human approval.</p></li>
+<li><p><strong>Claude Code runs only inside the claude-sandbox wrapper</strong>. A global
+integrity guard fails closed if Claude is launched unwrapped, and a
+fail-closed network egress jail blocks private addresses except the
+cluster hosts listed as <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> entries.</p></li>
+<li><p><strong>Claude has its own revocable SSH key</strong>. Claude reaches the nodes’
+<code class="docutils literal notranslate"><span class="pre">ansible</span></code> account with a dedicated key, not yours; revoke it with
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span> <span class="pre">revoke</span></code>.</p></li>
 </ul>
 <p>See <a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Using Claude Code</span></a> for setup instructions.</p>
 </section>
@@ -591,8 +599,10 @@ No inbound ports need to be opened on your router for public-facing services.</p
 </section>
 <section id="cloudflare-access">
 <h3>Cloudflare Access<a class="headerlink" href="#cloudflare-access" title="Link to this heading">#</a></h3>
-<p>All services are routed through the Cloudflare tunnel and protected by a
-Cloudflare Access email-gate policy.</p>
+<p>Tunnelled services sit behind a Cloudflare Access email-gate policy, except
+the public ones allowlisted for bypass (such as ntfy and the scrap pages
+site) and scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> endpoint, which uses a service-token policy. Rate
+limiting is one path-based Free-plan rule in <code class="docutils literal notranslate"><span class="pre">cloudflare/waf.tf</span></code>.</p>
 </section>
 <section id="networkpolicies">
 <h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
@@ -622,7 +632,8 @@ disabling it costs nothing. Apply it to existing nodes with
 <li><p>Certificates are automatically issued and renewed by cert-manager</p></li>
 <li><p>DNS-01 validation via Cloudflare API (works for LAN-only services too)</p></li>
 <li><p>HSTS headers are set by ingress-nginx by default</p></li>
-<li><p>ArgoCD uses TLS passthrough (handles its own certificate)</p></li>
+<li><p>ArgoCD serves plain HTTP (<code class="docutils literal notranslate"><span class="pre">server.insecure</span></code>) and TLS ends at ingress-nginx
+like every other service</p></li>
 </ul>
 </section>
 <section id="recommendations">

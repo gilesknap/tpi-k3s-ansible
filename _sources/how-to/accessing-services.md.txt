@@ -29,7 +29,7 @@ Via port-forward:
 ```bash
 argo.sh
 # Or manually:
-kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
+kubectl port-forward svc/argocd-server -n argo-cd 8080:80
 # Open http://localhost:8080
 ```
 
@@ -67,7 +67,7 @@ kubectl -n monitoring port-forward sts/grafana-prometheus 3000
 ```
 
 Click **Sign in with GitHub (via Dex)** to log in. Password login is
-disabled. Emails in the `oauth2_emails` list get the Admin role; everyone
+disabled. Emails in the `admin_emails` list get the Admin role; everyone
 else gets Viewer. Grafana comes preconfigured with the
 `kube-prometheus-stack` dashboards for cluster monitoring.
 

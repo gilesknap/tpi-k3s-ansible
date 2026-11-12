@@ -430,77 +430,64 @@ all services. Follow these steps to finish the setup.</p>
 <p class="admonition-title">Tip</p>
 <p><strong>NAS prerequisite for backups.</strong> The daily and weekly backup CronJobs write
 to an NFS export on a NAS. If you intend to run backups (recommended for any
-stateful workload — Grafana, Prometheus), set up the
+stateful workload — Grafana, Jellyfin), set up the
 NAS share <strong>before</strong> the first backup runs. See <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> — this is a
 one-time manual runbook on the NAS itself.</p>
 </div>
 <section id="set-up-the-shared-admin-password">
 <h2>Set Up the Shared Admin Password<a class="headerlink" href="#set-up-the-shared-admin-password" title="Link to this heading">#</a></h2>
-<p>Several services share a common admin password via a Kubernetes secret called
-<code class="docutils literal notranslate"><span class="pre">admin-auth</span></code>. This secret is <strong>not managed by ArgoCD</strong> — it is created manually.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Service</p></th>
-<th class="head"><p>How it uses <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code></p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>ArgoCD</p></td>
-<td><p>Admin password via <code class="docutils literal notranslate"><span class="pre">argocd-secret</span></code> patch</p></td>
-</tr>
-<tr class="row-odd"><td><p>Grafana</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">admin.existingSecret</span></code> references <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<p>Grafana’s built-in admin account reads its password from a Kubernetes secret
+called <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (via <code class="docutils literal notranslate"><span class="pre">admin.existingSecret</span></code>). This secret is <strong>not managed
+by ArgoCD</strong> — it is created manually. ArgoCD does not use it: the ArgoCD
+local admin account is disabled and all logins go through Dex (GitHub).</p>
 <p>The quickest way to set the password is with the Justfile target:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>set-admin-password
 </pre></div>
 </div>
-<p>This prompts for a password (or reads <code class="docutils literal notranslate"><span class="pre">ADMIN_PASSWORD</span></code> from the environment),
-creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret in the <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> namespace (used by
-Grafana), patches the ArgoCD admin password, and restarts the ArgoCD server.</p>
-<p>To update the password later, re-run the same command and restart cached
-services:</p>
+<p>This prompts for a password (or reads <code class="docutils literal notranslate"><span class="pre">ADMIN_PASSWORD</span></code> from the environment)
+and creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret in the <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> namespace (used by
+Grafana). The script still also writes a leftover <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret into a
+<code class="docutils literal notranslate"><span class="pre">longhorn</span></code> namespace and sets <code class="docutils literal notranslate"><span class="pre">admin.password</span></code> in <code class="docutils literal notranslate"><span class="pre">argocd-secret</span></code>
+(restarting <code class="docutils literal notranslate"><span class="pre">argocd-server</span></code>); neither has any effect now that Longhorn is
+gone and the ArgoCD admin account is disabled.</p>
+<p>Grafana reads this password only when it first creates its database, so
+re-running <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code> later does not change the password of a
+running Grafana. To rotate it, update the secret and reset it in Grafana too:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>set-admin-password
-kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>statefulset<span class="w"> </span>grafana-prometheus
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>statefulset/grafana-prometheus<span class="w"> </span>-c<span class="w"> </span>grafana<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>grafana<span class="w"> </span>cli<span class="w"> </span>admin<span class="w"> </span>reset-admin-password<span class="w"> </span><span class="s1">&#39;&lt;new-password&gt;&#39;</span>
 </pre></div>
 </div>
 </section>
 <section id="verify-argocd-sync">
 <h2>Verify ArgoCD Sync<a class="headerlink" href="#verify-argocd-sync" title="Link to this heading">#</a></h2>
-<p>Access ArgoCD via port-forward to check that all services are deploying:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/argocd-server<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="m">8080</span>:8080
+<p>Check that all services are deploying with a read-only query:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>applications<span class="w"> </span>-n<span class="w"> </span>argo-cd
 </pre></div>
 </div>
-<p>Login with <code class="docutils literal notranslate"><span class="pre">admin</span></code> and the password you just set. You should see
-<code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> and its child applications. Allow a few minutes for all
-services to reach <code class="docutils literal notranslate"><span class="pre">Synced</span> <span class="pre">/</span> <span class="pre">Healthy</span></code>.</p>
+<p>You should see <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> and its child applications. Allow a few
+minutes for all services to reach <code class="docutils literal notranslate"><span class="pre">Synced</span> <span class="pre">/</span> <span class="pre">Healthy</span></code>.</p>
+<p>The ArgoCD web UI has no local admin account: it signs in through Dex
+(GitHub), which needs the sealed OAuth credentials from <a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> and
+redirects back to <code class="docutils literal notranslate"><span class="pre">https://argocd.&lt;domain&gt;</span></code>. Until that is set up, use
+<code class="docutils literal notranslate"><span class="pre">kubectl</span></code> instead of the UI (or <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">app</span> <span class="pre">list</span> <span class="pre">--core</span></code>, with the current
+kubeconfig context’s namespace set to <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>).</p>
 <p>If any applications are stuck, force a refresh:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>patch<span class="w"> </span>application<span class="w"> </span>all-cluster-services<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--type<span class="w"> </span>merge<span class="w"> </span>-p<span class="w"> </span><span class="s1">&#39;{&quot;metadata&quot;:{&quot;annotations&quot;:{&quot;argocd.argoproj.io/refresh&quot;:&quot;hard&quot;}}}&#39;</span>
 </pre></div>
 </div>
 </section>
-<section id="verify-headlamp-oidc-login">
-<h2>Verify Headlamp OIDC Login<a class="headerlink" href="#verify-headlamp-oidc-login" title="Link to this heading">#</a></h2>
-<p>Headlamp authenticates via Dex (GitHub SSO). After ArgoCD syncs, visit
-<code class="docutils literal notranslate"><span class="pre">https://headlamp.&lt;your-domain&gt;</span></code> and click <strong>Sign in</strong>. You will be
-redirected to GitHub via Dex. Admin emails get <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> access;
-viewer emails get read-only <code class="docutils literal notranslate"><span class="pre">view</span></code> access.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Headlamp OIDC requires the K3s API server to be configured with OIDC
-flags. The Ansible <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role deploys these automatically via
-<code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code>. If you see token validation errors,
-verify the config is deployed and k3s has been restarted.</p>
-</div>
-</section>
-<section id="clean-up-the-initial-admin-secret">
-<h2>Clean Up the Initial Admin Secret<a class="headerlink" href="#clean-up-the-initial-admin-secret" title="Link to this heading">#</a></h2>
-<p>After verifying everything works, delete the auto-generated secret:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>delete<span class="w"> </span>secret<span class="w"> </span>argocd-initial-admin-secret
+<section id="verify-headlamp-login">
+<h2>Verify Headlamp Login<a class="headerlink" href="#verify-headlamp-login" title="Link to this heading">#</a></h2>
+<p>With <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy:</span> <span class="pre">true</span></code>, Headlamp sits behind the cluster-wide
+oauth2-proxy. After ArgoCD syncs, visit <code class="docutils literal notranslate"><span class="pre">https://headlamp.&lt;your-domain&gt;</span></code> and
+pass the GitHub oauth2-proxy gate (only emails in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are let
+through); with it <code class="docutils literal notranslate"><span class="pre">false</span></code> there is no gate in front of Headlamp. Headlamp
+then asks for a token:
+paste one from</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>headlamp-token
+<span class="c1"># or: kubectl create token headlamp -n headlamp</span>
 </pre></div>
 </div>
 </section>
@@ -575,8 +562,7 @@ another CSI driver (Longhorn, Rook-Ceph, …)</p></li>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-the-shared-admin-password">Set Up the Shared Admin Password</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-argocd-sync">Verify ArgoCD Sync</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-headlamp-oidc-login">Verify Headlamp OIDC Login</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clean-up-the-initial-admin-secret">Clean Up the Initial Admin Secret</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-headlamp-login">Verify Headlamp Login</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
 </ul>
   </nav></div>

@@ -16,15 +16,15 @@ flowchart TB
 
     subgraph TuringPi["Turing Pi v2.5"]
         BMC[BMC<br/>SSH + tpi CLI]
-        N1[node01<br/>Worker]
         N2[node02<br/>Control Plane]
-        N3[node03<br/>Worker]
+        N3[node03<br/>Standby worker]
         N4[node04<br/>Worker]
     end
 
     subgraph Extra["Extra Nodes"]
-        E1[ws03<br/>Worker]
+        E1[ws03<br/>Workstation]
         E2[nuc2<br/>Worker]
+        E3[nuc1<br/>Worker]
     end
 
     subgraph Cluster["K3s Cluster"]
@@ -38,12 +38,12 @@ flowchart TB
     end
 
     DC -->|"1. Flash (via BMC)"| BMC
-    BMC -->|"tpi flash"| N1 & N2 & N3 & N4
+    BMC -->|"tpi flash"| N2 & N3 & N4
     DC -->|"2. Install K3s"| K3S
     DC -->|"3. Deploy ArgoCD"| ARGO
     ARGO -->|"4. Sync services"| SVC
     REPO -->|"GitOps"| ARGO
-    DC -->|"SSH"| E1 & E2
+    DC -->|"SSH"| E1 & E2 & E3
 ```
 
 ## Layers
@@ -55,7 +55,7 @@ The project supports two types of compute nodes:
 - **Turing Pi nodes** — compute modules (RK1, CM4) installed in a Turing Pi v2.5 board.
   The BMC provides remote management (flashing, power control) via SSH and the `tpi` CLI.
 - **Extra nodes** — any standalone Linux server (Intel NUC, Raspberry Pi, VM, etc.)
-  with a modern Linux distribution and SSH access.
+  running Ubuntu (24.04 or later) with SSH access.
 
 Both types join the same K3s cluster as either the control plane or workers.
 
@@ -65,7 +65,7 @@ Ansible orchestrates the entire setup through a sequence of roles:
 
 ```mermaid
 flowchart TB
-    T[tools] --> F[flash] --> KH[known_hosts] --> S[servers] --> K[k3s] --> C[cluster]
+    T[tools] --> F[flash] --> KH[known_hosts] --> S["move_fs / rk1_os / update_packages / k8s_data_dirs<br/>(servers tag)"] --> K["k3s / etcd_backup<br/>(k3s tag)"] --> C[cluster]
 ```
 
 | Role | Purpose | Runs on |
@@ -76,7 +76,10 @@ flowchart TB
 | `move_fs` | Install Ubuntu on an RK1's NVMe from its eMMC staging OS | Nodes with `root_dev` |
 | `rk1_os` | Convert older vendor-image RK1 installs to stock Ubuntu 26.04 | RK1 nodes |
 | `update_packages` | dist-upgrade, install dependencies | All nodes |
+| `k8s_data_dirs` | Create the host directories behind the `local-nvme` PVs | Each PV's node |
+| `node_reboot` | Drained reboot, one node at a time (only with `reboot_now`) | Nodes needing a reboot |
 | `k3s` | Install K3s control plane and workers | All nodes |
+| `etcd_backup` | Nightly encrypted etcd + sealed-secrets key backup to the NAS | Control plane |
 | `cluster` | Deploy ArgoCD, bootstrap services | localhost |
 
 Each role is idempotent — it checks state before acting and does nothing if the desired
@@ -129,7 +132,7 @@ ArgoCD continuously reconciles the cluster state with the repository. See
 |--------|-----------|
 | K3s over K8s | Lightweight, single binary, ideal for ARM and small clusters |
 | ArgoCD over Flux | Mature, excellent UI, widely adopted |
-| NGINX Ingress over Traefik | More widely documented, better TLS passthrough support |
+| NGINX Ingress over Traefik | More widely documented, mature `auth-url` support for oauth2-proxy |
 | Static `local-nvme` PVs + NFS backup CronJobs over distributed block storage | Lower overhead, simpler failure modes, known host pinning; the NAS was already present so backups reuse existing infrastructure |
 | cert-manager + DNS-01 | Works for LAN-only services that have no public HTTP route |
 | Sealed Secrets over SOPS | Kubernetes-native, no external key management needed |

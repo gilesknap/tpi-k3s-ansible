@@ -517,18 +517,24 @@ the namespace automatically</p></li>
 <span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kubernetes-services/additions/ingress</span>
 <span class="w">  </span><span class="nt">helm</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">valuesObject</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-service</span><span class="w">   </span><span class="c1"># host is my-service.&lt;cluster_domain&gt;</span>
 <span class="w">      </span><span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="s">&quot;{{&quot;</span><span class="w"> </span><span class="p p-Indicator">}}</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.Values.cluster_domain {{ &quot;}}&quot; }}</span>
 <span class="w">      </span><span class="nt">service_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-service</span>
 <span class="w">      </span><span class="nt">service_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
 <span class="w">      </span><span class="c1"># Optional:</span>
+<span class="w">      </span><span class="c1"># oauth2_proxy: true   # Gate with the cluster-wide oauth2-proxy</span>
+<span class="w">      </span><span class="c1"># ssl_redirect: false  # No HTTP-&gt;HTTPS redirect (e.g. behind the tunnel)</span>
 <span class="w">      </span><span class="c1"># basic_auth: true     # Enable nginx basic-auth (uses admin-auth secret)</span>
+<span class="w">      </span><span class="c1"># extra_annotations:   # Any other Ingress annotations</span>
+<span class="w">      </span><span class="c1">#   nginx.ingress.kubernetes.io/proxy-body-size: &quot;50m&quot;</span>
 </pre></div>
 </div>
 <p>The ingress sub-chart creates a standard Ingress resource with:</p>
 <ul class="simple">
-<li><p>TLS using the <code class="docutils literal notranslate"><span class="pre">letsencrypt-prod</span></code> ClusterIssuer</p></li>
-<li><p>Host-based routing (<code class="docutils literal notranslate"><span class="pre">my-service.&lt;cluster_domain&gt;</span></code>)</p></li>
-<li><p>Optional nginx basic-auth</p></li>
+<li><p>TLS using the cluster wildcard certificate (served by ingress-nginx as its
+default certificate)</p></li>
+<li><p>Host-based routing (<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.&lt;cluster_domain&gt;</span></code>)</p></li>
+<li><p>Optional oauth2-proxy gating, nginx basic-auth and extra annotations</p></li>
 </ul>
 </section>
 <section id="step-4-commit-and-push">

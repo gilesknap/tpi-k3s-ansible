@@ -869,32 +869,50 @@ within it becomes an independent ArgoCD Application.</p>
 ├── Chart.yaml              # Minimal Helm chart metadata
 ├── values.yaml             # Shared values (repo_branch, admin_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
+│   ├── argocd-monitor.yaml
 │   ├── backups.yaml
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
+│   ├── coredns.yaml
 │   ├── dashboard.yaml      # Headlamp
 │   ├── echo.yaml
-│   ├── grafana.yaml
-│   ├── ingress.yaml
+│   ├── grafana.yaml        # kube-prometheus-stack
+│   ├── home.yaml
+│   ├── ingress.yaml        # ingress-nginx
 │   ├── intel-gpu-plugin.yaml # Intel iGPU device plugin
+│   ├── jellyfin.yaml
 │   ├── kernel-settings.yaml
+│   ├── kured.yaml
+│   ├── kyverno.yaml        # disabled by default
 │   ├── local-storage.yaml
 │   ├── minecraft.yaml      # Minecraft dashboard (OCI chart, optional)
+│   ├── nfs-csi.yaml
+│   ├── ntfy.yaml
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
+│   ├── scrap.yaml
 │   ├── sealed-secrets.yaml
+│   ├── system-upgrade.yaml
 │   └── vps-relay.yaml      # frpc + Tailscale relay to a VPS (optional)
 └── additions/              # Extra manifests per service
-    ├── argocd/             # Custom CM for ArgoCD health checks
+    ├── argocd/             # Dex SealedSecret
+    ├── argocd-monitor/     # OAuth SealedSecret
     ├── backups/            # CronJobs + single NFS PV for per-app backups
-    ├── cert-manager/       # SealedSecret + ClusterIssuer
+    ├── cert-manager/       # SealedSecret + ClusterIssuer + wildcard Certificate
     ├── cloudflared/        # Deployment + SealedSecret
-    ├── dashboard/          # RBAC for Headlamp
+    ├── coredns/            # CoreDNS HA manifests
     ├── echo/               # Echo-server manifests
+    ├── grafana/            # Alert rules, ServiceMonitor, SealedSecrets
+    ├── home/               # Landing page
     ├── ingress/            # Reusable ingress sub-chart
     ├── intel-gpu-plugin/   # Vendored Intel GPU plugin DaemonSet + patch
+    ├── jellyfin/           # Config PVC, media NFS volume, seed scripts
+    ├── k3s-upgrade-plans/  # system-upgrade-controller Plans
+    ├── kernel-settings/    # Sysctl DaemonSet
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
+    ├── ntfy/               # Local ntfy chart + SealedSecret
     ├── oauth2-proxy/       # SealedSecret for OAuth config
+    ├── scrap/              # NFS volumes, /mcp Ingress, SealedSecrets
     ├── system-upgrade-controller/  # Vendored upstream release manifests
     └── vps-relay/          # Tailscale + frpc Deployment, generated frpc.toml
 </pre></div>
@@ -909,7 +927,8 @@ within it becomes an independent ArgoCD Application.</p>
 values via Helm:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">repo_remote</span></code> — Git repository URL</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> — comes from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (self-referential)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code> — from <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (or <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">repo_branch=</span></code>), passed in by the
+root Application; it overrides the default in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code> — domain name for ingress hosts</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">domain_email</span></code> — for Let’s Encrypt registration</p></li>
 </ul>
@@ -945,9 +964,10 @@ with local additions from this repo:</p>
 <span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kubernetes-services/additions/ingress</span>
 <span class="w">    </span><span class="nt">helm</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">valuesObject</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-service</span><span class="w">          </span><span class="c1"># host is my-service.&lt;cluster_domain&gt;</span>
 <span class="w">        </span><span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">.Values.cluster_domain</span><span class="nv"> </span><span class="s">}}&quot;</span>
-<span class="w">        </span><span class="nt">service_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cert-manager</span>
-<span class="w">        </span><span class="nt">service_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">443</span>
+<span class="w">        </span><span class="nt">service_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-service</span>
+<span class="w">        </span><span class="nt">service_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
 </pre></div>
 </div>
 </section>
@@ -956,13 +976,17 @@ with local additions from this repo:</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> directory contains a minimal Helm chart that generates
 a standardised Ingress resource. It supports:</p>
 <ul class="simple">
-<li><p>TLS via the <code class="docutils literal notranslate"><span class="pre">letsencrypt-prod</span></code> ClusterIssuer</p></li>
-<li><p>Host-based routing (<code class="docutils literal notranslate"><span class="pre">&lt;service_name&gt;.&lt;cluster_domain&gt;</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code> (required) — the Ingress is <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;-ingress</span></code> with host
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.&lt;cluster_domain&gt;</span></code></p></li>
+<li><p>TLS via the cluster wildcard certificate (<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>),
+served by ingress-nginx as its default</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">basic_auth:</span> <span class="pre">true</span></code> — nginx basic-auth via the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> — protect with oauth2-proxy authentication gateway</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code> — disable HTTP→HTTPS redirect (default true)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ssl_passthrough:</span> <span class="pre">true</span></code> — TLS passthrough mode (unused since ArgoCD
-moved to nginx-terminated TLS)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">service_port:</span> <span class="pre">443</span></code> — talks HTTPS to the backend; TLS still terminates at
+ingress-nginx (the template’s <code class="docutils literal notranslate"><span class="pre">ssl-passthrough</span></code> annotation has no effect,
+as the controller does not run with <code class="docutils literal notranslate"><span class="pre">--enable-ssl-passthrough</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">extra_annotations</span></code> — a map of extra annotations to add to the Ingress</p></li>
 </ul>
 <p>This avoids duplicating ingress boilerplate across services.</p>
 </section>
@@ -978,7 +1002,7 @@ Application simply points at the directory.</p>
 <pre  class="mermaid">
         flowchart TD
     GV[&quot;group_vars/all.yml&lt;br/&gt;(Ansible vars)&quot;] --&gt;|&quot;cluster role&quot;| ROOT[&quot;Root Application CR&lt;br/&gt;valuesObject&quot;]
-    VY[&quot;kubernetes-services/values.yaml&lt;br/&gt;(repo_branch)&quot;] --&gt;|&quot;Helm values&quot;| ROOT
+    VY[&quot;kubernetes-services/values.yaml&lt;br/&gt;(defaults, admin_emails, toggles)&quot;] --&gt;|&quot;Helm values&quot;| ROOT
     ROOT --&gt;|&quot;{{ .Values.* }}&quot;| CHILD[&quot;Child Application templates&quot;]
     CHILD --&gt;|&quot;Service-specific values&quot;| SVC[&quot;Deployed services&quot;]
     </pre><p>Key values propagated to all child apps:</p>
@@ -995,7 +1019,7 @@ Application simply points at the directory.</p>
 <td><p>Git repo URL for multi-source apps</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (or <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">repo_branch=</span></code>)</p></td>
 <td><p>Branch for <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>

@@ -939,7 +939,6 @@ disables it (<code class="docutils literal notranslate"><span class="pre">--disa
 Reasons:</p>
 <ul class="simple">
 <li><p>More widely documented in the Kubernetes ecosystem</p></li>
-<li><p>Better support for TLS passthrough (needed for ArgoCD)</p></li>
 <li><p>More straightforward configuration model</p></li>
 <li><p>Mature <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> / <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotation support, which is what
 oauth2-proxy relies on for the subrequest flow described later in this
@@ -1081,7 +1080,8 @@ service.</p>
     Dex-&gt;&gt;ArgoCD: ID token (email scope)
     ArgoCD-&gt;&gt;ArgoCD: Map email → role:admin or role:readonly
     ArgoCD-&gt;&gt;User: Logged in
-    </pre><p>RBAC is configured in <code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code>. The <code class="docutils literal notranslate"><span class="pre">scopes</span></code> field is set to
+    </pre><p>RBAC is configured in <code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>
+(rendered into the <code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm</span></code> ConfigMap). The <code class="docutils literal notranslate"><span class="pre">scopes</span></code> field is set to
 <code class="docutils literal notranslate"><span class="pre">[email]</span></code>, and policy rules map specific emails to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code>. Everyone
 else gets <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code> (can view applications and logs but not modify).</p>
 </section>
@@ -1249,12 +1249,12 @@ via Dex/GitHub gets a viewer/read-only role by default.</p></li>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy.yaml</span></code></p></td>
-<td><p>Email allowlist — only admins can access Headlamp, Alertmanager and the Minecraft dashboard</p></td>
+<td><p>Email allowlist — only admins can access Headlamp, Alertmanager, the Minecraft dashboard and scrap</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">role_attribute_path</span></code> — admin emails get <code class="docutils literal notranslate"><span class="pre">Admin</span></code>, others get <code class="docutils literal notranslate"><span class="pre">Viewer</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code> (rendered into the <code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm</span></code> ConfigMap)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">g,</span> <span class="pre">&lt;email&gt;,</span> <span class="pre">role:admin</span></code> — admin emails get ArgoCD admin</p></td>
 </tr>
 </tbody>

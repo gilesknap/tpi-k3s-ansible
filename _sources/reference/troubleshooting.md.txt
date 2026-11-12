@@ -146,10 +146,19 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 
 **Fix:** Disable admission webhooks in the chart values:
 
+The value path depends on the chart (both are already set in
+`kubernetes-services/templates/`):
+
 ```yaml
-# In kubernetes-services/values.yaml (under the affected app)
-admissionWebhooks:
-  enabled: false
+# kube-prometheus-stack (grafana.yaml), under helm.valuesObject
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+
+# ingress-nginx (ingress.yaml), under helm.valuesObject
+controller:
+  admissionWebhooks:
+    enabled: false
 ```
 
 If the operation is already stuck, clear it manually:
@@ -274,7 +283,7 @@ This avoids polluting your browser cache with intermediate states.
 **Symptom:** A pod stuck `Pending` with events like `no persistent volumes
 available for this claim`.
 
-**Check:** `kubectl get pv -l type=local-nvme` — every PV listed in
+**Check:** `kubectl get pv -o custom-columns=NAME:.metadata.name,CLASS:.spec.storageClassName,STATUS:.status.phase,CLAIM:.spec.claimRef.name | grep local-nvme` — every PV listed in
 `additions/local-storage/` should be `Bound`.
 
 **Fix:** Verify the data directory exists on the target node (the
@@ -425,8 +434,10 @@ If only the local-resolver lookup fails, you are hitting cached
 2. **Export path correct?** Check `kubernetes-services/values.yaml` matches
    the NFS server's `/etc/exports`.
 3. **PV exists and is Available?** `kubectl get pv`
-4. **StorageClass mismatch?** NFS PVs in this project do not use a StorageClass
-   — the PVC binds directly by name.
+4. **StorageClass mismatch?** Static NFS PVs (backups, scrap, jellyfin media)
+   have no StorageClass and bind by name; dynamic ones come from the
+   `nfs-stable` (default) or `nfs-rwx` class: check `kubectl get sc` and the
+   csi-driver-nfs controller logs.
 
 ## K3s Control Plane
 

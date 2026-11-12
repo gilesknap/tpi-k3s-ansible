@@ -430,12 +430,13 @@ tools. The application and its Helm chart live in the scrap repository. This
 repository provides the cluster wiring:</p>
 <ul class="simple">
 <li><p>An ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>) that
-deploys the chart from a git tag, with a NetworkPolicy, the chart’s
+deploys the published OCI chart, with a NetworkPolicy, the chart’s
 Litestream mode on NFS volumes (so scrap runs on any node), a nightly backup
 CronJob and Claude ingest (enabled in this deployment).</p></li>
 <li><p>An ingress for <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code> gated by oauth2-proxy, plus a second
 <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only ingress without oauth2-proxy
-(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>), disabled by default (see below).</p></li>
+(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>), off by default in the chart, on in
+this deployment (see below).</p></li>
 <li><p>Static NFS volumes for the data and the backups, and a nightly copy of the
 newest backup off the NAS (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code>); see
 <a class="reference internal" href="#data-backups-and-failover">Data, backups and failover</a>.</p></li>
@@ -629,7 +630,11 @@ logs that, and exits successfully.</p>
 </section>
 <section id="cloudflare-configuration">
 <h2>Cloudflare configuration<a class="headerlink" href="#cloudflare-configuration" title="Link to this heading">#</a></h2>
-<p>In the Cloudflare dashboard, following <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>:</p>
+<p>With Cloudflare managed as code (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>), these are the
+<code class="docutils literal notranslate"><span class="pre">scrap</span></code> and <code class="docutils literal notranslate"><span class="pre">pages</span></code> entries in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code> and the apps in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/access.tf</span></code> (including the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> service-token policy); apply with
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>. Otherwise, in the Cloudflare dashboard, following
+<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>:</p>
 <ol class="arabic simple">
 <li><p>Add a public hostname <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code> on the tunnel pointing at
 ingress-nginx.</p></li>
@@ -689,8 +694,11 @@ skipped.</p>
 <section id="cloudflare-for-the-public-site">
 <h3>Cloudflare for the public site<a class="headerlink" href="#cloudflare-for-the-public-site" title="Link to this heading">#</a></h3>
 <p>The wildcard Access application covers every subdomain, so without more
-configuration readers of <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> meet a login page. In the
-Cloudflare dashboard:</p>
+configuration readers of <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> meet a login page. With Cloudflare
+managed as code (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>), the <code class="docutils literal notranslate"><span class="pre">pages</span></code> entry in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code> (<code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code>) and its bypass app in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/access.tf</span></code> already handle this; apply with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.
+Otherwise, in the Cloudflare dashboard:</p>
 <ol class="arabic simple">
 <li><p>Add a public hostname <code class="docutils literal notranslate"><span class="pre">pages.&lt;domain&gt;</span></code> on the tunnel pointing at
 ingress-nginx, as for <code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code> (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>

@@ -433,8 +433,8 @@ workloads you add. Useful as a standalone observability cluster.</p>
 <p><strong>Install:</strong> kube-prometheus-stack (Grafana + Prometheus + Alertmanager).</p>
 <p><strong>Hardware prerequisites:</strong></p>
 <ul class="simple">
-<li><p>One x86 node for Prometheus and Grafana (both pinned to <code class="docutils literal notranslate"><span class="pre">node04</span></code>); they
-can be split across two nodes</p></li>
+<li><p>One node (arm64 or amd64) for Prometheus and Grafana (both pinned to
+<code class="docutils literal notranslate"><span class="pre">node04</span></code> in this cluster’s values); they can be split across two nodes</p></li>
 </ul>
 <p><strong>Storage prerequisites:</strong></p>
 <ul class="simple">
@@ -451,8 +451,8 @@ can be split across two nodes</p></li>
 <h3>Minecraft — game servers from world backups<a class="headerlink" href="#minecraft-game-servers-from-world-backups" title="Link to this heading">#</a></h3>
 <p>An admin dashboard that launches Minecraft Java servers from a read-only
 archive of world backups, with snapshots, restore, and per-world whitelists.</p>
-<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), plus either
-the VPS relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>).</p>
+<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), plus the VPS
+relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>).</p>
 <p><strong>Hardware prerequisites:</strong></p>
 <ul class="simple">
 <li><p>One node to host every world (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default). Each world
@@ -477,7 +477,7 @@ see <a class="reference internal" href="../how-to/nas-setup.html"><span class="d
 hardware and want the full experience out of the box.</p>
 <p><strong>Minimum hardware:</strong></p>
 <ul class="simple">
-<li><p>An x86 node for Prometheus and Grafana pinning (<code class="docutils literal notranslate"><span class="pre">node04</span></code>)</p></li>
+<li><p>A node for Prometheus and Grafana pinning (<code class="docutils literal notranslate"><span class="pre">node04</span></code> in this cluster)</p></li>
 <li><p>A NAS with an NFS export for backups</p></li>
 </ul>
 <p><strong>Other prerequisites:</strong></p>
@@ -500,9 +500,25 @@ hardware and want the full experience out of the box.</p>
 </tr>
 </thead>
 <tbody>
+<tr class="row-even"><td><p>argocd-monitor</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/epics-containers/charts/argocd-monitor</span></code> (OCI)</p></td>
+<td><p>1.2.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor.&lt;domain&gt;</span></code></p></td>
+<td><p>Dex (OIDC)</p></td>
+<td><p>Dashboard of ArgoCD application status</p></td>
+</tr>
+<tr class="row-odd"><td><p>backups</p></td>
+<td><p>Local chart</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Grafana and Jellyfin backup CronJobs to the NAS</p></td>
+</tr>
 <tr class="row-even"><td><p>cert-manager</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jetstack/cert-manager</span></code></p></td>
-<td><p>v1.20.1</p></td>
+<td><p>v1.21.3</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cert-manager</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
@@ -510,7 +526,7 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-odd"><td><p>cloudflared</p></td>
 <td><p>Plain manifests</p></td>
-<td><p>2026.10.0</p></td>
+<td><p>2026.10.7</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
@@ -534,7 +550,7 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-even"><td><p>Grafana + Prometheus</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">prometheus-community/kube-prometheus-stack</span></code></p></td>
-<td><p>83.0.2</p></td>
+<td><p>93.2.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana.&lt;domain&gt;</span></code></p></td>
 <td><p>Dex (OIDC)</p></td>
@@ -542,13 +558,21 @@ hardware and want the full experience out of the box.</p>
 </tr>
 <tr class="row-odd"><td><p>Headlamp</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp/headlamp</span></code></p></td>
-<td><p>0.43.0</p></td>
+<td><p>0.46.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
 <td><p>OAuth + Token</p></td>
 <td><p>Kubernetes dashboard (with Argo CD plugin)</p></td>
 </tr>
-<tr class="row-even"><td><p>ingress-nginx</p></td>
+<tr class="row-even"><td><p>home</p></td>
+<td><p>Local chart</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">home.&lt;domain&gt;</span></code></p></td>
+<td><p>None</p></td>
+<td><p>Landing page with links to the cluster’s services</p></td>
+</tr>
+<tr class="row-odd"><td><p>ingress-nginx</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx/ingress-nginx</span></code></p></td>
 <td><p>4.15.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
@@ -556,21 +580,13 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Ingress controller</p></td>
 </tr>
-<tr class="row-odd"><td><p>Intel GPU device plugin</p></td>
+<tr class="row-even"><td><p>Intel GPU device plugin</p></td>
 <td><p>Upstream release manifests (vendored)</p></td>
 <td><p>v0.37.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Advertises <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> on Intel iGPU nodes</p></td>
-</tr>
-<tr class="row-even"><td><p>kernel-settings</p></td>
-<td><p>Inline DaemonSet</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Sysctl tuning for performance</p></td>
 </tr>
 <tr class="row-odd"><td><p>Jellyfin</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jellyfin/jellyfin</span></code></p></td>
@@ -580,7 +596,15 @@ hardware and want the full experience out of the box.</p>
 <td><p>Jellyfin users</p></td>
 <td><p>Media server with Intel GPU transcoding (optional)</p></td>
 </tr>
-<tr class="row-even"><td><p>kured</p></td>
+<tr class="row-even"><td><p>kernel-settings</p></td>
+<td><p>Inline DaemonSet</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Sysctl tuning for performance</p></td>
+</tr>
+<tr class="row-odd"><td><p>kured</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kubereboot/kured</span></code></p></td>
 <td><p>6.1.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
@@ -588,23 +612,39 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Reboots nodes after OS updates, one at a time</p></td>
 </tr>
-<tr class="row-odd"><td><p>Minecraft dashboard</p></td>
+<tr class="row-even"><td><p>kyverno</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kyverno/kyverno</span></code></p></td>
+<td><p>3.9.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kyverno</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Policy engine; disabled (<code class="docutils literal notranslate"><span class="pre">enable_kyverno:</span> <span class="pre">false</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>local-storage</p></td>
+<td><p>Local chart</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> (cluster-scoped)</p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> StorageClass and the static node-pinned PVs</p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft dashboard</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> (OCI)</p></td>
-<td><p>0.2.0</p></td>
+<td><p>0.5.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
 <td><p>OAuth</p></td>
 <td><p>Launch and manage Minecraft worlds (optional)</p></td>
 </tr>
-<tr class="row-even"><td><p>oauth2-proxy</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code></p></td>
-<td><p>10.4.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
-<td><p>GitHub</p></td>
-<td><p>OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard</p></td>
+<tr class="row-odd"><td><p>nfs-csi</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">csi-driver-nfs</span></code></p></td>
+<td><p>4.13.4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Dynamic NFS volumes: classes <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (the default) and <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>ntfy</p></td>
+<tr class="row-even"><td><p>ntfy</p></td>
 <td><p>Local chart (<code class="docutils literal notranslate"><span class="pre">binwiederhier/ntfy</span></code>)</p></td>
 <td><p>v2.34.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
@@ -612,21 +652,45 @@ hardware and want the full experience out of the box.</p>
 <td><p>ntfy access tokens (no Cloudflare Access)</p></td>
 <td><p>Push notifications to phones; alerts from the cluster and outside hosts</p></td>
 </tr>
-<tr class="row-even"><td><p>NVIDIA device plugin</p></td>
+<tr class="row-odd"><td><p>NVIDIA device plugin</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia/nvidia-device-plugin</span></code></p></td>
-<td><p>0.19.0</p></td>
+<td><p>0.20.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
 <td><p>—</p></td>
 <td><p>—</p></td>
 <td><p>Advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the scheduler</p></td>
 </tr>
+<tr class="row-even"><td><p>oauth2-proxy</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code></p></td>
+<td><p>10.7.4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
+<td><p>GitHub</p></td>
+<td><p>OAuth proxy for Headlamp, Alertmanager, the Minecraft dashboard and scrap</p></td>
+</tr>
 <tr class="row-odd"><td><p>scrap</p></td>
-<td><p>Helm chart from <code class="docutils literal notranslate"><span class="pre">github.com/gilesknap/scrap</span></code></p></td>
-<td><p>0.2.0</p></td>
+<td><p>OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/scrap</span></code></p></td>
+<td><p>1.9.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code></p></td>
 <td><p>Cloudflare Access + oauth2-proxy</p></td>
 <td><p>Personal knowledge store (PWA; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> behind a bearer token)</p></td>
+</tr>
+<tr class="row-even"><td><p>Sealed Secrets</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
+<td><p>2.22.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Encrypted secrets in Git</p></td>
+</tr>
+<tr class="row-odd"><td><p>system-upgrade-controller</p></td>
+<td><p>Upstream release manifests (vendored)</p></td>
+<td><p>v0.20.2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>Applies k3s patch releases</p></td>
 </tr>
 <tr class="row-even"><td><p>VPS relay</p></td>
 <td><p>Plain manifests (tailscale v1.102.5, frpc v0.71.0)</p></td>
@@ -635,22 +699,6 @@ hardware and want the full experience out of the box.</p>
 <td><p>—</p></td>
 <td><p>Tailscale + frp</p></td>
 <td><p>Publishes chosen TCP/UDP ports on a VPS’s public IP (optional)</p></td>
-</tr>
-<tr class="row-odd"><td><p>Sealed Secrets</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
-<td><p>2.18.4</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Encrypted secrets in Git</p></td>
-</tr>
-<tr class="row-even"><td><p>system-upgrade-controller</p></td>
-<td><p>Upstream release manifests (vendored)</p></td>
-<td><p>v0.20.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Applies k3s patch releases</p></td>
 </tr>
 </tbody>
 </table>
@@ -689,7 +737,8 @@ for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel wi
 Image pinned to <code class="docutils literal notranslate"><span class="pre">0.9.2</span></code>.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/echo/</span></code></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">manifests.yaml</span></code> — Deployment, Service, and Ingress</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">manifests.yaml</span></code> — Deployment and Service (the Ingress comes from
+<code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code>)</p></li>
 </ul>
 </section>
 <section id="grafana-prometheus-kube-prometheus-stack">
@@ -748,7 +797,7 @@ to the CoreDNS Deployment that K3s manages. See <a class="reference internal" hr
 <ul class="simple">
 <li><p>Sets <code class="docutils literal notranslate"><span class="pre">rmem_max</span></code> and <code class="docutils literal notranslate"><span class="pre">wmem_max</span></code> to 7500000 (network buffers)</p></li>
 </ul>
-<p>All busybox images pinned to <code class="docutils literal notranslate"><span class="pre">1.37</span></code>.</p>
+<p>All busybox images pinned to <code class="docutils literal notranslate"><span class="pre">1.38</span></code>.</p>
 </section>
 <section id="kured">
 <h3>kured<a class="headerlink" href="#kured" title="Link to this heading">#</a></h3>
@@ -808,8 +857,13 @@ plus scrap’s own bearer token (<code class="docutils literal notranslate"><spa
 <li><p><code class="docutils literal notranslate"><span class="pre">templates/backup-copy.yaml</span></code> — the nightly off-NAS backup copy</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">templates/legacy-pvc.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/migrate-job.yaml</span></code> — the pre-Litestream
 claims, kept as a frozen copy, and the one-off move to NFS</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-secret.yaml</span></code> — SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> holding the
-Claude API key (created by you; not shipped)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-secret.yaml</span></code> — SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code>
+(<code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code>; sealed per cluster)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/public-namespace.yaml</span></code> — the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace for the
+public pages site</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-publish-secret.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/scrap-public-publish-secret.yaml</span></code>
+— SealedSecrets <code class="docutils literal notranslate"><span class="pre">scrap-publish</span></code> (the public-pages upload token) in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
+and <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></li>
 </ul>
 <p>See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a> for setup.</p>
 </section>
@@ -953,8 +1007,9 @@ describes, and the version in the table above.</p>
 directly by the Ansible <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role using the OCI Helm chart (v9.4.17). It is the
 foundation that all other services depend on.</p>
 <p>Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
-emails to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code> or <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code> via <code class="docutils literal notranslate"><span class="pre">argocd-rbac-cm.yml</span></code>.</p>
-<p>Access: <code class="docutils literal notranslate"><span class="pre">argocd.&lt;domain&gt;</span></code> (via Cloudflare tunnel) or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span> <span class="pre">svc/argocd-server</span> <span class="pre">-n</span> <span class="pre">argo-cd</span> <span class="pre">8080:8080</span></code>.</p>
+emails to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code> or <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code> via <code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> in
+<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>.</p>
+<p>Access: <code class="docutils literal notranslate"><span class="pre">argocd.&lt;domain&gt;</span></code> (via Cloudflare tunnel) or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span> <span class="pre">svc/argocd-server</span> <span class="pre">-n</span> <span class="pre">argo-cd</span> <span class="pre">8080:80</span></code>.</p>
 <p>See <a class="reference internal" href="../explanations/authentication.html"><span class="doc">Authentication Architecture</span></a> for details on how Dex is shared
 across services.</p>
 </section>

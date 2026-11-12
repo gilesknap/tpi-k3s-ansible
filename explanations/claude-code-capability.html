@@ -468,7 +468,7 @@ The rest of this page explains what makes it possible.</p>
 <h2>The enablement pattern<a class="headerlink" href="#the-enablement-pattern" title="Link to this heading">#</a></h2>
 <section id="guardrails-before-capabilities">
 <h3>Guardrails before capabilities<a class="headerlink" href="#guardrails-before-capabilities" title="Link to this heading">#</a></h3>
-<p>The project’s <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> file (68 lines) establishes hard boundaries before
+<p>The project’s <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> file (about 110 lines) establishes hard boundaries before
 granting any capabilities. The most important rules:</p>
 <ul class="simple">
 <li><p><strong>Never mutate the live cluster</strong> — no <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">apply/patch/delete</span></code> on
@@ -487,7 +487,7 @@ Credentials are scoped per-repository via named Docker volumes.</p>
 </section>
 <section id="encoded-operational-knowledge">
 <h3>Encoded operational knowledge<a class="headerlink" href="#encoded-operational-knowledge" title="Link to this heading">#</a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory contains <strong>1,506 lines</strong> across 14 files — more
+<p>The <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory contains <strong>about 2,000 lines</strong> across 10 files — more
 configuration surface than many of the services it manages:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -499,24 +499,19 @@ configuration surface than many of the services it manages:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Commands</p></td>
-<td><p>6</p></td>
-<td><p>1,106</p></td>
-<td><p>Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash, memo)</p></td>
+<td><p>5</p></td>
+<td><p>about 1,300</p></td>
+<td><p>Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash)</p></td>
 </tr>
 <tr class="row-odd"><td><p>Skills</p></td>
-<td><p>4</p></td>
-<td><p>355</p></td>
-<td><p>On-demand domain knowledge (ansible, sealed-secrets, oauth, cloudflare)</p></td>
-</tr>
-<tr class="row-even"><td><p>Settings</p></td>
-<td><p>2</p></td>
-<td><p>45</p></td>
-<td><p>Permission model and hooks</p></td>
+<td><p>5</p></td>
+<td><p>about 700</p></td>
+<td><p>On-demand domain knowledge (ansible, argocd, sealed-secrets, oauth, cloudflare)</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The largest single file is <code class="docutils literal notranslate"><span class="pre">rebuild-cluster.md</span></code> at 375 lines — an 8-phase
+<p>The largest single file is <code class="docutils literal notranslate"><span class="pre">rebuild-cluster.md</span></code> at about 570 lines — an 8-phase
 runbook encoding knowledge from real incidents: WaitForFirstConsumer PV
 binding, Prometheus webhook bootstrap races, OAuth cookie collisions across
 namespaces, and the precise order of Dex restarts after a reseal.</p>
@@ -526,11 +521,12 @@ every time, without forgetting steps.</p>
 </section>
 <section id="configuration-concentration">
 <h3>Configuration concentration<a class="headerlink" href="#configuration-concentration" title="Link to this heading">#</a></h3>
-<p>Almost every cluster-level choice lives in two files totalling <strong>135 lines</strong>:</p>
+<p>Almost every cluster-level choice lives in two files totalling <strong>about 500
+lines</strong>, much of it comments:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (59 lines) — cluster domain, admin emails, repo URL,
+<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (about 170 lines) — cluster domain, admin emails, repo URL,
 storage paths</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (76 lines) — service toggles and
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> (about 340 lines) — service toggles and
 version pins</p></li>
 </ul>
 <p>A third file, <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, owns the hardware topology
@@ -538,7 +534,7 @@ version pins</p></li>
 through the other two — hardware varies too much between forks. But
 it is still a small, single place to look when the agent needs to
 know which physical node runs what.</p>
-<p>Four boolean flags control which optional services are deployed. When Claude
+<p>Six <code class="docutils literal notranslate"><span class="pre">enable_*</span></code> flags control which optional services and features are deployed. When Claude
 needs to enable or disable a service, there is exactly one place to look.
 This concentration is deliberate: a small change surface means fewer places
 for an agent to make mistakes, and fewer files to read before understanding
@@ -587,8 +583,8 @@ code alone.</p>
 <li><p>The <strong>plan-clean-execute cycle</strong>: plan in one context, <code class="docutils literal notranslate"><span class="pre">/clear</span></code>, execute
 in fresh context with the plan file as the guide — avoids stale
 assumptions accumulating</p></li>
-<li><p>Always <a class="reference external" href="https://github.com/gilesknap/tpi-k3s-ansible/blob/main/.claude/commands/memo.md"><code class="docutils literal notranslate"><span class="pre">/memo</span></code></a> before <code class="docutils literal notranslate"><span class="pre">/clear</span></code>. This custom
-command reviews the current conversation and automatically promotes what
+<li><p>Always <code class="docutils literal notranslate"><span class="pre">/memo</span></code> before <code class="docutils literal notranslate"><span class="pre">/clear</span></code>. This custom command (a user-level skill,
+not part of this repo) reviews the current conversation and automatically promotes what
 was learned into the right permanent home: foot-guns and constraints go
 to CLAUDE.md, procedural knowledge goes to skills, troubleshooting
 patterns go to repo docs, and transient state goes to memory. It then
@@ -690,7 +686,7 @@ that must never happen. Write them down as hard rules, not guidelines.
 migrations” is a wish.</p></li>
 <li><p><strong>Concentrate configuration.</strong> The fewer files an agent needs to read to
 understand system state, the fewer mistakes it will make. Two config
-files plus an inventory file totalling 135 lines is better than 20
+files plus an inventory file totalling a few hundred lines is better than 20
 files totalling 2,000 lines, even if the latter is more “modular.”</p></li>
 <li><p><strong>Use GitOps or equivalent reconciliation.</strong> If mistakes are fixed by
 pushing a commit rather than running manual commands, the blast radius is
@@ -699,7 +695,7 @@ without reconciliation can cause damage that requires expert manual
 intervention.</p></li>
 <li><p><strong>Encode operational knowledge as runbooks.</strong> Complex multi-step
 procedures (rebuilds, migrations, incident response) should be
-machine-readable command files, not wiki pages. A 375-line runbook that
+machine-readable command files, not wiki pages. A 570-line runbook that
 an agent follows precisely is more reliable than a human following a
 checklist from memory.</p></li>
 <li><p><strong>Isolate credentials structurally.</strong> Don’t rely on rules saying “don’t
@@ -728,10 +724,12 @@ memory. The <code class="docutils literal notranslate"><span class="pre">/memo</
 minutes; the cost of re-discovering the same issue is hours. This is
 the knowledge ratchet: each session leaves the system smarter than it
 found it.</p></li>
-<li><p><strong>Reuse project-agnostic commands.</strong> Two commands in this repo’s
-<code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> directory — <code class="docutils literal notranslate"><span class="pre">/memo</span></code> and <code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code> — are not
-specific to K3s or Ansible. Copy them into your own project to get the
-same workflow benefits without writing them from scratch.</p></li>
+<li><p><strong>Reuse project-agnostic commands.</strong> One command in this repo’s
+<code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> directory, <code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code>, is not specific to K3s or
+Ansible: copy it into your own project to get the same workflow
+benefits without writing it from scratch. <code class="docutils literal notranslate"><span class="pre">/memo</span></code> is a user-level skill
+that is not in this repository; the idea (save state, promote lessons
+to skills) is easy to recreate.</p></li>
 <li><p><strong>Keep long-running output out of context.</strong> Commands like
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code> or <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">install</span></code> can produce thousands of lines.
 Run them in the background with output captured to a file, and attach

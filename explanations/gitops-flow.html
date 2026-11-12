@@ -944,7 +944,7 @@ YAML is committed to Git — so it still follows the GitOps flow:</p>
 <h2>Read-only kubectl is fine<a class="headerlink" href="#read-only-kubectl-is-fine" title="Link to this heading">#</a></h2>
 <p>The only legitimate <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> commands during normal operation are <strong>read-only</strong>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-A
-kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>deployment/grafana
+kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>statefulset/grafana-prometheus<span class="w"> </span>-c<span class="w"> </span>grafana
 kubectl<span class="w"> </span>describe<span class="w"> </span>node<span class="w"> </span>node02
 kubectl<span class="w"> </span>get<span class="w"> </span>applications<span class="w"> </span>-n<span class="w"> </span>argo-cd
 </pre></div>
@@ -953,8 +953,9 @@ kubectl<span class="w"> </span>get<span class="w"> </span>applications<span clas
 </section>
 <section id="what-if-argocd-is-down">
 <h2>What if ArgoCD is down?<a class="headerlink" href="#what-if-argocd-is-down" title="Link to this heading">#</a></h2>
-<p>If ArgoCD itself is broken, the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> Ansible role can reinstall it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span>-e<span class="w"> </span><span class="nv">cluster_force</span><span class="o">=</span><span class="nb">true</span>
+<p>If ArgoCD itself is broken, re-running the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> Ansible role re-runs the
+ArgoCD helm install/upgrade:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
 </pre></div>
 </div>
 <p>Once ArgoCD is back, it re-syncs all services from Git automatically.</p>

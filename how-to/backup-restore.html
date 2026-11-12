@@ -458,9 +458,9 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 <td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (manual)</p></td>
 <td><p>re-create from password manager</p></td>
 </tr>
-<tr class="row-odd"><td><p>ArgoCD initial admin secret</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace</p></td>
-<td><p>regenerated on install</p></td>
+<tr class="row-odd"><td><p>Cloudflare OpenTofu state + passphrase</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code> (gitignored), <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code></p></td>
+<td><p>copy to the NAS / password manager; recreatable by import (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>), except the tunnel secret: a re-created state makes a new one, so its first apply rotates the tunnel token (reseal with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code>, restart cloudflared)</p></td>
 </tr>
 <tr class="row-even"><td><p>Default dynamic NFS volumes (<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>), incl. Minecraft worlds</p></td>
 <td><p>NFS NAS, <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/&lt;namespace&gt;/&lt;pvc&gt;</span></code></p></td>
@@ -489,12 +489,12 @@ workload-specific <code class="docutils literal notranslate"><span class="pre">s
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Grafana sqlite</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups/grafana/{,weekly}/&lt;date&gt;.db</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> on <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code>, tarred with <code class="docutils literal notranslate"><span class="pre">provisioning/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/grafana/&lt;date&gt;_&lt;HHMM&gt;.tar.gz</span></code> (daily), <code class="docutils literal notranslate"><span class="pre">backups/grafana/weekly/&lt;date&gt;.tar.gz</span></code> (weekly), each containing <code class="docutils literal notranslate"><span class="pre">grafana.db</span></code> and <code class="docutils literal notranslate"><span class="pre">provisioning/</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Jellyfin database and config</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> of the database, plus the config, plugins and library definitions, from its config volume (not subtitles or metadata); see <a class="reference internal" href="jellyfin.html"><span class="doc">Run Jellyfin</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups/jellyfin/{,weekly}/&lt;date&gt;.tar.gz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/jellyfin/&lt;date&gt;_&lt;HHMM&gt;.tar.gz</span></code> (daily), <code class="docutils literal notranslate"><span class="pre">backups/jellyfin/weekly/&lt;date&gt;.tar.gz</span></code> (weekly)</p></td>
 </tr>
 </tbody>
 </table>
@@ -504,8 +504,10 @@ via re-scrape, and the snapshot-API dance is not worth the complexity.</p>
 <section id="retention">
 <h3>Retention<a class="headerlink" href="#retention" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Daily CronJobs run at <code class="docutils literal notranslate"><span class="pre">02:00</span></code> and keep 7 files (<code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span> <span class="pre">+7</span> <span class="pre">-delete</span></code>).</p></li>
-<li><p>Weekly CronJobs run Sunday <code class="docutils literal notranslate"><span class="pre">03:00</span></code> and keep 4 files (<code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span> <span class="pre">+28</span> <span class="pre">-delete</span></code>).</p></li>
+<li><p>Grafana: daily at <code class="docutils literal notranslate"><span class="pre">02:45</span></code>, weekly on Sunday at <code class="docutils literal notranslate"><span class="pre">03:45</span></code> (cluster time).
+Jellyfin: daily at <code class="docutils literal notranslate"><span class="pre">01:45</span></code>, weekly on Sunday at <code class="docutils literal notranslate"><span class="pre">01:50</span></code> (Europe/London).</p></li>
+<li><p>Daily backups older than 7 days and weekly backups older than 28 days are
+deleted (<code class="docutils literal notranslate"><span class="pre">find</span> <span class="pre">-mtime</span> <span class="pre">+7</span></code> / <code class="docutils literal notranslate"><span class="pre">+28</span></code>).</p></li>
 </ul>
 </section>
 <section id="trigger-a-one-off-backup">
@@ -521,18 +523,58 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </section>
 <section id="restore-grafana-sqlite">
 <h3>Restore — Grafana sqlite<a class="headerlink" href="#restore-grafana-sqlite" title="Link to this heading">#</a></h3>
-<p>The Grafana daily backup uses <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code> (a consistent live snapshot,
-unlike a raw tar of the db file). To restore:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span>--replicas<span class="o">=</span><span class="m">0</span>
-ssh<span class="w"> </span>ansible@node04<span class="w"> </span><span class="s1">&#39;</span>
-<span class="s1">  sudo cp /mnt/nfs/k8s-cluster/backups/grafana/YYYY-MM-DD.db \</span>
-<span class="s1">          /var/lib/k8s-data/grafana/grafana.db</span>
-<span class="s1">&#39;</span>
-kubectl<span class="w"> </span>scale<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span>--replicas<span class="o">=</span><span class="m">1</span>
+<p>Each Grafana backup is a gzip tarball holding a consistent <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>
+snapshot of <code class="docutils literal notranslate"><span class="pre">grafana.db</span></code> plus the <code class="docutils literal notranslate"><span class="pre">provisioning/</span></code> directory. To restore one:</p>
+<ol class="arabic">
+<li><p><strong>Stop Grafana through Git.</strong> Set the grafana sub-chart’s <code class="docutils literal notranslate"><span class="pre">replicas:</span> <span class="pre">0</span></code>
+in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code> (under
+<code class="docutils literal notranslate"><span class="pre">valuesObject.grafana</span></code>), commit, push and let ArgoCD sync. Scaling the
+StatefulSet with <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> does not stick: ArgoCD’s self-heal reverts it.</p></li>
+<li><p><strong>Restore in a one-off pod</strong> in the <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> namespace that mounts the
+Grafana PVC and the NAS backup directory. Fill in your NAS address and
+<code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code> from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, and the
+backup to restore:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">grafana-restore</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Never</span>
+<span class="w">  </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">472</span>
+<span class="w">    </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">472</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">restore</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alpine:3.24</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sh</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-c</span>
+<span class="w">        </span><span class="c1"># weekly: /backup/weekly/&lt;YYYY-MM-DD&gt;.tar.gz. Removing stale</span>
+<span class="w">        </span><span class="c1"># SQLite journal/WAL files stops them replaying onto the restore.</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">          </span><span class="no">rm -f /data/grafana.db-journal /data/grafana.db-wal /data/grafana.db-shm &amp;&amp;</span>
+<span class="w">          </span><span class="no">tar -xzf /backup/&lt;YYYY-MM-DD_HHMM&gt;.tar.gz -C /data grafana.db</span>
+<span class="w">      </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">data</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/data</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">backup</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/backup</span><span class="p p-Indicator">,</span><span class="nt"> readOnly</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">      </span><span class="nt">persistentVolumeClaim</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage-grafana-prometheus-0</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backup</span>
+<span class="w">      </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nfs.server&gt;</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nfs.cluster_share_path&gt;/backups/grafana</span>
+<span class="w">        </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
-<p>(If the NFS share is not pre-mounted on the node, run the copy in a
-debug pod that mounts the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PVC instead.)</p>
+<p>The PVC is bound to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV, so the pod lands on the Grafana
+node by itself. Check <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">logs</span> <span class="pre">grafana-restore</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">delete</span> <span class="pre">pod</span> <span class="pre">grafana-restore</span></code>.</p>
+</li>
+<li><p><strong>Start Grafana again</strong> by reverting the <code class="docutils literal notranslate"><span class="pre">replicas:</span> <span class="pre">0</span></code> commit and pushing.</p></li>
+</ol>
 </section>
 </section>
 <section id="scrap">

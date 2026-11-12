@@ -517,8 +517,13 @@ steps and keep them consistent across all three files.</p>
 <span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your-control-plane-node&gt;</span><span class="w">  </span><span class="c1"># must match a host in hosts.yml</span>
 <span class="nt">k3s_api_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">k3s.lan</span><span class="w">  </span><span class="c1"># LAN DNS record -&gt; the control plane&#39;s IP (or its IPv4 address)</span>
 <span class="nt">dns_router</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root@192.168.1.1</span><span class="w">  </span><span class="c1"># optional: OpenWrt router, for just k3s-api-dns</span>
+<span class="nt">standby_control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;spare node, or &quot;&quot; for none&gt;</span>
+<span class="nt">etcd_backup_age_recipient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;your age1... public key&gt;</span><span class="w">  </span><span class="c1"># nightly etcd + sealed-secrets key backups; see backup-restore</span>
 </pre></div>
 </div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code> before the first run: the nightly etcd
+and sealed-secrets key backups are encrypted to this key, so with the
+upstream value you could not decrypt your own backups.</p>
 <p>Create the <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> DNS record on your router before the first
 playbook run: the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role checks it resolves to the control plane. On an
 OpenWrt router, set <code class="docutils literal notranslate"><span class="pre">dns_router</span></code> and run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;control-plane-ip&gt;</span></code>
@@ -571,8 +576,16 @@ share on your NAS. In <code class="docutils literal notranslate"><span class="pr
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nfs</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nas-ip&gt;</span>
 <span class="w">  </span><span class="nt">cluster_share_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/&lt;your-share&gt;/k8s-cluster</span>
+<span class="nt">nfs_csi</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;nas-ip&gt;</span>
+<span class="w">  </span><span class="nt">share</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/&lt;your-dynamic-export&gt;</span>
+<span class="w">  </span><span class="nt">stable_share</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/&lt;your-dynamic-export&gt;/stable</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">nfs.*</span></code> feeds the static backup, Minecraft and scrap volumes, Jellyfin’s
+media and the etcd backup;
+<code class="docutils literal notranslate"><span class="pre">nfs_csi.*</span></code> configures the dynamic StorageClasses (<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>, the
+default, and <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>) separately, so set both.</p>
 <p>Then run the one-time NAS setup runbook in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>.</p>
 </section>
 <section id="re-seal-secrets">
@@ -587,8 +600,16 @@ re-seal every secret with your cluster’s key.</p>
 <p>Top-level toggles in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">   </span><span class="c1"># disables OAuth gating on Headlamp/Alertmanager</span>
 <span class="nt">enable_cloudflare_tunnel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># if you don&#39;t expose services to the internet</span>
+<span class="nt">enable_jellyfin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">   </span><span class="c1"># needs a local-nvme PV and a node for its config</span>
+<span class="nt">enable_minecraft</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># needs the NAS dirs and a worlds node</span>
+<span class="nt">enable_vps_relay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># needs sealed relay credentials and a VPS</span>
 </pre></div>
 </div>
+<p>Jellyfin, Minecraft and the VPS relay ship enabled for this repo’s own
+cluster; leave them off until you have set up what each needs, or their
+apps sit Pending or failed. Other fork-specific values to check:
+<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code> (the node that hosts the worlds) and
+<code class="docutils literal notranslate"><span class="pre">cf_access_team</span></code> (your Cloudflare Zero Trust team name).</p>
 <p>Whole-service Application templates can also be removed by deleting
 the corresponding file in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>.</p>
 </section>

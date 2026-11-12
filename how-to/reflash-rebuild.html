@@ -446,9 +446,6 @@ force flags to override this behaviour:</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">k3s_force=true</span></code></p></td>
 <td><p>Uninstall and reinstall K3s on all nodes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">cluster_force=true</span></code></p></td>
-<td><p>Force reinstall of ArgoCD and cluster services</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -492,8 +489,7 @@ the node’s UART. See <a class="reference internal" href="../explanations/ansib
 <p>This uninstalls K3s from every node, reinstalls it, and redeploys ArgoCD and all services.
 Stateful workload data under <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> (nuc2) and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code>
 (RK1 nodes) is preserved by default — these host directories back the static
-<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs and are left untouched unless <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> is
-passed. NFS backups on the NAS are always preserved (they live outside the
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs and are left untouched (only <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span> <span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> or a re-flash removes them). NFS backups on the NAS are always preserved (they live outside the
 cluster), and so is scrap’s data, which is on static NFS volumes there.</p>
 </section>
 <section id="reinstall-k3s-on-a-single-worker">
@@ -506,10 +502,10 @@ as a worker.</p>
 </section>
 <section id="redeploy-cluster-services-only">
 <h2>Redeploy cluster services only<a class="headerlink" href="#redeploy-cluster-services-only" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span>-e<span class="w"> </span><span class="nv">cluster_force</span><span class="o">=</span><span class="nb">true</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
 </pre></div>
 </div>
-<p>This reinstalls ArgoCD. After ArgoCD is up, it resynchronises all services from Git.</p>
+<p>This re-runs the ArgoCD helm install/upgrade. After ArgoCD is up, it resynchronises all services from Git.</p>
 </section>
 <section id="run-a-single-stage">
 <h2>Run a single stage<a class="headerlink" href="#run-a-single-stage" title="Link to this heading">#</a></h2>
@@ -538,7 +534,7 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <tr class="row-even"><td><p>Re-flash (CM4, or RK1 without <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>)</p></td>
 <td><p>Erased</p></td>
 <td><p>Unchanged</p></td>
-<td><p>Preserved (on host)</p></td>
+<td><p><strong>Lost</strong> (on the erased root fs)</p></td>
 <td><p>Preserved (external)</p></td>
 <td><p>Redeployed from Git</p></td>
 </tr>
