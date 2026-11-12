@@ -54,6 +54,7 @@ Also creates:
 - Shell completions for helm, kubectl (bash + zsh)
 - `k` alias for kubectl
 - Port-forward helper scripts: `argo.sh`, `grafana.sh`, `dashboard.sh`
+  (Headlamp, also prints a login token)
 - Sets PATH to include `$BIN_DIR`
 
 The role is split across multiple task files:
