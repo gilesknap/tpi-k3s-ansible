@@ -16,7 +16,7 @@ workloads (such as kernel tuning) require privileged access.
 |----------|-------------|----------------------|-----------|--------|
 | cloudflared | Yes (65532) | Yes | No | Network-only, no special access needed |
 | echo | Yes (65534) | Yes | No | Stateless test service |
-| kernel-settings | — | — | Yes | Needs sysctl and host filesystem access |
+| kernel-settings | — | — | Yes | Needs to set host sysctls |
 
 ## Container image pinning
 

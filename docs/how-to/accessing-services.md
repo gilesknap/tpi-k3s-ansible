@@ -78,13 +78,15 @@ Via ingress: **https://headlamp.\<domain\>**
 Via port-forward:
 
 ```bash
-dashboard.sh
+dashboard.sh   # port-forward on 4466 and print a 24h login token
 # Or manually:
 kubectl port-forward svc/headlamp -n headlamp 4466:80
 # Open http://localhost:4466
 ```
 
-Authenticate via GitHub (oauth2-proxy), then paste a ServiceAccount token:
+Through the ingress, authenticate via GitHub (oauth2-proxy) first. Either way,
+Headlamp then asks for a ServiceAccount token: `dashboard.sh` prints one, or
+create one yourself:
 
 ```bash
 kubectl create token headlamp -n headlamp --duration=24h

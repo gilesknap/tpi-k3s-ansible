@@ -91,7 +91,7 @@ def bcrypt_hash(password: str) -> str:
         check=True,
     ).stdout.strip()
     hash_ = out.split(":", 1)[1]
-    # Same normalisation as scripts/set-admin-password; ntfy accepts both.
+    # Normalise $2y$ (htpasswd) to $2a$; ntfy accepts both.
     return hash_.replace("$2y$", "$2a$", 1)
 
 

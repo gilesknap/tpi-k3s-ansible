@@ -163,7 +163,7 @@ generate-and-seal-all output_dir="/tmp/cluster-secrets":
 seal-from-json json_file:
     scripts/seal-from-json {{ json_file }}
 
-# Set the shared admin password (basic-auth ingresses + ArgoCD admin).
+# Set the shared admin password (the admin-auth secret Grafana reads).
 # Reads ADMIN_PASSWORD env var or prompts interactively.
 set-admin-password:
     scripts/set-admin-password
