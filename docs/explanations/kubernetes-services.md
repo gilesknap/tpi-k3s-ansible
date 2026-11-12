@@ -11,32 +11,50 @@ kubernetes-services/
 ├── Chart.yaml              # Minimal Helm chart metadata
 ├── values.yaml             # Shared values (repo_branch, admin_emails, etc.)
 ├── templates/              # One ArgoCD Application per service
+│   ├── argocd-monitor.yaml
 │   ├── backups.yaml
 │   ├── cert-manager.yaml
 │   ├── cloudflared.yaml
+│   ├── coredns.yaml
 │   ├── dashboard.yaml      # Headlamp
 │   ├── echo.yaml
-│   ├── grafana.yaml
-│   ├── ingress.yaml
+│   ├── grafana.yaml        # kube-prometheus-stack
+│   ├── home.yaml
+│   ├── ingress.yaml        # ingress-nginx
 │   ├── intel-gpu-plugin.yaml # Intel iGPU device plugin
+│   ├── jellyfin.yaml
 │   ├── kernel-settings.yaml
+│   ├── kured.yaml
+│   ├── kyverno.yaml        # disabled by default
 │   ├── local-storage.yaml
 │   ├── minecraft.yaml      # Minecraft dashboard (OCI chart, optional)
+│   ├── nfs-csi.yaml
+│   ├── ntfy.yaml
 │   ├── nvidia-device-plugin.yaml
 │   ├── oauth2-proxy.yaml
+│   ├── scrap.yaml
 │   ├── sealed-secrets.yaml
+│   ├── system-upgrade.yaml
 │   └── vps-relay.yaml      # frpc + Tailscale relay to a VPS (optional)
 └── additions/              # Extra manifests per service
-    ├── argocd/             # Custom CM for ArgoCD health checks
+    ├── argocd/             # Dex SealedSecret
+    ├── argocd-monitor/     # OAuth SealedSecret
     ├── backups/            # CronJobs + single NFS PV for per-app backups
-    ├── cert-manager/       # SealedSecret + ClusterIssuer
+    ├── cert-manager/       # SealedSecret + ClusterIssuer + wildcard Certificate
     ├── cloudflared/        # Deployment + SealedSecret
-    ├── dashboard/          # RBAC for Headlamp
+    ├── coredns/            # CoreDNS HA manifests
     ├── echo/               # Echo-server manifests
+    ├── grafana/            # Alert rules, ServiceMonitor, SealedSecrets
+    ├── home/               # Landing page
     ├── ingress/            # Reusable ingress sub-chart
     ├── intel-gpu-plugin/   # Vendored Intel GPU plugin DaemonSet + patch
+    ├── jellyfin/           # Config PVC, media NFS volume, seed scripts
+    ├── k3s-upgrade-plans/  # system-upgrade-controller Plans
+    ├── kernel-settings/    # Sysctl DaemonSet
     ├── local-storage/      # local-nvme StorageClass + static per-workload PVs
+    ├── ntfy/               # Local ntfy chart + SealedSecret
     ├── oauth2-proxy/       # SealedSecret for OAuth config
+    ├── scrap/              # NFS volumes, /mcp Ingress, SealedSecrets
     ├── system-upgrade-controller/  # Vendored upstream release manifests
     └── vps-relay/          # Tailscale + frpc Deployment, generated frpc.toml
 ```
@@ -50,7 +68,8 @@ The Ansible `cluster` role creates a root ArgoCD Application called
 values via Helm:
 
 - `repo_remote` — Git repository URL
-- `repo_branch` — comes from `kubernetes-services/values.yaml` (self-referential)
+- `repo_branch` — from `group_vars/all.yml` (or `-e repo_branch=`), passed in by the
+  root Application; it overrides the default in `kubernetes-services/values.yaml`
 - `cluster_domain` — domain name for ingress hosts
 - `domain_email` — for Let's Encrypt registration
 
@@ -87,9 +106,10 @@ sources:
     path: kubernetes-services/additions/ingress
     helm:
       valuesObject:
+        name: my-service          # host is my-service.<cluster_domain>
         cluster_domain: "{{ .Values.cluster_domain }}"
-        service_name: cert-manager
-        service_port: 443
+        service_name: my-service
+        service_port: 80
 ```
 
 ### The reusable ingress sub-chart
@@ -97,13 +117,17 @@ sources:
 The `additions/ingress/` directory contains a minimal Helm chart that generates
 a standardised Ingress resource. It supports:
 
-- TLS via the `letsencrypt-prod` ClusterIssuer
-- Host-based routing (`<service_name>.<cluster_domain>`)
+- `name` (required) — the Ingress is `<name>-ingress` with host
+  `<name>.<cluster_domain>`
+- TLS via the cluster wildcard certificate (`cert-manager/wildcard-tls`),
+  served by ingress-nginx as its default
 - `basic_auth: true` — nginx basic-auth via the `admin-auth` secret
 - `oauth2_proxy: true` — protect with oauth2-proxy authentication gateway
 - `ssl_redirect: false` — disable HTTP→HTTPS redirect (default true)
-- `ssl_passthrough: true` — TLS passthrough mode (unused since ArgoCD
-  moved to nginx-terminated TLS)
+- `service_port: 443` — talks HTTPS to the backend; TLS still terminates at
+  ingress-nginx (the template's `ssl-passthrough` annotation has no effect,
+  as the controller does not run with `--enable-ssl-passthrough`)
+- `extra_annotations` — a map of extra annotations to add to the Ingress
 
 This avoids duplicating ingress boilerplate across services.
 
@@ -118,7 +142,7 @@ Application simply points at the directory.
 ```mermaid
 flowchart TD
     GV["group_vars/all.yml<br/>(Ansible vars)"] -->|"cluster role"| ROOT["Root Application CR<br/>valuesObject"]
-    VY["kubernetes-services/values.yaml<br/>(repo_branch)"] -->|"Helm values"| ROOT
+    VY["kubernetes-services/values.yaml<br/>(defaults, admin_emails, toggles)"] -->|"Helm values"| ROOT
     ROOT -->|"{{ .Values.* }}"| CHILD["Child Application templates"]
     CHILD -->|"Service-specific values"| SVC["Deployed services"]
 ```
@@ -128,7 +152,7 @@ Key values propagated to all child apps:
 | Value | Source | Purpose |
 |-------|--------|---------|
 | `repo_remote` | `group_vars/all.yml` | Git repo URL for multi-source apps |
-| `repo_branch` | `kubernetes-services/values.yaml` | Branch for `targetRevision` |
+| `repo_branch` | `group_vars/all.yml` (or `-e repo_branch=`) | Branch for `targetRevision` |
 | `cluster_domain` | `group_vars/all.yml` | Domain for ingress hosts |
 | `domain_email` | `group_vars/all.yml` | Let's Encrypt email |
 

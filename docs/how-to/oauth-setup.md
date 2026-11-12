@@ -10,8 +10,8 @@ cluster. Each path uses its own GitHub OAuth App:
 
 - **Part A** — Dex OIDC, used by **ArgoCD, Grafana, and
   argocd-monitor** (services with native OIDC support).
-- **Part B** — oauth2-proxy, used by **Headlamp and Alertmanager**
-  (admin-only services with no native OIDC).
+- **Part B** — oauth2-proxy, used by **Headlamp, Alertmanager, the
+  Minecraft dashboard and scrap** (admin-only services with no native OIDC).
 
 ## Prerequisites
 
@@ -43,48 +43,56 @@ as its upstream identity source.
 5. Copy the **Client ID**.
 6. Click **Generate a new client secret** and copy it immediately.
 
-### A2: Generate Dex client secrets
+### A2: Create the OAuth app for oauth2-proxy too
 
-Each Dex static client needs its own secret. Generate them:
+On a fresh cluster all the Dex and oauth2-proxy secrets are generated and
+sealed together, so create the second GitHub OAuth App now as well, before
+sealing (step {ref}`B1 <oauth-b1>`).
+
+### A3: Generate and seal the secrets (first-time setup)
+
+Export the external credentials, then run `just generate-and-seal-all`:
 
 ```bash
-# One secret per client
-for client in argo-cd argocd-monitor grafana; do
-  echo "$client: $(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-done
+export GITHUB_CLIENT_ID=...            # Dex OAuth App (A1)
+export GITHUB_CLIENT_SECRET=...
+export OAUTH2_PROXY_CLIENT_ID=...      # oauth2-proxy OAuth App (B1)
+export OAUTH2_PROXY_CLIENT_SECRET=...
+export CLOUDFLARE_API_TOKEN=...        # see cloudflare-tunnel / cloudflare-as-code
+export CLOUDFLARE_TUNNEL_TOKEN=...
+just generate-and-seal-all
 ```
 
-:::{note}
-The `argo-cd` client secret has a special requirement — it must equal
-`base64url(SHA256(server.secretkey)[:30 bytes])`. The `just seal-argocd-dex`
-recipe handles this automatically.
+If scrap is enabled, also export `SCRAP_ANTHROPIC_API_KEY` (and optionally
+`SCRAP_MCP_TOKEN` and `SCRAP_PUBLISH_TOKEN`; see `scripts/generate-secrets`).
+Without it scrap's secrets are skipped, and on a new cluster scrap cannot
+start.
+
+This generates and seals `argocd-dex-secret`, `grafana-oauth-secret`,
+`argocd-monitor-oauth` and `oauth2-proxy-credentials` together, along
+with the other cluster secrets. The `argo-cd` Dex client secret is derived
+from ArgoCD's `server.secretkey` automatically.
+
+:::{warning}
+`just generate-and-seal-all` regenerates **every** cluster secret. Use it only
+on a fresh setup; on an established cluster, rotate individual secrets
+instead (below).
 :::
 
-### A3: Create and seal the Dex secret
+### A4: Rotate a single secret later
 
-Use the `just seal-argocd-dex` recipe, which prompts for the GitHub
-credentials and client secrets, then creates the SealedSecret:
-
-```bash
-just seal-argocd-dex
-```
-
-This creates `kubernetes-services/additions/argocd/argocd-dex-secret.yaml`.
-
-### A4: Seal per-service OAuth secrets
-
-Grafana needs its own SealedSecret containing the
-Dex client secret:
+To rotate one Dex-related secret on a running cluster, use
+`just seal-argocd-dex` with a subcommand:
 
 ```bash
-# Grafana
-kubectl create secret generic grafana-oauth-secret \
-  --namespace monitoring \
-  --from-literal=CLIENT_SECRET="<grafana-client-secret>" \
-  --dry-run=client -o yaml | \
-kubeseal --controller-name sealed-secrets --controller-namespace kube-system -o yaml > \
-  kubernetes-services/additions/grafana/grafana-oauth-secret.yaml
+just seal-argocd-dex github    # new GitHub OAuth Client ID/Secret
+just seal-argocd-dex argocd    # re-derive the argo-cd client secret
+just seal-argocd-dex monitor   # argocd-monitor client + cookie secrets
+just seal-argocd-dex grafana   # grafana client secret
 ```
+
+The subcommands read existing keys from the running `argocd-dex-secret`, so
+it must already exist in the cluster.
 
 ### A5: Configure admin and viewer emails
 
@@ -116,8 +124,9 @@ Commit and push all SealedSecrets. ArgoCD syncs automatically. After sync,
 restart pods that read secrets from environment variables:
 
 ```bash
-kubectl rollout restart deployment/grafana-prometheus -n monitoring
-kubectl rollout restart deployment/headlamp -n headlamp
+kubectl rollout restart statefulset/grafana-prometheus -n monitoring
+just restart-dex   # Dex and argocd-server
+kubectl -n argocd-monitor rollout restart deployment
 ```
 
 ### Adding a new Dex static client
@@ -127,8 +136,9 @@ To add a new service that authenticates via Dex:
 1. Add a `staticClients` entry in the `dex.config` section of
    `roles/cluster/tasks/argocd.yml`, with the service's redirect URI and
    a reference to its secret key in `argocd-dex-secret`.
-2. Re-seal `argocd-dex-secret` with the new client secret included
-   (`just seal-argocd-dex`).
+2. Re-seal `argocd-dex-secret` with the new client secret included (extend
+   `scripts/seal-argocd-dex` with a subcommand for it, modelled on
+   `just seal-argocd-dex grafana`).
 3. Configure the service's OIDC settings to point at
    `https://argocd.<your-domain>/api/dex`.
 4. Run `ansible-playbook pb_all.yml --tags cluster` to apply the updated
@@ -141,6 +151,7 @@ To add a new service that authenticates via Dex:
 oauth2-proxy is a lightweight reverse proxy that authenticates users
 directly with GitHub. It protects services that lack native OIDC support.
 
+(oauth-b1)=
 ### B1: Create a GitHub OAuth App for oauth2-proxy
 
 1. Go to [github.com/settings/developers](https://github.com/settings/developers).
@@ -156,11 +167,17 @@ directly with GitHub. It protects services that lack native OIDC support.
 4. Click **Register application**.
 5. Copy the **Client ID** and generate a **Client Secret**.
 
+If you ran `just generate-and-seal-all` in A3, the oauth2-proxy credentials
+are already sealed: skip to B4. B2 and B3 seal them by hand.
+
 ### B2: Generate a cookie secret
 
 ```bash
-python3 -c 'import os,base64; print(base64.b64encode(os.urandom(32)).decode())'
+python3 -c 'import secrets; print(secrets.token_hex(16))'
 ```
+
+This prints 32 characters; oauth2-proxy uses the cookie secret as raw bytes
+and refuses to start unless it is 16, 24 or 32 bytes long.
 
 ### B3: Create and seal the credentials
 
@@ -219,6 +236,8 @@ Services protected by oauth2-proxy (admin-only):
 
 - **Headlamp** — uses OAuth as the outer access control layer
 - **Alertmanager** — no app-level auth, so OAuth is the only gate
+- **Minecraft dashboard** — when `enable_minecraft` is set
+- **scrap** — the PWA; its `/mcp` ingress has no oauth2-proxy
 
 ---
 
@@ -240,7 +259,8 @@ ingress values.
 
 ### 403 after GitHub login
 
-For oauth2-proxy services (Headlamp, Alertmanager): the email must be
+For oauth2-proxy services (Headlamp, Alertmanager, the Minecraft dashboard,
+scrap): the email must be
 in `admin_emails` in `values.yaml`. Viewer users cannot access these services
 by design.
 

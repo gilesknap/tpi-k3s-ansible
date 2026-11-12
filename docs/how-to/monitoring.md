@@ -8,8 +8,9 @@ pre-configured dashboards.
 
 ### Via ingress
 
-**https://grafana.your-domain.com** — login with `admin` and the shared admin password
-(set during {doc}`bootstrap-cluster`).
+**https://grafana.your-domain.com** — sign in with GitHub (via ArgoCD's Dex). Emails in
+`admin_emails` get the Admin role, other users Viewer; the password login form is
+disabled.
 
 ### Via port-forward
 
@@ -133,9 +134,10 @@ synced (see {doc}`ntfy`).
 
 :::{note}
 Nothing pushes when the cluster, Alertmanager or ntfy itself is down. The
-`Watchdog` alert, which always fires, is there to feed an external
-dead-man's switch (such as healthchecks.io) that alerts when it *stops*
-arriving; that is not set up here yet.
+`Watchdog` alert, which always fires, could feed an external dead-man's
+switch (such as healthchecks.io) that alerts when it *stops* arriving; this
+cluster does not use one, so an outage of the cluster, Alertmanager or ntfy
+goes unnoticed until someone looks.
 :::
 
 ### Test the notifications

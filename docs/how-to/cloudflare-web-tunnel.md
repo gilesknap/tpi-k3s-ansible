@@ -28,10 +28,12 @@ cloudflared pod (outbound-only tunnel, 2 replicas)
   │  HTTP to ingress-nginx (ssl_redirect disabled for tunnelled services)
   ▼
 ingress-nginx
-  │  auth subrequest to oauth2-proxy (email allowlist)
+  │  auth subrequest to oauth2-proxy (email allowlist) — Headlamp and
+  │  other oauth2-proxy-gated services only
   ▼
 Backend service (Grafana, Headlamp, ArgoCD)
-  │  Native login / RBAC
+  │  Native login / RBAC (Grafana and ArgoCD: GitHub via Dex;
+  │  Headlamp: ServiceAccount token)
   ▼
 Authenticated session
 ```
@@ -40,9 +42,12 @@ Authenticated session
 
 1. **Cloudflare Access** (edge) — identity verification before traffic reaches the
    cluster. Recommended for all tunnelled services.
-2. **oauth2-proxy** (ingress) — GitHub email allowlist. Active when
-   `enable_oauth2_proxy` is `true`.
+2. **oauth2-proxy** (ingress) — GitHub email allowlist for services without
+   their own SSO (such as Headlamp). Active when `enable_oauth2_proxy` is
+   `true`.
 3. **Native service auth** — each service retains its own login and RBAC.
+   Grafana and ArgoCD sign in with GitHub through ArgoCD's Dex instead of
+   oauth2-proxy.
 
 ## Two Cloudflare dashboards
 
@@ -69,9 +74,9 @@ Before exposing services, consider the risk profile of each:
 
 | Service | Native Auth | OAuth2 | Risk if OAuth Bypassed |
 |---------|------------|--------|----------------------|
-| Grafana | Admin login + user accounts | Yes | Low — requires credentials |
+| Grafana | GitHub via Dex (login form disabled) | No (Dex) | Low — requires GitHub login |
 | Headlamp | Kubernetes service account token | Yes | Low — requires token |
-| ArgoCD | Admin password + optional OIDC | No (SSL passthrough) | Low — requires credentials |
+| ArgoCD | Dex (GitHub) OIDC; admin account disabled | No | Low — requires GitHub login |
 
 **Overall risk assessment:** The combination of Cloudflare Access + oauth2-proxy +
 native service auth provides strong defense in depth. The risk is low for a homelab
@@ -110,15 +115,16 @@ In the **main dashboard** ([dash.cloudflare.com](https://dash.cloudflare.com/)):
 2. Go to the **Routes** tab (or click **View all** under Routes on the Overview tab)
    and click **Add route** for each service below.
 
-### HTTP services (Grafana, Headlamp, oauth2-proxy)
+### HTTP services (Grafana, Headlamp, oauth2-proxy, ArgoCD)
 
-These three services use the same origin configuration:
+All four services use the same origin configuration:
 
 | Subdomain | Domain | URL |
 |-----------|--------|-----|
 | `grafana` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 | `headlamp` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 | `oauth2` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
+| `argocd` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
 
 Use `http://`, not `https://` — Cloudflare terminates TLS at its edge and sends
 HTTP to `cloudflared`. The `Host` header tells ingress-nginx which service to route
@@ -131,25 +137,8 @@ If this hostname is not reachable through the tunnel, login fails for all
 OAuth-protected services.
 :::
 
-### ArgoCD (HTTPS origin)
-
-ArgoCD uses SSL passthrough — it terminates TLS itself on port 443. This requires
-a different origin configuration:
-
-| Subdomain | Domain | URL |
-|-----------|--------|-----|
-| `argocd` | `example.com` | `https://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local:443` |
-
-Under **Additional application settings → TLS**, enable:
-
-- **No TLS Verify** — `cloudflared` connects to ingress-nginx's TLS port but does
-  not verify the internal certificate. This is safe because the connection is
-  entirely within the cluster network.
-
-:::{note}
-ArgoCD does **not** need the `enable_cloudflare_tunnel` toggle — its SSL passthrough
-ingress works differently from the HTTP services. No code changes are needed.
-:::
+ArgoCD runs in insecure (plain HTTP) mode behind ingress-nginx, and its ingress
+never redirects to HTTPS, so it needs nothing beyond this route.
 
 ## Part 3: Create Cloudflare Access policies (recommended)
 
@@ -256,11 +245,8 @@ Commit and push. ArgoCD picks up the change and sets `ssl_redirect: false` on th
 ingresses for Grafana, Headlamp, and oauth2-proxy. This prevents
 redirect loops — Cloudflare sends HTTP to `cloudflared`, and without this toggle
 ingress-nginx would redirect back to HTTPS in a loop.
-
-:::{note}
-ArgoCD's ingress is not affected by this toggle — its SSL passthrough configuration
-works independently.
-:::
+ArgoCD's ingress already has `ssl-redirect: "false"` and does not depend on this
+toggle.
 
 ## Part 5: Verify
 
@@ -277,10 +263,14 @@ curl -I https://argocd.example.com
 
 ### Check the OAuth flow
 
-1. Open `https://grafana.example.com` in a browser.
+1. Open `https://headlamp.example.com` in a browser.
 2. If Cloudflare Access is configured, you see the Access login first.
 3. After Access authentication, oauth2-proxy redirects to GitHub for OAuth.
-4. After GitHub auth, you reach the Grafana login page.
+4. After GitHub auth, Headlamp asks for a ServiceAccount token
+   (`just headlamp-token`).
+5. Open `https://grafana.example.com`. After Cloudflare Access, click
+   **Sign in with GitHub (via Dex)**; Grafana has no oauth2-proxy gate and
+   no password form.
 
 ### Check cloudflared logs
 
@@ -297,7 +287,8 @@ kubectl get ingress -A -o json | \
   jq '.items[] | select(.metadata.annotations["nginx.ingress.kubernetes.io/ssl-redirect"] == "false") | .metadata.name'
 ```
 
-Expected: ingresses for `grafana`, `headlamp`, and `oauth2-proxy`.
+Expected: ingresses for `grafana`, `headlamp`, and `oauth2-proxy`, plus
+`argocd-ingress`, which always has it.
 
 ## Reverting to LAN-only
 
@@ -332,7 +323,7 @@ flow.
 
 ### OIDC discovery fails (invalid JSON / HTML response)
 
-Services that use Dex for OIDC (Headlamp, Grafana) fetch the
+Services that use Dex for OIDC (Grafana, argocd-monitor) fetch the
 discovery document from `https://argocd.<domain>/api/dex/.well-known/openid-configuration`.
 When Cloudflare manages DNS, pods resolve this to Cloudflare IPs and the request
 hairpins through the tunnel, often returning a Cloudflare Access HTML page instead
@@ -342,12 +333,6 @@ The fix is split-horizon DNS: the `--tags cluster` playbook creates a
 `coredns-custom` ConfigMap that makes `argocd.<domain>` resolve to the NGINX
 ingress ClusterIP from inside the cluster. If you see this error after a fresh
 cluster build, run `ansible-playbook pb_all.yml --tags cluster`.
-
-### 502 Bad Gateway on ArgoCD
-
-Check that the ArgoCD tunnel hostname uses **HTTPS** origin (not HTTP) with
-**No TLS Verify** enabled. ArgoCD's SSL passthrough requires a TLS connection from
-`cloudflared`.
 
 ### 403 Forbidden after authenticating
 

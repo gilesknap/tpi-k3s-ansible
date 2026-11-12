@@ -243,7 +243,7 @@ Switch to the **main Cloudflare dashboard** ([dash.cloudflare.com](https://dash.
 ```text
 Host ssh.example.com
     ProxyCommand cloudflared access ssh --hostname %h
-    User ubuntu
+    User ansible
     StrictHostKeyChecking no
 ```
 
@@ -289,8 +289,11 @@ Once the SSH tunnel is working, you can use it to reach the Kubernetes API remot
 ### 5.1 Copy and patch your kubeconfig
 
 ```bash
-# Copy kubeconfig from the control plane
-scp ssh.example.com:~/.kube/config ~/.kube/k3s-remote.yaml
+# Fetch the kubeconfig from the control plane (root-only there), or copy the
+# devcontainer's ~/.kube/config instead
+# (umask 077 keeps the cluster-admin credentials readable only by you)
+(umask 077 && rm -f ~/.kube/k3s-remote.yaml && \
+  ssh ssh.example.com sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/k3s-remote.yaml)
 
 # Patch the server address (k3s_api_name or an IP) to use a local forwarded port
 sed -i 's|https://[^/]*:6443|https://127.0.0.1:6443|' \
@@ -340,7 +343,7 @@ Look for connections referencing `ssh.example.com`.
 From a mobile hotspot (off your home network):
 
 ```bash
-ssh ubuntu@<control-plane-ip>
+ssh ansible@<control-plane-ip>
 # Expected: connection refused or timeout — direct access is blocked
 ```
 

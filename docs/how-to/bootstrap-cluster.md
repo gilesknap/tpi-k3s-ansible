@@ -6,20 +6,17 @@ all services. Follow these steps to finish the setup.
 :::{tip}
 **NAS prerequisite for backups.** The daily and weekly backup CronJobs write
 to an NFS export on a NAS. If you intend to run backups (recommended for any
-stateful workload — Grafana, Prometheus), set up the
+stateful workload — Grafana, Jellyfin), set up the
 NAS share **before** the first backup runs. See {doc}`nas-setup` — this is a
 one-time manual runbook on the NAS itself.
 :::
 
 ## Set Up the Shared Admin Password
 
-Several services share a common admin password via a Kubernetes secret called
-`admin-auth`. This secret is **not managed by ArgoCD** — it is created manually.
-
-| Service | How it uses `admin-auth` |
-|---------|-------------------------|
-| ArgoCD | Admin password via `argocd-secret` patch |
-| Grafana | `admin.existingSecret` references `admin-auth` |
+Grafana's built-in admin account reads its password from a Kubernetes secret
+called `admin-auth` (via `admin.existingSecret`). This secret is **not managed
+by ArgoCD** — it is created manually. ArgoCD does not use it: the ArgoCD
+local admin account is disabled and all logins go through Dex (GitHub).
 
 The quickest way to set the password is with the Justfile target:
 
@@ -27,29 +24,39 @@ The quickest way to set the password is with the Justfile target:
 just set-admin-password
 ```
 
-This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
-creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
-Grafana), patches the ArgoCD admin password, and restarts the ArgoCD server.
+This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment)
+and creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
+Grafana). The script still also writes a leftover ``admin-auth`` secret into a
+``longhorn`` namespace and sets ``admin.password`` in ``argocd-secret``
+(restarting ``argocd-server``); neither has any effect now that Longhorn is
+gone and the ArgoCD admin account is disabled.
 
-To update the password later, re-run the same command and restart cached
-services:
+Grafana reads this password only when it first creates its database, so
+re-running `just set-admin-password` later does not change the password of a
+running Grafana. To rotate it, update the secret and reset it in Grafana too:
 
 ```bash
 just set-admin-password
-kubectl -n monitoring rollout restart statefulset grafana-prometheus
+kubectl -n monitoring exec statefulset/grafana-prometheus -c grafana -- \
+  grafana cli admin reset-admin-password '<new-password>'
 ```
 
 ## Verify ArgoCD Sync
 
-Access ArgoCD via port-forward to check that all services are deploying:
+Check that all services are deploying with a read-only query:
 
 ```bash
-kubectl port-forward svc/argocd-server -n argo-cd 8080:8080
+kubectl get applications -n argo-cd
 ```
 
-Login with `admin` and the password you just set. You should see
-`all-cluster-services` and its child applications. Allow a few minutes for all
-services to reach `Synced / Healthy`.
+You should see `all-cluster-services` and its child applications. Allow a few
+minutes for all services to reach `Synced / Healthy`.
+
+The ArgoCD web UI has no local admin account: it signs in through Dex
+(GitHub), which needs the sealed OAuth credentials from {doc}`oauth-setup` and
+redirects back to `https://argocd.<domain>`. Until that is set up, use
+`kubectl` instead of the UI (or `argocd app list --core`, with the current
+kubeconfig context's namespace set to `argo-cd`).
 
 If any applications are stuck, force a refresh:
 
@@ -58,26 +65,18 @@ kubectl patch application all-cluster-services -n argo-cd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
-## Verify Headlamp OIDC Login
+## Verify Headlamp Login
 
-Headlamp authenticates via Dex (GitHub SSO). After ArgoCD syncs, visit
-``https://headlamp.<your-domain>`` and click **Sign in**. You will be
-redirected to GitHub via Dex. Admin emails get ``cluster-admin`` access;
-viewer emails get read-only ``view`` access.
-
-:::{note}
-Headlamp OIDC requires the K3s API server to be configured with OIDC
-flags. The Ansible ``k3s`` role deploys these automatically via
-``/etc/rancher/k3s/config.yaml``. If you see token validation errors,
-verify the config is deployed and k3s has been restarted.
-:::
-
-## Clean Up the Initial Admin Secret
-
-After verifying everything works, delete the auto-generated secret:
+With ``enable_oauth2_proxy: true``, Headlamp sits behind the cluster-wide
+oauth2-proxy. After ArgoCD syncs, visit ``https://headlamp.<your-domain>`` and
+pass the GitHub oauth2-proxy gate (only emails in ``admin_emails`` are let
+through); with it ``false`` there is no gate in front of Headlamp. Headlamp
+then asks for a token:
+paste one from
 
 ```bash
-kubectl -n argo-cd delete secret argocd-initial-admin-secret
+just headlamp-token
+# or: kubectl create token headlamp -n headlamp
 ```
 
 ## Next Steps

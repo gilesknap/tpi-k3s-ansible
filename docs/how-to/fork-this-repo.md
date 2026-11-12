@@ -87,7 +87,13 @@ admin_emails:
 control_plane: <your-control-plane-node>  # must match a host in hosts.yml
 k3s_api_name: k3s.lan  # LAN DNS record -> the control plane's IP (or its IPv4 address)
 dns_router: root@192.168.1.1  # optional: OpenWrt router, for just k3s-api-dns
+standby_control_plane: <spare node, or "" for none>
+etcd_backup_age_recipient: <your age1... public key>  # nightly etcd + sealed-secrets key backups; see backup-restore
 ```
+
+Replace `etcd_backup_age_recipient` before the first run: the nightly etcd
+and sealed-secrets key backups are encrypted to this key, so with the
+upstream value you could not decrypt your own backups.
 
 Create the `k3s_api_name` DNS record on your router before the first
 playbook run: the `k3s` role checks it resolves to the control plane. On an
@@ -149,7 +155,16 @@ share on your NAS. In `kubernetes-services/values.yaml`:
 nfs:
   server: <nas-ip>
   cluster_share_path: /<your-share>/k8s-cluster
+nfs_csi:
+  server: <nas-ip>
+  share: /<your-dynamic-export>
+  stable_share: /<your-dynamic-export>/stable
 ```
+
+`nfs.*` feeds the static backup, Minecraft and scrap volumes, Jellyfin's
+media and the etcd backup;
+`nfs_csi.*` configures the dynamic StorageClasses (`nfs-stable`, the
+default, and `nfs-rwx`) separately, so set both.
 
 Then run the one-time NAS setup runbook in {doc}`nas-setup`.
 
@@ -167,7 +182,16 @@ Top-level toggles in `kubernetes-services/values.yaml`:
 ```yaml
 enable_oauth2_proxy: false   # disables OAuth gating on Headlamp/Alertmanager
 enable_cloudflare_tunnel: false  # if you don't expose services to the internet
+enable_jellyfin: false   # needs a local-nvme PV and a node for its config
+enable_minecraft: false  # needs the NAS dirs and a worlds node
+enable_vps_relay: false  # needs sealed relay credentials and a VPS
 ```
+
+Jellyfin, Minecraft and the VPS relay ship enabled for this repo's own
+cluster; leave them off until you have set up what each needs, or their
+apps sit Pending or failed. Other fork-specific values to check:
+`minecraft.worlds.node` (the node that hosts the worlds) and
+`cf_access_team` (your Cloudflare Zero Trust team name).
 
 Whole-service Application templates can also be removed by deleting
 the corresponding file in `kubernetes-services/templates/`.

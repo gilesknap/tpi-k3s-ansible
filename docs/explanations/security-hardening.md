@@ -34,9 +34,10 @@ are available.
 
 ### Headlamp dashboard
 
-Headlamp uses Dex OIDC with per-user Kubernetes RBAC. Admin emails
-receive `cluster-admin` ClusterRoleBindings; viewer emails receive
-`view` ClusterRoleBindings. There is no shared ServiceAccount.
+Headlamp is gated by the cluster-wide oauth2-proxy (`admin_emails` only).
+Users then paste a token for the `headlamp` ServiceAccount
+(`just headlamp-token`), which the chart binds to `cluster-admin`, so anyone
+past oauth2-proxy has full cluster access.
 
 ### ArgoCD project
 
@@ -48,9 +49,7 @@ deploying arbitrary manifests from untrusted repositories.
 ## Secret management
 
 - All sensitive values are stored as SealedSecrets (encrypted in Git).
-- The ArgoCD initial admin password is not displayed in plaintext during
-  provisioning — the bootstrap script directs users to retrieve it
-  securely via `kubectl`.
+- The ArgoCD admin account is disabled; all logins go through Dex (GitHub).
 - The `admin-auth` secret (used by Grafana and basic-auth services) is
   created manually during bootstrap and not stored in Git.
 

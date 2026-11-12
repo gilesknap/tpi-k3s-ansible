@@ -17,6 +17,7 @@ combinations. Tags map to plays within the playbook.
 | `apparmor` | Install K3s | `k3s` (`apparmor.yml` only) | all_nodes | Only the corrected containerd AppArmor profile (see {doc}`/reference/troubleshooting`) |
 | `etcd_backup` | Install K3s | `etcd_backup` | control plane | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
 | `cluster` | Deploy services | `cluster` | localhost | Installs ArgoCD, bootstraps services |
+| `claude_key` | Manage Claude sandbox's pub key | (task) | all_nodes | Adds (or with `-e claude_pubkey_state=absent` removes) the Claude sandbox key on the ansible account; used by `just claude-ssh-bootstrap` |
 
 ## Running individual stages
 
@@ -40,7 +41,6 @@ ansible-playbook pb_all.yml --skip-tags flash
 | `--tags known_hosts,servers,k3s,cluster` | Full setup without flashing (pre-existing servers) |
 | `--tags k3s,cluster -e k3s_force=true` | Rebuild K3s and all services |
 | `--tags cluster` | Redeploy ArgoCD and services only |
-| `--tags cluster -e cluster_force=true` | Force reinstall ArgoCD |
 | `-e do_flash=true` | Full run including flash (no tag needed — runs all) |
 
 ## Using `--limit`

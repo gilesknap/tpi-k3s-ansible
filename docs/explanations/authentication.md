@@ -89,7 +89,6 @@ disables it (`--disable=traefik`) and deploys **ingress-nginx** instead.
 Reasons:
 
 - More widely documented in the Kubernetes ecosystem
-- Better support for TLS passthrough (needed for ArgoCD)
 - More straightforward configuration model
 - Mature `auth-url` / `auth-signin` annotation support, which is what
   oauth2-proxy relies on for the subrequest flow described later in this
@@ -197,7 +196,8 @@ sequenceDiagram
     ArgoCD->>User: Logged in
 ```
 
-RBAC is configured in `argocd-rbac-cm.yml`. The `scopes` field is set to
+RBAC is configured in `configs.rbac` in `roles/cluster/tasks/argocd.yml`
+(rendered into the `argocd-rbac-cm` ConfigMap). The `scopes` field is set to
 `[email]`, and policy rules map specific emails to `role:admin`. Everyone
 else gets `role:readonly` (can view applications and logs but not modify).
 
@@ -369,9 +369,9 @@ admin_emails:
 
 | Template / Config | Effect |
 |-------------------|--------|
-| `oauth2-proxy.yaml` | Email allowlist — only admins can access Headlamp, Alertmanager and the Minecraft dashboard |
+| `oauth2-proxy.yaml` | Email allowlist — only admins can access Headlamp, Alertmanager, the Minecraft dashboard and scrap |
 | `grafana.yaml` | `role_attribute_path` — admin emails get `Admin`, others get `Viewer` |
-| `argocd-rbac-cm.yml` | `g, <email>, role:admin` — admin emails get ArgoCD admin |
+| `configs.rbac` in `roles/cluster/tasks/argocd.yml` (rendered into the `argocd-rbac-cm` ConfigMap) | `g, <email>, role:admin` — admin emails get ArgoCD admin |
 
 All other authenticated users receive read-only roles: ArgoCD
 `role:readonly`, Grafana `Viewer`. They cannot

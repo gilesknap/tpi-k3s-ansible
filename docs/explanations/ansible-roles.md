@@ -1,6 +1,6 @@
 # Ansible Roles in Detail
 
-The playbook `pb_all.yml` runs nine roles in sequence. Each role is fully idempotent —
+The playbook `pb_all.yml` runs eleven roles in sequence. Each role is fully idempotent —
 it checks state before acting and does nothing if the desired state is already achieved.
 
 ## Execution order
@@ -14,19 +14,23 @@ flowchart TD
     MF --> RO["rk1_os<br/><i>RK1 nodes, one at a time</i>"]
     RO --> UP["update_packages<br/><i>all_nodes</i>"]
     UP --> DD["k8s_data_dirs<br/><i>all_nodes</i>"]
-    DD --> K["k3s<br/><i>all_nodes</i>"]
-    K --> C["cluster<br/><i>localhost</i>"]
+    DD --> NR["node_reboot<br/><i>only with reboot_now, one at a time</i>"]
+    NR --> K["k3s<br/><i>all_nodes</i>"]
+    K --> EB["etcd_backup<br/><i>control plane</i>"]
+    EB --> C["cluster<br/><i>localhost</i>"]
 ```
 
-Each role is tagged with its own name, so you can run individual stages:
+Plays are tagged by stage: `tools`, `flash`, `known_hosts`, `servers`
+(`move_fs`, `rk1_os`, `update_packages`, `node_reboot`, `k8s_data_dirs`), `k3s`
+(`k3s`, `etcd_backup`), `cluster`. `rk1_os`, `k8s_data_dirs` and `etcd_backup`
+also have their own tags; there is no `update_packages` or `move_fs` tag, so
+`--tags update_packages` silently runs nothing.
 
 ```bash
 ansible-playbook pb_all.yml --tags tools
-ansible-playbook pb_all.yml --tags flash
+ansible-playbook pb_all.yml --tags servers
 # etc.
 ```
-
-The `servers` tag covers `move_fs`, `rk1_os`, `update_packages`, and `k8s_data_dirs`.
 
 ---
 
@@ -43,6 +47,7 @@ Installs command-line tools needed to manage the cluster:
 | `kubectl` | latest stable | Kubernetes CLI |
 | `kubeseal` | 0.35.0 | Sealed Secrets CLI |
 | `helm-diff` | plugin | Shows Helm upgrade diffs |
+| `argocd` | 3.3.2 | ArgoCD CLI |
 
 Also creates:
 
@@ -57,7 +62,10 @@ The role is split across multiple task files:
 - `helm.yml` — Helm binary + helm-diff plugin
 - `kubectl.yml` — kubectl binary + completions
 - `kubeseal.yml` — kubeseal binary
+- `argocd.yml` — ArgoCD CLI binary
 - `scripts.yml` — port-forward helper scripts
+- `kubeconfig.yml` — copies the kubeconfig from the control plane to
+  `~/.kube/config` (skipped gracefully if the control plane is unreachable)
 
 ---
 
@@ -493,10 +501,10 @@ on its target node (guarded by `inventory_hostname`).
 
 | Node   | Directory                         | Owner / mode         | Consumed by |
 |--------|-----------------------------------|----------------------|-------------|
-| node04 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 0755     | monitoring  |
-| node04 | `/var/lib/k8s-data/grafana`       | 472:472 / 0755       | monitoring  |
-| nuc2   | `/home/k8s-data/scrap`            | 10001:10001 / 0750   | scrap (frozen pre-Litestream copy) |
-| nuc2   | `/home/k8s-data/scrap-backup-copy` | 10001:10001 / 0750  | scrap (off-NAS backup copy) |
+| node04 | `/var/lib/k8s-data/prometheus`    | 1000:2000 / 2775     | monitoring  |
+| node04 | `/var/lib/k8s-data/grafana`       | 472:472 / 2775       | monitoring  |
+| nuc2   | `/home/k8s-data/scrap`            | 10001:10001 / 2770   | scrap (frozen pre-Litestream copy) |
+| nuc2   | `/home/k8s-data/scrap-backup-copy` | 10001:10001 / 2770  | scrap (off-NAS backup copy) |
 | nuc2   | `/home/k8s-data/jellyfin`         | 122:124 / 2770       | jellyfin (`data/`, `config/`, `log/`) |
 
 Data lives outside `/var/lib/rancher` deliberately: `pb_decommission.yml`
@@ -583,6 +591,20 @@ With `-e k3s_force=true`, K3s is uninstalled first (`k3s-uninstall.sh` on contro
 
 ---
 
+## `etcd_backup` — Nightly etcd and sealed-secrets key backup
+
+**Runs on:** the control plane only
+**Tags:** `k3s`, `etcd_backup`
+
+Installs a systemd timer on the control plane (a timer, so it still runs when
+the API server is down). Each night it takes an etcd snapshot, bundles it with
+the k3s token, encrypts the bundle with `age` to `etcd_backup_age_recipient`
+and writes it to the NAS. The same job also exports the sealed-secrets
+controller's keys, age-encrypted to the same recipient, to the NAS. See
+{doc}`../how-to/backup-restore`.
+
+---
+
 ## `cluster` — ArgoCD and service deployment
 
 **Runs on:** localhost (devcontainer)
@@ -596,16 +618,29 @@ Bootstraps ArgoCD and the entire service stack:
    `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` taint and
    removes that taint from any other node. Both use `k8s_taint`, which adds to
    a node's existing taints rather than replacing them.
-2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (v9.4.17).
-3. **Patch ConfigMap** — adds a custom Lua health check for `monitoring.coreos.com/Prometheus`
-   (respects a `skip-health-check` annotation).
+2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (v9.4.17), then
+   upgrades it with the full configuration (Dex, RBAC, `server.insecure`).
+3. **Health check** — the Helm values add a custom Lua health check for
+   `monitoring.coreos.com/Prometheus` (respects a `skip-health-check` annotation).
 4. **Create AppProject** — creates the `kubernetes` ArgoCD project allowing access to
    all repos, namespaces, and cluster-scoped resources.
-5. **Create root Application** — creates `all-cluster-services` pointing at
-   `kubernetes-services/` in the repository. Passes `repo_remote`, `cluster_domain`,
-   and `domain_email` as Helm values.
-6. **Create ArgoCD Ingress** — creates an Ingress for `argocd.<cluster_domain>` with
-   SSL passthrough.
+5. **Create ArgoCD Ingress** — an Ingress for `argocd.<cluster_domain>` to
+   `argocd-server:80` (TLS at ingress-nginx).
+6. **Bootstrap sealed-secrets** — applies the sealed-secrets Application on
+   its own and waits for the controller to be ready.
+7. **Generate secrets** (only with `GENERATE_SECRETS=true`) — runs
+   `just generate-and-seal-all`, then commits and pushes the sealed files
+   before the root app is created.
+8. **Create root Application** — creates `all-cluster-services` pointing at
+   `kubernetes-services/` in the repository. Passes `repo_remote`, `repo_branch`,
+   `cluster_domain`, and `domain_email` as Helm values.
+9. **Dex secret** — applies the `argocd-dex-secret` SealedSecret and labels the
+   Secret `app.kubernetes.io/part-of: argocd` so `dex.config` can resolve it.
+10. **CoreDNS split-horizon** — once ArgoCD has provisioned ingress-nginx,
+    creates the `coredns-custom` ConfigMap that resolves `argocd.<cluster_domain>`
+    to the ingress ClusterIP from inside the cluster.
+11. **Prometheus admission secret** — creates the kube-prometheus-stack
+    admission webhook TLS secret.
 
 After this role completes, ArgoCD takes over and syncs all services defined in
 `kubernetes-services/templates/`.

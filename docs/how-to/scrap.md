@@ -6,12 +6,13 @@ tools. The application and its Helm chart live in the scrap repository. This
 repository provides the cluster wiring:
 
 - An ArgoCD Application (`kubernetes-services/templates/scrap.yaml`) that
-  deploys the chart from a git tag, with a NetworkPolicy, the chart's
+  deploys the published OCI chart, with a NetworkPolicy, the chart's
   Litestream mode on NFS volumes (so scrap runs on any node), a nightly backup
   CronJob and Claude ingest (enabled in this deployment).
 - An ingress for `scrap.<domain>` gated by oauth2-proxy, plus a second
   `/mcp`-only ingress without oauth2-proxy
-  (`kubernetes-services/additions/scrap/`), disabled by default (see below).
+  (`kubernetes-services/additions/scrap/`), off by default in the chart, on in
+  this deployment (see below).
 - Static NFS volumes for the data and the backups, and a nightly copy of the
   newest backup off the NAS (`kubernetes-services/additions/scrap/`); see
   [Data, backups and failover](#data-backups-and-failover).
@@ -172,7 +173,11 @@ logs that, and exits successfully.
 
 ## Cloudflare configuration
 
-In the Cloudflare dashboard, following {doc}`cloudflare-web-tunnel`:
+With Cloudflare managed as code ({doc}`cloudflare-as-code`), these are the
+`scrap` and `pages` entries in `cloudflare/locals.tf` and the apps in
+`cloudflare/access.tf` (including the `/mcp` service-token policy); apply with
+`just cf-apply`. Otherwise, in the Cloudflare dashboard, following
+{doc}`cloudflare-web-tunnel`:
 
 1. Add a public hostname `scrap.<domain>` on the tunnel pointing at
    ingress-nginx.
@@ -234,8 +239,11 @@ skipped.
 ### Cloudflare for the public site
 
 The wildcard Access application covers every subdomain, so without more
-configuration readers of `pages.<domain>` meet a login page. In the
-Cloudflare dashboard:
+configuration readers of `pages.<domain>` meet a login page. With Cloudflare
+managed as code ({doc}`cloudflare-as-code`), the `pages` entry in
+`cloudflare/locals.tf` (`access_bypass = true`) and its bypass app in
+`cloudflare/access.tf` already handle this; apply with `just cf-apply`.
+Otherwise, in the Cloudflare dashboard:
 
 1. Add a public hostname `pages.<domain>` on the tunnel pointing at
    ingress-nginx, as for `scrap.<domain>` ({doc}`cloudflare-web-tunnel`).

@@ -131,7 +131,18 @@ admin_emails:
 nfs:
   server: 192.168.1.3                       # Your NFS server IP
   cluster_share_path: /path/to/k8s-cluster  # Cluster directory on the NFS export
+
+# NFS CSI driver — the dynamic StorageClasses (nfs-stable, the default, and
+# nfs-rwx). Configured separately from nfs.* above, so set it too:
+nfs_csi:
+  server: 192.168.1.3                       # Your NFS server IP
+  share: /path/to/k8s-dynamic               # Export for dynamic volumes
+  stable_share: /path/to/k8s-dynamic/stable # Subfolder of share for nfs-stable
 ```
+
+`nfs-stable` is the default StorageClass, and its PVCs stay `Pending` until
+`stable_share` exists on the NAS. Create it before ArgoCD deploys workloads
+that use it ({ref}`nfs-csi-nas-share`).
 
 :::{important}
 **NFS is a prerequisite for backups.** The daily and weekly backup
@@ -169,11 +180,11 @@ kubectl get nodes
 Expected output shows all nodes in `Ready` state:
 
 ```
-NAME     STATUS   ROLES                       AGE   VERSION
-node01   Ready    <none>                      4m    v1.31.x+k3s1
-node02   Ready    control-plane,etcd,master   5m    v1.31.x+k3s1
-node03   Ready    <none>                      4m    v1.31.x+k3s1
-node04   Ready    <none>                      4m    v1.31.x+k3s1
+NAME     STATUS   ROLES                AGE   VERSION
+node01   Ready    <none>               4m    v1.34.x+k3s1
+node02   Ready    control-plane,etcd   5m    v1.34.x+k3s1
+node03   Ready    <none>               4m    v1.34.x+k3s1
+node04   Ready    <none>               4m    v1.34.x+k3s1
 ```
 
 Check ArgoCD applications:

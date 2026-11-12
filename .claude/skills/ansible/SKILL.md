@@ -16,9 +16,10 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - SSH to nodes: `ssh ansible@<node>` (not root).
 
 ## Common Tags
-- `servers` — system packages, workstation taint/label tasks, NVIDIA
-  container runtime on GPU nodes. **Not `update_packages`** — that
-  tag silently does nothing.
+- `servers` — move_fs, rk1_os, update_packages (packages,
+  unattended-upgrades, NVIDIA container runtime on GPU nodes),
+  k8s_data_dirs. There is **no `update_packages` tag** — `--tags
+  update_packages` silently does nothing.
   Safe to run at any time: `update_packages` never reboots a node that
   runs k3s; it leaves `/var/run/reboot-required` for kured. Add
   `-e reboot_now=true` for a drained reboot now, one node at a time
@@ -26,7 +27,8 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
   (first provisioning) is rebooted at once; workstations never are.
 - `cluster` — ArgoCD root app + all child apps (branch switching,
   service toggles). Sanctioned path for touching ArgoCD-managed state.
-- `k3s` — K3s install/configure.
+- `k3s` — K3s install/configure, including the workstation taint/label
+  tasks (`roles/k3s/tasks/worker.yml`), plus etcd_backup.
 - `known_hosts` — refresh node host keys in `~/.ssh/known_hosts` and
   `/etc/ssh/ssh_known_hosts` (`known_hosts_files`). The sandbox relies on
   the `/etc` copy; it can't write `/etc`, so this tag must run from a
@@ -66,7 +68,7 @@ Before creating a new working branch:
 
 ```bash
 kubectl -n argo-cd get application all-cluster-services \
-  -o jsonpath='{.spec.sources[*].targetRevision}'
+  -o jsonpath='{.spec.source.targetRevision}'
 ```
 
 If it's not `main`, **stop and ask the user** whether to:
@@ -114,11 +116,10 @@ reboot unexpectedly. This has these consequences you must design for:
 - **No automatic maintenance on workstations**: kured and the k3s
   upgrade Plans skip them, and `update_packages` leaves their
   unattended-upgrades config alone and never reboots them.
-- **amd64-only workloads land on nuc2 by default.** ws03 and nuc2 are the
-  only amd64 nodes; ws03's taint means a chart with
-  `nodeSelector: kubernetes.io/arch: amd64` pins to nuc2 without any
-  explicit hostname selector. Useful for charts whose schema forbids
-  `kubernetes.io/hostname` overrides.
+- **amd64-only workloads land on the untainted amd64 workers** (e.g. nuc2,
+  nuc1); ws03's taint keeps them off it. A chart with
+  `nodeSelector: kubernetes.io/arch: amd64` can land on any of them, so add
+  a `kubernetes.io/hostname` selector if one node is required.
 
 ### Storage placement
 There is no replicated block storage (Longhorn was dropped, ADR 0012):
@@ -141,7 +142,7 @@ Turing Pi BMC instead.
 The BMC is reachable as `{{ tpi_user }}@turingpi` (default `root@turingpi`,
 defined in `group_vars/all.yml`). Each slot maps to a node via
 `slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
-`nuc2` and `ws03` are not on the BMC.
+`nuc1`, `nuc2` and `ws03` are not on the BMC.
 
 ```bash
 # What the BMC thinks of all four slots
@@ -231,7 +232,7 @@ pins an exact release, but only on the `k3s_minor` line. See
   managed rule — you're clearing kube-managed runtime state, not
   changing template intent.) Long-term fix tracked in issue #397.
   Don't `argocd app delete`/recreate the `local-nvme`-backed apps
-  (grafana, prometheus). To re-pin a PV to another node, follow
+  (grafana, prometheus, jellyfin, scrap). To re-pin a PV to another node, follow
   `docs/how-to/node-operations.md` ("Move a local-nvme PV"):
   `argocd app delete-resource local-storage --core --kind
   PersistentVolume --resource-name <pv>`, then `argocd app sync

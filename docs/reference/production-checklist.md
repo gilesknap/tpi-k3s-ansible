@@ -20,10 +20,10 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 ## Cloudflare tunnel
 
-- [ ] Tunnel created in Cloudflare dashboard
-- [ ] Tunnel token SealedSecret committed to Git
+- [ ] Tunnel, hostnames, Access apps and WAF rules applied with `just cf-apply`
+  (see {doc}`/how-to/cloudflare-as-code`)
+- [ ] Tunnel token sealed with `just cf-seal-tunnel-token` and committed to Git
 - [ ] cloudflared deployment running (2 replicas, on different nodes)
-- [ ] Public hostnames configured for tunnel-exposed services
 - [ ] WAF skip rule for SSH hostname (if using SSH tunnel)
 
 ## Sealed Secrets
@@ -36,8 +36,8 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] `admin-auth` secret created for Grafana/basic-auth services
 - [ ] oauth2-proxy deployed with GitHub OAuth credentials
-- [ ] OAuth enabled on Grafana; Headlamp and Alertmanager gated by oauth2-proxy
-- [ ] ArgoCD admin password retrieved and changed from default
+- [ ] Dex (GitHub) login enabled on Grafana; Headlamp and Alertmanager gated by oauth2-proxy
+- [ ] ArgoCD GitHub (Dex) login works for `admin_emails`
 
 ## Resource limits
 
