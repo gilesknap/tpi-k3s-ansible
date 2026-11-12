@@ -9,12 +9,12 @@ the rebuild re-binds the same static local-nvme PVs to the same PVCs.
 
 ## WARNING — DATA PRESERVATION MODEL
 
-Default behaviour: **local PV data is preserved.** Grafana sqlite and
-Prometheus TSDB live on on-disk directories
+Default behaviour: **local PV data is preserved.** Grafana sqlite,
+Prometheus TSDB and Jellyfin's config live on on-disk directories
 that `pb_decommission.yml` does NOT touch:
 - `/var/lib/k8s-data/{grafana,prometheus}` (RK1s)
-- `/home/k8s-data/*` (nuc2) — scrap's frozen pre-Litestream copy and its
-  off-NAS backup copy
+- `/home/k8s-data/*` (nuc2) — Jellyfin's config, scrap's frozen
+  pre-Litestream copy and its off-NAS backup copy
 
 scrap's live data is on static NFS PVs (`/bigdisk/k8s-cluster/scrap-data`,
 `backups/scrap`), which re-bind after the rebuild.
@@ -229,7 +229,7 @@ kubectl get nodes  # should fail — API server down
 ssh ansible@<node> "ls -d /usr/local/bin/k3s* /etc/rancher/k3s /var/lib/rancher /var/lib/kubelet /etc/systemd/system/k3s* 2>/dev/null"
 # Local PV data preserved (unless wipe_local_data=true):
 ssh ansible@nuc2 "ls /home/k8s-data"            # still has subdirs + data
-ssh ansible@node02 "ls /var/lib/k8s-data"       # still has prometheus dir
+ssh ansible@node04 "ls /var/lib/k8s-data"       # still has grafana + prometheus dirs
 ```
 
 ## Phase 3: Rebuild (single playbook run)
@@ -422,6 +422,9 @@ If any SealedSecrets show `False` with "no key could decrypt":
 - [ ] No failing pods (nvidia-device-plugin must be Running on ws03 — if CrashLooping, revisit Phase 4d)
 - [ ] scrap restored its data: `kubectl -n scrap logs deploy/scrap -c db-init`
       says it restored the replica, never that it made a new database
+- [ ] Jellyfin back on its config: the `jellyfin` app is Healthy and its
+      config PVC is Bound to the `jellyfin-local` PV
+      (`kubectl get pvc -n jellyfin`)
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
@@ -433,7 +436,8 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 - **Stateful pods Pending with "waiting for first consumer"** — the
   `local-nvme` StorageClass uses `WaitForFirstConsumer`. Pods can only
   schedule on the node that owns the PV: prometheus→node04,
-  grafana→node04. If a pod is
+  grafana→node04, jellyfin→nuc2, scrap-backup-copy→nuc2 (see
+  `local_storage` in kubernetes-services/values.yaml). If a pod is
   Pending, check that its target node is Ready and untainted.
 - **Stateful pods CrashLooping with permission denied on /data** —
   the on-disk UID/mode set by `k8s_data_dirs` does not match what the

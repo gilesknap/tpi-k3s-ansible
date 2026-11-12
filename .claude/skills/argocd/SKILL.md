@@ -11,20 +11,20 @@ Applications under `kubernetes-services/templates/` from this repo.
 
 ## Branch repointing (smoke-testing a PR branch)
 
-Don't `kubectl edit` the root Application. The sanctioned path:
+Don't `kubectl edit` the root Application, and don't edit `repo_branch` in
+`group_vars/all.yml` (see the `/ansible` skill). The sanctioned path:
 
-1. Edit `group_vars/all.yml` → set `repo_branch: <branch>`. Do NOT commit
-   this — it's a local-only smoke pointer.
-2. `uv run ansible-playbook pb_all.yml --tags cluster` — re-templates the
-   root app and applies it. This is one of the few commands in the hard
-   rules that's allowed to mutate the live cluster.
-3. If child apps don't pick up the new revision within a minute, force a
+1. `just switch-branch <branch>` — runs `ansible-playbook pb_all.yml --tags
+   cluster -e repo_branch=<branch>`, which re-templates the root app and
+   applies it. This is one of the few commands in the hard rules that's
+   allowed to mutate the live cluster.
+2. If child apps don't pick up the new revision within a minute, force a
    re-fetch on the root:
    ```
    kubectl -n argo-cd annotate application all-cluster-services \
      argocd.argoproj.io/refresh=hard --overwrite
    ```
-4. Reset `repo_branch: main` when done.
+3. `just switch-branch main` when done.
 
 ### Don't push an unpublished chart pin while ArgoCD watches that branch
 

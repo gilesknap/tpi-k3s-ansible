@@ -19,11 +19,15 @@ user what was decided and why — don't silently skip features.
 
 ### Node count rules
 
-| Nodes | Control plane taint | Cloudflared replicas |
-|-------|---------------------|----------------------|
-| 1     | **Disabled** (workloads must run on control plane) | **1** |
-| 2     | **Offer as option** (default: disabled) | **2** |
-| 3+    | **Enabled by default** | **2** |
+Neither of these is a choice; tell the user what will happen:
+
+- **Control plane taint**: the cluster role adds the control plane
+  `NoSchedule` taint automatically whenever `all_nodes` has more than one
+  host. A single-node cluster runs its workloads on the control plane.
+- **Cloudflared replicas**: `additions/cloudflared/deployment.yaml` runs a
+  fixed 2 replicas with pod anti-affinity, so it needs 2 schedulable nodes.
+  A 1-node cluster that enables the tunnel must lower `replicas` in that
+  file by hand.
 
 Storage replication: the cluster uses static local hostPath PVs (defined
 in `kubernetes-services/values.yaml` under `local_storage`) and NFS, with
@@ -78,12 +82,17 @@ which hardware-gated features can be offered.
 
 Only present features the hardware supports (see constraints above).
 
-7. **Control plane taint?** (skip for 1 node, offer for 2, default yes for 3+)
-8. **NFS server?** — Ask if the user wants any
+7. **NFS server?** — Ask if the user wants any
    backups. If yes: IP and the cluster share
    path on the NAS (e.g. `/bigdisk/k8s-cluster`).
-9. **OAuth2 proxy?** (yes/no, default: no — enable later)
-10. **Cloudflare tunnel?** (yes/no, default: no — enable later)
+8. **OAuth and Cloudflare credentials now?** (yes/no, default: no — set up
+   later). `GENERATE_SECRETS=true` needs all six of `GITHUB_CLIENT_ID`,
+   `GITHUB_CLIENT_SECRET`, `OAUTH2_PROXY_CLIENT_ID`,
+   `OAUTH2_PROXY_CLIENT_SECRET`, `CLOUDFLARE_API_TOKEN` and
+   `CLOUDFLARE_TUNNEL_TOKEN`, and fails if any is missing. If yes, point the
+   user at `docs/how-to/oauth-setup` (GitHub OAuth apps) and
+   `docs/how-to/cloudflare-as-code` (API and tunnel tokens) and have them
+   export the six variables in the shell that runs the playbook.
 
 ## Phase 2: Configure files
 
@@ -147,11 +156,36 @@ themselves (`-K` prompts for that user's sudo password; this seeds the
 
 ## Phase 4: Run the playbook
 
-Confirm with the user before running. `GENERATE_SECRETS=true` handles all
-secret generation, sealing, admin password, and git commit/push automatically.
+Confirm with the user before running. Which form to use depends on
+question 8.
 
-If the user wants a specific admin password, set `ADMIN_PASSWORD` in the
-environment. Otherwise one is generated randomly.
+### Without OAuth/Cloudflare credentials (default)
+
+Run the playbook without `GENERATE_SECRETS`, then set the shared admin
+password (used by Grafana's `admin.existingSecret`):
+
+**Turing Pi (first time):**
+```bash
+ansible-playbook pb_all.yml -e do_flash=true
+just set-admin-password
+```
+
+**Generic servers:**
+```bash
+ansible-playbook pb_all.yml --tags tools
+ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
+just set-admin-password
+```
+
+The OAuth and Cloudflare secrets are created later, when the user follows
+`docs/how-to/oauth-setup` and `docs/how-to/cloudflare-as-code`.
+
+### With all six credentials exported
+
+`GENERATE_SECRETS=true` handles all secret generation, sealing, admin
+password, and git commit/push automatically. If the user wants a specific
+admin password, set `ADMIN_PASSWORD` in the environment. Otherwise one is
+generated randomly.
 
 **Turing Pi (first time):**
 ```bash
@@ -167,7 +201,7 @@ GENERATE_SECRETS=true \
 ansible-playbook pb_all.yml --tags known_hosts,servers,k3s,cluster
 ```
 
-The playbook automatically:
+With `GENERATE_SECRETS=true` the playbook automatically:
 1. Installs K3s on all nodes
 2. Deploys ArgoCD with full config
 3. Waits for the sealed-secrets controller

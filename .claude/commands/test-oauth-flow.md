@@ -81,6 +81,9 @@ Subsequent Dex services reuse the session.
 | Service | URL | Logged-in indicator |
 |---------|-----|---------------------|
 | Headlamp | `https://headlamp.<cluster_domain>` | Token login page (after OAuth gate) |
+| Alertmanager | `https://alertmanager.<cluster_domain>` | Alertmanager UI |
+| Minecraft dashboard | `https://minecraft.<cluster_domain>` (when `enable_minecraft`) | Dashboard world list |
+| scrap | `https://scrap.<cluster_domain>` | scrap PWA loaded |
 
 #### Step 4: OAuth flow procedure
 
@@ -155,6 +158,9 @@ Return a summary table:
 | Grafana        | PASS   | Home page loaded            |
 | ArgoCD Monitor | PASS   | Monitor page                |
 | Headlamp       | PASS   | Token login page            |
+| Alertmanager   | PASS   | Alertmanager UI             |
+| Minecraft      | PASS   | Dashboard world list        |
+| scrap          | PASS   | scrap PWA loaded            |
 ```
 
 Any FAIL entries must include:
@@ -187,5 +193,3 @@ If services fail:
      real origin problem. No 503s in ingress logs + a 503 in the browser =
      Cloudflare Access stale cookie (see gotcha above), not a pod issue.
    - Only after ruling those out: `kubectl get pods -A | grep -v Running`.
-5. **Headlamp shows OIDC error** — the old OIDC config may still be cached.
-   Restart the Headlamp pod: `kubectl rollout restart deployment headlamp -n headlamp`.

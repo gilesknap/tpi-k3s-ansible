@@ -1,9 +1,9 @@
 # Add Node
 
 Guide the user through adding a new worker node to an existing cluster. Ask
-questions, update the inventory, run the appropriate playbooks, and adjust
-cluster-wide settings that depend on node count (control plane taint,
-cloudflared replicas).
+questions, update the inventory, run the appropriate playbooks, and check
+the cluster-wide settings that depend on node count (control plane taint,
+Minecraft RCON allow-list).
 
 ## Important rules
 
@@ -100,8 +100,12 @@ ansible <hostname> -m ping
 Confirm with the user before running.
 
 ### Turing Pi node (needs flashing)
+
+The flash role runs on the Turing Pi BMC, so the BMC host must be in the
+limit alongside the node (e.g. `--limit turingpi,node05`):
+
 ```bash
-ansible-playbook pb_all.yml --limit <hostname> -e do_flash=true
+ansible-playbook pb_all.yml --limit <bmc_hostname>,<hostname> -e do_flash=true
 ```
 
 ### Standalone server
@@ -128,20 +132,13 @@ volumes until a workload is given a `local-nvme` PV pinned to it (see the
 
 ### Control plane taint
 
-If going from 1 to 2+ nodes, ask the user if they want to enable the control
-plane `NoSchedule` taint. If going from 1 to 3+, recommend enabling it.
-
-The taint is managed by K3s server flags, not Ansible. To enable, re-run the
-control plane play:
+There is no choice to make here. The control plane `NoSchedule` taint is
+added automatically by the cluster role whenever `all_nodes` has more than
+one host, with no opt-out switch. If going from 1 to 2+ nodes, apply it with:
 
 ```bash
-ansible-playbook pb_all.yml --limit <control-plane-node> --tags k3s
+ansible-playbook pb_all.yml --tags cluster
 ```
-
-### Cloudflared replicas
-
-If going from 1 to 2+ nodes, check if cloudflared should increase from 1 to 2
-replicas (the default for multi-node clusters).
 
 ### Minecraft RCON allow-list
 

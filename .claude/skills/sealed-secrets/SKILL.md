@@ -36,17 +36,15 @@ and reseal later — never a literal `REPLACE_ME`.
 
 ## `scripts/seal-argocd-dex` — per-secret subcommands
 
-Running `seal-argocd-dex` bare (or with `all`) re-seals everything and
-prompts for GitHub creds. To rotate just one secret
-without re-entering unrelated values, use a subcommand:
+`seal-argocd-dex` needs a subcommand; a bare run prints usage and exits 1:
 
 ```
-seal-argocd-dex [github|argocd|monitor|grafana]
+seal-argocd-dex <github|argocd|monitor|grafana>
 ```
 
+Full sealing is `just generate-and-seal-all` (the rebuild path).
 Subcommands read existing keys from the running `argocd-dex-secret` to
-preserve values they don't touch, so `all` must have been run at least
-once before a subcommand will work.
+preserve values they don't touch, so it must already exist.
 
 ## Pod restarts after reseal
 
@@ -56,11 +54,11 @@ values and OAuth/service login fails with errors like
 `invalid client_secret` — even though the Kubernetes `Secret` object
 itself is correct.
 
-`seal-argocd-dex` now restarts affected pods automatically. If you
-re-seal through any other path (manual `kubeseal`, rebuild playbook,
-etc.), you must restart pods in these namespaces:
+`seal-argocd-dex` does not restart anything. After any reseal, restart
+pods in these namespaces:
 
-- `argo-cd` / `argocd-monitor` (Dex: `just restart-dex`)
+- `argo-cd` (`just restart-dex`) / `argocd-monitor`
+  (`kubectl -n argocd-monitor rollout restart deployment`)
 - `ntfy` — **delete the pod**, do not just restart the container:
   `kubectl delete pod -n ntfy -l app.kubernetes.io/name=ntfy`. The user
   database is on the pod's emptyDir, and only a new pod drops the old

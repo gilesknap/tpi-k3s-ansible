@@ -11,7 +11,10 @@ description: Cloudflare Tunnel and Access configuration for exposing K3s service
 - **Flow**: Internet → Cloudflare edge → Tunnel pod → NGINX Ingress → Service
 
 ## Exposed Services
-Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, minecraft, ntfy
+The tunnelled hostnames are the `tunnel_services` list in
+`cloudflare/locals.tf` (grafana, headlamp, oauth2, argocd-monitor, home,
+argocd, alertmanager, minecraft, scrap, pages, ntfy, ...): read it there
+rather than trusting a copy.
 - `ntfy.<domain>` has an Access **Bypass** app (the phone app cannot do
   the Access login) and the zone's one Free-plan rate-limiting rule
   (path-based: Free cannot match the hostname), both in `cloudflare/`;
@@ -40,7 +43,7 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
   one. The first `cf-apply` on an imported tunnel rotates it. Run `cf-`
   recipes from the main checkout (docs/how-to/cloudflare-as-code.md)
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
-  - ws03 had `systemd-resolved` overridden to `1.1.1.1` which broke `node01.lan` resolution
+  - a node with `systemd-resolved` overridden to `1.1.1.1` cannot resolve `<node>.lan` names
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`
 - Adding new services requires both: ingress in repo + an entry in
   `tunnel_services` in `cloudflare/locals.tf` (route + DNS), then plan/apply
@@ -51,20 +54,22 @@ Services exposed via tunnel: grafana, headlamp, oauth2-proxy, argocd, echo, mine
   to `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`.
   Direct-to-service routes (e.g. `http://home.home.svc.cluster.local`) bypass
   the ingress controller and oauth2-proxy entirely, so auth headers like
-  `X-Auth-Request-Email` will be empty. Cloudflare Access still authenticates
-  (using Google identity), but oauth2-proxy features (email headers, sign-out)
-  won't work.
-- **Cloudflare Access uses Google identity** — not GitHub. If you see a
-  Google OTP prompt, that's Cloudflare Access. The GitHub auth prompt comes
-  from oauth2-proxy (after traffic reaches the ingress).
-- **MCP / non-browser hosts need an Access bypass** — services that
-  speak their own OAuth (e.g. an MCP server) or use a shared-key API
-  cannot solve Google SSO. Add a Cloudflare Access Application of type **Bypass** for that
-  hostname. **Policy order matters**: the bypass must evaluate
-  *before* the wildcard `*.gkcluster.org` Access app, otherwise the
-  wildcard wins and challenges every request. Confirm order in the
-  dashboard after adding.
+  `X-Auth-Request-Email` will be empty. Cloudflare Access still authenticates,
+  but oauth2-proxy features (email headers, sign-out) won't work.
+- **Cloudflare Access login methods** — GitHub (the Owner policy requires
+  it) or one-time PIN (Viewers). An Access prompt is Cloudflare's; a second
+  GitHub prompt after it comes from Dex or oauth2-proxy inside the cluster.
+- **MCP / non-browser clients** — they cannot complete the Access login.
+  Use a service-token (`non_identity`) policy, as scrap's `/mcp` does in
+  `cloudflare/access.tf`. Only if the host is truly public, set
+  `access_bypass = true` on its `tunnel_services` entry and add a bypass
+  app in `access.tf`; `cloudflare/access_guard.tf` fails the plan for a
+  bypass app on a hostname not marked that way. Access apps are code: the
+  most specific destination wins over the `*.gkcluster.org` wildcard, so
+  there is no dashboard ordering to check.
 
 ## Key Files
-- `kubernetes-services/values.yaml` — cloudflared toggle and config
+- `cloudflare/` — OpenTofu edge config (tunnel, DNS, Access, WAF)
+- `kubernetes-services/additions/cloudflared/` — cloudflared Deployment and tunnel-secret
+- `kubernetes-services/values.yaml` — `enable_cloudflare_tunnel` toggle
 - `kubernetes-services/additions/ingress/` — ingress definitions for tunneled services
