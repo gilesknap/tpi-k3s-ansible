@@ -52,7 +52,7 @@ argocd app list --core
 
 ## Port-forward scripts
 
-The `tools` role installs convenience scripts to `$BIN_DIR` (default `/root/bin`,
+The `tools` role installs convenience scripts to `$BIN_DIR` (default `$HOME/bin`,
 which the role adds to `PATH`) for accessing services when ingress is unavailable
 or from the devcontainer.
 
@@ -66,6 +66,10 @@ ArgoCD will be available at:
   or http://localhost:8080
   Login via GitHub (Dex)
 ```
+
+GitHub sign-in through Dex redirects back to `https://argocd.<domain>`, so it
+works only once ingress and the sealed OAuth credentials are in place; the
+localhost port-forward does not complete a Dex login.
 
 ### `grafana.sh`
 

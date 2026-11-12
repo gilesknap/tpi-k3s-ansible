@@ -118,7 +118,7 @@ hardware and want the full experience out of the box.
 | nfs-csi | `csi-driver-nfs` | 4.13.4 | `nfs-csi` | — | — | Dynamic NFS volumes: classes `nfs-stable` (the default) and `nfs-rwx` |
 | ntfy | Local chart (`binwiederhier/ntfy`) | v2.34.0 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
 | NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.20.1 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.7.4 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager and the Minecraft dashboard |
+| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.7.4 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager, the Minecraft dashboard and scrap |
 | scrap | OCI chart `ghcr.io/gilesknap/charts/scrap` | 1.9.2 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
 | Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.22.0 | `kube-system` | — | — | Encrypted secrets in Git |
 | system-upgrade-controller | Upstream release manifests (vendored) | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |

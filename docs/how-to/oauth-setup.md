@@ -64,7 +64,7 @@ just generate-and-seal-all
 ```
 
 This generates and seals `argocd-dex-secret`, `grafana-oauth-secret`,
-`argocd-monitor-oauth-secret` and `oauth2-proxy-credentials` together, along
+`argocd-monitor-oauth` and `oauth2-proxy-credentials` together, along
 with the other cluster secrets. The `argo-cd` Dex client secret is derived
 from ArgoCD's `server.secretkey` automatically.
 

@@ -161,7 +161,8 @@ nfs_csi:
   stable_share: /<your-dynamic-export>/stable
 ```
 
-`nfs.*` feeds the static backup and Minecraft volumes and the etcd backup;
+`nfs.*` feeds the static backup, Minecraft and scrap volumes, Jellyfin's
+media and the etcd backup;
 `nfs_csi.*` configures the dynamic StorageClasses (`nfs-stable`, the
 default, and `nfs-rwx`) separately, so set both.
 

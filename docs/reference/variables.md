@@ -141,7 +141,8 @@ ansible-playbook pb_all.yml \
 The root Application passes `repo_branch` in from Ansible, so the copy in values.yaml is
 only a default; switch branches with `just switch-branch <branch>`.
 
-The `nfs.*` values feed the static backup and Minecraft volumes, and the `etcd_backup`
+The `nfs.*` values feed the static backup, Minecraft and scrap volumes and Jellyfin's
+media, and the `etcd_backup`
 role reads them from `values.yaml` for its NAS mount. The `nfs_csi.*` values configure
 the dynamic NFS StorageClasses separately.
 

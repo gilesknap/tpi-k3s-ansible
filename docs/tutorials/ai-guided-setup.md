@@ -49,8 +49,8 @@ Claude will guide you through:
    or configure servers, install K3s, and deploy ArgoCD
 7. **Secret generation** — with all OAuth and Cloudflare credentials
    exported, `GENERATE_SECRETS=true` generates and seals every secret during
-   the playbook run; without them, `just set-admin-password` creates just
-   the shared admin password
+   the playbook run; without them, `just set-admin-password` sets
+   the shared admin password (Grafana's `admin-auth` secret)
 8. **Credentials file** — writes everything to `/tmp/cluster-credentials.txt`
    for safekeeping
 

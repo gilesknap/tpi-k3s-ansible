@@ -73,8 +73,9 @@ audience that ArgoCD accepts.
 ArgoCD with Dex **hardcodes** allowed audiences to `argo-cd` and `argo-cd-cli`
 in `OAuth2AllowedAudiences()`. The `server.additional.audiences` key in
 `argocd-cmd-params-cm` is only used with external OIDC providers (not Dex).
-Setting `allowedAudiences` in `oidc.config` is also not viable because having
-`oidc.config` present causes `IsDexDisabled()` to return true.
+Instead, the `argo-cd` client is overridden in `dex.config` with
+`trustedPeers` (above). `oidc.config` is still set, pointing at `/api/dex` with
+`allowedAudiences` (see `roles/cluster/tasks/argocd.yml`); keep it.
 
 ### Client secret derivation
 

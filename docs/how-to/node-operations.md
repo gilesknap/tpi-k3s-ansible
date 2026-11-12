@@ -155,7 +155,7 @@ kubectl uncordon node03
 
 Each `local-nvme` PV is pinned to one node by its `nodeAffinity`, which
 Kubernetes does not let you change on an existing PV. To move one, for
-example Grafana's from `node04` to `node03`, delete the PV through ArgoCD
+example Grafana's from `node04` to `nuc1`, delete the PV through ArgoCD
 and let it re-create it. The PV's policy is `Retain` and the data is a
 directory on the host, so deleting the PV object does not delete any data.
 
@@ -167,7 +167,7 @@ directory on the host, so deleting the PV object does not delete any data.
    and mode. Do not create it by hand:
 
    ```bash
-   ansible-playbook pb_all.yml --tags k8s_data_dirs --limit node03
+   ansible-playbook pb_all.yml --tags k8s_data_dirs --limit nuc1
    ```
 
    The tag runs only that role. `--tags servers` would also run

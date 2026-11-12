@@ -24,9 +24,12 @@ The quickest way to set the password is with the Justfile target:
 just set-admin-password
 ```
 
-This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment),
-creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
-Grafana).
+This prompts for a password (or reads ``ADMIN_PASSWORD`` from the environment)
+and creates the ``admin-auth`` secret in the ``monitoring`` namespace (used by
+Grafana). The script still also writes a leftover ``admin-auth`` secret into a
+``longhorn`` namespace and sets ``admin.password`` in ``argocd-secret``
+(restarting ``argocd-server``); neither has any effect now that Longhorn is
+gone and the ArgoCD admin account is disabled.
 
 To update the password later, re-run the same command and restart cached
 services:
@@ -38,16 +41,19 @@ kubectl -n monitoring rollout restart statefulset grafana-prometheus
 
 ## Verify ArgoCD Sync
 
-Access ArgoCD via port-forward to check that all services are deploying:
+Check that all services are deploying with a read-only query:
 
 ```bash
-kubectl port-forward svc/argocd-server -n argo-cd 8080:80
+kubectl get applications -n argo-cd
 ```
 
-Open http://localhost:8080 and click **Log in via GitHub** (Dex); your email
-must be in `admin_emails` for admin rights. You should see
-`all-cluster-services` and its child applications. Allow a few minutes for all
-services to reach `Synced / Healthy`.
+You should see `all-cluster-services` and its child applications. Allow a few
+minutes for all services to reach `Synced / Healthy`.
+
+The ArgoCD web UI has no local admin account: it signs in through Dex
+(GitHub), which needs the sealed OAuth credentials from {doc}`oauth-setup` and
+redirects back to `https://argocd.<domain>`. Until that is set up, use
+`kubectl` (or `argocd app list --core`) instead of the UI.
 
 If any applications are stuck, force a refresh:
 
