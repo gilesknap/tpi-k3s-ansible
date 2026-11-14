@@ -10,8 +10,12 @@
 # rclone asks Google for a token with the drive.file scope: rclone sees and
 # changes only the files it creates. Open the link it prints and allow access;
 # Google then redirects the browser to http://127.0.0.1:53682/, where rclone
-# is listening (inside a devcontainer, port 53682 must be forwarded: see
-# .devcontainer/devcontainer.json).
+# is listening. That works when the browser runs on the machine running this
+# script (the devcontainer uses the host's network). From a browser on
+# another machine, forward the port over SSH first:
+#   ssh -L 53682:127.0.0.1:53682 <this host>
+# so the redirect reaches rclone here; the token still never leaves this
+# script.
 #
 # Nothing secret is printed or written to disk: the token goes from rclone
 # into a shell variable, and the rclone.conf built from it is piped through
@@ -19,22 +23,26 @@
 # ("Off-site copy to Google Drive").
 set -euo pipefail
 
+# Resolve the JSON's path against the caller's directory before cd.
+json=${1:-}
+if [[ $# -ne 1 || ! -r $json ]]; then
+    echo "Usage: $0 <client_secret_*.json>" >&2
+    exit 1
+fi
+json=$(realpath "$json")
+
 cd "$(dirname "$0")/.."
 . scripts/lib/seal.sh
 
 dest=kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml
 
-if [[ $# -ne 1 || ! -r $1 ]]; then
-    echo "Usage: $0 <client_secret_*.json>" >&2
-    exit 1
-fi
 for tool in rclone jq kubectl kubeseal; do
     command -v "$tool" >/dev/null || { echo "ERROR: $tool is not installed" >&2; exit 1; }
 done
 
-if ! client_id=$(jq -er '.installed.client_id' "$1") ||
-    ! client_secret=$(jq -er '.installed.client_secret' "$1"); then
-    echo "ERROR: $1 has no installed.client_id and installed.client_secret;" >&2
+if ! client_id=$(jq -er '.installed.client_id' "$json") ||
+    ! client_secret=$(jq -er '.installed.client_secret' "$json"); then
+    echo "ERROR: $json has no installed.client_id and installed.client_secret;" >&2
     echo "  download the JSON of a 'Desktop app' OAuth client" >&2
     exit 1
 fi
@@ -76,5 +84,4 @@ echo "  -> $dest"
 echo ""
 echo "Next: commit $dest and set offsite_backup.enabled: true in"
 echo "kubernetes-services/values.yaml, then open a PR and merge it."
-echo "To test before the night's run, once ArgoCD has synced:"
-echo "  kubectl -n backups create job --from=cronjob/offsite-backup offsite-now"
+echo "To test before the night's run, once ArgoCD has synced: just offsite-backup-now"

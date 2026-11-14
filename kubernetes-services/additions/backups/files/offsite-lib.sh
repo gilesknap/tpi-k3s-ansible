@@ -1,6 +1,6 @@
 # shellcheck shell=busybox
-# Shared by offsite-backups.sh and offsite-minecraft.sh, which source it.
-# They run in the rclone image (Alpine, busybox sh) with age on the PATH.
+# Shared by the offsite-*.sh scripts, which source it. They run in the
+# rclone image (Alpine, busybox sh) with age on the PATH.
 #
 # Environment:
 #   DRIVE_ROOT     rclone path of the Drive folder, e.g. drive:home-cluster-offsite
@@ -11,6 +11,8 @@
 # Every upload is new and dated or content-named: nothing here mirrors a
 # deletion from the NAS. Pruning, where a script does it, touches only files
 # this job made on Drive (the drive.file scope cannot see any others).
+# Deletions skip the Drive's trash (RCLONE_DRIVE_USE_TRASH=false, set in the
+# CronJob), whose contents would still count against the quota.
 
 failures=0
 
@@ -21,18 +23,22 @@ fail() {
     failures=$((failures + 1))
 }
 
+# rclone writes a refreshed access token back to its config file, so it
+# needs a writable copy. The refresh token in it does not change.
+setup_rclone() {
+    mkdir -p "$WORK/cache"
+    cp "$RCLONE_SECRET" "$WORK/rclone.conf"
+    chmod 600 "$WORK/rclone.conf"
+    export RCLONE_CONFIG="$WORK/rclone.conf" HOME="$WORK" TMPDIR="$WORK" \
+        XDG_CACHE_HOME="$WORK/cache"
+}
+
 setup() {
     case $AGE_RECIPIENT in
         age1*) ;;
         *) log "ERROR: AGE_RECIPIENT is not an age public key" >&2; exit 1 ;;
     esac
-    mkdir -p "$WORK/cache"
-    # rclone writes a refreshed access token back to its config file, so it
-    # needs a writable copy. The refresh token in it does not change.
-    cp "$RCLONE_SECRET" "$WORK/rclone.conf"
-    chmod 600 "$WORK/rclone.conf"
-    export RCLONE_CONFIG="$WORK/rclone.conf" HOME="$WORK" TMPDIR="$WORK" \
-        XDG_CACHE_HOME="$WORK/cache"
+    setup_rclone
     log "age $(age --version), $(rclone version | head -n 1)"
 }
 
@@ -48,6 +54,13 @@ stream_to() {
     age -r "$AGE_RECIPIENT" | rclone rcat "$(partial_of "$1")"
 }
 
+# stream_as_is_to DEST: the same for a file that is already encrypted. Like
+# every upload it gets the upload time as its time on Drive, which pruning
+# goes by (rclone copyto would keep the NAS file's time).
+stream_as_is_to() {
+    rclone rcat "$(partial_of "$1")"
+}
+
 # finish DEST STATUS: give the temporary upload its final name if the whole
 # pipeline (STATUS) succeeded, else delete it.
 finish() {
@@ -55,11 +68,11 @@ finish() {
     if [ "$2" -eq 0 ] && rclone moveto "$_p" "$1"; then
         return 0
     fi
-    rclone deletefile --drive-use-trash=false "$_p" >/dev/null 2>&1 || true
+    rclone deletefile "$_p" >/dev/null 2>&1 || true
     return 1
 }
 
 # remove_partials DIR: delete leftovers of uploads cut off by a killed pod.
 remove_partials() {
-    rclone delete --drive-use-trash=false --include '.partial-*' "$1" || fail "could not remove old partial uploads in $1"
+    rclone delete --include '.partial-*' "$1" || fail "could not remove old partial uploads in $1"
 }

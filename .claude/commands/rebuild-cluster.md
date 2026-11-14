@@ -163,6 +163,9 @@ the rebuild keeps them:
   each is kept; any not set is generated, with a warning naming the user
   (never the value). Only if the user asks to rotate
   one, remove its line from `.env`.
+- `OFFSITE_BACKUP_RCLONE_CONF_B64` (the off-site backup's `rclone.conf`,
+  base64): its Google Drive token came from a browser consent, so it is
+  resealed as exported into `offsite-backup-rclone`; skipped if unset.
 
 scrap's secrets are sealed only when `SCRAP_ANTHROPIC_API_KEY` is set.
 
@@ -570,12 +573,6 @@ Tell the user:
   sealed-secrets keys is now stale: re-export it as in
   `docs/how-to/backup-restore.md` ("Keep an offline copy"). The nightly
   NAS copy updates itself.
-- If `offsite_backup.enabled` is true, its SealedSecret
-  (`offsite-backup-rclone`) was sealed with the old key and the rebuild
-  could not reseal it (its token comes from a browser consent): they must
-  run `just seal-rclone-drive <client_secret.json>` and commit the result,
-  or `OffsiteBackupNeverSucceeded` fires
-  (`docs/how-to/backup-restore.md`, "Off-site copy to Google Drive").
 - Once they have verified the rebuild, delete `.env` (`rm .env` at the
   repo root): it holds the external credentials in plaintext and exists
   only for the rebuild. The recovery copy of those credentials is the

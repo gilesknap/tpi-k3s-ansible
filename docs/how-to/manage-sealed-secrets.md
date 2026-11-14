@@ -204,10 +204,11 @@ same way, since the phone app and the VPS hold copies; any left unset is
 generated. To rotate one on a live cluster, use
 `just seal-ntfy --rotate <user>` (see {doc}`ntfy`).
 
-`offsite-backup-rclone` is the exception: the rebuild cannot reseal it, as
-its token comes from a browser consent. After a rebuild, run
-`just seal-rclone-drive <client_secret.json>` again and commit the result
-({ref}`offsite-backup`).
+The off-site backup's `offsite-backup-rclone` is kept the same way: its
+token came from a browser consent, so `scripts/export-external-creds`
+exports the whole `rclone.conf`, base64-encoded, as
+`OFFSITE_BACKUP_RCLONE_CONF_B64`, and the rebuild reseals it as it is
+(skipped if unset). No new consent is needed ({ref}`offsite-backup`).
 
 A planned rebuild does not need the old sealing keys: it reads the
 plaintext values from the old cluster and reseals them. It does make a new

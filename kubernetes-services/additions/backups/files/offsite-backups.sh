@@ -5,16 +5,21 @@
 # name, goes up age-encrypted:
 #
 #   - a run directory (a subdirectory of one of RUN_DIRS, e.g. scrap's
-#     dated runs) as one tarball, <dir>.tar.age, once it has a COMPLETE
-#     marker or has not changed for two days;
+#     dated runs) as one tarball: <dir>.tar.age once it has a COMPLETE
+#     marker, or <dir>.incomplete.tar.age if it has none but has not
+#     changed for two days;
 #   - every other file as <path>.age, or as it is if it already ends .age
 #     (the etcd bundles and sealed-secrets key exports).
 #
 # Dotfiles, files written in the last 10 minutes and EXCLUDE (paths of
-# files rewritten in place, such as etcd/LATEST) are skipped. A file deleted on the NAS stays on Drive. Then, when PRUNE_DAYS
-# is above 0 and the run had no errors, files this job uploaded more than
-# PRUNE_DAYS ago are deleted from Drive (to its trash), except the KEEP_MIN
-# newest in each folder.
+# files rewritten in place, such as etcd/LATEST) are skipped. A file
+# deleted on the NAS stays on Drive.
+#
+# Then, when PRUNE_DAYS is above 0 and the run had no errors, a file on
+# Drive is deleted only if all of these hold: its source is no longer on
+# the NAS; it was uploaded over PRUNE_DAYS ago; and it is not one of the
+# KEEP_MIN newest of its series (the same folder and name but for the date
+# or time in it; a .sha256 sidecar counts with its bundle).
 #
 # Environment, besides offsite-lib.sh's: SRC (the backups tree, read-only),
 # RUN_DIRS and EXCLUDE (space-separated), PRUNE_DAYS, KEEP_MIN.
@@ -22,12 +27,15 @@ set -eu
 set -o pipefail
 set -f # no globbing of the space-separated lists
 
-# shellcheck source=offsite-lib.sh
+# shellcheck source-path=SCRIPTDIR source=offsite-lib.sh
 . "$(dirname "$0")/offsite-lib.sh"
 setup
 
 dest=$DRIVE_ROOT/backups
 remote=$WORK/remote
+# Every name on Drive that a backup now on the NAS maps to: never pruned.
+live=$WORK/live
+: >"$live"
 uploaded=0
 present=0
 
@@ -67,24 +75,31 @@ if [ -z "$(ls -A .)" ]; then
     exit 1
 fi
 
-rclone mkdir "$dest"
+# The folder exists: the init container made it.
 remove_partials "$dest"
 rclone lsf -R --files-only "$dest" >"$remote"
 log "$(wc -l <"$remote") files already in $dest"
 
-# Run directories, each as one tarball.
+# Run directories, each as one tarball. An unreadable one is an error
+# (so nothing is pruned), and the rest carry on.
 for parent in $RUN_DIRS; do
     [ -d "$parent" ] || continue
-    find "$parent" -mindepth 1 -maxdepth 1 -type d | sort >"$WORK/runs"
+    if ! find "$parent" -mindepth 1 -maxdepth 1 -type d 2>"$WORK/runs.err" | sort >"$WORK/runs"; then
+        fail "could not list $parent: $(head -n 3 "$WORK/runs.err")"
+    fi
     while IFS= read -r run <&3; do
         case ${run##*/} in .*) continue ;; esac
         is_run_dir_parent "$run" && continue
-        target=$run.tar.age
-        if on_drive "$target"; then
+        printf '%s\n%s\n' "$run.tar.age" "$run.incomplete.tar.age" >>"$live"
+        if on_drive "$run.tar.age" || on_drive "$run.incomplete.tar.age"; then
             present=$((present + 1))
             continue
         fi
-        if [ ! -e "$run/COMPLETE" ] && [ -z "$(find "$run" -maxdepth 0 -mtime +1)" ]; then
+        if [ -e "$run/COMPLETE" ]; then
+            target=$run.tar.age
+        elif [ -n "$(find "$run" -maxdepth 0 -mtime +1 2>/dev/null)" ]; then
+            target=$run.incomplete.tar.age
+        else
             log "skipping $run: no COMPLETE marker yet"
             continue
         fi
@@ -112,26 +127,18 @@ while IFS= read -r f <&3; do
         *.age) target=$f ;;
         *) target=$f.age ;;
     esac
+    printf '%s\n' "$target" >>"$live"
     if on_drive "$target"; then
         present=$((present + 1))
         continue
     fi
+    st=0
     case $f in
-        *.age)
-            # Already encrypted (to the same key): upload as it is. Drive
-            # only creates the file once the whole upload has arrived.
-            if rclone copyto "$f" "$dest/$target" </dev/null; then
-                ok=1
-            else
-                ok=
-            fi
-            ;;
-        *)
-            st=0
-            stream_to "$dest/$target" <"$f" || st=$?
-            if finish "$dest/$target" "$st"; then ok=1; else ok=; fi
-            ;;
+        # Already encrypted (to the same key): upload as it is.
+        *.age) stream_as_is_to "$dest/$target" <"$f" || st=$? ;;
+        *) stream_to "$dest/$target" <"$f" || st=$? ;;
     esac
+    if finish "$dest/$target" "$st"; then ok=1; else ok=; fi
     if [ -n "$ok" ]; then
         log "uploaded $target"
         uploaded=$((uploaded + 1))
@@ -142,19 +149,42 @@ done 3<"$WORK/local"
 
 log "uploaded $uploaded, already on Drive $present, errors $failures"
 
-if [ "$PRUNE_DAYS" -gt 0 ] && [ "$failures" -eq 0 ]; then
+# Pruning. Each line of the listing becomes
+#   series|instance time|instance|file time|source on NAS (1/0)|path
+# where the instance is the path without a .sha256(.age) sidecar suffix
+# (a bundle and its sidecar are one instance, timed by the newer), and the
+# series is the instance with its dates and times replaced by "*".
+prune() {
     cutoff=$(($(date +%s) - PRUNE_DAYS * 86400))
-    # folder|upload time|path, newest first in each folder; keep the
-    # KEEP_MIN newest whatever their age.
-    rclone lsf -R --files-only --format tp --separator '|' --time-format unix "$dest" |
-        awk -F'|' '{ p = substr($0, length($1) + 2); d = p
-                     if (!sub(/\/[^\/]*$/, "", d)) d = "."
-                     print d "|" $1 "|" p }' |
-        sort -t'|' -k1,1 -k2,2nr |
+    if ! rclone lsf -R --files-only --format tp --separator '|' --time-format unix \
+        "$dest" >"$WORK/remote-times"; then
+        fail "could not list $dest: not pruning"
+        return
+    fi
+    awk -F'|' '
+        NR == FNR { live[$0] = 1; next }
+        {
+            t = $1; p = substr($0, length($1) + 2)
+            if (p ~ /(^|\/)\.partial-/) next
+            inst = p; sub(/\.sha256(\.age)?$/, "", inst)
+            ser = inst
+            # (No {n} intervals: not every awk has them.)
+            gsub(/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z/, "*", ser)
+            gsub(/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9]/, "*", ser)
+            gsub(/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/, "*", ser)
+            gsub(/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]+/, "*", ser)
+            if (t + 0 > itime[inst] + 0) itime[inst] = t
+            n++; ft[n] = t; fp[n] = p; fi[n] = inst; fs[n] = ser
+        }
+        END {
+            for (i = 1; i <= n; i++)
+                print fs[i] "|" itime[fi[i]] "|" fi[i] "|" ft[i] "|" ((fp[i] in live) ? 1 : 0) "|" fp[i]
+        }' "$live" "$WORK/remote-times" |
+        sort -t'|' -k1,1 -k2,2nr -k3,3 |
         awk -F'|' -v cutoff="$cutoff" -v keep="$KEEP_MIN" '
-            $1 != dir { dir = $1; n = 0 }
-            { n++ }
-            n > keep && $2 < cutoff { print $3 }' >"$WORK/prune"
+            $1 != ser { ser = $1; k = 0; inst = "" }
+            $3 != inst { inst = $3; k++ }
+            k > keep && $4 < cutoff && $5 == 0 { print $6 }' >"$WORK/prune"
     pruned=0
     while IFS= read -r p <&3; do
         if rclone deletefile "$dest/$p" </dev/null; then
@@ -164,7 +194,11 @@ if [ "$PRUNE_DAYS" -gt 0 ] && [ "$failures" -eq 0 ]; then
             fail "could not prune $p"
         fi
     done 3<"$WORK/prune"
-    log "pruned $pruned files uploaded over $PRUNE_DAYS days ago"
+    log "pruned $pruned files gone from the NAS and uploaded over $PRUNE_DAYS days ago"
+}
+
+if [ "$PRUNE_DAYS" -gt 0 ] && [ "$failures" -eq 0 ]; then
+    prune
 elif [ "$PRUNE_DAYS" -gt 0 ]; then
     log "not pruning: this run had errors"
 fi

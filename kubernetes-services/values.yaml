@@ -128,16 +128,18 @@ offsite_backup:
     # mode-0600 etcd bundles and sealed-secrets key exports.
     uid: 65534
     # Folders (under backups/) whose subfolders are backup runs, each
-    # uploaded as one tarball once it has a COMPLETE marker (scrap's runs).
+    # uploaded as one tarball once it has a COMPLETE marker (scrap's runs),
+    # or as <run>.incomplete.tar.age after two idle days without one.
     run_dirs: [scrap, scrap/monthly, scrap-curated]
     # Files rewritten in place each night; their dated copies are uploaded.
     exclude:
       - etcd/LATEST
       - etcd/sealed-secrets-keys.yaml.age
       - etcd/sealed-secrets-keys.yaml.age.sha256
-    # Delete this job's files on Drive (to its trash) once older than this
-    # many days, keeping the keep_min newest in each folder whatever their
-    # age. 0 never deletes.
+    # Delete a file this job made on Drive only when its source is gone
+    # from the NAS and it was uploaded over prune_days ago, and never the
+    # keep_min newest of its series (one folder's files that differ only
+    # in date or time). 0 never deletes.
     prune_days: 180
     keep_min: 4
   # Only with enable_minecraft. Store and archive paths come from the
@@ -147,8 +149,9 @@ offsite_backup:
     # The owner of the worlds' files (level.dat is mode 0600).
     uid: 1000
     gid: 1000
-    # The worlds' share root; empty means nfs_csi.stable_share. The worlds
-    # are its <namespace>/ folder (minecraft).
+    # The worlds' share root; empty means nfs_csi.stable_share. The nightly
+    # tarball takes its minecraft/ folder (the live worlds) and
+    # archived-minecraft/ (deleted worlds).
     worlds_path: ""
     # Nightly tarballs kept on Drive.
     keep: 7

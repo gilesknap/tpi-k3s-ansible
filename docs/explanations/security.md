@@ -60,7 +60,7 @@ Current SealedSecrets:
 - `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml` — Alertmanager's ntfy token
 - `kubernetes-services/additions/scrap/templates/scrap-secret.yaml` — scrap's Claude API key + `/mcp` bearer token
 - `kubernetes-services/additions/scrap/templates/scrap-publish-secret.yaml`, `scrap-public-publish-secret.yaml` — scrap's public-pages upload token
-- `kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml` — rclone's Google Drive client and `drive.file` token (optional off-site backup)
+- `kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml` — rclone's Google Drive client and `drive.file` token (optional off-site backup). The off-site copy is age-encrypted to a key the cluster never holds, so a compromised cluster cannot read it, but `drive.file` lets the token delete the files it made, so it could delete it
 
 {doc}`/how-to/manage-sealed-secrets` has the full table.
 

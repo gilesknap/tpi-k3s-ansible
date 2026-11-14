@@ -132,12 +132,12 @@ ansible-playbook pb_all.yml \
 | `offsite_backup.age.version` / `sha256.amd64` / `sha256.arm64` | `1.3.2` / *(checksums)* | age release an init container fetches, checked against these checksums; bump all three together |
 | `offsite_backup.deadline_hours` | `6` | A run is stopped after this long; the next carries on |
 | `offsite_backup.backups.uid` | `65534` | User the `backups` container runs as: the NAS's squashed-root owner of the etcd bundles |
-| `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly, scrap-curated]` | Folders under `backups/` whose subfolders are runs, each uploaded as one tarball once complete |
+| `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly, scrap-curated]` | Folders under `backups/` whose subfolders are runs, each uploaded as one tarball once complete (`<run>.incomplete.tar.age` if it has no `COMPLETE` marker after two idle days) |
 | `offsite_backup.backups.exclude` | `etcd/LATEST`, `etcd/sealed-secrets-keys.yaml.age{,.sha256}` | Paths under `backups/` rewritten in place, never uploaded |
-| `offsite_backup.backups.prune_days` / `keep_min` | `180` / `4` | Delete the job's files on Drive older than this many days (`0`: never), keeping the `keep_min` newest in each folder |
+| `offsite_backup.backups.prune_days` / `keep_min` | `180` / `4` | Delete a file on Drive only once its source is gone from the NAS and it was uploaded over `prune_days` ago (`0`: never), always keeping the `keep_min` newest of each series |
 | `offsite_backup.minecraft.enabled` | `true` | Also upload the Minecraft store, worlds and archive (only with `enable_minecraft`) |
 | `offsite_backup.minecraft.uid` / `gid` | `1000` / `1000` | User the `minecraft` container runs as: the owner of the worlds' files |
-| `offsite_backup.minecraft.worlds_path` | `""` (`nfs_csi.stable_share`) | Share whose `minecraft/` folder holds the worlds' volumes |
+| `offsite_backup.minecraft.worlds_path` | `""` (`nfs_csi.stable_share`) | Share whose `minecraft/` (live worlds) and `archived-minecraft/` (deleted worlds) folders go in the nightly tarball |
 | `offsite_backup.minecraft.keep` | `7` | Nightly Minecraft tarballs kept on Drive |
 | `offsite_backup.minecraft.min_size_percent` | `50` | A nightly tarball smaller than this percentage of the largest on Drive fails the run and stops pruning |
 | `offsite_backup.minecraft.archive` | `true` | Upload `minecraft.archive_path` (once, and again only if it changes) |

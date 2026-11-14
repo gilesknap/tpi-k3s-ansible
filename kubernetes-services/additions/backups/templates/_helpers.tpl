@@ -16,6 +16,10 @@
   value: "5"
 - name: RCLONE_LOW_LEVEL_RETRIES
   value: "20"
+# Deletions (pruning, failed partial uploads) skip the Drive's trash, whose
+# contents still count against the quota.
+- name: RCLONE_DRIVE_USE_TRASH
+  value: "false"
 {{- end }}
 
 {{- define "offsite-backup.containerSecurity" -}}

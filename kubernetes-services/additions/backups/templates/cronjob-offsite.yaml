@@ -11,8 +11,9 @@ export squashes root to 65534, so no single uid can read everything):
   - minecraft (uid 1000, the dashboard's and the worlds' owner: level.dat is
     0600): the dashboard store, the worlds and the archive
     (files/offsite-minecraft.sh).
-The Job fails if either does, and is retried once; a retry uploads only
-what is still missing.
+An init container first makes the Drive folders, so the two never race to
+make the same one. The Job fails if either container does, and is retried
+once; a retry uploads only what is still missing.
 
 rclone's credentials are the Secret offsite_backup.secret_name, sealed by
 scripts/seal-rclone-drive: a [drive] remote with the drive.file scope, so it
@@ -29,6 +30,8 @@ metadata:
 data:
   offsite-lib.sh: |
 {{ .Files.Get "files/offsite-lib.sh" | indent 4 }}
+  offsite-folders.sh: |
+{{ .Files.Get "files/offsite-folders.sh" | indent 4 }}
   offsite-backups.sh: |
 {{ .Files.Get "files/offsite-backups.sh" | indent 4 }}
 {{- if $mc.enabled }}
@@ -47,10 +50,18 @@ spec:
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
+  # One failed Job kept, for a day: an old failed Job would keep the stock
+  # KubeJobFailed alert firing after later successes. The CronJob's
+  # last-success time, which OffsiteBackupStale reads, is kept on the
+  # CronJob itself.
+  failedJobsHistoryLimit: 1
   jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: offsite-backup
     spec:
       backoffLimit: 1
+      ttlSecondsAfterFinished: 86400
       # The first run uploads everything (several GB); later runs only the
       # night's new files. A run cut off here is finished by the next one.
       activeDeadlineSeconds: {{ mul (int $o.deadline_hours) 3600 }}
@@ -105,6 +116,25 @@ spec:
               volumeMounts:
                 - name: tools
                   mountPath: /tools
+            - name: make-folders
+              image: {{ $o.image }}
+              command:
+                - /bin/sh
+                - /scripts/offsite-folders.sh
+              env:
+                - name: WORK
+                  value: /work/folders
+                - name: FOLDERS
+                  value: {{ ternary "backups minecraft/nightly minecraft/archive" "backups" $mc.enabled | quote }}
+                {{- include "offsite-backup.env" . | nindent 16 }}
+              securityContext:
+                runAsUser: {{ $o.backups.uid }}
+                runAsGroup: {{ $o.backups.uid }}
+                {{- include "offsite-backup.containerSecurity" . | nindent 16 }}
+              resources:
+                {{- include "offsite-backup.resources" . | nindent 16 }}
+              volumeMounts:
+                {{- include "offsite-backup.mounts" . | nindent 16 }}
           containers:
             - name: backups
               image: {{ $o.image }}
@@ -146,6 +176,8 @@ spec:
               env:
                 - name: WORK
                   value: /work/minecraft
+                - name: WORLD_DIRS
+                  value: {{ join " " $mc.world_dirs | quote }}
                 - name: ARCHIVE
                   value: {{ ternary "true" "false" (not (empty $mc.archive_path)) | quote }}
                 - name: KEEP
@@ -165,8 +197,7 @@ spec:
                   subPath: {{ $mc.store_subdir }}
                   readOnly: true
                 - name: worlds
-                  mountPath: /src/worlds
-                  subPath: {{ $mc.worlds_subdir }}
+                  mountPath: /src/stable
                   readOnly: true
                 {{- if $mc.archive_path }}
                 - name: archive

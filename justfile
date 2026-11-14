@@ -113,6 +113,15 @@ seal-rclone-drive client_secret_json:
 offsite-backup-now:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Refuse while a run (scheduled or manual) is going: two runs at once
+    # would upload the same files twice.
+    active=$(kubectl -n backups get jobs -l app.kubernetes.io/name=offsite-backup -o json |
+        jq -r '[.items[] | select((.status.active // 0) > 0) | .metadata.name] | join(" ")')
+    if [ -n "$active" ]; then
+        echo "An off-site backup is already running: $active" >&2
+        echo "Follow it with: kubectl -n backups logs -f job/<name> --all-containers --prefix" >&2
+        exit 1
+    fi
     job=offsite-now-$(date +%s)
     kubectl -n backups create job --from=cronjob/offsite-backup "$job"
     kubectl -n backups logs -f "job/$job" --all-containers --prefix --pod-running-timeout=5m

@@ -14,8 +14,9 @@ spec:
     - name: offsite-backup
       rules:
         # The newest finished Job of the CronJob failed (started after the
-        # last success). A failed Job is kept for a while after later
-        # successes, so a plain kube_job_failed would keep firing.
+        # last success). A failed Job is kept until a newer one fails or for
+        # a day (ttlSecondsAfterFinished), so this resolves after a day even
+        # if nothing has succeeded since; OffsiteBackupStale then covers it.
         - alert: OffsiteBackupFailed
           expr: >-
             label_replace(

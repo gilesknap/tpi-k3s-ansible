@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Fail if the off-site backup and the etcd backup use different age keys.
+
+One age key opens every backup, but the public key is set in two places:
+etcd_backup_age_recipient in group_vars/all.yml (the etcd_backup role) and
+offsite_backup.age_recipient in kubernetes-services/values.yaml (the
+offsite-backup CronJob). Run by `just check` and the pre-commit hooks.
+"""
+
+import sys
+from pathlib import Path
+
+import yaml
+
+REPO = Path(__file__).resolve().parent.parent
+GROUP_VARS = REPO / "group_vars/all.yml"
+VALUES = REPO / "kubernetes-services/values.yaml"
+
+etcd = (yaml.safe_load(GROUP_VARS.read_text()) or {}).get("etcd_backup_age_recipient", "")
+offsite = ((yaml.safe_load(VALUES.read_text()) or {}).get("offsite_backup") or {}).get(
+    "age_recipient", ""
+)
+if etcd != offsite:
+    sys.exit(
+        "ERROR: offsite_backup.age_recipient in kubernetes-services/values.yaml "
+        f"({offsite or 'unset'}) differs from etcd_backup_age_recipient in "
+        f"group_vars/all.yml ({etcd or 'unset'}): set both to the same age public key"
+    )
+print("age recipients match")
