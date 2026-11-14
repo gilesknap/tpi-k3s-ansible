@@ -26,9 +26,9 @@ Two pieces of wiring are this repo's, because an installer cannot supply them:
 `.devcontainer/claude-sandbox.conf`
 : Copied to `/etc/claude-sandbox.conf` by `postCreate.sh` after the install.
   It widens the writable bind to `/workspaces` (peer projects) plus `/cache`,
-  and lists each cluster host as an `allow-ip` — the egress jail blackholes
+  and lists each cluster host, plus the NAS, as an `allow-ip` — the egress jail blackholes
   RFC1918 by default, so ansible, `ssh` and `kubectl` would otherwise fail
-  from inside the sandbox. Keep the list in step with `hosts.yml`, and
+  from inside the sandbox. Keep the list in step with `hosts.yml` (plus the NAS), and
   re-apply with `just sandbox-conf` after a `claude-sandbox update`.
 
   It also binds back the three `/root` paths this repo's tooling lives in.
