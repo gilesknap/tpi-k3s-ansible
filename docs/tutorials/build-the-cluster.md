@@ -201,15 +201,20 @@ session. Keep a copy of `.env` somewhere safe and off the cluster: after a
 real disaster it is the quick way back, and without it each value has to be
 fetched again from where it was issued.
 
-The tunnel's token is the one value that cannot be looked up: Cloudflare
-does not show it again, and the only copies are the old cluster's Secret
-and the OpenTofu state. With the state to hand, add it to `.env` without
-printing it:
+The tunnel's token is not in a dashboard to copy: this repo reads it from
+the OpenTofu state (Cloudflare's API can return it too, but only to an
+edit token, so the code does not ask). The other copy is the old
+cluster's Secret. With the state to hand, add the token to a `.env` that
+has no `CLOUDFLARE_TUNNEL_TOKEN` line yet, without printing it. Run this
+from the root of the main checkout, where the state is, not from a git
+worktree:
 
 ```bash
-(umask 077; printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' \
-  "$(scripts/cf-tofu output -raw tunnel_token)" >> .env)
+(umask 077; t=$(scripts/cf-tofu output -raw tunnel_token) &&
+  printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "$t" >> .env)
 ```
+
+If `cf-tofu` fails, nothing is appended.
 
 With no tunnel at all (a new Cloudflare account), create it first:
 {ref}`build the edge from nothing <build-edge-from-nothing>`, below, comes

@@ -707,9 +707,10 @@ cluster is {doc}`/how-to/reflash-rebuild`):
 
 1. If the NAS was lost too, run the NAS setup again
    ({doc}`/how-to/nas-setup`), so that `/bigdisk/k8s-cluster` and
-   `/k8s-dynamic/stable` exist, and put its data back from Drive before
+   `/k8s-dynamic/stable` exist, and unpack its data from Drive before
    going on ({ref}`restore-after-nas-loss`): the setup makes empty
-   directories. Otherwise leave the NAS alone.
+   directories. scrap's restore from the unpacked run comes later, after
+   step 6. Otherwise leave the NAS alone.
 2. Check the inventory and variables (`hosts.yml`, `group_vars/all.yml`).
 3. Flash and provision the nodes and install the cluster:
    `ansible-playbook pb_all.yml -e do_flash=true`. `do_flash` refuses to
@@ -724,7 +725,9 @@ cluster is {doc}`/how-to/reflash-rebuild`):
    The off-site backup's Drive credentials need nothing: the restored keys
    decrypt its SealedSecret, and a planned rebuild reseals it from `.env`
    ({ref}`offsite-backup`).
-6. ArgoCD auto-syncs all services from Git.
+6. ArgoCD auto-syncs all services from Git. After a lost NAS, now
+   restore scrap from the run unpacked in step 1
+   ({ref}`restore-after-nas-loss`).
 7. Restore the data of each `local-nvme` PV that was wiped, from the
    latest backup under `/bigdisk/k8s-cluster/backups/` on the NAS, using
    the restore recipes above. A PV is wiped by `wipe_local_data=true` on
@@ -738,7 +741,7 @@ cluster is {doc}`/how-to/reflash-rebuild`):
 
 The services are back within minutes of the playbook finishing. Data needs
 an explicit restore in two cases only: a wiped local PV (step 7) and a lost
-NAS (step 1).
+NAS (steps 1 and 6).
 
 (restore-after-nas-loss)=
 ### After losing the NAS
@@ -748,24 +751,32 @@ Prometheus lose nothing, and their next backups refill `backups/`. What was
 only on the NAS does not come back by itself: scrap's live data, and the
 Minecraft store, worlds and archive. Once the NAS setup has made the
 directories, put these back from Drive ({ref}`offsite-backup`: download and
-decrypt as in "Restore from Drive"). In a full rebuild, do it before
+decrypt as in "Restore from Drive"). In a full rebuild, unpack them before
 installing the cluster.
 
-- **scrap.** Unpack the newest run (`backups/scrap/<run>.tar.age` on Drive)
-  into `/bigdisk/k8s-cluster/backups/scrap/`, owned by `10001:10001`, then
-  follow "Restore scrap" above. The run on nuc2 (the `scrap-backup-copy`
-  claim) needs no download and is normally the same run as the newest on
-  Drive: if nuc2 survived, restore from it instead. Until the restore, scrap refuses
-  to start on an empty `scrap-data` beside existing backups, rather than
-  start empty. Pages written since that run are lost.
+- **scrap.** This has two parts. First unpack the newest run
+  (`backups/scrap/<run>.tar.age` on Drive) in
+  `/bigdisk/k8s-cluster/backups/`, not in `backups/scrap/`: the tarball's
+  paths start `scrap/<run>/` (a monthly run's start
+  `scrap/monthly/<run>/`). The files must be owned by `10001:10001`. This
+  can be done before the cluster is installed. Then, with the cluster
+  running and ArgoCD synced, follow "Restore scrap" above: it is staged
+  and needs scrap's volumes and a pod. The run on nuc2 (the
+  `scrap-backup-copy` claim) needs no download and is normally the same
+  run as the newest on Drive: if nuc2 survived, skip the unpack and
+  restore from it instead. Until the restore, scrap refuses to start on an
+  empty `scrap-data` beside existing backups, rather than start empty.
+  Pages written since that run are lost.
 - **Minecraft.** The newest `minecraft/nightly/minecraft-<time>.tar.age`
   holds `store/` (the contents of `/bigdisk/k8s-cluster/minecraft`) and
   `stable/minecraft/` and `stable/archived-minecraft/` (the folders of
-  those names in `/k8s-dynamic/stable`). The one
+  those names in `/k8s-dynamic/stable`). The newest
   `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` holds
-  `archive/` (the contents of `/bigdisk/minecraft-archive`). Unpack each
-  into its place, owned by `1000:1000`, and make the archive read-only
-  again ({ref}`minecraft-nas-directories`). The dashboard re-creates the
+  `archive/` (the contents of `/bigdisk/minecraft-archive`); there is one
+  for each state the archive has had, so go by the upload time. Unpack each
+  into its place. The store and the worlds must be owned by `1000:1000`.
+  Make the archive read-only again with `chmod -R a-w`
+  ({ref}`minecraft-nas-directories`). The dashboard re-creates the
   worlds from the registry in its store once, at its start: if it is
   already running, restart it afterwards
   (`kubectl -n minecraft rollout restart deploy/minecraft-dashboard`).

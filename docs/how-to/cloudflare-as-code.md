@@ -297,7 +297,8 @@ If the state is lost, nothing at Cloudflare is affected: recreate it by
 filling `import_ids` again and running the first plan and apply
 ([step 4](#4-first-init-and-plan)), which imports the objects afresh.
 That apply also sets a new tunnel secret, so it needs the edit token and
-ends with the token rotation steps.
+ends with the token rotation steps. The rate-limiting ruleset has no
+import yet: adopt it by hand first, as step 4 describes.
 
 Local state suits a single operator. Sharing it, or planning in CI,
 would mean adding an S3-compatible backend to `cloudflare/versions.tf`
@@ -338,21 +339,43 @@ just cf-init
 just cf-plan
 ```
 
-The first plan after filling `import_ids` shows the imports and the
-tunnel's secret, nothing else:
+The first plan after filling `import_ids` shows the imports, the
+tunnel's secret and the rate-limiting ruleset:
 
 ```
-Plan: N to import, 1 to add, 1 to change, 0 to destroy.
+Plan: N to import, 2 to add, 1 to change, 0 to destroy.
 ```
 
-The one `to add` is `random_bytes.tunnel_secret`: the secret exists only
+One `to add` is `random_bytes.tunnel_secret`: the secret exists only
 in the state, so nothing can import it and a state that starts empty
 gets a new one. The one `to change` is
 `cloudflare_zero_trust_tunnel_cloudflared.cluster`, updated in place
-with that secret. Any other `to add` or `to change`, or any
-`to destroy`, means the code does not match the live configuration: fix
-the code (or the values in `live.auto.tfvars`) until those two are all
-that is left. Then apply:
+with that secret.
+
+The other `to add` is `cloudflare_ruleset.rate_limit`, a known gap:
+`imports.tf` has no import block for it and `import_ids` has no key. A
+zone has one `http_ratelimit` ruleset, so if the zone already has it the
+apply may fail on the clash. Do not apply while the plan still adds it.
+Either adopt the ruleset with a temporary import block, in a file such
+as `cloudflare/import-rate-limit.tf` that you delete after the apply and
+do not commit:
+
+```hcl
+import {
+  to = cloudflare_ruleset.rate_limit
+  id = "zones/<zone_id>/<ruleset_id>"
+}
+```
+
+The ruleset ID comes from the `rulesets` call in step 3, with the phase
+`http_ratelimit`. Or delete the zone's rate-limiting ruleset first (the
+API's `DELETE zones/<zone_id>/rulesets/<ruleset_id>`, with the edit
+token) and let the apply create it. With the import block the plan shows
+one more import and `1 to add`.
+
+Any other `to add` or `to change`, or any `to destroy`, means the code
+does not match the live configuration: fix the code (or the values in
+`live.auto.tfvars`) until only these are left. Then apply:
 
 ```bash
 just cf-apply
