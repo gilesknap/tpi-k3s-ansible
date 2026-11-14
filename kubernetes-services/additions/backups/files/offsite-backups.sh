@@ -6,8 +6,8 @@
 #
 #   - a run directory (a subdirectory of one of RUN_DIRS, e.g. scrap's
 #     dated runs) as one tarball: <dir>.tar.age once it has a COMPLETE
-#     marker, or <dir>.incomplete.tar.age if it has none but has not
-#     changed for two days;
+#     marker, or <dir>.incomplete.tar.age if it has none once the folder's
+#     mtime is two days old;
 #   - every other file as <path>.age, or as it is if it already ends .age
 #     (the etcd bundles and sealed-secrets key exports).
 #
@@ -150,10 +150,14 @@ done 3<"$WORK/local"
 log "uploaded $uploaded, already on Drive $present, errors $failures"
 
 # Pruning. Each line of the listing becomes
-#   series|instance time|instance|file time|source on NAS (1/0)|path
+#   series|name time|upload time|instance|file time|source on NAS (1/0)|path
 # where the instance is the path without a .sha256(.age) sidecar suffix
-# (a bundle and its sidecar are one instance, timed by the newer), and the
-# series is the instance with its dates and times replaced by "*".
+# (a bundle and its sidecar are one instance, timed by the newer upload),
+# the series is the instance with its dates, times and version tokens
+# (v1.34.13-k3s1) replaced by "*", and the name time is the date or time
+# in the instance's name as digits (YYYYMMDDhhmmss, or an epoch), 0 if
+# none. Instances rank newest first by name time, then upload time, then
+# name.
 prune() {
     cutoff=$(($(date +%s) - PRUNE_DAYS * 86400))
     if ! rclone lsf -R --files-only --format tp --separator '|' --time-format unix \
@@ -161,30 +165,45 @@ prune() {
         fail "could not list $dest: not pruning"
         return
     fi
+    # (No {n} intervals in the patterns: not every awk has them.)
     awk -F'|' '
+        function stamp(b,   m) {
+            if (match(b, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z/)) {
+                m = substr(b, RSTART, RLENGTH); return substr(m, 1, 8) substr(m, 10, 6)
+            }
+            if (match(b, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9]/)) {
+                m = substr(b, RSTART, RLENGTH); gsub(/[-_]/, "", m); return m "00"
+            }
+            if (match(b, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) {
+                m = substr(b, RSTART, RLENGTH); gsub(/-/, "", m); return m "000000"
+            }
+            if (match(b, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]+/)) return substr(b, RSTART, RLENGTH)
+            return 0
+        }
         NR == FNR { live[$0] = 1; next }
         {
             t = $1; p = substr($0, length($1) + 2)
             if (p ~ /(^|\/)\.partial-/) next
             inst = p; sub(/\.sha256(\.age)?$/, "", inst)
+            base = inst; sub(/^.*\//, "", base)
             ser = inst
-            # (No {n} intervals: not every awk has them.)
+            gsub(/-v[0-9]+(\.[0-9]+)+(-k3s[0-9]+)?/, "-v*", ser)
             gsub(/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z/, "*", ser)
             gsub(/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9]/, "*", ser)
             gsub(/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/, "*", ser)
             gsub(/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]+/, "*", ser)
             if (t + 0 > itime[inst] + 0) itime[inst] = t
-            n++; ft[n] = t; fp[n] = p; fi[n] = inst; fs[n] = ser
+            n++; ft[n] = t; fp[n] = p; fi[n] = inst; fs[n] = ser; nt[n] = stamp(base)
         }
         END {
             for (i = 1; i <= n; i++)
-                print fs[i] "|" itime[fi[i]] "|" fi[i] "|" ft[i] "|" ((fp[i] in live) ? 1 : 0) "|" fp[i]
+                print fs[i] "|" nt[i] "|" itime[fi[i]] "|" fi[i] "|" ft[i] "|" ((fp[i] in live) ? 1 : 0) "|" fp[i]
         }' "$live" "$WORK/remote-times" |
-        sort -t'|' -k1,1 -k2,2nr -k3,3 |
+        sort -t'|' -k1,1 -k2,2nr -k3,3nr -k4,4r |
         awk -F'|' -v cutoff="$cutoff" -v keep="$KEEP_MIN" '
             $1 != ser { ser = $1; k = 0; inst = "" }
-            $3 != inst { inst = $3; k++ }
-            k > keep && $4 < cutoff && $5 == 0 { print $6 }' >"$WORK/prune"
+            $4 != inst { inst = $4; k++ }
+            k > keep && $5 < cutoff && $6 == 0 { print $7 }' >"$WORK/prune"
     pruned=0
     while IFS= read -r p <&3; do
         if rclone deletefile "$dest/$p" </dev/null; then

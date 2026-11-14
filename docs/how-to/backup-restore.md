@@ -437,7 +437,7 @@ Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
 |----------|------|------|
 | `backups/<path>.age` | each file under `backups/` on the NAS (the Grafana and Jellyfin tarballs, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`); files that already end `.age` (the etcd bundles, `pre-upgrade/` snapshots and dated sealed-secrets key exports) go up as they are | once, the first night it is there |
 | `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's daily, monthly and curated runs) as one tarball | once it has its `COMPLETE` marker |
-| `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once it has not changed for two days |
+| `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once the run folder is two days old (its modification time) |
 | `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`<nfs.cluster_share_path>/<minecraft.store_subdir>`: its backups, snapshots and state), and from `nfs_csi.stable_share` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
 | `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`minecraft.archive_path`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
 
@@ -510,8 +510,9 @@ folder at once could split the backups between them. Then two containers
 run side by side, because the NAS squashes root and no one user can read
 everything: `backups` runs as `nobody` (65534), which owns the root-written
 etcd bundles, and `minecraft` as uid 1000, which owns the worlds. Either
-failing fails the Job, which is retried once; a retry uploads only what is
-still missing. The first run uploads several GB and may take hours; a run
+failing fails the Job, which is retried once; a retry uploads only the
+backups still missing, and skips the Minecraft nightly if one from the same
+UTC day is already on Drive. The first run uploads several GB and may take hours; a run
 stopped by `deadline_hours` is carried on by the next one.
 
 ### Space on Drive

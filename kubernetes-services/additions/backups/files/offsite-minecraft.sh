@@ -5,7 +5,8 @@
 #   - nightly/minecraft-<UTC time>.tar.age: the dashboard's store (backups,
 #     snapshots, dashboard state) and, from the worlds' share, WORLD_DIRS:
 #     the live worlds' volumes and the deleted worlds the dashboard archived.
-#     The KEEP newest are kept. Nothing is pruned after a failed run, when
+#     One a UTC day: a Job retry does not upload a second. The KEEP newest
+#     are kept. Nothing is pruned after a failed run, when
 #     the listing on Drive fails, or while the new tarball is under
 #     MIN_SIZE_PERCENT of the largest copy on Drive: a wiped or half-mounted
 #     source must not push the good copies out. (After a deliberate large
@@ -58,9 +59,17 @@ else
     fi
     largest=$(grep '|minecraft-[0-9TZ]*\.tar\.age$' "$WORK/nightly" |
         cut -d'|' -f1 | sort -n | tail -n 1) || largest=
+    today=$(date -u +%Y%m%d)
     target=minecraft-$(date -u +%Y%m%dT%H%M%SZ).tar.age
     uploaded=
-    for try in 1 2 3; do
+    tries="1 2 3"
+    if grep -q "|minecraft-${today}T[0-9]*Z\.tar\.age$" "$WORK/nightly"; then
+        # A retry of tonight's Job, or a second manual run.
+        log "a nightly tarball from today (UTC) is already on Drive: not uploading another"
+        tries=
+        uploaded=skipped
+    fi
+    for try in $tries; do
         st=0
         tar -cf - -C "$src" "$@" </dev/null | stream_to "$dest/nightly/$target" || st=$?
         if finish "$dest/nightly/$target" "$st"; then
@@ -72,6 +81,8 @@ else
     done
     if [ -z "$uploaded" ]; then
         fail "could not upload the nightly tarball"
+    elif [ "$uploaded" = skipped ]; then
+        :
     else
         size=$(rclone lsf --files-only --format s "$dest/nightly/$target") || size=
         log "uploaded nightly/$target (${size:-unknown} bytes; $*)"
