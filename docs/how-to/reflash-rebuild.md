@@ -24,8 +24,6 @@ an Ubuntu installer, then joined as in {doc}`/how-to/node-operations`.
 Always give a `--limit` when flashing, and include `turingpi`: the flash
 runs on the BMC. Without a limit, `flash_force` re-flashes every node on
 the board, and `do_flash` flashes any that happens not to answer SSH.
-`node01`, the CM4 in slot 1, is still in `hosts.yml` although it is not in
-the cluster, so an unlimited run covers it too.
 :::
 
 ## The RK1 rules
@@ -98,10 +96,7 @@ ansible-playbook pb_all.yml --tags k3s          # K3s and the etcd backup timer
 ansible-playbook pb_all.yml --tags cluster      # node taints, ArgoCD and the root app
 ```
 
-`servers` and `k3s` run on every node in `hosts.yml`. While `node01` is
-still listed there, add `--limit 'all_nodes:!node01'` to those two: without
-it `servers` dist-upgrades `node01` and `k3s` installs an agent on it and
-joins it to the cluster as a worker.
+`servers` and `k3s` run on every node in `hosts.yml`.
 
 `--tags cluster` is the one used most: it re-applies the ArgoCD Helm
 release and the root Application, after which ArgoCD re-syncs every
@@ -157,14 +152,6 @@ before and after; the outline is:
 
 {doc}`/tutorials/build-the-cluster` walks through the same build from bare
 metal, with the one-time steps a rebuild does not repeat.
-
-:::{note}
-The rebuild run has no `--limit`, so it covers every node in `hosts.yml`.
-`node01` is still listed there, so as things stand a rebuild joins it to
-the new cluster as a worker. Remove it from `hosts.yml` first, or add
-`--limit 'all_nodes,localhost,!node01'` to the rebuild run (`localhost` is
-needed for the `cluster` play).
-:::
 
 ### What a rebuild keeps
 

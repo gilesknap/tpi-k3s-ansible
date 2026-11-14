@@ -105,7 +105,7 @@ The sandbox's own helper, `claude-sandbox` (`gh-auth`, `glab-auth`, `update`,
 
 | Recipe | What it does | Notes |
 |--------|--------------|-------|
-| `just sandbox-conf` | Copies `.devcontainer/claude-sandbox.conf` to `/etc/claude-sandbox.conf` | Devcontainer terminal, outside the sandbox. Needed after every `claude-sandbox update`, which restores the upstream file and drops the cluster's `allow-ip` entries |
+| `just sandbox-conf` | Copies `.devcontainer/claude-sandbox.conf` to `/etc/claude-sandbox.conf` | Devcontainer terminal, outside the sandbox. Needed after every update of the sandbox by the claude-sandbox VS Code extension, whose installer restores the upstream file and drops the cluster's `allow-ip` entries |
 | `just claude-ssh-bootstrap [deploy\|revoke]` | Creates Claude's own SSH key if it is missing and adds it to (or removes it from) the `ansible` account on every node: `pb_all.yml --tags claude_key` | Devcontainer terminal, outside the sandbox: the first run needs the host's SSH agent |
 
 ## Claude Code commands and skills

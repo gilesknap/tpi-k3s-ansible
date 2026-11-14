@@ -299,7 +299,7 @@ Workloads keep running throughout. Moving an RK1 control plane to another
 RK1 took about 15 minutes of API downtime, from stopping the old server to
 the DNS change. Before you start, the `k3s_api_name`
 record must exist and every agent must already use it (run
-`ansible-playbook pb_all.yml --tags k3s --limit 'all_nodes:!node01'` once
+`ansible-playbook pb_all.yml --tags k3s` once
 and check with
 `sudo grep K3S_URL /etc/systemd/system/k3s-agent.service.env`).
 

@@ -62,10 +62,11 @@ session's reach. It sets three things:
 |-----|-------|-----|
 | `workspace-root` | `/workspaces` | The parent of this repository, so sibling repositories can be edited in the same session |
 | `allow-write` | `/cache`, `/root/bin`, `/root/.kube`, `/root/.config/claude-ssh` | The Python environment, the CLIs the `tools` role installs, the kubeconfig and Claude's SSH key. Everything else under `/root` is absent |
-| `allow-ip` | The BMC (.80), node01 to node04 (.81 to .84), nuc1 (.91), nuc2 (.92), ws03 (.10) and the NAS (.3) | Without these, `ssh`, `ansible-playbook` and `kubectl` cannot reach the cluster. The list is kept in step with `hosts.yml` |
+| `allow-ip` | The BMC (.80), node02 to node04 (.82 to .84), nuc1 (.91), nuc2 (.92), ws03 (.10) and the NAS (.3) | Without these, `ssh`, `ansible-playbook` and `kubectl` cannot reach the cluster. The list is kept in step with `hosts.yml` |
 
-`just sandbox-conf` re-applies the file after a `claude-sandbox update`,
-which restores the upstream defaults.
+`just sandbox-conf` re-applies the file after the claude-sandbox VS Code
+extension updates the sandbox, whose installer restores the upstream
+defaults.
 
 ## What it can reach, and with which credential
 

@@ -197,9 +197,9 @@ gpu-setup:
 create-prometheus-admission-secret:
     scripts/create-prometheus-admission-secret
 
-# claude-sandbox recipes. The sandbox is installed from its upstream
-# release by .devcontainer/postCreate.sh, which puts the `claude-sandbox`
-# helper CLI on PATH: gh-auth, glab-auth, update, verify, version.
+# claude-sandbox recipes. The sandbox is installed by the claude-sandbox
+# VS Code extension (not by .devcontainer/postCreate.sh), which puts the
+# `claude-sandbox` helper CLI on PATH (`claude-sandbox help` lists it).
 #
 # Anything that helper covers must NOT be re-wrapped here — the old
 # `gh-auth`/`glab-auth`/`promote` recipes were deleted for that reason.
@@ -211,7 +211,7 @@ create-prometheus-admission-secret:
 # Not redundant with any `claude-sandbox` subcommand: the upstream
 # installer (install.sh:install_conf) unconditionally stamps ITS OWN
 # .devcontainer/claude-sandbox.conf over /etc/claude-sandbox.conf, so
-# `claude-sandbox update` silently discards our allow-ip entries for the
+# an update of the sandbox silently discards our allow-ip entries for the
 # cluster nodes and our allow-write binds for /root/{bin,.kube}. Run this
 # after every update, or the sandbox loses kubectl and LAN reach.
 sandbox-conf:

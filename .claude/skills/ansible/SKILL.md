@@ -141,7 +141,8 @@ Turing Pi BMC instead.
 
 The BMC is reachable as `{{ tpi_user }}@turingpi` (default `root@turingpi`,
 defined in `group_vars/all.yml`). Each slot maps to a node via
-`slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
+`slot_num` in `hosts.yml`: node02→2, node03→3, node04→4 (slot 1 is not
+used by the cluster).
 `nuc1`, `nuc2` and `ws03` are not on the BMC.
 
 ```bash

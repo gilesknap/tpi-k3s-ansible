@@ -129,14 +129,6 @@ and each `local_storage` entry in `values.yaml` must name the same node and
 path as its `k8s_data_dirs` entry in `all.yml`. {doc}`/reference/inventory`
 and {doc}`/reference/variables` describe every setting.
 
-:::{note}
-`hosts.yml` still lists `node01`, the CM4 in slot 1 that was the control
-plane before node02. It is not a member of the cluster today, but it is
-powered on and answers SSH, so a playbook run over the whole inventory
-would upgrade it and join it as a worker. The run below leaves it out with
-`--limit 'all:!node01'`.
-:::
-
 ## Point the API name at the control plane
 
 Workers join the cluster, and the kubeconfig reaches it, through the name
@@ -236,12 +228,9 @@ git checkout -b rebuild-$(date +%Y%m%d)
 git push -u origin HEAD      # ArgoCD cannot track a branch that is not on GitHub
 
 set -a && source .env && set +a
-GENERATE_SECRETS=true ansible-playbook pb_all.yml --limit 'all:!node01' \
+GENERATE_SECRETS=true ansible-playbook pb_all.yml \
   -e do_flash=true -e repo_branch=$(git branch --show-current)
 ```
-
-`all:!node01` keeps `localhost` and `turingpi` in the run, which the
-`tools`, `flash` and `cluster` stages need.
 
 ```mermaid
 flowchart LR
@@ -450,14 +439,14 @@ request. It works without asking at each step and commits to its own
 branch. It is also how a change to the roles or to secret handling is
 tested before it is merged ({doc}`/how-to/work-in-branches`).
 
-`/bootstrap-cluster` is the first-build interview: it asks about the
-hardware, the domain, the repository and the optional features, writes the
-three configuration files from the answers, checks the ansible key, runs
-the playbook (with `GENERATE_SECRETS=true` if all six credentials are
-exported) and writes the credentials it generated to
-`/tmp/cluster-credentials.txt`. It was written when the repo was meant to
-be forked, so it asks questions whose answers are already in the files
-here; for this cluster the steps on this page are shorter.
+`/bootstrap-cluster` walks through the steps on this page from bare
+metal, including the flash. It checks the prerequisites and the
+workstation, reads (rather than writes) the three configuration files,
+points the API name at node02, collects the credentials (creating the
+Cloudflare edge first and running `just cf-env-tunnel-token` when there is
+no tunnel yet), runs the playbook with `GENERATE_SECRETS=true` on a build
+branch, and works down the Verify list. It asks before each step that
+changes a machine.
 
 (adapting-this-to-other-hardware)=
 :::{admonition} Adapting this to other hardware

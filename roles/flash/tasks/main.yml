@@ -21,16 +21,6 @@
   ansible.builtin.debug:
     var: flash_nodes
 
-- name: Check if the control plane node is contactable
-  ansible.builtin.include_tasks: node_status.yml
-  vars:
-    node_name: "{{ control_plane }}"
-
-- name: Abort if user does not want to re-flash the control plane
-  ansible.builtin.fail:
-    msg: "User aborted the re-flash of the control plane"
-  when: hostvars['localhost'].do_abort | default('y') != 'y'
-
 - name: Process the nodes for '{{ inventory_hostname }}'
   ansible.builtin.include_tasks: node.yml
   loop: "{{ flash_nodes }}"
