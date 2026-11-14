@@ -1,61 +1,62 @@
-# Variables Reference
+# Variables reference
 
-All configurable variables, their defaults, and where they are used.
+Every setting this cluster is built from, with the value it has today. Ansible
+reads `group_vars/all.yml`, `hosts.yml` and each role's `vars/` or `defaults/`;
+ArgoCD reads `kubernetes-services/values.yaml`. A few settings exist in both
+worlds and must agree: they are marked **SYNC** here and in the files.
 
 ## Global variables (`group_vars/all.yml`)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ansible_account` | `ansible` | Username for the Ansible SSH user on all nodes |
-| `tpi_user` | `root` | SSH user for Turing Pi BMC connections |
-| `tpi_images_path` | `/mnt/sdcard/images` | Path on BMC SD card for OS images |
-| `vault_password_file` | `~/.ansible_vault_password` | Path to Ansible vault password file |
-| `bin_dir` | `$HOME/bin` (from `$BIN_DIR` env) | Directory for CLI tools (helm, kubectl, etc.) |
-| `do_flash` | `false` | Enable flashing (derived from `flash_force` / `force_flash`) |
-| `local_domain` | `.lan` | Local domain suffix; `known_hosts` looks up `<node>{{ local_domain }}` to find a node's IPs |
-| `control_plane` | `node02` | Hostname of the K3s control plane node |
-| `standby_control_plane` | `node03` | Warm-standby control plane: the spare node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
-| `dns_router` | `root@192.168.1.1` | SSH target of an OpenWrt (dnsmasq, `uci`) router, used only by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane. |
-| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, resolving to the control plane. Agents join it, it is a `tls-san` on the server certificate, and the kubeconfig uses it. Every address it resolves to must be the control plane's. Without LAN DNS, the control plane's IPv4 address also works; an IPv6 literal does not. |
-| `etcd_backup_age_recipient` | `""` | age public key the nightly etcd backup is encrypted to. Empty makes the backup fail without uploading. |
-| `cluster_domain` | `<domain>` | Domain name for ingress hosts |
-| `domain_email` | `your.email@...` | Email for Let's Encrypt certificate registration |
-| `repo_remote` | `https://github.com/gilesknap/tpi-k3s-ansible.git` | Git repo URL for ArgoCD |
-| `repo_branch` | `main` | Git branch for ArgoCD (also in `kubernetes-services/values.yaml`) |
-| `k3s_minor` | `k3s.minor` from `kubernetes-services/values.yaml` | k3s minor line the cluster follows (e.g. `v1.34`). Edit it in `values.yaml`, not here. |
-| `cluster_install_list` | `[argocd]` | List of services installed directly by Ansible |
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `ansible_account` | `ansible` | The account Ansible uses on every node (created by the RK1 cloud-init seed, or by `pb_add_nodes.yml`) |
+| `tpi_user` | `root` | SSH user on the Turing Pi BMC |
+| `tpi_images_path` | `/mnt/sdcard/images` | Where OS images are staged on the BMC's SD card before `tpi flash` |
+| `vault_password_file` | `~/.ansible_vault_password` | Ansible vault password file. Nothing in the repo is vaulted today (secrets are `SealedSecret`s), so it is unused |
+| `bin_dir` | `/root/bin` (from `$BIN_DIR`; `$HOME/bin` without it) | Where the `tools` role installs helm, kubectl, kubeseal, argocd and the port-forward scripts: a volume, so it survives a devcontainer rebuild |
+| `k3s_minor` | `v1.34` (read from `k3s.minor` in `values.yaml`) | The K3s minor line the cluster follows. Edit it in `values.yaml`, not here |
+| `do_flash` | `false` | Whether the `flash` role runs; true when `flash_force` (or `force_flash`) is passed, or set directly with `-e do_flash=true` |
+| `local_domain` | `.lan` | Suffix the `known_hosts` role adds to a node name to look up its addresses |
+| `known_hosts_files` | `~/.ssh/known_hosts`, `/etc/ssh/ssh_known_hosts` | Files the `known_hosts` role keeps current. The system-wide one is what claude-sandbox reads, as its `$HOME` is a fresh tmpfs |
+| `control_plane` | `node02` | The (single) control plane node |
+| `standby_control_plane` | `node03` | Warm-standby control plane: the node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
+| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and this record. Every address it resolves to must be the control plane's |
+| `dns_router` | `root@192.168.1.1` | SSH target of the OpenWrt router (dnsmasq, `uci`), used only by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane |
+| `etcd_backup_age_recipient` | *(age public key)* | The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. **SYNC:** `offsite_backup.age_recipient` (`scripts/check-age-recipient`, run by `just check`, fails if they differ) |
+| `cluster_domain` | `gkcluster.org` | Domain of every ingress host |
+| `domain_email` | *(an address)* | Let's Encrypt registration address for cert-manager |
+| `admin_emails` | *(list)* | GitHub-linked addresses mapped to ArgoCD admin in the Ansible-rendered ArgoCD config. **SYNC:** `admin_emails` in `values.yaml` |
+| `repo_remote` | `https://github.com/gilesknap/tpi-k3s-ansible.git` | The repo ArgoCD deploys from |
+| `repo_branch` | `main` | The branch ArgoCD tracks. The root Application passes it to every child app ({doc}`/how-to/work-in-branches`) |
+| `nvidia_gpu_node`, `intel_gpu_node` | `false` | Defaults for the per-node GPU flags below |
+| `cluster_install_list` | `[argocd]` | What the `cluster` role installs itself; everything else is ArgoCD's |
+| `k8s_data_dirs` | prometheus and grafana on `node04` (`/var/lib/k8s-data/...`); scrap, scrap-backup-copy and jellyfin on `nuc2` (`/home/k8s-data/...`) | Host directories behind the `local-nvme` PVs, each with `node`, `path`, `owner`, `group` and `mode`. The `k8s_data_dirs` role creates them and never deletes one. **SYNC:** `node` and `path` with `local_storage` in `values.yaml` |
 
 ## Role-specific variables
 
-### Host variables (inventory)
+### Host variables (`hosts.yml`)
 
-Set per-host in `hosts.yml` under the relevant host entry:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `slot_num` | — | Turing Pi BMC slot number (1–4), required for Turing Pi nodes |
-| `type` | — | Module type: `rk1` or `pi4` |
-| `root_dev` | — | RK1 only: the disk to install the OS on (e.g. `/dev/nvme0n1`) |
-| `nvidia_gpu_node` | `false` | Set `true` on nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true` so the device plugin DaemonSet can schedule. |
-| `intel_gpu_node` | `false` | Set `true` on nodes with an Intel iGPU. Labels the node `intel.feature.node.kubernetes.io/gpu=true` so the Intel GPU device plugin DaemonSet runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node. |
+Set per host: `slot_num`, `type`, `root_dev`, `nvidia_gpu_node`,
+`intel_gpu_node`, `workstation`, `node_ip` and `flannel_iface`. They are
+described, with the values each node has, in {doc}`/reference/inventory`.
 
 ### `tools` role (`roles/tools/vars/main.yml`)
 
-| Variable | Default | Description |
+| Variable | Value | Description |
 |----------|---------|-------------|
-| `tools_zshrc` | (path) | Zsh completion directory path |
-| `tools_bashrc` | (path) | Bash completion directory path |
-| `tools_shell` | (list) | Shell config files to source completions from |
-| `tools_additional_packages` | `ping, net-tools, dnsutils, vim, sshpass` | Extra packages installed in devcontainer |
+| `tools_zshrc` | `/bash-config/zshrc` (from `$ZSHRC`) | The zsh rc file the role adds `PATH` and the `k` alias to |
+| `tools_bashrc` | `~/.bashrc` (or `$BASHRC`) | The bash rc file, likewise |
+| `tools_shell` | bash, zsh | Each shell's rc file and completion directory |
+| `tools_additional_packages` | `iputils-ping`, `net-tools`, `dnsutils`, `vim`, `sshpass` | Listed for the devcontainer; no task in the role installs from it today (the Dockerfile provides `dnsutils`) |
 
 ### `flash` role (`roles/flash/vars/main.yml`)
 
-| Variable | Default | Description |
+| Variable | Value | Description |
 |----------|---------|-------------|
-| `flash_force` | `false` | Force re-flash even if node is contactable; on an RK1 with `root_dev`, also the only way to wipe an NVMe that has a partition table |
-| `flash_local_tmp` | `/tmp/iac2` | Local directory for downloading OS images |
-| `flash_pre_flashed` | `false` | Skip flashing for pre-flashed nodes |
-| `flash_image_info` | (pinned) | CM4 OS image URL and checksum |
+| `flash_force` | `false` | Re-flash a node even if it answers SSH; on an RK1 with `root_dev`, also the only way to wipe an NVMe that has a partition table |
+| `flash_local_tmp` | `/tmp/iac2` | Directory in the devcontainer for downloaded OS images |
+| `flash_pre_flashed` | `false` | Debugging flag: skip the flash step itself |
+| `flash_rp4_vers`, `flash_image_info` | `24.04.4` (pinned) | Ubuntu image for a CM4 (`type: pi4`): URL and sha256 |
 | `flash_rk1_uboot_deb`, `flash_rk1_uboot_deb_file` | (pinned) | Armbian's mainline U-Boot package for the RK1: URL, sha256, and the path and sha256 of `u-boot-rockchip.bin` in it |
 | `flash_rk1_os_vers`, `flash_rk1_os_image` | `26.04.1` (pinned) | Ubuntu's preinstalled server image for the RK1: URL and sha256, and the decompressed image's sha256 and size, which the install checks on the NVMe |
 | `flash_rk1_emmc_sha256` | (pinned) | sha256 of the uncompressed eMMC staging image built from the two above |
@@ -64,15 +65,15 @@ Set per-host in `hosts.yml` under the relevant host entry:
 
 ### `k3s` role (`roles/k3s/vars/main.yml`)
 
-| Variable | Default | Description |
+| Variable | Value | Description |
 |----------|---------|-------------|
-| `k3s_force` | `false` | Force K3s reinstall (uninstall first) |
-| `k3s_install_occurred` | `false` | Internal flag tracking if install happened this run |
+| `k3s_force` | `false` | Reinstall K3s on the targeted nodes (uninstalling first) |
+| `k3s_install_occurred` | `false` | Internal: set when any node had K3s installed in this run |
 | `k3s_version` | unset | Exact release to install (e.g. `v1.34.6+k3s1`), on the `k3s_minor` line. Unset: the control plane takes the channel's newest patch and workers the control plane's version. |
 
 ### `etcd_backup` role (`roles/etcd_backup/defaults/main.yml`)
 
-| Variable | Default | Description |
+| Variable | Value | Description |
 |----------|---------|-------------|
 | `etcd_backup_nfs_server` / `etcd_backup_nfs_path` | `nfs.server` / `nfs.cluster_share_path` from `kubernetes-services/values.yaml` | NAS export the bundles are written to |
 | `etcd_backup_mount_point` | `/mnt/k8s-cluster` | Where the share is mounted while the job runs |
@@ -84,50 +85,86 @@ Set per-host in `hosts.yml` under the relevant host entry:
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
 
+### `update_packages` and `node_reboot` roles (`defaults/main.yml`)
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `update_packages_upgrade_on_calendar` | `*-*-* 00:00 Europe/London` | When unattended-upgrades runs each night: before the K3s upgrade and kured windows, so a new kernel is rebooted into the same night |
+| `update_packages_upgrade_random_delay` | `30m` | Random delay added to that time |
+| `node_reboot_msg` | `Rebooting by Ansible` | Message logged by a reboot |
+| `node_reboot_timeout` | `900` | Seconds to wait for a rebooted node to come back |
+
+### `rk1_os` role (`defaults/main.yml`, `vars/main.yml`)
+
+The role converts an RK1 still on the old ubuntu-rockchip vendor layout to
+stock Ubuntu; all three RK1s are converted, so it now finds nothing to do.
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `rk1_os_target_release` | `26.04` | The release every RK1 ends on |
+| `rk1_os_kernel_packages` | `linux-generic` on 26.04 | Kernel metapackage per release |
+| `rk1_os_cmdline` | console on `ttyS9` and `tty1`, cgroup flags | Kernel command line GRUB boots with |
+| `rk1_os_grub_timeout` | `3` | Seconds the GRUB menu waits (visible on `tpi uart`) |
+| `rk1_os_vendor_packages`, `rk1_os_vendor_extra_packages` | *(lists)* | Packages purged once the node is on the target release |
+| `rk1_os_keep_packages`, `rk1_os_protected_packages` | *(lists)* | Packages marked manual before the purge, and those whose removal stops it |
+
 ## Command-line overrides
 
-Variables can be overridden on the command line with `-e`:
+Passed with `-e` to `ansible-playbook`. None of them is stored anywhere: each
+applies to that run only.
 
-```bash
-ansible-playbook pb_all.yml \
-  -e flash_force=true \
-  -e k3s_force=true \
-  -e repo_branch=my-feature-branch \
-  -e repo_remote=https://github.com/me/my-fork.git
-```
+| Override | Playbook | Effect |
+|----------|----------|--------|
+| `-e do_flash=true` | `pb_all.yml` | Run the `flash` role: flashes any Turing Pi node that does not answer SSH |
+| `-e flash_force=true` | `pb_all.yml` | Also re-flash nodes that do answer, and allow the wipe of an RK1 NVMe that has a partition table. Use with `--limit turingpi,<node>` |
+| `-e k3s_force=true` | `pb_all.yml` | Uninstall and reinstall K3s on the targeted nodes |
+| `-e k3s_version=v1.34.13+k3s1` | `pb_all.yml` | Install that exact release; it must be on the `k3s_minor` line |
+| `-e reboot_now=true` | `pb_all.yml` | After `update_packages`, drain and reboot each node that needs it, one at a time, instead of leaving it to kured. Never reboots a workstation |
+| `-e repo_branch=<branch>` | `pb_all.yml --tags cluster` | Point ArgoCD at a branch (what `just switch-branch` does) |
+| `-e claude_pubkey_state=absent` | `pb_all.yml --tags claude_key` | Remove the Claude sandbox key from the nodes instead of adding it |
+| `-e claude_ansible_pubkey_path=<path>` | `pb_all.yml` | Use a different public key file than `/root/.config/claude-ssh/id_ed25519.pub` |
+| `-e '{"known_hosts_files": ["~/.ssh/known_hosts"]}'` | `pb_all.yml` | Skip the system-wide known_hosts file when not running as root |
+| `-e ansible_user=<user> -K` | `pb_add_nodes.yml` | The existing sudo-capable account on a machine that has no `ansible` account yet |
+| `-e wipe_local_data=true` | `pb_decommission.yml` | Also delete `/home/k8s-data` and `/var/lib/k8s-data`: every `local-nvme` PV's data. Destructive |
 
 (argocd-helm-values)=
 ## ArgoCD Helm values (`kubernetes-services/values.yaml`)
 
-| Variable | Default | Description |
+| Variable | Value | Description |
 |----------|---------|-------------|
 | `repo_branch` | `main` | Branch for child ArgoCD Applications' `targetRevision` |
-| `enable_oauth2_proxy` | `true` | Enable OAuth2 proxy authentication on protected services. A new fork starts with `false` and sets `true` after completing OAuth setup ({doc}`/how-to/oauth-setup`). |
-| `enable_cloudflare_tunnel` | `true` | Disable SSL redirect on tunnelled services for Cloudflare Tunnel compatibility. A new fork starts with `false` and sets `true` after adding public hostnames ({doc}`/how-to/cloudflare-web-tunnel`). |
-| `admin_emails` | *(list of emails)* | GitHub-linked email addresses with full admin access to all OAuth-protected services |
-| `nfs.server` | *(your NFS server IP)* | NFS server for the backup and Minecraft volumes |
-| `nfs.cluster_share_path` | *(your NFS export path)* | Cluster-owned directory on the NFS export (see {doc}`/how-to/nas-setup`) |
-| `nfs_csi.server` | *(your NFS server IP)* | NFS server for the dynamic StorageClasses |
+| `k3s.minor` | `v1.34` | The K3s minor line. system-upgrade-controller follows its release channel, so patch releases arrive on their own; changing it is the deliberate minor upgrade ({doc}`/how-to/upgrade-k3s`). The `k3s` role reads it too |
+| `k3s.upgrade_window` | every day, `01:00` to `02:00`, `Europe/London` | When system-upgrade-controller may start a round of K3s upgrades |
+| `kured.start_time` / `end_time` / `time_zone` | `02:30` / `05:00` / `Europe/London` | The window in which kured reboots nodes that need it, one at a time ({doc}`/explanations/upgrade-model`) |
+| `headlamp.argocd_plugin.enabled` / `version` / `sha256` | `true` / `0.1.0-alpha` / *(checksum)* | The Argo CD plugin an init container unpacks into Headlamp; bump `version` and `sha256` together |
+| `enable_oauth2_proxy` | `true` | Put oauth2-proxy in front of the protected ingresses ({doc}`/explanations/architecture/authentication`). `false` leaves them open, which is only for the first hours of a build, before the OAuth credentials are sealed ({doc}`/how-to/oauth-setup`) |
+| `enable_cloudflare_tunnel` | `true` | Turn off the ingress's SSL redirect on tunnelled services, since Cloudflare terminates TLS at its edge and a redirect would loop ({doc}`/how-to/cloudflare-as-code`) |
+| `cf_access_team` | *(team name)* | The Cloudflare Zero Trust team (`<team>.cloudflareaccess.com`); used by the `/test-oauth-flow` command to build the Access logout URL |
+| `admin_emails` | *(list)* | GitHub-linked addresses with admin rights: Grafana Admin, and the only addresses oauth2-proxy lets through. ArgoCD admin comes from the copy in `group_vars/all.yml`. **SYNC:** that copy |
+| `nfs.server` | `192.168.1.3` | The NAS: NFS server for the static backup, Minecraft, scrap and media volumes |
+| `nfs.cluster_share_path` | `/bigdisk/k8s-cluster` | The cluster-owned directory on the NAS ({doc}`/how-to/nas-setup`) |
+| `nfs_csi.server` | `192.168.1.3` | NFS server for the dynamic StorageClasses (the NAS again) |
 | `nfs_csi.share` | `/k8s-dynamic` | Export for `nfs-rwx` scratch volumes (a new folder per PV) |
 | `nfs_csi.stable_share` | `/k8s-dynamic/stable` | Folder for `nfs-stable` volumes (one fixed folder per PVC); keep it a subfolder of `share` |
 | `nfs_csi.chart_version` | `4.13.4` | csi-driver-nfs chart version |
 | `nfs_csi.fresh_storage_class` | `nfs-rwx` | Name of the scratch StorageClass, used only when named |
 | `nfs_csi.stable_storage_class` | `nfs-stable` | Name of the default StorageClass |
 | `enable_jellyfin` | `true` | Deploy Jellyfin ({doc}`/how-to/jellyfin`); needs `local_storage.jellyfin` and its `k8s_data_dirs` entry |
-| `jellyfin.chart_version` / `image_tag` | `3.7.0` / `12.4.…` | The upstream chart version and the Jellyfin image tag (never older than the database's Jellyfin) |
+| `jellyfin.chart_version` / `image_tag` | `3.7.0` / `12.4.20261026-211555` | The upstream chart version and the Jellyfin image tag (never older than the database's Jellyfin) |
 | `jellyfin.trial` | `false` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE`. Not with `seed_from_host` |
-| `jellyfin.seed_from_host` | `true` | One-off copy of a stopped host install into the config volume (init containers); a no-op once the volume is `SEEDED-FROM-HOST` |
+| `jellyfin.seed_from_host` | `true` | One-off copy of the stopped host install on `nuc2` into the config volume (init containers). The volume is marked `SEEDED-FROM-HOST`, so it now does nothing |
 | `jellyfin.seed.sqlite_image` | `docker.io/keinos/sqlite3:3.54.1` | Image with `sqlite3`, for the seed's integrity check and the backup CronJobs |
 | `jellyfin.seed.hardware_decoding_codecs` | `[h264, hevc, …]` | Replaces `HardwareDecodingCodecs` in the copied `encoding.xml`; empty leaves it unchanged |
 | `jellyfin.data_dir` / `config_dir` / `log_dir` / `cache_dir` | `/var/lib/jellyfin` / `/etc/jellyfin` / `/var/log/jellyfin` / `/var/cache/jellyfin` | Jellyfin's paths in the pod, the same as a host install's. The first three are the config volume's `data/`, `config/` and `log/`; the seed copies the host's `data_dir` and `config_dir` |
+| `jellyfin.cache_size` | `20Gi` | Size limit of the emptyDir for the cache and transcodes |
 | `jellyfin.host_network` | `true` | Run on the node's network (both LANs, Tailscale, UDP 7359 discovery); off for a trial beside a host install |
 | `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
-| `offsite_backup.enabled` | `false` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). Set `true` only after sealing its credentials (`just seal-rclone-drive`) |
+| `offsite_backup.enabled` | `true` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). It needs the sealed rclone credentials (`just seal-rclone-drive`), and its alerts fire only while it is on |
 | `offsite_backup.schedule` / `time_zone` | `30 5 * * *` / `Europe/London` | When it runs: after the other nightly backups |
 | `offsite_backup.drive_root` | `home-cluster-offsite` | Folder in the Drive's root that everything goes into |
-| `offsite_backup.age_recipient` | *(age public key)* | age public key every file is encrypted to; keep it the same as `etcd_backup_age_recipient` |
+| `offsite_backup.age_recipient` | *(age public key)* | age public key every file is encrypted to. **SYNC:** `etcd_backup_age_recipient` |
 | `offsite_backup.image` | `docker.io/rclone/rclone:1.75.2` | rclone image (Alpine, busybox) every container runs |
 | `offsite_backup.age.version` / `sha256.amd64` / `sha256.arm64` | `1.3.2` / *(checksums)* | age release an init container fetches, checked against these checksums; bump all three together |
 | `offsite_backup.deadline_hours` | `6` | A run is stopped after this long; the next carries on |
@@ -144,20 +181,24 @@ ansible-playbook pb_all.yml \
 | `offsite_backup.minecraft.archive` | `true` | Upload `minecraft.archive_path` (once, and again only if it changes) |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
 | `minecraft.chart_version` | `0.5.2` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
+| `minecraft.image.repository` | `ghcr.io/gilesknap/k3s-minecraft` | The dashboard image |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
 | `minecraft.store_subdir` | `minecraft` | Writable store directory under `nfs.cluster_share_path` |
-| `minecraft.dns_name` | `mc` | Players connect to `<dns_name>.<cluster_domain>` |
-| `minecraft.worlds.node` | *(node name)* | Node all worlds are pinned to — the VPS relay forward target |
+| `minecraft.dns_name` | `mc` | Players connect to `mc.gkcluster.org`, a DNS-only record for the VPS relay |
+| `minecraft.worlds.node` | `nuc2` | Node all worlds are pinned to: the VPS relay forward's target |
 | `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
 | `minecraft.worlds.rcon_port_min` / `rcon_port_max` | `30600` / `30619` | Inclusive NodePort range for per-world RCON (LAN only; never relay it) |
-| `minecraft.worlds.rcon_allowed_cidrs` | LAN CIDRs | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`); except every cluster node's IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node's IP |
+| `minecraft.worlds.rcon_allowed_cidrs` | `192.168.1.0/24` except the other nodes, and `192.168.0.0/24` | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`); except every cluster node's IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node's IP |
 | `enable_vps_relay` | `true` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
-| `vps_relay.vps_tailnet_host` | *(tailnet IP or name)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
+| `vps_relay.vps_tailnet_host` | *(tailnet address)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
 | `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |
-| `vps_relay.forwards` | *(minecraft entry)* | List of `name`, `protocol` (`tcp`/`udp`), `ports` (port or `min-max`) and `target`; each publishes `ports` on the VPS and relays them to the same ports on `target`. The VPS's `allowPorts` and firewall must match |
+| `vps_relay.forwards` | `minecraft`: tcp `30565-30584` to `192.168.1.92` | List of `name`, `protocol` (`tcp`/`udp`), `ports` (port or `min-max`) and `target`; each publishes `ports` on the VPS and relays them to the same ports on `target`. The VPS's `allowPorts` and firewall must match |
+| `enable_kyverno` / `kyverno.chart_version` | `false` / `3.9.1` | Kyverno is off: the app never settled to Synced on its CRDs, and no policies were in use |
+| `local_storage.<name>` | `grafana` and `prometheus` on `node04`; `scrap`, `scrap_backup_copy` and `jellyfin` on `nuc2` | One static `local-nvme` PV each: `node`, `path`, `capacity` and the `claim_namespace`/`claim_name` it is pre-bound to ({doc}`/explanations/architecture/storage`). The `scrap` entry is the frozen pre-Litestream copy, kept so its PV is not pruned under a bound claim. **SYNC:** `k8s_data_dirs` |
 
 The root Application passes `repo_branch` in from Ansible, so the copy in values.yaml is
-only a default; switch branches with `just switch-branch <branch>`.
+only a default for `helm template` runs; switch branches with
+`just switch-branch <branch>`.
 
 The `nfs.*` values feed the static backup, Minecraft and scrap volumes, Jellyfin's
 media and the off-site backup's mounts, and the `etcd_backup`
@@ -166,8 +207,39 @@ the dynamic NFS StorageClasses separately.
 
 ## Environment variables
 
-| Variable | Set in | Description |
-|----------|--------|-------------|
-| `BIN_DIR` | `devcontainer.json` | Directory for CLI tools (`/root/bin`) |
-| `ZSHRC` | `devcontainer.json` | Path to zsh config |
-| `ANSIBLE_VAULT_PASSWORD_FILE` | `devcontainer.json` | Vault password file path |
+Set for the devcontainer by `.devcontainer/devcontainer.json`:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `BIN_DIR` | `/root/bin` | Becomes `bin_dir`: the `iac2-bin` volume the CLIs are installed into |
+| `ZSHRC` | `/bash-config/zshrc` | The zsh rc file the `tools` role edits |
+| `ANSIBLE_VAULT_PASSWORD_FILE` | `/etc/ansible/.vault_password.txt` | The host's `~/.ansible_vault_password`, mounted read-only |
+| `UV_*`, `VIRTUAL_ENV`, `PRE_COMMIT_HOME` | under `/cache` | Keep the Python environment and caches on a persistent volume |
+
+Read by the scripts. Each is optional unless marked; a script that needs a
+secret prompts for it when the variable is unset.
+
+| Variable | Read by | Description |
+|----------|---------|-------------|
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `scripts/generate-secrets` (required) | The Dex GitHub OAuth app |
+| `OAUTH2_PROXY_CLIENT_ID`, `OAUTH2_PROXY_CLIENT_SECRET` | `generate-secrets` (required) | The oauth2-proxy GitHub OAuth app |
+| `CLOUDFLARE_API_TOKEN` | `generate-secrets` (required) | cert-manager's DNS-01 token ({ref}`cf-dns01-token`) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | `generate-secrets` (required) | cloudflared's tunnel token; `scripts/cf-seal-tunnel-token` also updates it in `.env` |
+| `ADMIN_PASSWORD` | `generate-secrets`, `scripts/set-admin-password` | The shared admin password; generated, or prompted for, if unset |
+| `VPS_RELAY_TS_OAUTH_CLIENT_SECRET`, `VPS_RELAY_FRP_TOKEN` | `generate-secrets` | The VPS relay's Tailscale OAuth client secret and frp token: both or neither |
+| `SCRAP_ANTHROPIC_API_KEY` | `generate-secrets` | Claude API key for scrap's ingest; scrap's secrets are sealed only if it is set |
+| `SCRAP_MCP_TOKEN`, `SCRAP_PUBLISH_TOKEN` | `generate-secrets` | Kept as given, since clients hold copies; generated if unset |
+| `SCRAP_ROTATE_MCP_TOKEN` | `generate-secrets` | `true` replaces `SCRAP_MCP_TOKEN` with a new one |
+| `OFFSITE_BACKUP_RCLONE_CONF_B64` | `generate-secrets` | The off-site backup's `rclone.conf`, base64-encoded; resealed as given |
+| `NTFY_<USER>_TOKEN` | `generate-secrets` | One per ntfy user in `scripts/lib/ntfy_auth.py` (for example `NTFY_PHONE_TOKEN`); kept as given, generated if unset |
+| `TF_VAR_state_passphrase` | `scripts/cf-tofu` | OpenTofu state passphrase; else `cloudflare/.secrets/state-passphrase`, else a prompt |
+| `CF_PLAN_TOKEN` | `cf-tofu plan` | Read-only Cloudflare token; else `cloudflare/.secrets/plan-token`, else a prompt |
+| `CF_APPLY_TOKEN` | `cf-tofu apply`, `scripts/cf-tunnel-disconnect` | Edit token; else a prompt. Never read from a file |
+| `DRY_RUN`, `FORCE` | `scripts/restore-control-plane` | `DRY_RUN=1` prints what would run; `FORCE=1` skips the second confirmation |
+| `IMAGE`, `BACKUP_DIR` | `scripts/nfs-stable-paths` | The Jobs' image, and where the PVC and PV manifests are saved first |
+| `FRP_PORT` | `scripts/vps-relay-setup` (on the VPS) | frps control port, default `7000`. **SYNC:** `vps_relay.frp_port` |
+
+`just export-external-creds` (`scripts/export-external-creds`) writes every
+`generate-secrets` variable above except `ADMIN_PASSWORD` and
+`SCRAP_ROTATE_MCP_TOKEN` from the live cluster's Secrets into `.env` at the repo
+root (gitignored), ready for a rebuild: `set -a && source .env && set +a`.

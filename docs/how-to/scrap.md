@@ -1,288 +1,266 @@
-# Deploy scrap
+# Run scrap
 
 [scrap](https://github.com/gilesknap/scrap) is a personal knowledge store: a
-web app (installable as a PWA) plus an MCP endpoint at `/mcp` for AI coding
-tools. The application and its Helm chart live in the scrap repository. This
-repository provides the cluster wiring:
+web app at <https://scrap.gkcluster.org> (installable as a PWA), an MCP
+endpoint at `/mcp` for Claude Code and other AI tools, and a static site of
+the pages marked Public at <https://pages.gkcluster.org>. The application and
+its Helm chart live in the scrap repository. This repository provides the
+cluster wiring.
 
-- An ArgoCD Application (`kubernetes-services/templates/scrap.yaml`) that
-  deploys the published OCI chart, with a NetworkPolicy, the chart's
-  Litestream mode on NFS volumes (so scrap runs on any node), a nightly backup
-  CronJob and Claude ingest (enabled in this deployment).
-- An ingress for `scrap.<domain>` gated by oauth2-proxy, plus a second
-  `/mcp`-only ingress without oauth2-proxy
-  (`kubernetes-services/additions/scrap/`), off by default in the chart, on in
-  this deployment (see below).
-- Static NFS volumes for the data and the backups, and a nightly copy of the
-  newest backup off the NAS (`kubernetes-services/additions/scrap/`); see
-  [Data, backups and failover](#data-backups-and-failover).
-- Public pages: the chart's `public` section serves the pages marked Public
-  as a static site at `pages.<domain>`, from its own `scrap-public` namespace
-  (see [Public pages](#public-pages)).
+## How it runs
 
-scrap has no login of its own, so access control is layered in front of it.
+```mermaid
+flowchart TB
+    browser["Browser or PWA"]
+    mcp["MCP client<br/>(Claude Code)"]
+    reader["Anyone"]
+    cf["Cloudflare Tunnel and Access"]
+    nginx["ingress-nginx"]
+    o2p["oauth2-proxy<br/>(GitHub, admin_emails)"]
+    subgraph ns1["namespace scrap (any node)"]
+        scrap["scrap pod:<br/>scrap, litestream, jobs"]
+    end
+    subgraph ns2["namespace scrap-public"]
+        pub["scrap-public pod:<br/>web (nginx), receiver"]
+    end
+    nas["The NAS: scrap-data,<br/>backups/scrap"]
+    nuc2["nuc2: newest backup run<br/>(local-nvme)"]
+
+    browser -->|"scrap.gkcluster.org<br/>Access: Owner"| cf
+    mcp -->|"scrap.gkcluster.org/mcp<br/>Access: service token"| cf
+    reader -->|"pages.gkcluster.org<br/>Access: bypass, cached"| cf
+    cf --> nginx
+    nginx -.->|"auth check<br/>(not for /mcp)"| o2p
+    nginx --> scrap
+    nginx --> pub
+    scrap -->|"pushes public pages"| pub
+    scrap --- nas
+    nas -->|"05:00 copy"| nuc2
+```
+
+The ArgoCD Application `kubernetes-services/templates/scrap.yaml` has three
+sources:
+
+- **The chart**, `ghcr.io/gilesknap/charts/scrap`, pinned to a release (chart
+  version, app version and image tag are one number, so a bump is the
+  `targetRevision`). It runs scrap in Litestream mode with a NetworkPolicy,
+  Claude ingest (photo reading and text enrichment, with a daily spend cap),
+  the nightly and monthly backup CronJobs and the public-pages site.
+- **`kubernetes-services/additions/scrap/`**: the `/mcp`-only Ingress, the
+  SealedSecrets, the `scrap-public` namespace, the static NFS volumes, the
+  nightly copy of the newest backup to nuc2, and the frozen volume from before
+  Litestream.
+- **`kubernetes-services/additions/ingress/`**: the main Ingress for
+  `scrap.gkcluster.org`, behind oauth2-proxy.
 
 ## Authentication layers
 
-| Path | Layer 1 | Layer 2 |
-|------|---------|---------|
-| Web UI / PWA | Cloudflare Access (email one-time PIN) | oauth2-proxy GitHub login, limited to `admin_emails` |
-| `/mcp` | Cloudflare Access service token (`CF-Access-Client-Id` / `CF-Access-Client-Secret` headers) | scrap bearer token |
-| `pages.<domain>` | None: a Cloudflare Access **Bypass** application, as the site is public | None: static files only, nothing can reach scrap |
+scrap has no login of its own, so access control is layered in front of it.
 
-The `/mcp` path cannot use oauth2-proxy because MCP clients cannot complete a
-browser login. It has its own Ingress, and nginx routes to the most specific
-path, so `/mcp` skips the oauth2 annotations of the main ingress.
+| Path | Layer 1, at the edge | Layer 2, in the cluster |
+|------|----------------------|-------------------------|
+| Web UI and PWA | Cloudflare Access: the Owner policy of the `clusterapps` application | oauth2-proxy GitHub login, limited to `admin_emails` |
+| `/mcp` | Cloudflare Access service token (`CF-Access-Client-Id` and `CF-Access-Client-Secret` headers) | scrap's bearer token, `SCRAP_MCP_TOKEN` |
+| `pages.gkcluster.org` | None: a bypass Access application, as the site is public | None: static files only, and nothing on that side can reach scrap |
+
+The `/mcp` path cannot use oauth2-proxy, because an MCP client cannot complete
+a browser login. It has its own Ingress, `scrap-mcp-ingress`, without the
+oauth2 annotations; nginx routes to the most specific path, so `/mcp` requests
+go there and everything else goes to the gated `scrap-ingress`.
+
+The NetworkPolicy admits only the `ingress-nginx` namespace to the scrap pod,
+so nothing else in the cluster can reach it or forge the identity headers that
+oauth2-proxy sets.
+
+:::{warning}
+The `/mcp` Ingress is switched by `mcp_ingress_enabled` in
+`kubernetes-services/templates/scrap.yaml` (`true`). It is only safe with
+`mcp.tokenSecret` set, as it is: without scrap's bearer token, Cloudflare
+would be the only protection on `/mcp`, and ingress-nginx can be reached
+directly from the LAN and the tailnet, bypassing Cloudflare.
+:::
 
 :::{note}
-Hosted MCP connectors that run from a vendor's cloud (for example a chat
-app's custom connector) cannot send Cloudflare service-token headers, so they
+Hosted MCP connectors that run from a vendor's cloud (a chat app's custom
+connector, for example) cannot send Cloudflare service-token headers, so they
 cannot reach `/mcp` through this design.
 :::
 
-:::{warning}
-The `/mcp` Ingress is gated by `mcp_ingress_enabled` in
-`kubernetes-services/templates/scrap.yaml`. Keep it `true` only while the scrap
-chart `targetRevision` is a release with `SCRAP_MCP_TOKEN` bearer auth
-(0.2.0 or later) and `mcp.tokenSecret` is set. Until then Cloudflare would be
-the only protection on `/mcp`, and ingress-nginx is reachable directly (LAN or
-split DNS) bypassing Cloudflare.
-:::
+## Cloudflare
 
-The NetworkPolicy admits only the `ingress-nginx` namespace, so nothing else
-in the cluster can reach the pod or forge identity headers.
+The edge half of the table above is code in `cloudflare/`
+({doc}`/how-to/cloudflare-as-code`); nothing for scrap is set by hand in the
+dashboard except the service token itself.
 
-## Deploy
+In `cloudflare/locals.tf`, two `tunnel_services` entries create the tunnel
+routes to ingress-nginx and the proxied CNAMEs:
 
-1. Create scrap's directories on the NAS ({doc}`nas-setup`), and the
-   directory for the off-NAS backup copy:
-   `ansible-playbook pb_all.yml --tags servers` runs the `k8s_data_dirs`
-   role, which creates it (`local_storage.scrap_backup_copy`).
-2. Seal the Claude API key into the `scrap-secrets` SealedSecret (ingest is
-   enabled, so this is required). Follow
-   `kubernetes-services/additions/scrap/README.md` and
-   {doc}`manage-sealed-secrets`. The file is
-   `kubernetes-services/additions/scrap/templates/scrap-secret.yaml`.
-3. Commit, then let ArgoCD sync. Do this only after step 2: until the
-   SealedSecret exists the pod sits in `CreateContainerConfigError` because
-   it references the missing `scrap-secrets` Secret.
-4. For `/mcp`, seal `SCRAP_MCP_TOKEN` into the same Secret, point
-   `mcp.tokenSecret` at it and set `mcp_ingress_enabled: true`. Use a scrap
-   release of 0.2.0 or later.
+```hcl
+{ name = "scrap" },
+{ name = "pages", cache = true, access_bypass = true },
+```
+
+In `cloudflare/access.tf`, three Access applications apply. Cloudflare picks
+the most specific one for a request: an exact hostname beats the wildcard, and
+a hostname with a path beats the bare hostname for that path.
+
+| Application | Covers | Policy |
+|-------------|--------|--------|
+| `clusterapps` | `*.gkcluster.org`, so `scrap.gkcluster.org` | `owner`: the owner's emails, through the GitHub login method, 24 hour session |
+| `scrap` | `scrap.gkcluster.org/mcp` | `scrap_mcp`: a `non_identity` policy that admits only the `mcp-access` service token |
+| `pages` | `pages.gkcluster.org` | `bypass`: everyone |
+
+- **The service token** `mcp-access` is looked up by name, not managed:
+  Cloudflare shows its client secret once, at creation, and it has to go to
+  the MCP clients anyway. Create or rotate it in the dashboard (Zero Trust,
+  Access, Service auth) and keep the secret with the clients. Managing it in
+  code would put the secret in the OpenTofu state.
+- **`access_bypass = true`** on `pages` is an allow-list entry. The guard in
+  `cloudflare/access_guard.tf` fails `just cf-plan` if an application that
+  lets anyone in targets a hostname without it, or if a tunnel hostname has no
+  closed application in front of it. `scrap` needs no flag: the wildcard
+  covers the host, and the `/mcp` application is closed.
+- **`cache = true`** on `pages` adds a "cache everything" rule for the host
+  (`cloudflare/zone.tf`), so the public site is served from Cloudflare's
+  cache.
+
+{ref}`cf-access-bypass` explains the pattern, and {ref}`cf-add-service` the
+`just cf-plan` and `just cf-apply` routine.
 
 ## Data, backups and failover
 
-scrap runs in its chart's Litestream mode (ADR 0013, and scrap's own ADR 46),
-with no node pinning:
+scrap runs in its chart's Litestream mode (ADR
+{doc}`0013 </explanations/decisions/0013-scrap-litestream-on-nfs>`), with no
+node pinning: SQLite stays on a local disk, where it belongs, and a replica
+on the NAS lets the pod start anywhere.
 
 | What | Where |
 |------|-------|
-| The database | An emptyDir on the pod's node, at `/db/scrap.db` |
-| Its replica, about a second behind | `/data/litestream` on `scrap-data-nfs` (`<cluster share>/scrap-data`) |
+| The database | An `emptyDir` on the pod's node, at `/db/scrap.db` |
+| Its replica, about a second behind | `/data/litestream` on `scrap-data-nfs` (`/bigdisk/k8s-cluster/scrap-data` on the NAS) |
 | Files and the preview cache | `/data` on `scrap-data-nfs` |
-| Backups: daily (keep 7) and monthly (keep 12) | `scrap-backups-nfs` (`<cluster share>/backups/scrap`) |
-| The newest backup, copied nightly at 05:00 (keep 3) | The `local_storage.scrap_backup_copy` PV, off the NAS |
+| Backups: `scrap-backup` daily at 03:30 Europe/London (keeps 7), `scrap-backup-monthly` at 03:50 UTC on the 1st (keeps 12; it sets no `timeZone`) | `scrap-backups-nfs` (`/bigdisk/k8s-cluster/backups/scrap`) |
+| The newest complete backup run, copied by `scrap-backup-copy` at 05:00 (keeps 3) | The `scrap-backup-copy` claim: a `local-nvme` PV on nuc2, `/home/k8s-data/scrap-backup-copy` |
+
+Both NFS volumes are static PVs at fixed directories
+({ref}`scrap-nas-directories`), so a cluster rebuild binds the same data
+again. The copy to nuc2 exists because the live data, the replica and the
+backups are otherwise all on one NAS; a failed or stalled backup also shows
+there as a failed Job. The off-site job then uploads the backup runs to Google
+Drive ({ref}`offsite-backup`).
 
 Each new pod's `db-init` init container restores the database from the
 replica. It fails closed, rather than starting empty, when the volume looks
-wrong. gc and the Claude passes (related pages, topics) run on their usual
-schedules in the pod's `jobs` container, not as CronJobs: see their runs with
-`kubectl -n scrap logs deploy/scrap -c jobs`.
+wrong. gc and the Claude passes (related pages, topics) run on their schedules
+in the pod's `jobs` container, not as CronJobs:
 
-- **Node death:** fence the node ({ref}`fence-a-dead-node`). scrap restarts
-  on another node in about 1–2 minutes and loses about a second of writes.
-- **Planned moves** (drain, reboot) lose nothing: Litestream does a last sync
-  after scrap stops.
+```bash
+kubectl -n scrap logs deploy/scrap -c jobs
+```
+
+- **Node death:** fence the node ({ref}`fence-a-dead-node`). scrap restarts on
+  another node in about one to two minutes and loses about a second of writes.
+- **Planned moves** (a drain, a kured reboot) lose nothing: Litestream does a
+  last sync after scrap stops.
 - **NAS down:** files cannot be read and replication stalls. After 20 minutes
   the pod leaves its Service, so scrap stops taking writes it cannot protect.
   It recovers by itself when the NAS returns.
 
-Restores: {doc}`backup-restore`.
-
-### Moving an existing install off a local volume
-
-An install that started on a `local-nvme` PV (`local_storage.scrap`) moves in
-one Argo CD sync, with `legacy.migrate: true` in `templates/scrap.yaml`
-(`false` in this repository, whose own move is done):
-
-1. The NFS PVs and PVCs (sync wave -2).
-2. The Job `scrap-migrate-to-nfs` (wave -1), on the old volume's node:
-   - it fails unless it can read both the old and the NFS data volume;
-   - it does nothing if the NFS data volume already holds a database or a
-     replica, or if the old volume holds no database;
-   - it copies the complete runs from the old backups claim;
-   - it runs `scrap backup` of the live database;
-   - it runs `scrap restore` into the NFS data volume.
-3. The chart (wave 0). The new pod's `db-init` brings the restored database
-   across to its emptyDir.
-
-If the Job fails, the sync stops there and the old pod keeps serving. To
-retry, rename the Job in git. Don't capture during the sync: writes made
-between the Job's backup and the old pod stopping (about a minute) are not
-moved. Don't sync between 03:30 and 05:00 either, when the old pod's gc and
-the new one's could overlap on their lock.
-
-Afterwards, the old claim and its PV stay as a frozen copy of the data:
-unmounted, `Retain`, at `/home/k8s-data/scrap` on the old node.
-
-#### Check the cut-over
-
-Once the new pod serves, compare the frozen copy with the live database:
-
-```bash
-just scrap-cutover-check          # or: scripts/scrap-cutover-check nuc2
-```
-
-It reads both sides only: the old database over SSH (as `ansible`, with
-`sudo`) opened `immutable=1`, the live one read-only through `kubectl exec`
-into the scrap pod. It prints `max(rowid) FROM page_rev`,
-`count(*) FROM capture` and `max(updated_at) FROM page` for each, then lists
-every revision, capture and page that is newer in the old copy. Exit status 0
-means nothing was lost. Rows it lists were written in the cut-over window:
-re-enter them in scrap by hand.
-
-#### Fix forward
-
-Once scrap has taken its first write after the cut-over, **fix forward;
-revert only before the first write after cut-over.** A revert of the PR goes
-back to the frozen copy and silently drops everything written since. Before
-that first write, reverting is safe: the old volume holds the same data.
-
-#### Retire the Job straight away
-
-Until the Job is retired, a rebuild depends on the old node: the Job is pinned
-there by its local PV, and the sync cannot pass wave -1 without it. As soon as
-the check passes, set `legacy.migrate: false` in `templates/scrap.yaml` and
-let Argo CD sync. The old dynamic backups claim, `scrap-backups`, is rendered
-only so that the Job can mount it: drop `legacy.backups` from
-`templates/scrap.yaml` at the same time. Its `Prune=false` keeps the claim in
-the cluster, so delete it by hand afterwards. Deleting it deletes its NAS
-directory (it was provisioned by the `nfs-rwx` class, then the default: reclaim
-policy `Delete`, `onDelete: delete`), so do that only once every run you want
-is confirmed in `backups/scrap`. The Job copies only complete runs named by
-timestamp: copy any run you renamed by hand (such as a `-curated` one) yourself,
-and note that the daily gc on the new claim may already have pruned older runs.
-
-#### New installs
-
-A new install starts on NFS and has nothing to move. Drop the `scrap` entry
-from `local_storage` in `kubernetes-services/values.yaml` (and from
-`k8s_data_dirs` in `group_vars/all.yml`), so neither the old claim nor the
-Job is rendered. If it is kept, the Job finds no database on the old volume,
-logs that, and exits successfully.
-
-## Cloudflare configuration
-
-With Cloudflare managed as code ({doc}`cloudflare-as-code`), these are the
-`scrap` and `pages` entries in `cloudflare/locals.tf` and the apps in
-`cloudflare/access.tf` (including the `/mcp` service-token policy); apply with
-`just cf-apply`. Otherwise, in the Cloudflare dashboard, following
-{doc}`cloudflare-web-tunnel`:
-
-1. Add a public hostname `scrap.<domain>` on the tunnel pointing at
-   ingress-nginx.
-2. Make sure an Access application covers the whole host with an email
-   one-time-PIN policy (a wildcard application is enough). Use a long session
-   duration so the PWA is not constantly challenged.
-3. Add a more specific Access application for `scrap.<domain>/mcp` with a
-   Service Auth policy and a service token. Store the token safely.
-4. Confirm the more specific application wins for `/mcp`.
+Restores are staged, because Litestream would undo a plain `scrap restore`:
+{doc}`/how-to/backup-restore`.
 
 ## Public pages
 
-scrap can publish the pages you mark Public to a static site at
-`https://pages.<domain>`, open to anyone. The scrap chart's `public` section
-(in `kubernetes-services/templates/scrap.yaml`) runs it in a namespace of its
-own, `scrap-public`: one pod with nginx, which serves the site, and an upload
-receiver that scrap pushes each public page to. Nothing on the public side can
-reach scrap. See the scrap
+scrap publishes the pages marked Public to <https://pages.gkcluster.org>, open
+to anyone. The chart's `public` section runs the site in its own namespace,
+`scrap-public`: one pod with nginx (`web`), which serves the site, and an
+upload `receiver` that scrap pushes each public page to. Nothing on the public
+side can reach scrap. The scrap
 [deployment guide](https://gilesknap.github.io/scrap/main/how-to/deploy-kubernetes.html#public-pages)
-for the design.
+has the design.
 
 This repository provides:
 
-- the `scrap-public` namespace (`additions/scrap/templates/public-namespace.yaml`),
-  labelled Pod Security `restricted`. The chart's `public.createNamespace` is
-  left `false`, and Argo CD's `CreateNamespace=true` creates only the
-  Application's own namespace (`scrap`), so the namespace is a manifest here;
+- the `scrap-public` namespace
+  (`additions/scrap/templates/public-namespace.yaml`), labelled Pod Security
+  `restricted`. The chart's `public.createNamespace` is `false`, so turning
+  the site off does not delete the namespace and the Secret in it;
 - the upload token, a SealedSecret `scrap-publish` (key `token`) sealed
   **twice**, once for each namespace, because a pod reads only its own
   namespace's Secrets: `scrap-publish-secret.yaml` (`scrap`) and
   `scrap-public-publish-secret.yaml` (`scrap-public`). Both must hold the same
   token; `kubernetes-services/additions/scrap/README.md` has the command that
   seals a new one into both;
-- an Ingress for `pages.<domain>` (the chart's `public.ingress`) on the
+- the Ingress for `pages.gkcluster.org` (the chart's `public.ingress`) on the
   `nginx` class with the wildcard certificate, **without** the oauth2-proxy
   annotations. Only nginx is on it; the receiver never is;
 - `public.networkPolicy.webFrom`, which admits only the `ingress-nginx`
   namespace to nginx. The chart's NetworkPolicy admits only scrap's pods to
-  the receiver, and denies all egress from the namespace.
-
-The image is `ghcr.io/gilesknap/scrap-public`; its package must be public on
-GitHub (or the cluster given a pull secret), otherwise the pod cannot pull it.
+  the receiver, and denies all egress from the pod.
 
 The site is held in an `emptyDir`, so it starts empty when the pod moves;
 scrap checks the receiver's manifest at start and every 10 minutes and pushes
-what is missing.
+what is missing. The image, `ghcr.io/gilesknap/scrap-public`, is a public
+package on GitHub, so no pull secret is needed.
 
-:::{tip}
-A cluster rebuild re-seals scrap's secrets. `scripts/export-external-creds`
-exports `SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN` and
-`SCRAP_PUBLISH_TOKEN` from the running cluster, and
-`just generate-and-seal-all` seals them into `scrap-secrets` and into
-`scrap-publish` in both namespaces. The MCP token is kept, so MCP clients
-keep working; set `SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update
-every client. Without `SCRAP_ANTHROPIC_API_KEY`, scrap's secrets are
-skipped.
-:::
+## Secrets
 
-### Cloudflare for the public site
+| SealedSecret | Namespace | Keys |
+|--------------|-----------|------|
+| `scrap-secrets` (`scrap-secret.yaml`) | `scrap` | `ANTHROPIC_API_KEY` (Claude ingest), `SCRAP_MCP_TOKEN` (the `/mcp` bearer token) |
+| `scrap-publish` | `scrap` and `scrap-public` | `token` (the public-pages upload token) |
 
-The wildcard Access application covers every subdomain, so without more
-configuration readers of `pages.<domain>` meet a login page. With Cloudflare
-managed as code ({doc}`cloudflare-as-code`), the `pages` entry in
-`cloudflare/locals.tf` (`access_bypass = true`) and its bypass app in
-`cloudflare/access.tf` already handle this; apply with `just cf-apply`.
-Otherwise, in the Cloudflare dashboard:
+`kubernetes-services/additions/scrap/README.md` has the commands that reseal
+each by hand; {doc}`/how-to/manage-sealed-secrets` covers the general rules.
+Without `scrap-secrets` the pod sits in `CreateContainerConfigError`.
 
-1. Add a public hostname `pages.<domain>` on the tunnel pointing at
-   ingress-nginx, as for `scrap.<domain>` ({doc}`cloudflare-web-tunnel`).
-2. Add an Access application for `pages.<domain>` with a policy whose Action
-   is **Bypass** and Include **Everyone**, as in
-   [Bypass application for API endpoints](cloudflare-web-tunnel.md#bypass-application-for-api-endpoints).
-   The more specific application takes precedence over the wildcard.
+A cluster rebuild reseals them: `scripts/export-external-creds` exports
+`SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN` and `SCRAP_PUBLISH_TOKEN` from
+the running cluster, and `just generate-and-seal-all` seals them again. The
+MCP token is kept, so MCP clients keep working; set
+`SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update every client.
+Without `SCRAP_ANTHROPIC_API_KEY`, scrap's secrets are skipped.
+
+## Upgrade scrap
+
+Change `targetRevision` of the chart source in
+`kubernetes-services/templates/scrap.yaml` to the new release and push. The
+chart is published to the same OCI registry as the Minecraft dashboard's
+(`ghcr.io/gilesknap/charts`, already in the AppProject).
 
 ## Notes on the unauthenticated path
 
-- Kubernetes probes talk to the pod directly, so no health endpoint needs to
-  be exposed through ingress.
-- oauth2-proxy sets a cookie on `.<domain>` shared by all services. Its
-  default lifetime is 168 hours with no refresh, and the cookie is `SameSite=Lax`.
-  After it expires, background `fetch` calls from the PWA (such as an offline
-  queue replay) get a redirect to the login page instead of a response. Open
-  the app in the browser to log in again, then the queue replays.
-- A cross-site top-level POST (for example an Android share target started
-  from another app) does not carry a `Lax` cookie, so the first share after
-  expiry may land on the login page. Verify this on your device.
+- Kubernetes probes talk to the pod directly, so no health endpoint is exposed
+  through the Ingress.
+- oauth2-proxy sets one cookie on `.gkcluster.org`, shared by every service
+  behind it. Its default lifetime is 168 hours with no refresh, and the cookie
+  is `SameSite=Lax`. After it expires, background `fetch` calls from the PWA
+  (an offline queue replay, for example) get a redirect to the login page
+  instead of a response. Open the app in the browser to log in again, and the
+  queue replays.
+- A cross-site top-level POST (an Android share target started from another
+  app) does not carry a `Lax` cookie, so the first share after expiry may land
+  on the login page.
 - nginx does not strip client-supplied identity headers on the `/mcp` path.
-  Do not rely on any identity header there until scrap can be told which
-  header to trust.
+  Nothing there relies on an identity header: the bearer token is the gate.
 
 ## Verify
 
 ```bash
-kubectl -n scrap get pods,pvc,networkpolicy
+kubectl -n scrap get pods,pvc,cronjobs,networkpolicy
 kubectl -n scrap logs deploy/scrap -c db-init
 ```
 
-- `scrap-data-nfs` and `scrap-backups-nfs` are bound to their NFS PVs.
-- `db-init` says it restored the replica, or on the first start, brought
-  `/data/scrap.db` across. It never says it made a new database for an
-  install that has data.
-- A browser with no cookies is sent to Cloudflare, then GitHub.
+- The pod is `3/3` (`scrap`, `litestream`, `jobs`), on any node.
+- `scrap-data-nfs` and `scrap-backups-nfs` are bound to their NFS PVs, and
+  `scrap-backup-copy` to `scrap-backup-copy-local`.
+- `db-init` says it restored the replica. It never says it made a new database
+  for an install that has data.
+- A browser with no cookies is sent to Cloudflare Access, then GitHub.
 - `/mcp` without the Cloudflare headers is refused at the edge; with them but
-  without the scrap token it returns 401; with both it works.
-- A capture from the phone appears, and the nightly backup CronJob completes.
+  without scrap's token it returns 401; with both it works.
+- The `scrap-backup` and `scrap-backup-copy` CronJobs show a recent
+  `LAST SCHEDULE` and their last Jobs completed.
 
 For public pages:
 
@@ -290,9 +268,42 @@ For public pages:
 kubectl -n scrap-public get pods,ingress,networkpolicy,secret
 ```
 
-From outside your private network:
+From outside the LAN and the tailnet:
 
-- `https://pages.<domain>/` returns 200, with no Cloudflare Access redirect.
-- `https://pages.<domain>/v1/manifest` returns 404: the receiver is not on
-  the Ingress.
+- `https://pages.gkcluster.org/` returns 200, with no Cloudflare Access
+  redirect.
+- `https://pages.gkcluster.org/v1/manifest` returns 404: the receiver is not
+  on the Ingress.
 - In scrap, `/api/health` shows `enabled: true` in its `publish` block.
+
+## How it got here: the move off a local volume
+
+scrap first ran pinned to nuc2, with its database on a `local-nvme` PV. It
+moved to Litestream on NFS in one ArgoCD sync (ADR 0013): a one-off Job backed
+up the live database and restored it into the NFS data volume, then the chart
+switched mode. The move is done and checked. What is still in the code:
+
+- **The frozen copy.** The old claim `scrap-data` and its PV `scrap-local`
+  (`local_storage.scrap`, `/home/k8s-data/scrap` on nuc2, `Retain`) are kept,
+  rendered by `additions/scrap/templates/legacy-pvc.yaml`. Nothing mounts
+  them. Leave the `local_storage.scrap` entry in place: removing it would
+  prune the PV under its bound claim. The directory on nuc2 is one of the
+  local data paths that must not be wiped.
+- **The migration Job**, `additions/scrap/templates/migrate-job.yaml`, behind
+  `legacy.migrate` in `templates/scrap.yaml`. It is `false`, so the Job is not
+  rendered and a rebuild does not depend on nuc2. If it were ever turned on
+  again it would do nothing: it exits when the NFS data volume already holds a
+  database or a replica.
+- **`just scrap-cutover-check`** (`scripts/scrap-cutover-check nuc2`). It
+  compares the frozen copy with the live database, reading both sides only:
+  the old database over SSH opened `immutable=1`, the live one through
+  `kubectl exec`. It lists every revision, capture and page that is newer in
+  the frozen copy, and exits 0 when there are none. It passed after the
+  cut-over; it remains useful as proof before the frozen copy is ever
+  retired.
+
+Do not revert the pull request that made the move: scrap has taken writes
+since, and a revert would go back to the frozen copy and silently drop them.
+The old dynamic backups claim, `scrap-backups`, is no longer rendered and is
+gone from the cluster; the Job copied its complete runs to `backups/scrap`
+first.

@@ -7,7 +7,8 @@ html_theme.sidebar_secondary.remove: true
 ```
 
 :::{tip}
-Explore the [Interactive Architecture Showcase](_static/architecture.html) — a visual guide to every layer of the cluster, from hardware to applications.
+New here? Start with the {doc}`architecture overview <explanations/architecture>`:
+the whole cluster on one page, with diagrams, and links to a page for each layer.
 :::
 
 ## Documentation
@@ -21,7 +22,7 @@ Explore the [Interactive Architecture Showcase](_static/architecture.html) — a
 tutorials
 ```
 +++
-Tutorials for installation and typical usage. New users start here.
+Tour the running cluster, or build it from bare metal.
 :::
 
 :::{grid-item-card} {material-regular}`directions;2em`
@@ -30,7 +31,7 @@ Tutorials for installation and typical usage. New users start here.
 how-to
 ```
 +++
-Practical step-by-step guides for the more experienced user.
+Runbooks for operating it.
 :::
 
 :::{grid-item-card} {material-regular}`info;2em`
@@ -39,7 +40,7 @@ Practical step-by-step guides for the more experienced user.
 explanations
 ```
 +++
-Explanations of how it works and why it works that way.
+Architecture, with diagrams, and the reasons behind it.
 :::
 
 :::{grid-item-card} {material-regular}`menu_book;2em`
@@ -48,7 +49,7 @@ Explanations of how it works and why it works that way.
 reference
 ```
 +++
-Technical reference: variables, tags, services, inventory format.
+Services, inventory, variables, commands.
 :::
 
 ::::

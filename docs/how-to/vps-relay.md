@@ -1,22 +1,47 @@
-# Expose Cluster Ports Through a VPS Relay
+# Expose cluster ports through the VPS relay
 
-The `vps-relay` service publishes chosen cluster ports on the fixed public IP
-of a VPS. Use it when the cluster cannot accept inbound connections, for
-example because the home connection is behind ISP carrier-grade NAT (CGNAT),
-or when you do not want to publish your home IP. Minecraft game ports are the
-first user; any TCP or UDP service can be added as one more list entry.
+The `vps-relay` service publishes chosen cluster ports on the fixed
+public address of a small VPS. The Cloudflare Tunnel carries only
+HTTP(S) ({doc}`/explanations/architecture/networking`); the relay is for
+everything else, without forwarding a port on the home router or
+publishing the home address.
 
-The Cloudflare tunnel ({doc}`cloudflare-web-tunnel`) already covers HTTP(S)
-services. The relay is for protocols the tunnel cannot carry.
+## What runs today
+
+| | |
+|---|---|
+| Forwards | One: `minecraft`, TCP `30565-30584` (twenty game ports) |
+| Target | `192.168.1.92`, nuc2, where every Minecraft world runs on a NodePort in that range ({doc}`minecraft`) |
+| Public name | `mc.gkcluster.org`, a DNS-only A record on the VPS's public address; players connect to `mc.gkcluster.org:<port>` |
+| In the cluster | One `vps-relay` pod (two containers, `tailscale` and `frpc`) in the `vps-relay` namespace; it holds no state and runs on any node |
+| On the VPS | `frps` v0.71.0 as a Podman Quadlet, its control port (7000) bound to the VPS's tailnet address only |
+| Link between them | The tailnet. The pod dials `vps_relay.vps_tailnet_host`; nothing reaches the VPS's control port from the internet |
+
+The settings are the `vps_relay` block in
+`kubernetes-services/values.yaml`, switched on by `enable_vps_relay:
+true`.
 
 ## How it works
 
-```
-player ──► VPS public :port ──► frps ◄══ tunnel opened BY the cluster, over the tailnet ══ frpc ──► target:port
+```mermaid
+flowchart LR
+    player["Player"]
+    subgraph vps["VPS"]
+        frps["frps: public ports 30565-30584, control port on the tailnet only"]
+    end
+    subgraph pod["vps-relay pod"]
+        frpc["frpc"]
+        ts["tailscale (userspace, SOCKS5 on 127.0.0.1:1055)"]
+    end
+    world["Minecraft world on nuc2, 192.168.1.92"]
+    player -- "mc.gkcluster.org:30565" --> frps
+    frpc -- "dials out through" --> ts
+    ts -- "tailnet, TLS, shared token" --> frps
+    frpc -- "same port number" --> world
 ```
 
 - The `vps-relay` Deployment runs two containers in one pod:
-  - **tailscale** joins your tailnet as an **ephemeral** node tagged
+  - **tailscale** joins the tailnet as an **ephemeral** node tagged
     `tag:vps-relay`, in **userspace mode** (no `NET_ADMIN`, no
     `/dev/net/tun`, no `hostNetwork`). It exposes a SOCKS5 proxy on
     `127.0.0.1:1055` inside the pod.
@@ -24,21 +49,22 @@ player ──► VPS public :port ──► frps ◄══ tunnel opened BY the 
     to `frps` on the VPS, authenticates with a shared token over TLS, and
     registers one proxy per forwarded port.
 - `frps` on the VPS listens for players on each forwarded port and relays
-  each connection back down the tunnel that frpc opened. frpc delivers it to
-  the forward's `target` on the same port number.
+  each connection back down the connection that frpc opened. frpc delivers
+  it to the forward's `target` on the same port number.
 
 **Every connection is opened from the cluster side.** The VPS never
 initiates a connection into the home network, the tailnet policy gives the
 VPS no access to the relay node, and the relay node advertises no subnet
-routes.
+routes. A compromised VPS can therefore reach only what the relay already
+forwards to it: the game ports on nuc2.
 
 | Piece | Where | Notes |
 |-------|-------|-------|
 | `vps-relay` Deployment and `vps-relay-frpc` ConfigMap | `kubernetes-services/additions/vps-relay/`, namespace `vps-relay` | `frpc.toml` is generated from `vps_relay.forwards` |
-| `vps-relay-credentials` SealedSecret | `additions/vps-relay/templates/vps-relay-secret.yaml` | Tailscale OAuth client secret + frp token (created by you) |
+| `vps-relay-credentials` SealedSecret | `additions/vps-relay/templates/vps-relay-secret.yaml` | Tailscale OAuth client secret and the frp token |
 | `frps` | The VPS (Podman Quadlet, run by systemd) | Control port bound to the VPS's tailnet IP only |
 | Tailnet policy | Tailscale admin console | `tag:vps-relay` may reach only the VPS's frp port |
-| Public DNS name | Cloudflare **DNS-only** A record | Points at the VPS's public IP |
+| Public DNS name | The `mc` entry in `dns_only_records` ({doc}`cloudflare-as-code`) | A DNS-only A record on the VPS's public address |
 
 ### Trade-offs
 
@@ -48,24 +74,30 @@ routes.
 - The relay depends on Tailscale's coordination service to set up the
   tailnet connection between the pod and the VPS.
 
-## Prerequisites
+## Set up the relay
 
-- A VPS with a public IPv4 address, already on your tailnet (`tailscale up`).
-- Admin access to your tailnet's policy file and its OAuth clients.
-- A DNS name you can point at the VPS (for example a grey-cloud Cloudflare
-  record in your cluster domain).
+Steps 1 to 7 are how the relay was built, and are what to repeat for a
+replacement VPS or after losing the Tailscale OAuth client. A cluster
+rebuild needs none of them: the VPS side is untouched, and the two
+credentials are carried over and resealed
+({doc}`manage-sealed-secrets`).
 
-## Step 1: Tailnet policy
+Prerequisites:
 
-**Tag the VPS** (for example `tag:vps`). An untagged VPS belongs to your user,
-so any rule that lets your own devices reach things (`autogroup:member`, or
+- A VPS with a public IPv4 address, Podman 4.4 or newer, and already on
+  the tailnet (`tailscale up`).
+- Admin access to the tailnet's policy file and its OAuth clients.
+
+### Step 1: Tailnet policy
+
+**Tag the VPS** (`tag:vps`). An untagged VPS belongs to the owner's user,
+so any rule that lets the owner's own devices reach things (`autogroup:member`, or
 the default allow-all) would also let the VPS reach the relay. A tagged VPS
-is a separate identity that you grant nothing. Tagging also stops its key
-expiring; if you use Tailscale SSH to reach it, your `ssh` rules must then
-name the tag.
+is a separate identity that is granted nothing. Tagging also stops its key
+expiring; Tailscale SSH rules that reach it must then name the tag.
 
-In the Tailscale admin console, **Access controls**, merge the following
-into your policy file:
+In the Tailscale admin console, **Access controls**, the policy file
+has:
 
 ```javascript
 {
@@ -74,7 +106,7 @@ into your policy file:
     "tag:vps-relay": ["autogroup:admin"]
   },
   "grants": [
-    // Your own devices keep full access. Tagged devices are not members,
+    // The owner's own devices keep full access. Tagged devices are not members,
     // so this does not cover the VPS.
     { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
     // The relay may reach only frps on the VPS.
@@ -89,7 +121,7 @@ into your policy file:
 ```
 
 The `tests` are checked on every save, so a later policy edit cannot quietly
-let the VPS dial in. If your file uses `acls` rather than `grants`, the
+let the VPS dial in. In a file that uses `acls` rather than `grants`, the
 relay rule is `{"action": "accept", "src": ["tag:vps-relay"], "dst":
 ["tag:vps:7000"]}`.
 
@@ -100,7 +132,7 @@ tags**):
 sudo tailscale up --advertise-tags=tag:vps --reset
 ```
 
-`--reset` also clears any other `tailscale up` options you set earlier, such as
+`--reset` also clears any other `tailscale up` options set earlier, such as
 `--ssh` or `--accept-routes`. Add them back on the same command, or use the
 console instead.
 
@@ -108,11 +140,11 @@ console instead.
 A new tailnet starts with an allow-all rule (`"src": ["*"], "dst": ["*"]`).
 While that rule is present, every device on the tailnet, including the VPS,
 can reach the relay node. Remove it; the `autogroup:member` grant above
-replaces it for your own devices. The relay advertises no routes, so even
-then the VPS cannot reach the rest of your home network through it.
+replaces it for the owner's own devices. The relay advertises no routes, so
+even then the VPS cannot reach the rest of the home network through it.
 :::
 
-## Step 2: OAuth client
+### Step 2: OAuth client
 
 The pod authenticates with an OAuth client secret. Unlike auth keys, which
 expire after at most 90 days, OAuth clients do not expire.
@@ -128,13 +160,13 @@ The pod appends `?ephemeral=true&preauthorized=true` to the secret, so each
 pod joins as an ephemeral node that Tailscale removes soon after the pod
 goes away. No Tailscale state is stored in the cluster.
 
-## Step 3: Set up frps on the VPS
+### Step 3: Set up frps on the VPS
 
 `scripts/vps-relay-setup` does the whole VPS side. It needs Podman 4.4 or
 newer and Tailscale up on the VPS, and it:
 
 - writes `/etc/frp/frps.toml`, with the control port bound to the VPS's
-  tailnet IP only and `allowPorts` set to exactly the ports you give it;
+  tailnet IP only and `allowPorts` set to exactly the ports it is given;
 - generates the shared frp token into `/etc/frp/frps.env` (root-only) on the
   first run, and prints it once for sealing;
 - installs frps as a Podman Quadlet (`/etc/containers/systemd/frps.container`),
@@ -148,14 +180,14 @@ It is idempotent: re-running it keeps the existing token, replaces only the
 files that changed, and restarts frps only when something did, so players
 connected through the relay are not dropped by a no-op run.
 
-The frp control port defaults to 7000. If you change `vps_relay.frp_port`, run
+The frp control port is 7000. After a change to `vps_relay.frp_port`, run
 the script with the same value (`sudo FRP_PORT=<port> ./vps-relay-setup ...`)
 and change the port in the tailnet grant and `tests` in Step 1 to match.
 
 In the devcontainer, print the forwards in the form the script takes:
 
 ```bash
-just vps-relay-forwards        # e.g. tcp:30565-30584
+just vps-relay-forwards        # tcp:30565-30584
 ```
 
 Copy the script to the VPS and run it with those arguments:
@@ -166,14 +198,13 @@ ssh <vps>
 sudo ./vps-relay-setup tcp:30565-30584
 ```
 
-Save the printed token in your password manager: you need it for Step 4,
-and again for cluster rebuilds. `sudo ./vps-relay-setup --show-token`
-prints it again later.
+Save the printed token in the password manager: it is needed for Step 4.
+`sudo ./vps-relay-setup --show-token` prints it again later.
 
-Also open the forwarded ports in your VPS provider's cloud firewall, if it
+Also open the forwarded ports in the VPS provider's cloud firewall, if it
 has one. Do not open `7000` there.
 
-## Step 4: Seal the credentials
+### Step 4: Seal the credentials
 
 Seal both values into the `vps-relay` namespace as the
 `vps-relay-credentials` Secret. The file name must end in `-secret.yaml`
@@ -200,21 +231,21 @@ unset TS_SECRET FRP_TOKEN
 The `vps-relay` namespace does not need to exist yet.
 
 :::{tip}
-For cluster rebuilds, export the two values as
-`VPS_RELAY_TS_OAUTH_CLIENT_SECRET` and `VPS_RELAY_FRP_TOKEN` alongside the
-other external credentials. `scripts/export-external-creds` captures them
-from a running cluster, and `just generate-and-seal-all` re-seals them when
-both are set (and skips them when neither is).
+A cluster rebuild does not repeat this step.
+`just export-external-creds` reads the two values from the running
+cluster as `VPS_RELAY_TS_OAUTH_CLIENT_SECRET` and `VPS_RELAY_FRP_TOKEN`,
+and `just generate-and-seal-all` reseals them when both are set (and
+skips them when neither is).
 :::
 
-## Step 5: Configure and enable the relay
+### Step 5: Configure and enable the relay
 
 Edit `kubernetes-services/values.yaml`:
 
 ```yaml
 enable_vps_relay: true
 vps_relay:
-  vps_tailnet_host: 100.x.y.z     # the VPS's tailnet IP or MagicDNS name
+  vps_tailnet_host: 100.76.74.70  # the VPS's tailnet IP or MagicDNS name
   frp_port: 7000
   forwards:
     - name: minecraft
@@ -231,14 +262,26 @@ UDP over its TCP tunnel).
 
 Commit and push. ArgoCD creates the `vps-relay` Application and namespace.
 
-## Step 6: Point DNS at the VPS
+### Step 6: Point DNS at the VPS
 
-Create an `A` record for the public name (for example `mc.<domain>`) with
-the VPS's public IP and the **DNS only** (grey cloud) proxy status. The
-address is static. Cloudflare's proxy only carries
-HTTP(S), so the record must not be proxied.
+The public name is an entry in `dns_only_records` in
+`cloudflare/live.auto.tfvars` (gitignored, since it holds the VPS's
+public address), in the form shown in `live.auto.tfvars.example`:
 
-## Step 7: Verify
+```hcl
+dns_only_records = {
+  mc = { type = "A", content = "<VPS public IPv4>" } # VPS relay
+}
+```
+
+`just cf-plan` should show one DNS record to add; apply it with
+`just cf-apply` ({doc}`cloudflare-as-code`). The record is DNS-only
+(`proxied` defaults to `false`): Cloudflare's proxy carries only HTTP(S),
+so a proxied record would not pass game traffic. The name itself is
+`minecraft.dns_name` (`mc`) in `kubernetes-services/values.yaml`: players
+connect to `mc.gkcluster.org:<port>`.
+
+### Step 7: Verify
 
 1. **Pod** — both containers are running and the tailscale container is
    Ready:
@@ -257,9 +300,10 @@ HTTP(S), so the record must not be proxied.
    kubectl logs -n vps-relay deploy/vps-relay -c frpc | grep -c 'start proxy success'
    ```
 
-4. **Public port** — from outside your network (an online port checker, or
-   `nc -vz <vps-public-ip> 30565`), a forwarded port is open while its
-   target is listening.
+4. **Public port** — from outside the home network (an online port
+   checker, or `nc -vz mc.gkcluster.org 30565`), a forwarded port is open
+   while its target is listening, that is, while a world is running on
+   that port.
 5. **Direction** — the VPS cannot open a connection to the relay node. On
    the VPS, `nc -vz -w 5 <relay-tailnet-ip> 22` must time out: the policy
    drops the packets. A prompt `connection refused` means the policy still
@@ -272,8 +316,10 @@ HTTP(S), so the record must not be proxied.
    (`minecraft.worlds.rcon_port_min`–`rcon_port_max`): they are LAN-only.
 2. **On the VPS**, re-run `scripts/vps-relay-setup` with the new list from
    `just vps-relay-forwards`. It updates `allowPorts`, restarts frps and
-   opens the ports. Firewall rules for ports you have *removed* are left
-   in place; close them by hand.
+   opens the ports. Firewall rules for ports that were *removed* are left
+   in place; close them by hand. Check `frps`'s image version against
+   `images.frpc` in `additions/vps-relay/values.yaml` at the same time:
+   `FRP_VERSION` in the script keeps the two in step.
 3. Commit and push. The ConfigMap checksum changes, so the pod restarts with
    the new `frpc.toml`.
 
@@ -312,9 +358,9 @@ recovers without a restart.
 
 Re-seal `vps-relay-credentials` as in Step 4 and push. The pod reads the
 Secret only when it starts, so the new values take effect at its next
-restart. If you rotated the frp token, update `/etc/frp/frps.env` on the VPS
+restart. After rotating the frp token, update `/etc/frp/frps.env` on the VPS
 to match (or delete it and re-run `scripts/vps-relay-setup`, which generates a
-new token for you to seal).
+new token to seal).
 
 ### The public port is closed
 
@@ -331,4 +377,7 @@ Set `enable_vps_relay: false` and push. ArgoCD prunes the namespace's
 resources and the ephemeral tailnet node disappears shortly afterwards.
 Then, on the VPS, run `sudo systemctl stop frps`, delete
 `/etc/containers/systemd/frps.container` and `/etc/frp/`, and close the
-firewall ports. Finally delete the DNS record and revoke the OAuth client.
+firewall ports. Finally remove `mc` from `dns_only_records` (and its ID
+from `import_ids`, if it was imported), run `just cf-apply`, and revoke
+the Tailscale OAuth client. Minecraft worlds are then reachable from the
+LAN only.

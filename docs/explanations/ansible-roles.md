@@ -1,13 +1,19 @@
-# Ansible Roles in Detail
+# Ansible roles in detail
 
-The playbook `pb_all.yml` runs eleven roles in sequence. Each role is fully idempotent —
-it checks state before acting and does nothing if the desired state is already achieved.
+This is the role-by-role reference behind
+{doc}`/explanations/architecture/provisioning`, which gives the overview:
+read that first for how Ansible, the BMC and ArgoCD divide the work.
+
+The playbook `pb_all.yml` runs eleven roles in sequence, from the
+devcontainer on `ws03`. Each role is idempotent: it checks state before
+acting and does nothing if the desired state is already there. So the same
+playbook built the cluster, adds a node and is re-run after any change to a
+role.
 
 ## Execution order
 
 ```mermaid
-%%{init: {'themeVariables': {'fontSize': '30px'}, 'flowchart': {'useMaxWidth': false}}}%%
-flowchart TD
+flowchart TB
     T["tools<br/><i>localhost</i>"] --> F["flash<br/><i>turing_pis</i>"]
     F --> KH["known_hosts<br/><i>all_nodes + turing_pis</i>"]
     KH --> MF["move_fs<br/><i>all_nodes</i>"]
@@ -24,12 +30,14 @@ Plays are tagged by stage: `tools`, `flash`, `known_hosts`, `servers`
 (`move_fs`, `rk1_os`, `update_packages`, `node_reboot`, `k8s_data_dirs`), `k3s`
 (`k3s`, `etcd_backup`), `cluster`. `rk1_os`, `k8s_data_dirs` and `etcd_backup`
 also have their own tags; there is no `update_packages` or `move_fs` tag, so
-`--tags update_packages` silently runs nothing.
+`--tags update_packages` silently runs nothing. A last play, tagged
+`claude_key`, uses no role: it adds the claude-sandbox's SSH key to the
+`ansible` account on every node. {doc}`/reference/playbook-tags` lists the
+tags and what to combine.
 
 ```bash
-ansible-playbook pb_all.yml --tags tools
-ansible-playbook pb_all.yml --tags servers
-# etc.
+ansible-playbook pb_all.yml --tags servers --limit node04
+ansible-playbook pb_all.yml --tags cluster
 ```
 
 ---
@@ -39,7 +47,8 @@ ansible-playbook pb_all.yml --tags servers
 **Runs on:** localhost (devcontainer)
 **Tag:** `tools`
 
-Installs command-line tools needed to manage the cluster:
+Installs the command-line tools that manage the cluster into `bin_dir`
+(`/root/bin` in the devcontainer), with links in `/usr/local/bin`:
 
 | Tool | Version | Purpose |
 |------|---------|---------|
@@ -72,22 +81,24 @@ The role is split across multiple task files:
 
 ## `flash` — BMC-based OS flashing
 
-**Runs on:** `turing_pis` (BMC hosts)
+**Runs on:** `turing_pis` (the BMC, `turingpi`)
 **Tag:** `flash`
 **Guard:** only runs when `do_flash` is true (`-e do_flash=true` or `-e flash_force=true`)
 
-Installs Ubuntu on Turing Pi compute modules via the BMC's `tpi` CLI: Ubuntu 24.04
-for Raspberry Pi on CM4s, and stock Ubuntu 26.04 with mainline U-Boot on RK1s
-(see [The RK1 install](#the-rk1-install)).
+Installs Ubuntu on the Turing Pi's compute modules through the BMC's `tpi`
+CLI: stock Ubuntu 26.04 with mainline U-Boot on the RK1s (`node02`, `node03`,
+`node04`; see [The RK1 install](#the-rk1-install)). The role also still
+carries a Raspberry Pi CM4 path (Ubuntu 24.04), which no node in the cluster
+uses.
 
 ### How it works
 
-1. **Discover nodes** — looks for the inventory group `<bmc_hostname>_nodes`
-   (e.g. `turingpi_nodes` for BMC host `turingpi`).
+1. **Discover nodes.** The BMC's nodes are the inventory group
+   `<bmc_hostname>_nodes`, here `turingpi_nodes`; a `--limit` narrows it.
 2. **For each node** (skipped if it answers SSH, unless `flash_force` is set):
-   - **CM4:** download the OS image to the controller and copy it to the BMC at
-     `tpi_images_path` (`/mnt/sdcard/images/`).
-   - **RK1:** build the eMMC staging image on the controller and copy it to the BMC.
+   - Build the eMMC staging image on the controller and copy it to the BMC
+     at `tpi_images_path` (`/mnt/sdcard/images`). A CM4 gets Ubuntu's
+     Raspberry Pi image, downloaded and copied as it is.
    - Power off the node and run `tpi flash --sha256`. The controller runs it on the
      BMC over `ssh` (async, up to 30 minutes; an RK1 image takes about 10), as
      `raw` cannot run async. This and the `scp` copies to the BMC use the play's
@@ -95,11 +106,11 @@ for Raspberry Pi on CM4s, and stock Ubuntu 26.04 with mainline U-Boot on RK1s
      `ansible_ssh_private_key_file` or `--private-key`, and
      `ansible_ssh_common_args`.
 3. **Bootstrap cloud-init** with the node's eMMC in disk (msd) mode on the BMC:
-   - **CM4:** render `cloud.cfg` with the hostname and the `ansible` user and key
-     into the root filesystem, and clear the cloud-init cache.
-   - **RK1:** write a NoCloud seed (`meta-data`, `user-data`, `network-config`) to
-     the staging image's `CIDATA` partition (p14). The image itself is pristine.
-   - **RK1 with `root_dev`:** clear the NVMe's partition table from the U-Boot
+   - Write a NoCloud seed (`meta-data`, `user-data`, `network-config`) to
+     the staging image's `CIDATA` partition (p14), with the hostname, the
+     `ansible` account and its keys. The image itself is pristine. (A CM4
+     gets a rendered `cloud.cfg` in its root filesystem instead.)
+   - **With `root_dev`**, which all three RK1s have: clear the NVMe's partition table from the U-Boot
      prompt over the UART (see below). This happens only after the flash has
      succeeded, so a failed flash leaves the node's old install as it was.
    - Boot the node and wait for SSH.
@@ -156,7 +167,8 @@ mainline U-Boot.
 5. **Final boot.** The eMMC now has no partition table, so U-Boot, which scans
    the eMMC before the NVMe, boots the NVMe's EFI system partition.
 
-End state of an RK1:
+End state of an RK1 installed this way (`node02`, re-installed for the
+control plane move):
 
 - The eMMC holds only U-Boot, with no partition table.
 - The NVMe holds Ubuntu's preinstalled server image as Ubuntu ships it: root on
@@ -170,11 +182,18 @@ End state of an RK1:
   on the NVMe, so shim's fallback resets once before GRUB starts. This is
   harmless.
 
+`node03` and `node04` were installed from the vendor image before this flow
+existed and converted in place by `rk1_os` (below), so their layout differs:
+root on NVMe p2, the EFI system partition on p1, and the vendor partition
+table still on the eMMC. They run the same Ubuntu 26.04 and generic kernel.
+A re-flash would bring either to the layout above.
+
 :::{warning}
-A re-flash is a fresh install. On an RK1 with `root_dev`, `flash_force` wipes the
-NVMe and everything on it is lost, including `local-nvme` PV data under
-`/var/lib/k8s-data`. Move or back
-up that node's local PV data first (see {doc}`/how-to/reflash-rebuild`).
+A re-flash is a fresh install. `flash_force` wipes the RK1's NVMe and
+everything on it is lost, including `local-nvme` PV data under
+`/var/lib/k8s-data`, which today means Prometheus and Grafana on `node04`.
+Move or back up that node's local PV data first, and get the owner's
+go-ahead (see {doc}`/how-to/reflash-rebuild`).
 :::
 
 ### OS images
@@ -183,9 +202,11 @@ up that node's local PV data first (see {doc}`/how-to/reflash-rebuild`).
 |------|-------|--------|
 | RK1 | Ubuntu 26.04 preinstalled server (stock, generic kernel) | `cdimage.ubuntu.com` |
 | RK1 | Mainline U-Boot, `linux-u-boot-turing-rk1-current` | `apt.armbian.com` (third party) |
-| CM4 | Ubuntu 24.04 Server | `cdimage.ubuntu.com` |
+| CM4 (unused) | Ubuntu 24.04.4 Server for Raspberry Pi | `cdimage.ubuntu.com` |
 
-All RK1 artifacts are pinned by URL and sha256 in `roles/flash/vars/main.yml`.
+All of them are pinned by URL and sha256 in `roles/flash/vars/main.yml`: the
+Ubuntu image is 26.04.1 (`flash_rk1_os_vers`), and the built staging image
+is pinned as well (`flash_rk1_emmc_sha256`).
 
 ### Bumping the RK1 artifacts
 
@@ -213,8 +234,8 @@ steps 3 and 4.
 
 ### Idempotency
 
-- Node is pinged first — if contactable and `flash_force` is not set, flashing is skipped.
-- CM4 images are only downloaded if not already on the BMC.
+- The node's SSH port is tried first: if it answers and `flash_force` is not
+  set, flashing is skipped.
 - RK1 downloads are re-verified on every run; the eMMC image is rebuilt only when
   the cached copy does not match the pinned checksum.
 
@@ -227,11 +248,11 @@ steps 3 and 4.
 **Constraint:** the file writes use `throttle: 1`; the scans run in parallel
 
 Updates every file in `known_hosts_files` (`group_vars/all.yml`) with fresh
-SSH host keys for each node. By default that is both `~/.ssh/known_hosts` and
-the system-wide `/etc/ssh/ssh_known_hosts`:
+SSH host keys for each node and the BMC: both `~/.ssh/known_hosts` and the
+system-wide `/etc/ssh/ssh_known_hosts`:
 
-1. Look up the node's IPv4 addresses (`getent ahostsv4` for
-   `<node>{{ local_domain }}`, run on the controller).
+1. Look up the node's IPv4 addresses (`getent ahostsv4` for `<node>.lan`,
+   the node's name plus `local_domain`, run on the controller).
 2. Scan for current SSH host keys (`ssh-keyscan -T 5`). A host that returns
    no keys fails with a message naming it; the other hosts carry on.
 3. Remove every entry recorded by the node's IP, and the entries by hostname
@@ -262,8 +283,8 @@ ad hoc (`ansible all_nodes -m include_role -a name=known_hosts`).
 
 **Runs on:** `all_nodes`
 **Tag:** `servers`
-**Guard:** only nodes with `root_dev` defined in the inventory whose root is not
-already on it; RK1 only
+**Guard:** only nodes with `root_dev` defined in the inventory (the three
+RK1s, `/dev/nvme0n1`) whose root is not already on it
 
 On an RK1 that `flash` has just installed, which runs the staging OS from its eMMC,
 it runs `roles/flash/tasks/rk1_install_nvme.yml`:
@@ -323,6 +344,13 @@ kernel, U-Boot reading extlinux) to stock Ubuntu 26.04: Ubuntu's generic kernel,
 booted U-Boot → EFI → GRUB. `flash` and `move_fs` now install stock Ubuntu, which
 this role skips, so it only migrates RK1s installed before that, in place. To move
 such a node to the layout `flash` installs, re-flash it instead.
+
+The conversion is complete on this cluster: `node03` and `node04` were
+converted by this role, and `node02` was installed by `flash`. On every run
+the role now skips `node02` as a standard install, and runs its idempotent
+conversion tasks against `node03` and `node04`, which change nothing. The
+kernel hooks and GRUB settings described below are what those two nodes
+boot with, so the role stays in the playbook as their definition.
 
 Only the vendor layout is converted: root on an NVMe partition other than p1,
 and p1 the vendor image's vfat `CIDATA` partition. A standard Ubuntu install, such
@@ -430,9 +458,12 @@ Prepares each node for K3s:
 2. `apt dist-upgrade` (full OS upgrade)
 3. `apt autoremove` (clean up)
 4. Install required packages:
-   - `unattended-upgrades` — automatic updates
-   - `original-awk` — required by some K3s scripts
-5. **Non-workstation nodes only:** configure unattended-upgrades to install
+   - `unattended-upgrades`: automatic updates
+   - `original-awk`: required by some K3s scripts
+   - `nfs-common`: NFS volumes (backups, Minecraft, the NFS CSI driver)
+   - `linux-tools-generic`: the `usbip` userspace tools; the role also
+     loads the `vhci_hcd` kernel module and persists it
+5. **Every node but `ws03`:** configure unattended-upgrades to install
    from the `-updates` pocket as well as `-security` (so kernel updates are
    included), without rebooting, nightly at 00:00 Europe/London
    (`update_packages_upgrade_on_calendar`). kured does the reboot; see
@@ -444,17 +475,16 @@ Prepares each node for K3s:
    set here rather than by the `kernel-settings` DaemonSet because that
    DaemonSet does not run on tainted nodes. `--tags sysctl` runs this task
    alone.
-7. **NVIDIA GPU nodes only** (when `nvidia_gpu_node: true` in inventory):
+7. **NVIDIA GPU nodes only** (`nvidia_gpu_node: true` in the inventory, which is `ws03`):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
    - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
    - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA
      runtime set as the default containerd runtime. k3s regenerates `config.toml` on
      every agent restart from this template, so the configuration persists across reboots.
    - Restart `k3s-agent` to apply the new containerd config
-   - Ask for a reboot (`/var/run/reboot-required`) to load a newly installed driver. On a
-     workstation node (`workstation: true`) nothing reboots it automatically, neither the role
-     nor kured, so reboot it by hand after the first driver install, or GPU pods fail until it
-     is rebooted.
+   - Ask for a reboot (`/var/run/reboot-required`) to load a newly installed driver. Nothing
+     reboots `ws03` automatically, neither the role nor kured, so reboot it by hand after the
+     first driver install, or GPU pods fail until it is rebooted.
 
 After the dist-upgrade, it removes `/etc/apt/apt.conf.d/99rk1-install-hold`, which a fresh RK1
 install's cloud-init seed writes to hold unattended-upgrades until this role's own
@@ -493,7 +523,7 @@ not serialise itself, so it runs from a `serial: 1` play. `rk1_os` includes its
 ## `k8s_data_dirs` — Local PV host directories
 
 **Runs on:** `all_nodes`
-**Tag:** `servers`
+**Tags:** `servers`, `k8s_data_dirs` (the second runs this role alone)
 
 Creates the host directories that back the `local-nvme` PVs defined in
 `kubernetes-services/additions/local-storage/`. Each app's PV is pinned via
@@ -517,10 +547,16 @@ part of decommissioning, opt in with the destructive flag:
 ansible-playbook pb_decommission.yml -e wipe_local_data=true
 ```
 
-To move a PV to another node, see [](#move-a-local-nvme-pv).
+The table is `k8s_data_dirs` in `group_vars/all.yml`; each entry's node and
+path must match its `local_storage` entry in
+`kubernetes-services/values.yaml`. Removing an entry only stops Ansible
+creating the directory: the role never deletes data. This role is the only
+thing that creates or changes anything under `/var/lib/k8s-data` on an RK1.
+To move a PV to another node, see {ref}`move-a-local-nvme-pv`;
+{doc}`/explanations/architecture/storage` explains the storage design.
 
-The one-time NFS share setup that hosts the backup CronJob output is a
-separate manual runbook — see {doc}`../how-to/nas-setup`.
+The directories on the NAS are not Ansible's: they are created once, by
+hand ({doc}`/how-to/nas-setup`).
 
 ---
 
@@ -529,18 +565,27 @@ separate manual runbook — see {doc}`../how-to/nas-setup`.
 **Runs on:** `all_nodes`
 **Tag:** `k3s`
 
-Installs K3s with one control plane node and the rest as workers. The
+Installs K3s with one server, `control_plane` in `group_vars/all.yml`
+(`node02`), and every other node as an agent. The
 control plane gets the newest patch of the release channel for `k3s.minor`
 in `kubernetes-services/values.yaml`; workers join at the version the
 control plane runs. `-e k3s_version=...` pins an exact release on that line.
 The role fails rather than install an older minor than a node already runs.
 Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 
+Before either path, on every node where AppArmor is enabled, `apparmor.yml`
+installs a corrected copy of containerd's default AppArmor profile and a
+`k3s-apparmor-profile.service` unit that loads it before K3s at boot.
+Ubuntu 25.04 and later stack the container profile with `unconfined`, and
+containerd's own profile then denies every signal sent inside a container
+(nginx reloads, `SIGTERM` forwarding). The comment at the top of the task
+file has the upstream issues and when the workaround can go.
+
 ### Control plane (`control.yml`)
 
 - Downloads the K3s install script.
 - Writes `/etc/rancher/k3s/config.yaml` and runs `k3s server` with it.
-- Traefik is disabled because this project uses NGINX Ingress.
+- Traefik is disabled because the cluster uses ingress-nginx.
 - `cluster-init` enables embedded etcd.
 - `tls-san` adds `k3s_api_name` to the API server certificate. A config
   change restarts k3s before the workers are touched.
@@ -548,11 +593,15 @@ Later patch upgrades are automatic; see {doc}`/how-to/upgrade-k3s`.
 ### Workers (`worker.yml`)
 
 - Checks if the node is already in the cluster (skip if so, unless force).
+  A node that is listed but `NotReady` has its Node object deleted, so it
+  registers afresh.
+- Passes `--node-ip` and `--flannel-iface` from the inventory's `node_ip`
+  and `flannel_iface`, which `nuc2` sets because it is on two LANs.
 - Gets the join token from the control plane.
 - Runs the K3s agent installer with `K3S_URL=https://<k3s_api_name>:6443`.
   A new Node object registers with its inventory-driven labels and taint
   already set (`--node-label`, `--node-taint`): the GPU labels below, and on
-  a workstation node (`workstation: true`) the `node-role=workstation` label
+  `ws03` (`workstation: true`) the `node-role=workstation` label
   and the `workstation=true:NoSchedule` taint. No ordinary pod can land on a
   workstation between its registration and the kubectl tasks below, and the
   system-upgrade-controller agent Plan, which selects nodes without
@@ -597,12 +646,16 @@ With `-e k3s_force=true`, K3s is uninstalled first (`k3s-uninstall.sh` on contro
 **Runs on:** the control plane only
 **Tags:** `k3s`, `etcd_backup`
 
-Installs a systemd timer on the control plane (a timer, so it still runs when
-the API server is down). Each night it takes an etcd snapshot, bundles it with
-the k3s token, encrypts the bundle with `age` to `etcd_backup_age_recipient`
-and writes it to the NAS. The same job also exports the sealed-secrets
-controller's keys, age-encrypted to the same recipient, to the NAS. See
-{doc}`../how-to/backup-restore`.
+Installs a systemd timer on `node02` (a timer, so it still runs when the API
+server is down). Each night at 23:15 Europe/London, before the maintenance
+windows, it takes an etcd snapshot, bundles it with the K3s token, encrypts
+the bundle with `age` to `etcd_backup_age_recipient` and writes it to
+`backups/etcd/` in the cluster's share on the NAS, keeping 14. Only the
+public key is in the repository; the private key stays offline. The same job
+also exports the sealed-secrets controller's keys, age-encrypted to the same
+recipient, and ships the `pre-upgrade-*` snapshots that the K3s upgrade Plan
+takes. See {doc}`/explanations/architecture/backups` and
+{doc}`/how-to/backup-restore`.
 
 ---
 
@@ -613,18 +666,26 @@ controller's keys, age-encrypted to the same recipient, to the NAS. See
 
 Bootstraps ArgoCD and the entire service stack:
 
-1. **Taint the control plane** (multi-node only) — applies `NoSchedule` taint so
-   workloads only run on worker nodes. Skipped for single-node clusters.
-   Also gives the `standby_control_plane` node, if set, a
+1. **Taint the control plane.** Gives `node02` the
+   `node-role.kubernetes.io/master:NoSchedule` taint, so workloads run only
+   on the workers (the task is skipped when the inventory has a single node).
+   Also gives the `standby_control_plane` node, `node03`, a
    `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` taint and
    removes that taint from any other node. Both use `k8s_taint`, which adds to
    a node's existing taints rather than replacing them.
-2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (v9.4.17), then
-   upgrades it with the full configuration (Dex, RBAC, `server.insecure`).
+2. **Install ArgoCD** — deploys the ArgoCD OCI Helm chart (9.4.17) into the
+   `argo-cd` namespace, then upgrades it with the full configuration (Dex,
+   RBAC with `admin_emails` as admins and everyone else read-only,
+   `server.insecure`).
 3. **Health check** — the Helm values add a custom Lua health check for
    `monitoring.coreos.com/Prometheus` (respects a `skip-health-check` annotation).
-4. **Create AppProject** — creates the `kubernetes` ArgoCD project allowing access to
-   all repos, namespaces, and cluster-scoped resources.
+4. **Create AppProject** — creates the `kubernetes` ArgoCD project
+   (`argo-cd/argo-project.yaml`). Its `sourceRepos` is an allow-list: this
+   repository (`repo_remote`) plus the Helm chart registries the services
+   come from, so an Application cannot pull manifests from anywhere else.
+   Destinations and cluster-scoped resources are not restricted. A service
+   from a new chart repository needs a line there and a `--tags cluster`
+   run ({doc}`/how-to/add-remove-services`).
 5. **Create ArgoCD Ingress** — an Ingress for `argocd.<cluster_domain>` to
    `argocd-server:80` (TLS at ingress-nginx).
 6. **Bootstrap sealed-secrets** — applies the sealed-secrets Application on
@@ -644,7 +705,9 @@ Bootstraps ArgoCD and the entire service stack:
     admission webhook TLS secret.
 
 After this role completes, ArgoCD takes over and syncs all services defined in
-`kubernetes-services/templates/`.
+`kubernetes-services/templates/`: see {doc}`/explanations/architecture/gitops`.
+Re-running `--tags cluster` is also how ArgoCD is pointed at another branch
+(`-e repo_branch=<branch>`, or `just switch-branch <branch>`).
 
 The `cluster_install_list` variable in `group_vars/all.yml` controls which services
 the Ansible role installs directly (currently just `argocd`). Everything else is
