@@ -460,15 +460,6 @@ themselves.</p>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code> and <code class="docutils literal notranslate"><span class="pre">node04</span></code> are RK1 modules in slots 2 to 4 of the
 Turing Pi, whose BMC is <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> (192.168.1.80).</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">node01</span></code> (192.168.1.81, the CM4 in slot 1) was the control plane before the
-move to <code class="docutils literal notranslate"><span class="pre">node02</span></code>. It is not a member of the cluster, but it is still listed
-in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and still answers SSH. Any command on this page that targets
-<code class="docutils literal notranslate"><span class="pre">all_nodes</span></code> reaches it too, and a <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">k3s</span></code> run without
-<code class="docutils literal notranslate"><span class="pre">--limit</span></code> would install K3s on it and join it as a worker. Use <code class="docutils literal notranslate"><span class="pre">--limit</span></code>
-until it is removed from the inventory.</p>
-</div>
 <section id="apply-package-updates-to-nodes">
 <h2>Apply package updates to nodes<a class="headerlink" href="#apply-package-updates-to-nodes" title="Link to this heading">#</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role is part of the <code class="docutils literal notranslate"><span class="pre">servers</span></code> play — <strong>not</strong> a tag of its own.
@@ -476,11 +467,11 @@ To run package updates (e.g. after adding a new package to the role):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Chosen nodes</span>
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>--limit<span class="w"> </span>node03,node04
 
-<span class="c1"># Every cluster node (node01 is left out: see the note above)</span>
-ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>--limit<span class="w"> </span><span class="s1">&#39;all_nodes:!node01&#39;</span>
+<span class="c1"># Every node</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers
 
 <span class="c1"># Also reboot now the nodes that need it: drained, one at a time</span>
-ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>--limit<span class="w"> </span><span class="s1">&#39;all_nodes:!node01&#39;</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">reboot_now</span><span class="o">=</span><span class="nb">true</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>servers<span class="w"> </span>-e<span class="w"> </span><span class="nv">reboot_now</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> does not reboot a node that is in the cluster. If an upgrade
@@ -521,13 +512,12 @@ ansible<span class="w"> </span>node03<span class="w"> </span>-m<span class="w"> 
 </section>
 <section id="shut-down-or-reboot-the-whole-cluster">
 <h2>Shut down or reboot the whole cluster<a class="headerlink" href="#shut-down-or-reboot-the-whole-cluster" title="Link to this heading">#</a></h2>
-<p>For a power cut or moving the hardware. The pattern leaves <code class="docutils literal notranslate"><span class="pre">ws03</span></code> (and
-<code class="docutils literal notranslate"><span class="pre">node01</span></code>) out:</p>
+<p>For a power cut or moving the hardware. The pattern leaves <code class="docutils literal notranslate"><span class="pre">ws03</span></code> out:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Shut down</span>
-ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!ws03:!node01&#39;</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;/sbin/shutdown now&quot;</span><span class="w"> </span>-f<span class="w"> </span><span class="m">10</span><span class="w"> </span>--become
+ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!ws03&#39;</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;/sbin/shutdown now&quot;</span><span class="w"> </span>-f<span class="w"> </span><span class="m">10</span><span class="w"> </span>--become
 
 <span class="c1"># Reboot</span>
-ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!ws03:!node01&#39;</span><span class="w"> </span>-m<span class="w"> </span>reboot<span class="w"> </span>-f<span class="w"> </span><span class="m">10</span><span class="w"> </span>--become
+ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!ws03&#39;</span><span class="w"> </span>-m<span class="w"> </span>reboot<span class="w"> </span>-f<span class="w"> </span><span class="m">10</span><span class="w"> </span>--become
 </pre></div>
 </div>
 <p>Every node goes down at once, so nothing is drained and everything is
@@ -541,7 +531,7 @@ themselves and need no playbook run.</p>
 cannot recover an unreachable node.</p>
 <p>The BMC is reachable as <code class="docutils literal notranslate"><span class="pre">root&#64;turingpi</span></code>. Each slot maps to a node through
 <code class="docutils literal notranslate"><span class="pre">slot_num</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">node02</span></code> is slot 2, <code class="docutils literal notranslate"><span class="pre">node03</span></code> slot 3 and <code class="docutils literal notranslate"><span class="pre">node04</span></code>
-slot 4 (slot 1 holds <code class="docutils literal notranslate"><span class="pre">node01</span></code>). <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> are not on the
+slot 4 (slot 1 is not used). <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> are not on the
 BMC: power them with their own buttons.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Inspect what the BMC thinks of all four slots</span>
 ssh<span class="w"> </span>root@turingpi<span class="w"> </span><span class="s1">&#39;tpi power status&#39;</span>
@@ -844,13 +834,13 @@ and reboot commands, as above.</p>
 <section id="run-an-ad-hoc-command-on-the-nodes">
 <h2>Run an ad-hoc command on the nodes<a class="headerlink" href="#run-an-ad-hoc-command-on-the-nodes" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Disk usage on the cluster&#39;s nodes</span>
-ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!node01&#39;</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;df -h&quot;</span><span class="w"> </span>--become
+ansible<span class="w"> </span>all_nodes<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;df -h&quot;</span><span class="w"> </span>--become
 
 <span class="c1"># K3s agent status on the workers</span>
-ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!node01:!node02&#39;</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;systemctl is-active k3s-agent&quot;</span><span class="w"> </span>--become
+ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!node02&#39;</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;systemctl is-active k3s-agent&quot;</span><span class="w"> </span>--become
 
 <span class="c1"># Run a role standalone</span>
-ansible<span class="w"> </span><span class="s1">&#39;all_nodes:!node01&#39;</span><span class="w"> </span>-m<span class="w"> </span>include_role<span class="w"> </span>-a<span class="w"> </span><span class="nv">name</span><span class="o">=</span>known_hosts
+ansible<span class="w"> </span>all_nodes<span class="w"> </span>-m<span class="w"> </span>include_role<span class="w"> </span>-a<span class="w"> </span><span class="nv">name</span><span class="o">=</span>known_hosts
 </pre></div>
 </div>
 <p>Inside the claude-sandbox, add <code class="docutils literal notranslate"><span class="pre">--private-key</span> <span class="pre">/root/.config/claude-ssh/id_ed25519</span></code>

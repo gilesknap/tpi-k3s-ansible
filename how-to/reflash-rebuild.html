@@ -453,9 +453,7 @@ an Ubuntu installer, then joined as in <a class="reference internal" href="node-
 <p class="admonition-title">Important</p>
 <p>Always give a <code class="docutils literal notranslate"><span class="pre">--limit</span></code> when flashing, and include <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>: the flash
 runs on the BMC. Without a limit, <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> re-flashes every node on
-the board, and <code class="docutils literal notranslate"><span class="pre">do_flash</span></code> flashes any that happens not to answer SSH.
-<code class="docutils literal notranslate"><span class="pre">node01</span></code>, the CM4 in slot 1, is still in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> although it is not in
-the cluster, so an unlimited run covers it too.</p>
+the board, and <code class="docutils literal notranslate"><span class="pre">do_flash</span></code> flashes any that happens not to answer SSH.</p>
 </div>
 <section id="the-rk1-rules">
 <h2>The RK1 rules<a class="headerlink" href="#the-rk1-rules" title="Link to this heading">#</a></h2>
@@ -522,10 +520,7 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w">      </span><span class="c1"># node taints, ArgoCD and the root app</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">servers</span></code> and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> run on every node in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>. While <code class="docutils literal notranslate"><span class="pre">node01</span></code> is
-still listed there, add <code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">'all_nodes:!node01'</span></code> to those two: without
-it <code class="docutils literal notranslate"><span class="pre">servers</span></code> dist-upgrades <code class="docutils literal notranslate"><span class="pre">node01</span></code> and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> installs an agent on it and
-joins it to the cluster as a worker.</p>
+<p><code class="docutils literal notranslate"><span class="pre">servers</span></code> and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> run on every node in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">cluster</span></code> is the one used most: it re-applies the ArgoCD Helm
 release and the root Application, after which ArgoCD re-syncs every
 service from Git. It is also how the cluster is pointed at another branch
@@ -578,14 +573,6 @@ re-sealed secrets) and point ArgoCD back at <code class="docutils literal notran
 </ol>
 <p><a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a> walks through the same build from bare
 metal, with the one-time steps a rebuild does not repeat.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The rebuild run has no <code class="docutils literal notranslate"><span class="pre">--limit</span></code>, so it covers every node in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>.
-<code class="docutils literal notranslate"><span class="pre">node01</span></code> is still listed there, so as things stand a rebuild joins it to
-the new cluster as a worker. Remove it from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> first, or add
-<code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">'all_nodes,localhost,!node01'</span></code> to the rebuild run (<code class="docutils literal notranslate"><span class="pre">localhost</span></code> is
-needed for the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> play).</p>
-</div>
 <section id="what-a-rebuild-keeps">
 <h3>What a rebuild keeps<a class="headerlink" href="#what-a-rebuild-keeps" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> never touches the NAS, and by default it leaves the

@@ -105,8 +105,10 @@ just claude-ssh-bootstrap revoke
 
 ## After updating the sandbox
 
-`claude-sandbox update`, run in the outer devcontainer, upgrades the
-sandbox between container rebuilds. Its installer writes its own default
+The claude-sandbox VS Code extension installs the sandbox in the outer
+devcontainer and updates it (the `claude-sandbox` CLI has no update command;
+`claude-sandbox install` says where it was installed from). The installer
+it runs writes its own default
 over `/etc/claude-sandbox.conf`, which drops this repo's `allow-ip` and
 `allow-write` lines. Put them back straight afterwards:
 
@@ -127,7 +129,7 @@ host in `hosts.yml`, plus the NAS:
 | Address | Host |
 |---------|------|
 | 192.168.1.80 | `turingpi` (BMC) |
-| 192.168.1.81 to .84 | `node01` to `node04` (node02 is also the K3s API) |
+| 192.168.1.82 to .84 | `node02` to `node04` (node02 is also the K3s API) |
 | 192.168.1.91, .92 | `nuc1`, `nuc2` |
 | 192.168.1.10 | `ws03` |
 | 192.168.1.3 | the NAS |
@@ -161,7 +163,7 @@ inside a session. `claude-sandbox version` reports what is installed.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `claude` refuses to start | `/dev/net/tun` is missing from the container | Rebuild the devcontainer from this repo's `devcontainer.json` |
-| `kubectl: command not found` inside the sandbox, while it works in an ordinary terminal | `/etc/claude-sandbox.conf` has lost the `allow-write = /root/bin` line, so the links in `/usr/local/bin` point at nothing. Usually after `claude-sandbox update` | `just sandbox-conf`, then a new session |
+| `kubectl: command not found` inside the sandbox, while it works in an ordinary terminal | `/etc/claude-sandbox.conf` has lost the `allow-write = /root/bin` line, so the links in `/usr/local/bin` point at nothing. Usually after the extension has updated the sandbox | `just sandbox-conf`, then a new session |
 | `kubectl` is found but has no cluster | The `/root/.kube` bind is missing (same cause), or the kubeconfig was never fetched | `just sandbox-conf`; if still empty, `ansible-playbook pb_all.yml --tags tools` in the outer devcontainer |
 | A node, the API or the NAS times out from the sandbox only | Its address is not an `allow-ip` | Add it as in [When a node is added](#when-a-node-is-added) |
 | `ssh ansible@<node>` says `Permission denied (publickey)` | The key was not named, or was never deployed | Add `-i /root/.config/claude-ssh/id_ed25519`; if it still fails, `just claude-ssh-bootstrap` |

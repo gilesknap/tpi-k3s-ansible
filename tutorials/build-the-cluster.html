@@ -966,14 +966,6 @@ files say so: <code class="docutils literal notranslate"><span class="pre">admin
 and each <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> entry in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> must name the same node and
 path as its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry in <code class="docutils literal notranslate"><span class="pre">all.yml</span></code>. <a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory reference</span></a>
 and <a class="reference internal" href="../reference/variables.html"><span class="doc">Variables reference</span></a> describe every setting.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> still lists <code class="docutils literal notranslate"><span class="pre">node01</span></code>, the CM4 in slot 1 that was the control
-plane before node02. It is not a member of the cluster today, but it is
-powered on and answers SSH, so a playbook run over the whole inventory
-would upgrade it and join it as a worker. The run below leaves it out with
-<code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">'all:!node01'</span></code>.</p>
-</div>
 </section>
 <section id="point-the-api-name-at-the-control-plane">
 <h2>Point the API name at the control plane<a class="headerlink" href="#point-the-api-name-at-the-control-plane" title="Link to this heading">#</a></h2>
@@ -1080,12 +1072,10 @@ git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </
 git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>HEAD<span class="w">      </span><span class="c1"># ArgoCD cannot track a branch that is not on GitHub</span>
 
 <span class="nb">set</span><span class="w"> </span>-a<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a
-<span class="nv">GENERATE_SECRETS</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span><span class="s1">&#39;all:!node01&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="nv">GENERATE_SECRETS</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span><span class="k">$(</span>git<span class="w"> </span>branch<span class="w"> </span>--show-current<span class="k">)</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">all:!node01</span></code> keeps <code class="docutils literal notranslate"><span class="pre">localhost</span></code> and <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> in the run, which the
-<code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">flash</span></code> and <code class="docutils literal notranslate"><span class="pre">cluster</span></code> stages need.</p>
 <pre  class="mermaid">
         flowchart LR
     tools[&quot;tools&lt;br/&gt;CLIs in the devcontainer&quot;] --&gt; flash[&quot;flash&lt;br/&gt;RK1 eMMC via the BMC&quot;]
@@ -1291,14 +1281,14 @@ is healthy; checks by <code class="docutils literal notranslate"><span class="pr
 request. It works without asking at each step and commits to its own
 branch. It is also how a change to the roles or to secret handling is
 tested before it is merged (<a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>).</p>
-<p><code class="docutils literal notranslate"><span class="pre">/bootstrap-cluster</span></code> is the first-build interview: it asks about the
-hardware, the domain, the repository and the optional features, writes the
-three configuration files from the answers, checks the ansible key, runs
-the playbook (with <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> if all six credentials are
-exported) and writes the credentials it generated to
-<code class="docutils literal notranslate"><span class="pre">/tmp/cluster-credentials.txt</span></code>. It was written when the repo was meant to
-be forked, so it asks questions whose answers are already in the files
-here; for this cluster the steps on this page are shorter.</p>
+<p><code class="docutils literal notranslate"><span class="pre">/bootstrap-cluster</span></code> walks through the steps on this page from bare
+metal, including the flash. It checks the prerequisites and the
+workstation, reads (rather than writes) the three configuration files,
+points the API name at node02, collects the credentials (creating the
+Cloudflare edge first and running <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-env-tunnel-token</span></code> when there is
+no tunnel yet), runs the playbook with <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> on a build
+branch, and works down the Verify list. It asks before each step that
+changes a machine.</p>
 <div class="tip admonition" id="adapting-this-to-other-hardware">
 <p class="admonition-title">Adapting this to other hardware</p>
 <p>This repo builds one particular cluster, and is not a template. Someone

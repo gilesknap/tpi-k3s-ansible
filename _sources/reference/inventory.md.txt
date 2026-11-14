@@ -13,7 +13,7 @@ For what the machines are, see {doc}`/explanations/architecture/hardware`.
 |-------|---------|---------|
 | `controller` | `localhost`, with a local connection | Sets how Ansible reaches the devcontainer. The plays that run there (`tools`, `cluster`) target `localhost` directly |
 | `turing_pis` | `turingpi` (the BMC) | The `flash` play, which drives `tpi` on the BMC, and `known_hosts` |
-| `turingpi_nodes` | `node01` to `node04` | The `flash` role, to find the BMC's nodes; member of `all_nodes` |
+| `turingpi_nodes` | `node02` to `node04` | The `flash` role, to find the BMC's nodes; member of `all_nodes` |
 | `extra_nodes` | `ws03`, `nuc2`, `nuc1` | `pb_add_nodes.yml`, which gives Ansible its account on a machine whose OS was installed by hand; member of `all_nodes` |
 | `all_nodes` | `turingpi_nodes` and `extra_nodes` | Every node play in `pb_all.yml` (`known_hosts`, `servers`, `k3s`, `claude_key`) and `pb_decommission.yml` |
 
@@ -52,7 +52,6 @@ control plane is not an inventory setting: `control_plane` and
 | Host | Group | Address | Slot | `type` | `root_dev` | Flags | In the cluster |
 |------|-------|---------|------|--------|------------|-------|----------------|
 | `turingpi` | `turing_pis` | 192.168.1.80 | | | | | BMC, not a node |
-| `node01` | `turingpi_nodes` | 192.168.1.81 | 1 | `pi4` | | | No (see below) |
 | `node02` | `turingpi_nodes` | 192.168.1.82 | 2 | `rk1` | `/dev/nvme0n1` | | Control plane and etcd (`control_plane`) |
 | `node03` | `turingpi_nodes` | 192.168.1.83 | 3 | `rk1` | `/dev/nvme0n1` | | Worker, warm standby (`standby_control_plane`) |
 | `node04` | `turingpi_nodes` | 192.168.1.84 | 4 | `rk1` | `/dev/nvme0n1` | | Worker |
@@ -63,13 +62,8 @@ control plane is not an inventory setting: `control_plane` and
 The addresses are not in `hosts.yml`; they are the ones the router hands out,
 and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.
 
-:::{note}
-`node01` (the CM4 in slot 1) was the control plane before that role moved to
-`node02`. It is still listed in `hosts.yml`, so it is still a member of
-`all_nodes`, but it is not a member of the running cluster: `kubectl get nodes`
-shows `node02`, `node03`, `node04`, `nuc1`, `nuc2` and `ws03`. A playbook run
-without `--limit` still tries to reach it.
-:::
+Slot 1 of the board is not in the inventory. It holds `node01`, a CM4 that
+was the control plane before `node02` and is no longer part of the cluster.
 
 ## What else to touch when a node is added or removed
 
