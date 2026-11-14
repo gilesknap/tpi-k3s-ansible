@@ -509,7 +509,9 @@ allows two folders of one name, so two containers making the same missing
 folder at once could split the backups between them. Then two containers
 run side by side, because the NAS squashes root and no one user can read
 everything: `backups` runs as `nobody` (65534), which owns the root-written
-etcd bundles, and `minecraft` as uid 1000, which owns the worlds. Either
+etcd bundles, with scrap's group (10001, from
+`offsite_backup.backups.supplemental_groups`) added so it can read scrap's
+group-readable backup runs, and `minecraft` as uid 1000, which owns the worlds. Either
 failing fails the Job, which is retried once; a retry uploads only the
 backups still missing, and skips the Minecraft nightly if one from the same
 UTC day is already on Drive. The first run uploads several GB and may take hours; a run
