@@ -14,7 +14,10 @@
 #   - archive/minecraft-archive-<fingerprint>.tar.age: the read-only world
 #     archive, uploaded only when no copy with its fingerprint (a hash of its
 #     file names and sizes) is on Drive. So it goes up once, and again only if
-#     the archive changes; older copies are never deleted.
+#     the archive changes; older copies are never deleted. A state that
+#     comes back is not uploaded again, so the newest copy is not always the
+#     current one: archive/CURRENT.age (encrypted like every upload) names
+#     the copy whose fingerprint matched on the last successful check.
 #
 # The worlds are copied while they run, as the Minecraft server writes
 # them; the dashboard's own backups in the store are the consistent copies.
@@ -125,8 +128,10 @@ if [ "$ARCHIVE" = true ]; then
             stat -c '%n %s' "$f"
         done | sha256sum | cut -c1-12)
         target=minecraft-archive-$fp.tar.age
+        current=
         if grep -qxF "$target" "$WORK/archive"; then
             log "archive/$target is already on Drive"
+            current=1
         else
             log "uploading archive/$target"
             st=0
@@ -134,8 +139,22 @@ if [ "$ARCHIVE" = true ]; then
                 stream_to "$dest/archive/$target" || st=$?
             if finish "$dest/archive/$target" "$st"; then
                 log "uploaded archive/$target"
+                current=1
             else
                 fail "could not upload the archive"
+            fi
+        fi
+        # Which copy is the current archive. Not one of the
+        # minecraft-archive-*.tar.age names, so the check above never
+        # matches it.
+        if [ -n "$current" ]; then
+            st=0
+            printf 'current: %s\nchecked: %s\n' "$target" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" |
+                stream_to "$dest/archive/CURRENT.age" || st=$?
+            if finish "$dest/archive/CURRENT.age" "$st"; then
+                log "archive/CURRENT.age names $target"
+            else
+                fail "could not write archive/CURRENT.age"
             fi
         fi
     fi
