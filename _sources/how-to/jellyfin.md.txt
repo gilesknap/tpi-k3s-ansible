@@ -172,8 +172,12 @@ kubectl logs -n backups job/manual-<timestamp> -f
 ### Restore from a backup
 
 1. Set `enable_jellyfin: false` and push, so nothing has the database open.
-   Set `jellyfin.seed_from_host: false` in the same change if the volume is a
-   new, empty one: see [The seed flag](#the-seed-flag).
+   Set `jellyfin.seed_from_host: false` in the same change unless the
+   volume's root (`/home/k8s-data/jellyfin` on nuc2) holds `SEEDED-FROM-HOST`.
+   Without that marker the seed runs on the restored volume: it fails on a
+   new one, and a `SEED-IN-PROGRESS` left by an interrupted seed makes it
+   clear the volume and copy the host install over the restore. See
+   [The seed flag](#the-seed-flag).
 2. On nuc2, unpack the tarball over the volume's root as the `jellyfin`
    account, for example with the NAS share mounted on the node:
 

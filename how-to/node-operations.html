@@ -708,9 +708,11 @@ the reasoning.</p>
 <h2>Add a node<a class="headerlink" href="#add-a-node" title="Link to this heading">#</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> command in Claude Code walks through this checklist, asking
 for the details and making the edits. <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> was the last node added this
-way; the examples use it. The node needs Ubuntu installed (24.04 or later),
-a fixed address and a name on the router, since the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role
-looks it up as <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code>.</p>
+way; the examples use it. The node needs a fixed address and a name on the
+router, since the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role looks it up as <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code>. A node
+outside the Turing Pi also needs Ubuntu installed (24.04 or later) and a
+login with sudo. A new RK1 needs neither: the flash in step 4 installs
+Ubuntu and creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, so it skips steps 3 and 5.</p>
 <ol class="arabic">
 <li><p><strong>Inventory.</strong> Add the node to <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> under <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>, with
 only the variables it needs:</p>
@@ -739,7 +741,8 @@ terminal (it takes effect at the next sandbox launch):</p>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Ansible access.</strong> <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account
+<li><p><strong>Ansible access</strong> (not for an RK1: the playbook only targets
+<code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>). <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account
 with the key from <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> and passwordless sudo. Run
 it yourself in a devcontainer terminal: <code class="docutils literal notranslate"><span class="pre">-K</span></code> prompts for a sudo
 password, which Claude Code’s shell cannot answer.</p>
@@ -760,9 +763,15 @@ kubectl<span class="w"> </span>get<span class="w"> </span>nodes
 </div>
 <p>This records the host keys, dist-upgrades the node (rebooting it if
 needed, as it is not in the cluster yet) and installs the K3s agent at
-the version <code class="docutils literal notranslate"><span class="pre">node02</span></code> runs. A new RK1 is flashed in the same run, with
-the BMC in the limit: <code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">turingpi,&lt;node&gt;</span> <span class="pre">-e</span> <span class="pre">do_flash=true</span></code> and no
-<code class="docutils literal notranslate"><span class="pre">--tags</span></code>.</p>
+the version <code class="docutils literal notranslate"><span class="pre">node02</span></code> runs.</p>
+<p>A new RK1 has no OS to log in to, so it is flashed first, in the same
+run. The flash role runs on the BMC, which goes in the limit, and there
+are no <code class="docutils literal notranslate"><span class="pre">--tags</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>turingpi,&lt;node&gt;<span class="w"> </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">do_flash</span></code> flashes a node that does not answer SSH, then the rest of
+the run joins it as above.</p>
 </li>
 <li><p><strong>Claude’s SSH key.</strong> Add the sandbox’s key to the node’s <code class="docutils literal notranslate"><span class="pre">ansible</span></code>
 account, so Claude sessions can run Ansible against it. Skip this for a

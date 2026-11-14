@@ -982,13 +982,36 @@ node02.</p></li>
 <section id="etcd-database-too-large">
 <h3>etcd database too large<a class="headerlink" href="#etcd-database-too-large" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> K3s logs show <code class="docutils literal notranslate"><span class="pre">mvcc:</span> <span class="pre">database</span> <span class="pre">space</span> <span class="pre">exceeded</span></code>.</p>
+<p>etcd has reached its quota (2 GiB, the default: the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role does not set
+one), raised a <code class="docutils literal notranslate"><span class="pre">NOSPACE</span></code> alarm and refuses writes.</p>
 <p><strong>Fix:</strong> Take a snapshot, then restart K3s:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02
 sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual-backup
 sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s
 </pre></div>
 </div>
-<p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
+<p>The API server compacts old revisions every five minutes, but that does not
+shrink the file. When K3s starts it defragments the database, which does, and
+then clears the alarm, so no <code class="docutils literal notranslate"><span class="pre">etcdctl</span></code> (the nodes have none) is needed. Check
+the result of this restart, not an earlier one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>systemctl<span class="w"> </span>is-active<span class="w"> </span>k3s
+sudo<span class="w"> </span>journalctl<span class="w"> </span>-u<span class="w"> </span>k3s<span class="w"> </span>--since<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>systemctl<span class="w"> </span>show<span class="w"> </span>k3s<span class="w"> </span>-p<span class="w"> </span>ExecMainStartTimestamp<span class="w"> </span>--value<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span>
+<span class="w">  </span>grep<span class="w"> </span><span class="s1">&#39;after defragment&#39;</span>
+</pre></div>
+</div>
+<p>The line reads <code class="docutils literal notranslate"><span class="pre">Datastore</span> <span class="pre">using</span> <span class="pre">&lt;in</span> <span class="pre">use&gt;</span> <span class="pre">of</span> <span class="pre">&lt;file</span> <span class="pre">size&gt;</span> <span class="pre">bytes</span> <span class="pre">after</span> <span class="pre">defragment</span></code>. The database is normally tens of MB. If it is still near the
+quota, the space may be history that was never compacted: defragmenting
+frees only compacted revisions, and compaction is itself a write, so it can
+have stopped while the alarm was up. With the alarm cleared the API server
+compacts again, so wait ten minutes and restart K3s once more, then repeat
+the check.</p>
+<p>If it is still near the quota after that second restart, the space is live
+data: look for an object kind with a runaway count (Events, Jobs,
+ReplicaSets) and delete those. Deleting does not shrink the file either, so
+finish in the same way: wait ten minutes for the compaction, restart K3s,
+and check that the size has fallen and that a write works (for example
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">annotate</span> <span class="pre">node</span> <span class="pre">node02</span> <span class="pre">etcd-check=ok</span> <span class="pre">--overwrite</span></code>, then remove it
+with <code class="docutils literal notranslate"><span class="pre">etcd-check-</span></code>).</p>
 </section>
 <section id="the-nightly-etcd-backup-alert-fires">
 <h3>The nightly etcd backup alert fires<a class="headerlink" href="#the-nightly-etcd-backup-alert-fires" title="Link to this heading">#</a></h3>

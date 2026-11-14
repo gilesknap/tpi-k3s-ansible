@@ -289,9 +289,11 @@ the reasoning.
 
 The `/add-node` command in Claude Code walks through this checklist, asking
 for the details and making the edits. `nuc1` was the last node added this
-way; the examples use it. The node needs Ubuntu installed (24.04 or later),
-a fixed address and a name on the router, since the `known_hosts` role
-looks it up as `<node>.lan`.
+way; the examples use it. The node needs a fixed address and a name on the
+router, since the `known_hosts` role looks it up as `<node>.lan`. A node
+outside the Turing Pi also needs Ubuntu installed (24.04 or later) and a
+login with sudo. A new RK1 needs neither: the flash in step 4 installs
+Ubuntu and creates the `ansible` account, so it skips steps 3 and 5.
 
 1. **Inventory.** Add the node to `hosts.yml` under `extra_nodes`, with
    only the variables it needs:
@@ -322,7 +324,8 @@ looks it up as `<node>.lan`.
    just sandbox-conf
    ```
 
-3. **Ansible access.** `pb_add_nodes.yml` creates the `ansible` account
+3. **Ansible access** (not for an RK1: the playbook only targets
+   `extra_nodes`). `pb_add_nodes.yml` creates the `ansible` account
    with the key from `pub_keys/ansible_rsa.pub` and passwordless sudo. Run
    it yourself in a devcontainer terminal: `-K` prompts for a sudo
    password, which Claude Code's shell cannot answer.
@@ -346,9 +349,18 @@ looks it up as `<node>.lan`.
 
    This records the host keys, dist-upgrades the node (rebooting it if
    needed, as it is not in the cluster yet) and installs the K3s agent at
-   the version `node02` runs. A new RK1 is flashed in the same run, with
-   the BMC in the limit: `--limit turingpi,<node> -e do_flash=true` and no
-   `--tags`.
+   the version `node02` runs.
+
+   A new RK1 has no OS to log in to, so it is flashed first, in the same
+   run. The flash role runs on the BMC, which goes in the limit, and there
+   are no `--tags`:
+
+   ```bash
+   ansible-playbook pb_all.yml --limit turingpi,<node> -e do_flash=true
+   ```
+
+   `do_flash` flashes a node that does not answer SSH, then the rest of
+   the run joins it as above.
 5. **Claude's SSH key.** Add the sandbox's key to the node's `ansible`
    account, so Claude sessions can run Ansible against it. Skip this for a
    freshly flashed RK1, whose cloud-init seed already carries the key:

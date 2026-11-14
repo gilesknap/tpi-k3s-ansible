@@ -1054,6 +1054,25 @@ the ntfy tokens), so a rebuild does not invalidate every phone and Claude
 session. Keep a copy of <code class="docutils literal notranslate"><span class="pre">.env</span></code> somewhere safe and off the cluster: after a
 real disaster it is the quick way back, and without it each value has to be
 fetched again from where it was issued.</p>
+<p>The tunnel’s token is not in a dashboard to copy: this repo reads it from
+the OpenTofu state (Cloudflare’s API can return it too, but only to an
+edit token, so the code does not ask). The other copy is the old
+cluster’s Secret. With the state to hand, put the token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> without
+printing it. Run this from the root of the main checkout, where the state
+is, not from a git worktree:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span><span class="nv">t</span><span class="o">=</span><span class="k">$(</span>scripts/cf-tofu<span class="w"> </span>output<span class="w"> </span>-raw<span class="w"> </span>tunnel_token<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">  </span>touch<span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">  </span>sed<span class="w"> </span>-i<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;/^CLOUDFLARE_TUNNEL_TOKEN=/d&#39;</span><span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;$a\&#39;</span><span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">  </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;CLOUDFLARE_TUNNEL_TOKEN=%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.env<span class="o">)</span>
+</pre></div>
+</div>
+<p>It makes <code class="docutils literal notranslate"><span class="pre">.env</span></code> readable by its owner only, removes any old
+<code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_TUNNEL_TOKEN</span></code> line, and ends the last line if it has no
+newline, so the token goes on a line of its own. If <code class="docutils literal notranslate"><span class="pre">cf-tofu</span></code> fails,
+<code class="docutils literal notranslate"><span class="pre">.env</span></code> is not touched.</p>
+<p>With no tunnel at all (a new Cloudflare account), create it first:
+<a class="reference internal" href="#build-edge-from-nothing"><span class="std std-ref">build the edge from nothing</span></a>, below, comes
+before the playbook in that case.</p>
 </section>
 <section id="run-the-playbook">
 <h2>Run the playbook<a class="headerlink" href="#run-the-playbook" title="Link to this heading">#</a></h2>
@@ -1171,18 +1190,29 @@ reconnects by itself and this confirms nothing has drifted:</p>
 just<span class="w"> </span>cf-plan<span class="w">      </span><span class="c1"># expect &quot;No changes&quot;</span>
 </pre></div>
 </div>
-<p>Building the edge from nothing is the same commands plus an apply:</p>
+<p id="build-edge-from-nothing">Building the edge from nothing is the same commands plus an apply, and it
+is done before the playbook runs, not after: the playbook needs the
+tunnel’s token, and the tunnel does not exist until the apply has created
+it.</p>
+<p>Run these in the main checkout, not in a git worktree: the state is
+gitignored and stays in the checkout that made it, and the token is read
+from it there.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>cf-init
-just<span class="w"> </span>cf-plan
-just<span class="w"> </span>cf-apply<span class="w">             </span><span class="c1"># asks for the edit token and for confirmation</span>
-just<span class="w"> </span>cf-seal-tunnel-token<span class="w"> </span><span class="c1"># seals the new tunnel&#39;s token for cloudflared</span>
+just<span class="w"> </span>cf-plan<span class="w">      </span><span class="c1"># everything shows as &quot;to add&quot;</span>
+just<span class="w"> </span>cf-apply<span class="w">     </span><span class="c1"># asks for the edit token and for confirmation</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">cf-seal-tunnel-token</span></code> reads the token from the encrypted state, writes
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cloudflared/tunnel-secret.yaml</span></code> without ever
-printing the token, and updates <code class="docutils literal notranslate"><span class="pre">.env</span></code> if it is there. Commit and push the
-file and ArgoCD delivers it. <a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a> has the
-tokens, the state passphrase and <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>.</p>
+<p>Then put the new token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> with the command under
+<a class="reference internal" href="#collect-the-credentials">Collect the credentials</a>, and the playbook seals
+it with every other secret. <a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a> has the
+tokens, the state passphrase, <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code> and the things a new
+account needs before the first plan.</p>
+<p>Once the cluster is up, a later change of token is sealed by
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code>. It reads the token from the encrypted state,
+writes <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cloudflared/tunnel-secret.yaml</span></code>
+without ever printing the token, and updates the <code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_TUNNEL_TOKEN</span></code>
+line in <code class="docutils literal notranslate"><span class="pre">.env</span></code> if there is one. It needs the running cluster’s Sealed
+Secrets controller, so it cannot stand in for the step above.</p>
 </section>
 <section id="verify">
 <h2>Verify<a class="headerlink" href="#verify" title="Link to this heading">#</a></h2>

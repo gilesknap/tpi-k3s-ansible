@@ -1235,10 +1235,28 @@ recovers without a restart.</p>
 <section id="rotating-the-credentials">
 <h3>Rotating the credentials<a class="headerlink" href="#rotating-the-credentials" title="Link to this heading">#</a></h3>
 <p>Re-seal <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> as in Step 4 and push. The pod reads the
-Secret only when it starts, so the new values take effect at its next
-restart. After rotating the frp token, update <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> on the VPS
-to match (or delete it and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code>, which generates a
-new token to seal).</p>
+Secret only when it starts, and nothing restarts it when the Secret
+changes, so the new values take effect at its next restart. Restart it
+only once ArgoCD has synced the SealedSecret and the controller has
+updated the Secret: the first command must print two equal numbers and
+<code class="docutils literal notranslate"><span class="pre">True</span></code> (it prints no secret). A restart before that starts the pod with
+the old values.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>vps-relay<span class="w"> </span>get<span class="w"> </span>sealedsecret<span class="w"> </span>vps-relay-credentials<span class="w"> </span>-o<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.metadata.generation} {.status.observedGeneration} {.status.conditions[?(@.type==&quot;Synced&quot;)].status}{&quot;\n&quot;}&#39;</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>vps-relay<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deploy/vps-relay
+</pre></div>
+</div>
+<p>The frp token is in two places, and frps reads <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> only when
+it starts. To rotate it, do one of these on the VPS first:</p>
+<ul class="simple">
+<li><p>edit <code class="docutils literal notranslate"><span class="pre">FRP_AUTH_TOKEN</span></code> in <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">frps</span></code>; or</p></li>
+<li><p>delete <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> with the
+current forwards. It generates a new token, prints it and restarts frps.</p></li>
+</ul>
+<p>Then seal the same token, push, wait for the Secret and restart the pod,
+as above. Between the two restarts frpc logs <code class="docutils literal notranslate"><span class="pre">token</span> <span class="pre">in</span> <span class="pre">login</span> <span class="pre">doesn't</span> <span class="pre">match</span></code>
+and the forwards are down.</p>
 </section>
 <section id="the-public-port-is-closed">
 <h3>The public port is closed<a class="headerlink" href="#the-public-port-is-closed" title="Link to this heading">#</a></h3>

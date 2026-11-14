@@ -1079,8 +1079,12 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <h3>Restore from a backup<a class="headerlink" href="#restore-from-a-backup" title="Link to this heading">#</a></h3>
 <ol class="arabic">
 <li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push, so nothing has the database open.
-Set <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code> in the same change if the volume is a
-new, empty one: see <a class="reference internal" href="#the-seed-flag">The seed flag</a>.</p></li>
+Set <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code> in the same change unless the
+volume’s root (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code> on nuc2) holds <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>.
+Without that marker the seed runs on the restored volume: it fails on a
+new one, and a <code class="docutils literal notranslate"><span class="pre">SEED-IN-PROGRESS</span></code> left by an interrupted seed makes it
+clear the volume and copy the host install over the restore. See
+<a class="reference internal" href="#the-seed-flag">The seed flag</a>.</p></li>
 <li><p>On nuc2, unpack the tarball over the volume’s root as the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code>
 account, for example with the NAS share mounted on the node:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>-u<span class="w"> </span>jellyfin<span class="w"> </span>tar<span class="w"> </span>--no-overwrite-dir<span class="w"> </span><span class="se">\</span>

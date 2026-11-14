@@ -846,8 +846,15 @@ empty the job fails on every run and uploads nothing.</p>
 <ol class="arabic">
 <li><p>On a machine outside the cluster, create the key pair. <code class="docutils literal notranslate"><span class="pre">age-keygen</span> <span class="pre">-o</span> <span class="pre">~/k3s-etcd-backup.agekey</span></code> prints the public key (<code class="docutils literal notranslate"><span class="pre">age1...</span></code>). Keep the key
 file offline, in two places; without it no backup can be decrypted.</p></li>
-<li><p>Set the public key in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">etcd_backup_age_recipient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">age1...</span>
+<li><p>Set the public key in both places that hold it, in one commit:
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> for this backup, and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>
+for the off-site copy (<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> and a
+pre-commit hook (<code class="docutils literal notranslate"><span class="pre">scripts/check-age-recipient</span></code>) fail if the two differ.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># group_vars/all.yml</span>
+<span class="nt">etcd_backup_age_recipient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">age1...</span>
+<span class="c1"># kubernetes-services/values.yaml</span>
+<span class="nt">offsite_backup</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">age_recipient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">age1...</span>
 </pre></div>
 </div>
 </li>
@@ -867,6 +874,14 @@ just<span class="w"> </span>etcd-backup-now
 <li><p>Prove that a bundle decrypts: copy it to the machine with the key and run
 <code class="docutils literal notranslate"><span class="pre">age</span> <span class="pre">-d</span> <span class="pre">-i</span> <span class="pre">~/k3s-etcd-backup.agekey</span> <span class="pre">&lt;bundle&gt;</span> <span class="pre">|</span> <span class="pre">tar</span> <span class="pre">-t</span></code>.</p></li>
 </ol>
+<p>When a new key pair replaces an old one, keep the old private key. Nothing
+is re-encrypted: every bundle and export already on the NAS, and every file
+already on Drive, opens only with the key it was made with, and Drive keeps
+the newest copies of each backup and the Minecraft archive indefinitely.
+Step 4 switches the etcd backup to the new key; the off-site job follows
+once ArgoCD has synced the merged <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>. Then make a new offline copy
+of the sealed-secrets keys, encrypted to the new key
+(<a class="reference internal" href="#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>).</p>
 </section>
 <section id="alerts-and-manual-checks">
 <h4>Alerts and manual checks<a class="headerlink" href="#alerts-and-manual-checks" title="Link to this heading">#</a></h4>
@@ -1167,7 +1182,10 @@ cluster is <a class="reference internal" href="reflash-rebuild.html"><span class
 <ol class="arabic simple">
 <li><p>If the NAS was lost too, run the NAS setup again
 (<a class="reference internal" href="nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>), so that <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> and
-<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> exist. Otherwise leave the NAS alone.</p></li>
+<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> exist, and unpack its data from Drive before
+going on (<a class="reference internal" href="#restore-after-nas-loss"><span class="std std-ref">After losing the NAS</span></a>): the setup makes empty
+directories. scrap’s restore from the unpacked run comes later, after
+step 6. Otherwise leave the NAS alone.</p></li>
 <li><p>Check the inventory and variables (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>).</p></li>
 <li><p>Flash and provision the nodes and install the cluster:
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">-e</span> <span class="pre">do_flash=true</span></code>. <code class="docutils literal notranslate"><span class="pre">do_flash</span></code> refuses to
@@ -1182,23 +1200,82 @@ re-export your offline key copy afterwards.</p></li>
 The off-site backup’s Drive credentials need nothing: the restored keys
 decrypt its SealedSecret, and a planned rebuild reseals it from <code class="docutils literal notranslate"><span class="pre">.env</span></code>
 (<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>).</p></li>
-<li><p>ArgoCD auto-syncs all services from Git.</p></li>
-<li><p>If <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> was used on decommission, restore stateful
-data from the latest NFS backup under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code>
-using the restore recipes above (or, if the NAS was lost too, from the
-off-site copy: <a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). Otherwise, local PV data is still
-intact from before the rebuild and re-binds automatically. scrap’s
-static NFS volumes re-bind too, and its pod restores the database from
-the replica.</p></li>
+<li><p>ArgoCD auto-syncs all services from Git. After a lost NAS, now
+restore scrap from the run unpacked in step 1
+(<a class="reference internal" href="#restore-after-nas-loss"><span class="std std-ref">After losing the NAS</span></a>).</p></li>
+<li><p>Restore the data of each <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV that was wiped, from the
+latest backup under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS, using
+the restore recipes above. A PV is wiped by <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> on
+decommission (every node), by <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> on its RK1 (node04: Grafana
+and Prometheus), and by a replaced disk (on nuc2: Jellyfin and scrap’s
+off-NAS copy). So after a <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> of node04, restore
+Grafana even though <code class="docutils literal notranslate"><span class="pre">wipe_local_data</span></code> was not used; Prometheus has no
+backup and starts empty. A PV that was not wiped still holds its data
+and re-binds automatically. scrap’s static NFS volumes re-bind too, and
+its pod restores the database from the replica.</p></li>
 </ol>
-<p>The services are back within minutes of the playbook finishing; only data
-on a wiped local PV needs an explicit restore.</p>
-<p>Minecraft worlds need no restore: their <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> folders on the NAS
-depend only on the PVC’s namespace and name, so the dashboard re-creates its
+<p>The services are back within minutes of the playbook finishing. Data needs
+an explicit restore in two cases only: a wiped local PV (step 7) and a lost
+NAS (steps 1 and 6).</p>
+<section id="after-losing-the-nas">
+<span id="restore-after-nas-loss"></span><h3>After losing the NAS<a class="headerlink" href="#after-losing-the-nas" title="Link to this heading">#</a></h3>
+<p>The nodes’ <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data is untouched, so Grafana, Jellyfin and
+Prometheus lose nothing, and their next backups refill <code class="docutils literal notranslate"><span class="pre">backups/</span></code>. What was
+only on the NAS does not come back by itself: scrap’s live data, and the
+Minecraft store, worlds and archive. Once the NAS setup has made the
+directories, put these back from Drive (<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>: download and
+decrypt as in “Restore from Drive”). In a full rebuild, unpack them before
+installing the cluster.</p>
+<ul class="simple">
+<li><p><strong>scrap.</strong> This has two parts. First unpack the newest run
+(<code class="docutils literal notranslate"><span class="pre">backups/scrap/&lt;run&gt;.tar.age</span></code> on Drive) in
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code>, not in <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code>: the tarball’s
+paths start <code class="docutils literal notranslate"><span class="pre">scrap/&lt;run&gt;/</span></code> (a monthly run’s start
+<code class="docutils literal notranslate"><span class="pre">scrap/monthly/&lt;run&gt;/</span></code>). The files must be owned by <code class="docutils literal notranslate"><span class="pre">10001:10001</span></code>. This
+can be done before the cluster is installed. Then, with the cluster
+running and ArgoCD synced, follow “Restore scrap” above: it is staged
+and needs scrap’s volumes and a pod. The run on nuc2 (the
+<code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> claim) needs no download and is normally the same
+run as the newest on Drive: if nuc2 survived, skip the unpack and
+restore from it instead. Until the restore, scrap refuses to start on an
+empty <code class="docutils literal notranslate"><span class="pre">scrap-data</span></code> beside existing backups, rather than start empty.
+Pages written since that run are lost.</p></li>
+<li><p><strong>Minecraft.</strong> The newest <code class="docutils literal notranslate"><span class="pre">minecraft/nightly/minecraft-&lt;time&gt;.tar.age</span></code>
+holds <code class="docutils literal notranslate"><span class="pre">store/</span></code> (the contents of <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">stable/minecraft/</span></code> and <code class="docutils literal notranslate"><span class="pre">stable/archived-minecraft/</span></code> (the folders of
+those names in <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>). The newest
+<code class="docutils literal notranslate"><span class="pre">minecraft/archive/minecraft-archive-&lt;fingerprint&gt;.tar.age</span></code> holds
+<code class="docutils literal notranslate"><span class="pre">archive/</span></code> (the contents of <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code>). There is one
+for each state the archive has had, and a state that comes back is not
+uploaded again, so the last upload is the current archive unless the
+archive was changed back to an earlier state (files removed again, or
+restored to an earlier size). If it may have been, list the candidates
+(<code class="docutils literal notranslate"><span class="pre">age</span> <span class="pre">-d</span> <span class="pre">-i</span> <span class="pre">&lt;key&gt;</span> <span class="pre">&lt;file&gt;</span> <span class="pre">|</span> <span class="pre">tar</span> <span class="pre">-tv</span></code>) and take the one whose files and
+sizes are the archive you had. Unpack each into its place. The store and the worlds must be owned by <code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>.
+Make the archive read-only again with <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">-R</span> <span class="pre">a-w</span></code>
+(<a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>). The dashboard re-creates the
+worlds from the registry in its store once, at its start: if it is
+already running, restart it afterwards
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">minecraft</span> <span class="pre">rollout</span> <span class="pre">restart</span> <span class="pre">deploy/minecraft-dashboard</span></code>).
+Changes in the worlds since that tarball are lost.</p></li>
+<li><p><strong>The other backups.</strong> Normally nothing else needs to go back: the etcd
+bundles, sealed-secrets key exports and the Grafana and Jellyfin tarballs
+stay on Drive, and the nightly jobs write new ones to the NAS. The
+exception is a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV that was wiped as well (step 7 above, for
+example Grafana after a <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> of node04): step 7 looks for its
+backup on the NAS, so first download and decrypt that app’s newest
+tarball from Drive into <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/&lt;app&gt;/</span></code>.</p></li>
+</ul>
+</section>
+<section id="minecraft-worlds-after-a-rebuild">
+<h3>Minecraft worlds after a rebuild<a class="headerlink" href="#minecraft-worlds-after-a-rebuild" title="Link to this heading">#</a></h3>
+<p>With the NAS intact, Minecraft worlds need no restore: their <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>
+folders on the NAS depend only on the PVC’s namespace and name, so the dashboard re-creates its
 worlds with their ports and settings, and their PVCs bind to their old data.
 Every world is on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>). Any other
 claim on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>, the default class, also comes back with its data. <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volumes come back empty, in new
 folders.</p>
+</section>
 </section>
 </section>
 
@@ -1287,7 +1364,11 @@ folders.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-drive">Restore from Drive</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-losing-the-nas">After losing the NAS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-worlds-after-a-rebuild">Minecraft worlds after a rebuild</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
