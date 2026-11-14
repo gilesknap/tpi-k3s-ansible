@@ -89,7 +89,7 @@ development (Claude Code) and prompt injection attacks:
 - **Claude Code runs only inside the claude-sandbox wrapper**. A global
   integrity guard fails closed if Claude is launched unwrapped, and a
   fail-closed network egress jail blocks private addresses except the
-  cluster hosts listed as `allow-ip` entries.
+  cluster hosts and NAS listed as `allow-ip` entries.
 - **Claude has its own revocable SSH key**. Claude reaches the nodes'
   `ansible` account with a dedicated key, not yours; revoke it with
   `just claude-ssh-bootstrap revoke`.
