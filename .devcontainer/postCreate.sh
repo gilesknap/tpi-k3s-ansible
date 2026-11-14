@@ -27,5 +27,5 @@ ansible-playbook pb_all.yml --tags known_hosts ||
 # of the shipped defaults the claude-sandbox installer stamps into /etc. The shadow
 # reads /etc/claude-sandbox.conf at every launch; the workspace copy is never
 # read, so a compromised session cannot widen its own binds or network reach.
-# Re-apply with `just sandbox-conf` after a `claude-sandbox update`.
+# Re-apply with `just sandbox-conf` after the sandbox is updated.
 install -m 0644 .devcontainer/claude-sandbox.conf /etc/claude-sandbox.conf

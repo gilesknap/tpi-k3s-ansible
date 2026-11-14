@@ -19,15 +19,6 @@ themselves.
 `node02`, `node03` and `node04` are RK1 modules in slots 2 to 4 of the
 Turing Pi, whose BMC is `turingpi` (192.168.1.80).
 
-:::{note}
-`node01` (192.168.1.81, the CM4 in slot 1) was the control plane before the
-move to `node02`. It is not a member of the cluster, but it is still listed
-in `hosts.yml` and still answers SSH. Any command on this page that targets
-`all_nodes` reaches it too, and a `pb_all.yml --tags k3s` run without
-`--limit` would install K3s on it and join it as a worker. Use `--limit`
-until it is removed from the inventory.
-:::
-
 ## Apply package updates to nodes
 
 The `update_packages` role is part of the `servers` play — **not** a tag of its own.
@@ -37,11 +28,11 @@ To run package updates (e.g. after adding a new package to the role):
 # Chosen nodes
 ansible-playbook pb_all.yml --tags servers --limit node03,node04
 
-# Every cluster node (node01 is left out: see the note above)
-ansible-playbook pb_all.yml --tags servers --limit 'all_nodes:!node01'
+# Every node
+ansible-playbook pb_all.yml --tags servers
 
 # Also reboot now the nodes that need it: drained, one at a time
-ansible-playbook pb_all.yml --tags servers --limit 'all_nodes:!node01' -e reboot_now=true
+ansible-playbook pb_all.yml --tags servers -e reboot_now=true
 ```
 
 `update_packages` does not reboot a node that is in the cluster. If an upgrade
@@ -83,15 +74,14 @@ ansible node03 -m reboot --become
 
 ## Shut down or reboot the whole cluster
 
-For a power cut or moving the hardware. The pattern leaves `ws03` (and
-`node01`) out:
+For a power cut or moving the hardware. The pattern leaves `ws03` out:
 
 ```bash
 # Shut down
-ansible 'all_nodes:!ws03:!node01' -a "/sbin/shutdown now" -f 10 --become
+ansible 'all_nodes:!ws03' -a "/sbin/shutdown now" -f 10 --become
 
 # Reboot
-ansible 'all_nodes:!ws03:!node01' -m reboot -f 10 --become
+ansible 'all_nodes:!ws03' -m reboot -f 10 --become
 ```
 
 Every node goes down at once, so nothing is drained and everything is
@@ -106,7 +96,7 @@ cannot recover an unreachable node.
 
 The BMC is reachable as `root@turingpi`. Each slot maps to a node through
 `slot_num` in `hosts.yml`: `node02` is slot 2, `node03` slot 3 and `node04`
-slot 4 (slot 1 holds `node01`). `nuc1`, `nuc2` and `ws03` are not on the
+slot 4 (slot 1 is not used). `nuc1`, `nuc2` and `ws03` are not on the
 BMC: power them with their own buttons.
 
 ```bash
@@ -436,13 +426,13 @@ and reboot commands, as above.
 
 ```bash
 # Disk usage on the cluster's nodes
-ansible 'all_nodes:!node01' -a "df -h" --become
+ansible all_nodes -a "df -h" --become
 
 # K3s agent status on the workers
-ansible 'all_nodes:!node01:!node02' -a "systemctl is-active k3s-agent" --become
+ansible 'all_nodes:!node02' -a "systemctl is-active k3s-agent" --become
 
 # Run a role standalone
-ansible 'all_nodes:!node01' -m include_role -a name=known_hosts
+ansible all_nodes -m include_role -a name=known_hosts
 ```
 
 Inside the claude-sandbox, add `--private-key /root/.config/claude-ssh/id_ed25519`

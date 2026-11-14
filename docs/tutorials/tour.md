@@ -69,8 +69,8 @@ Six nodes, all on Ubuntu 26.04 and the same K3s patch release (the
 | `ws03` | 192.168.1.10 | Workstation, amd64, NVIDIA GPU | Tainted `workstation=true:NoSchedule`: GPU and monitoring pods only, and never rebooted by automation |
 
 The three RK1s sit on one Turing Pi board whose BMC is `turingpi`
-(192.168.1.80). The board's remaining slot (slot 1) holds `node01`, a CM4 that
-is still listed in `hosts.yml` but is not a member of the cluster.
+(192.168.1.80). The board's remaining slot (slot 1) holds `node01`, a CM4 and the
+former control plane, which is no longer in `hosts.yml` or the cluster.
 
 To see the taints that shape scheduling:
 

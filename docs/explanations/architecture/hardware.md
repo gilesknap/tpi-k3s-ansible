@@ -107,10 +107,9 @@ Prometheus and Grafana are pinned to it.
 
 ### node01
 
-`node01` (a Raspberry Pi CM4 in slot 1, 192.168.1.81) is still listed in
-`hosts.yml` and in the sandbox's `allow-ip` list, but it is not a member of
-the live cluster. It was the control plane before that role moved to
-node02.
+`node01` (a Raspberry Pi CM4 in slot 1, 192.168.1.81) was the control
+plane before that role moved to node02. It is no longer in `hosts.yml` or
+the sandbox's `allow-ip` list, and is not a member of the cluster.
 
 ### The NUCs
 

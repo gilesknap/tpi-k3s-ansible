@@ -51,12 +51,12 @@ headlamp:
     version: 0.1.0-alpha
     sha256: 52eec016c40e1abe2c9a797391de0119c94f10c22005f9638389027604e8c39b
 # OAuth2 authentication gateway.
-# Set to true AFTER completing the OAuth setup guide (docs/how-to/oauth-setup).
+# Set to true AFTER completing the OAuth setup guide (docs/how-to/oauth-setup.md).
 # When false, services are accessible without OAuth authentication.
 enable_oauth2_proxy: true
 # Cloudflare Tunnel for web services.
-# Set to true AFTER adding public hostnames in the Cloudflare Zero Trust
-# dashboard (docs/how-to/cloudflare-web-tunnel).
+# Set to true AFTER the tunnel and its public hostnames exist (OpenTofu in
+# cloudflare/, docs/how-to/cloudflare-as-code.md).
 # When true, disables ssl-redirect on tunnelled services so Cloudflare's
 # edge TLS termination works without redirect loops.
 enable_cloudflare_tunnel: true
@@ -66,7 +66,7 @@ enable_cloudflare_tunnel: true
 cf_access_team: gilesk
 # Admin email addresses — full access to all services.
 # These emails get: ArgoCD admin, Grafana Admin,
-# oauth2-proxy access (Longhorn, Headlamp).
+# oauth2-proxy access (e.g. Headlamp, Alertmanager).
 # Must be kept in sync with admin_emails in group_vars/all.yml.
 admin_emails:
   - gilesknap@gmail.com
@@ -77,7 +77,7 @@ admin_emails:
 # who passes CF Access and authenticates via GitHub (Dex) lands in the
 # default Viewer role — Grafana Viewer, ArgoCD readonly.
 # Admin rights are still granted explicitly via admin_emails above.
-# oauth2-proxy-gated services (Longhorn, Headlamp)
+# oauth2-proxy-gated services (e.g. Headlamp, Alertmanager)
 # remain admin-only and ignore this default.
 # Cluster-owned NFS share on the NAS — single managed subtree under the
 # existing bigdisk export (set up manually via docs/how-to/nas-setup.md).
@@ -249,7 +249,7 @@ minecraft:
     rcon_allowed_cidrs:
       - cidr: 192.168.1.0/24
         except:
-          - 192.168.1.81/32   # node01
+          - 192.168.1.81/32   # node01, a powered-off spare
           - 192.168.1.82/32   # node02
           - 192.168.1.83/32   # node03
           - 192.168.1.84/32   # node04
@@ -365,8 +365,8 @@ kyverno:
 # Local-storage PV map — node-pinned hostPath PVs that survive cluster
 # rebuild (data lives outside /var/lib/rancher). Each entry becomes one
 # PV, pre-bound via claimRef to the chart-generated PVC of the workload
-# that uses it. Edit `node` and `path` here to retarget data placement
-# when forking; keep `claim_namespace`/`claim_name` matching the
+# that uses it. Edit `node` and `path` here to move a volume to another
+# node or path; keep `claim_namespace`/`claim_name` matching the
 # workload chart's PVC naming convention.
 #
 # SYNC: the `node` and `path` for each entry MUST match the
