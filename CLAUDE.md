@@ -24,9 +24,9 @@
   For GitHub: OAuth "Grant Access" / "Authorize" clicks are OK (they only
   redirect back to the cluster), but do not modify any GitHub resources
   via Chrome — use `gh`/`curl` for that.
-- **Docs are generic** — this repo is intended to be reusable across
-  clusters. Write all docs for a general audience. Specific node names
-  (ws03, nuc2, node01) are fine as labelled examples.
+- **Docs describe this cluster** — use the real node names, hostnames
+  and paths; never include secrets or values from gitignored files; ADR
+  bodies are historical and not rewritten.
 - **Local PV data paths are sacred.** `/home/k8s-data/*` (nuc2) and
   `/var/lib/k8s-data/*` (RK1s) back the static `local-nvme` PVs that
   carry Grafana/Prometheus state, Jellyfin's config, scrap's frozen

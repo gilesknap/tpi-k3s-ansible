@@ -1,15 +1,15 @@
 # Reference
 
-Technical reference material for variables, tags, services, and inventory format.
+Facts to look up: what runs and where, the inventory, every variable, the
+playbook tags, the commands, and known failures with their fixes.
 
 ```{toctree}
 :maxdepth: 1
 
+reference/services
+reference/inventory
 reference/variables
 reference/playbook-tags
-reference/inventory
-reference/services
 reference/cli-tools
 reference/troubleshooting
-reference/production-checklist
 ```

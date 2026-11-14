@@ -1,75 +1,139 @@
-# Run the Minecraft Dashboard
+# Run the Minecraft dashboard
 
-The Minecraft dashboard is an admin-only web UI at `minecraft.<domain>` that
-launches Minecraft Java servers from world backups, monitors them, stops and
-starts them while keeping their data, and saves their state back as
-snapshots and backups. Players connect with an ordinary Minecraft client to
-`mc.<domain>:<port>`.
+The Minecraft dashboard at <https://minecraft.gkcluster.org> is an admin-only
+web UI that launches Minecraft Java servers from world backups, monitors them,
+stops and starts them while keeping their data, and saves their state back as
+snapshots and backups. Players never see it: they point an ordinary Minecraft
+client at `mc.gkcluster.org:<port>`.
 
 The dashboard application and its Helm chart live in a separate repository,
 [gilesknap/k3s-minecraft](https://github.com/gilesknap/k3s-minecraft), and are
 published as the OCI chart `ghcr.io/gilesknap/charts/minecraft-dashboard`.
-This repository only provides the cluster wiring:
+This repository provides the cluster wiring:
 
-- An ArgoCD Application (`kubernetes-services/templates/minecraft.yaml`),
-  toggled by `enable_minecraft` and configured from the `minecraft` block in
-  `kubernetes-services/values.yaml`.
-- An ingress for `minecraft.<domain>`, gated by oauth2-proxy (admin emails
-  only, the same as Headlamp).
-- A way for players to reach the game ports: a `minecraft` forward on the
-  {doc}`VPS relay <vps-relay>`.
+- the ArgoCD Application `kubernetes-services/templates/minecraft.yaml`,
+  switched on by `enable_minecraft` and configured from the `minecraft` block
+  in `kubernetes-services/values.yaml`;
+- an Ingress for `minecraft.gkcluster.org` behind oauth2-proxy (`admin_emails`
+  only, like Headlamp);
+- the `minecraft` forward on the {doc}`VPS relay </how-to/vps-relay>`, which
+  is how players reach the game ports;
+- the `minecraft` tunnel route and the `mc` DNS record in `cloudflare/`.
 
 ## How it fits together
 
+```mermaid
+flowchart LR
+    admin["Admin browser"]
+    player["Minecraft client"]
+    tool["RCON tool on the LAN<br/>(mciwb on nuc2 or ws03)"]
+    cf["Cloudflare Tunnel<br/>and Access"]
+    vps["VPS: frps<br/>mc.gkcluster.org"]
+    relay["vps-relay pod<br/>(frpc, over the tailnet)"]
+    nginx["ingress-nginx<br/>and oauth2-proxy"]
+    dash["minecraft-dashboard"]
+    subgraph nuc2["nuc2 (192.168.1.92)"]
+        worlds["World pods<br/>game NodePorts 30565-30584<br/>RCON NodePorts 30600-30619"]
+    end
+    nas["The NAS: archive, store,<br/>one folder per world"]
+
+    admin -->|"minecraft.gkcluster.org"| cf --> nginx --> dash
+    dash -->|"helm, RCON"| worlds
+    player -->|"mc.gkcluster.org:port"| vps --> relay -->|"192.168.1.92:port"| worlds
+    tool -->|"RCON NodePort"| worlds
+    dash --- nas
+    worlds --- nas
+```
+
 | Piece | Where | Notes |
 |-------|-------|-------|
-| Dashboard Deployment, Service, ServiceAccount, namespace-scoped Role | OCI chart, namespace `minecraft` | The dashboard runs `helm` against the itzg Minecraft chart inside its own namespace only |
-| Archive of precious world backups | NAS `<archive_path>` (default `/bigdisk/minecraft-archive`) | Read-only twice over: `a-w` on the NAS **and** a read-only mount |
-| Store: promoted backups, rolling snapshots, dashboard state | NAS `<nfs.cluster_share_path>/minecraft` | Written by the dashboard as uid/gid 1000 |
-| Live world data | One dynamic `nfs-stable` PVC per world, in `<nfs_csi.stable_share>/minecraft/<world>-data` on the NAS | Created by the dashboard; archived when the world is deleted (after a snapshot) |
-| World registry | NAS `<nfs.cluster_share_path>/minecraft/dashboard/registry/` | The dashboard's copy of each world, to re-create it after a rebuild |
-| Game ports | NodePorts `30565`–`30584` on the pinned node | 20 slots; one per world for the world's lifetime |
-| RCON ports | NodePorts `30600`–`30619` on the pinned node | LAN only (NetworkPolicy); one per world, for build tools |
-| Game hostname `mc.<domain>` | Cloudflare **DNS-only** A record | The VPS's static IP (relay) |
-| Dashboard hostname `minecraft.<domain>` | Cloudflare tunnel route | Cloudflare Access + oauth2-proxy |
+| Dashboard Deployment, Service, ServiceAccount, namespace-scoped Role | OCI chart, namespace `minecraft` | The dashboard runs `helm` against the [itzg Minecraft chart](https://github.com/itzg/minecraft-server-charts) inside its own namespace only. It is not pinned to a node |
+| World servers | One Helm release, Deployment and Service pair per world, made by the dashboard at runtime, not by ArgoCD | All pinned to nuc2 (`minecraft.worlds.node`), the node the relay forwards to |
+| Archive of precious world backups | The NAS, `/bigdisk/minecraft-archive` | Read-only twice over: `a-w` on the NAS **and** a read-only mount. Outside `/bigdisk/k8s-cluster` on purpose, so no cluster-wide tooling targets it |
+| Store: promoted backups, rolling snapshots, dashboard state | The NAS, `/bigdisk/k8s-cluster/minecraft` | Written by the dashboard as uid/gid 1000 |
+| Live world data | One dynamic `nfs-stable` claim per world (`<world>-data`, 10Gi), at `/k8s-dynamic/stable/minecraft/<world>-data` on the NAS | The folder is named after the claim, so it survives a cluster rebuild; archived when the world is deleted |
+| World registry | `/bigdisk/k8s-cluster/minecraft/dashboard/registry/` | The dashboard's record of each world, used to re-create it after a rebuild |
+| Game ports | NodePorts `30565`–`30584` on nuc2 | 20 slots; one per world for the world's lifetime |
+| RCON ports | NodePorts `30600`–`30619` on nuc2 | LAN only (NetworkPolicy); one per world, for build tools |
+| `mc.gkcluster.org` | Cloudflare **DNS-only** A record to the VPS | Not a tunnel route: see below |
+| `minecraft.gkcluster.org` | Cloudflare Tunnel route | Cloudflare Access, then oauth2-proxy |
 
 :::{important}
-The game hostname is **not** a tunnel route. Cloudflare's tunnel and proxy only
-carry HTTP(S); Minecraft speaks its own TCP protocol, so players reach the
-cluster through the VPS relay, via a grey-cloud DNS
-record that points straight at the VPS.
+The game hostname is **not** a tunnel route. The Cloudflare Tunnel and proxy
+carry only HTTP(S), and Minecraft speaks its own TCP protocol. So `mc` is a
+grey-cloud record that points straight at the VPS, and the VPS relays each
+connection over the tailnet to nuc2.
 :::
 
-## Prerequisites
+Game servers see every player as coming from the relay. Whitelists and ops are
+by name and work normally; IP bans do not.
 
-- A NAS reachable over NFS, already set up as in {doc}`nas-setup`.
-- The `nfs-stable` storage class (`nfs_csi.stable_storage_class`), and its
-  share root created on the NAS ({ref}`nfs-csi-nas-share`) — world data is
-  provisioned from it, and the dashboard mounts the share read-only.
-- oauth2-proxy working ({doc}`oauth-setup`) and the Cloudflare web tunnel set
-  up ({doc}`cloudflare-web-tunnel`).
-- The {doc}`VPS relay <vps-relay>`.
-- The dashboard chart version you pin in `minecraft.chart_version` must be
-  published. Check before enabling:
+The dashboard does no authentication itself; it logs the
+`X-Auth-Request-Email` header that oauth2-proxy sets, per action. Its Ingress
+therefore has `oauth2_proxy: true` hard-wired in the template, not tied to
+`enable_oauth2_proxy`: without the proxy the Ingress fails closed.
 
-  ```bash
-  helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version 0.5.2
-  ```
+## Configuration
 
-## Step 1: Create the NAS directories
+The `minecraft` block of `kubernetes-services/values.yaml`:
 
-Follow {ref}`minecraft-nas-directories` in {doc}`nas-setup` to create the read-only archive directory and the writable store tree.
+```yaml
+enable_minecraft: true
+minecraft:
+  chart_version: "0.5.2"          # the only version pin: the image follows the chart
+  image:
+    repository: ghcr.io/gilesknap/k3s-minecraft
+  archive_path: /bigdisk/minecraft-archive
+  store_subdir: minecraft         # under nfs.cluster_share_path
+  dns_name: mc                    # players use mc.gkcluster.org
+  worlds:
+    node: nuc2                    # every world runs here
+    port_min: 30565
+    port_max: 30584
+    rcon_port_min: 30600
+    rcon_port_max: 30619
+    rcon_allowed_cidrs: [...]     # see "Direct RCON" below
+```
 
-## Step 2: Ingest the world archive
+The chart also takes its NFS server from `nfs.server`, the worlds' storage
+class from `nfs_csi.stable_storage_class` (`nfs-stable`), and the share it
+mounts read-only from `nfs_csi.server` and `nfs_csi.stable_share`. The template
+turns on `worlds.restore` and the chart's NetworkPolicy.
+
+Three things outside this block must agree with it:
+
+| Setting | Must match | Where |
+|---------|-----------|-------|
+| `worlds.port_min`–`port_max` | the `minecraft` entry in `vps_relay.forwards` (`ports: 30565-30584`), and the ports opened on the VPS | `values.yaml`; `scripts/vps-relay-setup` on the VPS ({doc}`/how-to/vps-relay`) |
+| `worlds.node` | the forward's `target` (`192.168.1.92`, nuc2's LAN address) | `values.yaml` |
+| `ghcr.io/gilesknap/charts` | an entry in the AppProject's `sourceRepos`, bare, with no `oci://` prefix | `argo-cd/argo-project.yaml`, applied with `ansible-playbook pb_all.yml --tags cluster` |
+
+### Bump the dashboard
+
+`minecraft.chart_version` is the only pin. Check that the version is published
+before pushing, because a missing tag leaves the Application in an error
+state:
+
+```bash
+helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <version>
+```
+
+## The NAS directories
+
+The archive directory and the store tree are created by hand on the NAS,
+which Ansible never manages: {ref}`minecraft-nas-directories`. World data needs
+the `nfs-stable` share root: {ref}`nfs-csi-nas-share`.
+
+### Ingest the world archive
 
 World backups downloaded from Google Drive arrive as a set of split wrapper
 zips (`minecraft-k8s-backup-*-NNN.zip`), each holding one inner zip per world.
-The `scripts/ingest-archive.sh` script in the k3s-minecraft repository
-extracts the inner zips **flat, keeping their original filenames**, checks
-each one (`unzip -t` plus a `world/level.dat` entry), and is idempotent — re-run
-it later to add more files.
+`scripts/ingest-archive.sh` in the k3s-minecraft repository extracts the inner
+zips **flat, keeping their original filenames**, checks each one (`unzip -t`
+plus a `world/level.dat` entry), and is idempotent, so re-run it later to add
+more files.
 
-Run it on the NAS, or on any Linux host with the NAS share mounted read-write:
+Run it on the NAS, or on a host with the NAS share mounted read-write:
 
 ```bash
 git clone https://github.com/gilesknap/k3s-minecraft.git
@@ -80,7 +144,7 @@ scripts/ingest-archive.sh /share/CACHEDEV1_DATA/bigdisk/minecraft-archive \
   ~/Downloads/minecraft-k8s-backup-*.zip
 ```
 
-Ingest **every** version of every world — older copies can hold builds that
+Ingest **every** version of every world: older copies can hold builds that
 were lost from newer ones. Never rename the files; the dashboard parses the
 world name and date from them.
 
@@ -90,214 +154,197 @@ Then lock the archive so nothing can modify it, on the NAS:
 chmod -R a-w /share/CACHEDEV1_DATA/bigdisk/minecraft-archive
 ```
 
-To add more files later, temporarily restore write access to the directory
-(`chmod u+w`), re-run the ingest script, and lock it again with
-`chmod -R a-w`.
+To add files later, restore write access to the directory (`chmod u+w`),
+re-run the ingest script, and lock it again.
 
-## Step 3: Make the game ports reachable
+## Cloudflare
 
-All worlds are pinned to one node (`minecraft.worlds.node`, for example
-`nuc2`) and listen on NodePorts in `minecraft.worlds.port_min`–`port_max`.
-Players reach that node through the VPS relay.
+Both names are code in `cloudflare/` ({doc}`/how-to/cloudflare-as-code`):
 
-Set up the relay as in {doc}`vps-relay` and give it a `minecraft` forward
-covering the whole port range, targeting the pinned node's LAN IP (give the
-node a static DHCP lease):
+- **The dashboard.** `{ name = "minecraft" }` in `tunnel_services` in
+  `cloudflare/locals.tf` creates the tunnel route to ingress-nginx and the
+  proxied CNAME. The `clusterapps` Access application (`*.gkcluster.org`,
+  owner only) already covers the hostname, so there is nothing to add in
+  `access.tf`.
+- **The game hostname.** `mc` is an A record in `dns_only_records` (in the
+  gitignored `cloudflare/live.auto.tfvars`; `live.auto.tfvars.example` shows
+  the shape) whose content is the VPS's public address, not proxied. It must
+  never become a `tunnel_services` entry.
 
-```yaml
-vps_relay:
-  forwards:
-    - name: minecraft
-      protocol: tcp
-      ports: 30565-30584          # = minecraft.worlds.port_min-port_max
-      target: 192.168.1.92        # LAN IP of minecraft.worlds.node
-```
+Apply a change to either with `just cf-plan`, then `just cf-apply`
+({ref}`publish or remove a hostname <cf-add-service>`).
 
-Run `scripts/vps-relay-setup` on the VPS with the same range (see
-{doc}`vps-relay`, Step 3), and point
-`mc.<domain>` at the VPS's public IP (DNS only); the VPS address
-is static. Servers see every player as coming from the
-relay; whitelists and ops are by name and work normally, but IP bans do not.
+## Direct RCON for build tools (LAN only)
 
-If you change `minecraft.worlds.port_min`/`port_max`, change the forward to
-match and re-run `scripts/vps-relay-setup` on the VPS.
-
-### Direct RCON for build tools (LAN only)
-
-Each world also gets an **RCON NodePort** from
-`minecraft.worlds.rcon_port_min`–`rcon_port_max` (default `30600`–`30619`),
-shown on the world's page with a **Reveal** button for the password. Use it
-for tools such as [mciwb](https://github.com/gilesknap/mciwb) that send many
-RCON commands. Worlds that were already running when the dashboard was
-upgraded keep an in-cluster-only RCON Service until they are next started
-(or have their settings saved while running); restart one to give it a port.
+Each world also gets an **RCON NodePort** from `minecraft.worlds.rcon_port_min`
+to `rcon_port_max` (`30600`–`30619`), shown on the world's page with a
+**Reveal** button for the password. It is for tools such as
+[mciwb](https://github.com/gilesknap/mciwb) that send many RCON commands.
 
 ```python
 from mciwb.imports import Iwb
 
-# on the world node itself (fastest: ~0.04 ms per command)
+# on nuc2 itself (fastest: about 0.04 ms per command)
 world = Iwb(server="127.0.0.1", port=30600, passwd="<password from the world page>")
-# or from another LAN host: server="<world node LAN IP>"
+# or from another LAN host: server="192.168.1.92"
 ```
 
-The dashboard chart's NetworkPolicy only lets the dashboard, the world's own
-node and `minecraft.worlds.rcon_allowed_cidrs` reach RCON. RCON is plain text:
-**never add the RCON range to `vps_relay.forwards`.**
-`kubectl port-forward` also works but is about 1000x slower (~44 ms per
-command), too slow for building.
+`kubectl port-forward` also works but is about 1000 times slower (about 44 ms
+per command), too slow for building.
 
-## Step 4: Add the dashboard tunnel route
+RCON is plain text, so two rules keep it on the LAN:
 
-With Cloudflare managed as code ({doc}`cloudflare-as-code`), add
-`{ name = "minecraft" }` to `tunnel_services` in `cloudflare/locals.tf` and an
-`mc` A record (the VPS IP, not proxied) to `dns_only_records` in
-`cloudflare/live.auto.tfvars`, then run `just cf-apply`.
+- **Never add the RCON range to `vps_relay.forwards`.**
+- The chart's NetworkPolicy `minecraft-dashboard-worlds` admits the game port
+  (25565) from anywhere, but RCON (25575) only from the dashboard pod, the
+  world's own node, and `minecraft.worlds.rcon_allowed_cidrs`.
 
-Otherwise, add a route for the dashboard in the Cloudflare dashboard exactly as
-for the other web services in {doc}`cloudflare-web-tunnel` (Part 2):
-
-| Subdomain | Domain | URL |
-|-----------|--------|-----|
-| `minecraft` | `example.com` | `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local` |
-
-Delete any existing `minecraft` A record first so Cloudflare can create the
-tunnel CNAME. A wildcard Cloudflare Access application already covers the new
-hostname; no Access change is needed. Do **not** add a route for `mc`.
-
-## Step 5: Enable the dashboard
-
-Edit `kubernetes-services/values.yaml`:
+`rcon_allowed_cidrs` is the LAN minus the cluster nodes, plus nuc2's second
+LAN:
 
 ```yaml
-enable_minecraft: true
-minecraft:
-  chart_version: "0.5.2"          # must be published (see Prerequisites)
-  image:
-    repository: ghcr.io/gilesknap/k3s-minecraft
-  archive_path: /bigdisk/minecraft-archive
-  store_subdir: minecraft         # under nfs.cluster_share_path
-  dns_name: mc                    # players use mc.<cluster_domain>
-  worlds:
-    node: nuc2                    # the node game traffic is sent to
-    port_min: 30565
-    port_max: 30584
-    rcon_port_min: 30600
-    rcon_port_max: 30619
-    rcon_allowed_cidrs:           # who may reach RCON besides the dashboard
-      - cidr: 192.168.1.0/24      # your LAN...
-        except:                   # ...minus the other cluster nodes
-          - 192.168.1.81/32
+rcon_allowed_cidrs:
+  - cidr: 192.168.1.0/24
+    except:
+      - 192.168.1.81/32   # node01
+      - 192.168.1.82/32   # node02
+      - 192.168.1.83/32   # node03
+      - 192.168.1.84/32   # node04
+      - 192.168.1.91/32   # nuc1
+  - cidr: 192.168.0.0/24  # nuc2's second LAN
 ```
 
-The chart also takes its NFS server from `nfs.server`, the world storage
-class from `nfs_csi.stable_storage_class`, and the share it mounts read-only
-from `nfs_csi.server` and `nfs_csi.stable_share`.
+NodePort clients keep their own address (`externalTrafficPolicy: Local`), but
+a pod on another cluster node arrives as that node's address. Excepting the
+node addresses therefore stops every other workload in the cluster from
+reaching RCON. Two nodes are left allowed on purpose, so RCON clients can run
+on the hosts themselves: nuc2 (the world node) and ws03, whose
+`workstation` taint keeps workload pods off it.
 
-The ArgoCD AppProject must allow the chart registry. `argo-cd/argo-project.yaml`
-lists `ghcr.io/gilesknap/charts` (bare, with no `oci://` prefix); apply the
-project change with:
+:::{important}
+**A new node must be added to the `except` list** when it joins the cluster
+(the `/add-node` command covers it). Until then, any pod scheduled on it can
+reach every world's RCON port.
+:::
+
+## Day-to-day checks
 
 ```bash
-ansible-playbook pb_all.yml --tags cluster
+kubectl get application minecraft -n argo-cd
+kubectl get pods,svc,pvc -n minecraft -o wide
 ```
 
-Commit and push. ArgoCD creates the `minecraft` Application and namespace.
+- Every world pod is on nuc2. A stopped world is a Deployment scaled to 0;
+  its claim and its Services stay.
+- Each world has a `<world>` NodePort Service (game) and a `<world>-rcon`
+  Service. A world that has not been started since RCON NodePorts were
+  introduced still has a ClusterIP `-rcon` Service; start it, or save its
+  settings while it runs, to give it a port.
+- The archive is read-only; a write through its mount must fail:
 
-## Step 6: First test with a disposable world
+  ```bash
+  kubectl exec -n minecraft deploy/minecraft-dashboard -- \
+    touch /archive/should-fail    # expect "Read-only file system"
+  ```
 
-Prove the whole path with a world you do not care about before touching a
-precious one.
+### Prove the whole path with a disposable world
 
-1. **ArgoCD** — the `minecraft` Application is Synced and Healthy:
+After a change to the relay, the ports or the chart, test with a world that
+does not matter before touching a precious one:
 
-   ```bash
-   kubectl get application minecraft -n argo-cd
-   kubectl get pods,pvc -n minecraft
-   ```
+1. Open <https://minecraft.gkcluster.org>: Cloudflare Access first, then the
+   GitHub login through oauth2-proxy. A GitHub account outside `admin_emails`
+   is refused.
+2. **Launch** a disposable world from the archive list. It goes seeding,
+   starting, running; note its port.
+3. **Connect** a Minecraft Java client to `mc.gkcluster.org:<port>` from
+   outside the LAN (a phone hotspot will do), which proves DNS and the relay.
+   The player must be on the world's whitelist.
+4. **Stop** the world and **start** it again: the world data survives.
+5. **Snapshot** it, change something in game, then **restore** the snapshot.
+6. **Delete** the world. A final snapshot is taken first and the port is
+   freed.
 
-2. **Archive is read-only** — writes through the archive mount must fail:
-
-   ```bash
-   kubectl exec -n minecraft deploy/minecraft-dashboard -- \
-     touch /archive/should-fail    # expect "Read-only file system"
-   ```
-
-3. **Game hostname** — `dig +short mc.example.com` prints the VPS's public
-   IP and {doc}`vps-relay` Step 7 passes. In the Cloudflare dashboard the `mc` record shows **DNS only**.
-
-4. **Dashboard login** — open `https://minecraft.example.com`. You should pass
-   Cloudflare Access, then the GitHub login via oauth2-proxy. A non-admin
-   GitHub account must be refused.
-5. **Launch** a disposable, non-precious world from the archive list. Watch it
-   go seeding → starting → running, and note its port.
-6. **Connect** from a real Minecraft Java client to `mc.example.com:<port>`,
-   from outside your LAN (for example over a phone hotspot) to prove the
-   relay and DNS. The player must be on the world's whitelist.
-7. **Stop** the world, then **start** it again — the world data survives.
-8. **Snapshot** it, change something in game, then **restore** the snapshot.
-9. **Delete** the world. A final snapshot is taken first and the port is freed.
-
-Only after all of that works, try a modded (Forge) world, and only then a
-precious one.
+Then try a modded (Forge) world, and only then a precious one.
 
 ## Cluster rebuilds
 
-A rebuild wipes the dashboard's world records and Helm releases with etcd,
-but not the world data on the NAS. The dashboard keeps a copy of each world
-in its registry on the store, and re-creates every world it does not find
-(`worlds.restore`, on in this repo's chart values). Each world comes back
-with the same name, game and RCON ports, settings, whitelist and admins, and
-running or stopped as it was. Its `<world>-data` PVC binds to the world's
-folder on the NAS. The world page says "restored after the cluster lost it"
-until the next start or stop.
+A rebuild wipes the dashboard's world records and Helm releases with etcd, but
+not the world data on the NAS. The dashboard keeps a copy of each world in its
+registry on the store and re-creates every world it does not find
+(`worlds.restore: true` in the template). Each world comes back with the same
+name, game and RCON ports, settings, whitelist and admins, and running or
+stopped as it was. Its `<world>-data` claim binds to the world's folder on the
+NAS, because `nfs-stable` folders are named after the claim
+({doc}`/how-to/nfs-stable-paths`). The world page says "restored after the
+cluster lost it" until the next start or stop.
 
 Each world gets a new RCON password: reveal it again on the world page for
 RCON clients.
 
-This needs the `nfs-stable` class ({doc}`nfs-stable-paths`), which keeps
-each world's data in a folder named after its PVC. Worlds created before it
-are on `nfs-rwx` and must be moved once first; that page has the per-world
-steps. A world not moved is skipped on restore, and its data stays in its old
-folder.
-
-The stable share and the store belong to one cluster. Give each cluster its
-own, or each restores the other's worlds.
+The stable share and the store belong to this one cluster. A second cluster
+pointed at them would restore this cluster's worlds.
 
 Deleting a world archives its volume as `archived-minecraft/<world>-data` in
-the stable share. The dashboard mounts that share read-only and refuses a new
-world of the same name until the archive is removed or renamed on the NAS,
-because a second archive of one name would fail.
+the stable share. The dashboard mounts that share read-only (the
+`minecraft-dashboard-volumes` claim) and refuses a new world of the same name
+until the archive is removed or renamed on the NAS, because a second archive
+of one name would fail.
+
+:::{note}
+Every world here is on `nfs-stable`. They were created on `nfs-rwx` and moved
+with `scripts/nfs-stable-paths`, which stays in the repository;
+{doc}`/how-to/nfs-stable-paths` describes it. A world still on `nfs-rwx` would
+be skipped on restore.
+:::
+
+## Backups
+
+The dashboard's own snapshots and promoted backups are on the store. The
+nightly off-site job ({ref}`offsite-backup`) uploads a tarball of the store and
+of the worlds' folders (live and archived) to Google Drive, keeps seven, and
+uploads the archive once.
 
 ## Troubleshooting
 
 ### The `minecraft` app shows `InvalidSpecError` or a 403/404
 
-Either the AppProject does not list `ghcr.io/gilesknap/charts` (run
-`--tags cluster`), the repoURL has an `oci://` prefix, or the chart version
-is not published. See the ArgoCD notes in `.claude/skills/argocd/SKILL.md`.
+One of three things: the AppProject does not list `ghcr.io/gilesknap/charts`
+(run `ansible-playbook pb_all.yml --tags cluster`), the `repoURL` has an
+`oci://` prefix, or the chart version is not published. The `/argocd` skill
+(`.claude/skills/argocd/SKILL.md`) has the details, including how to clear
+ArgoCD's cached error.
 
 ### Players cannot connect
 
-- Check `dig +short mc.<domain>` returns the VPS's public IP.
-- Check frpc logged `start proxy success` for the world's
-  port, and see the troubleshooting in {doc}`vps-relay`.
-- From the LAN, try `<node-ip>:<port>` directly to separate a cluster
-  problem from a relay/DNS problem.
+- `dig +short mc.gkcluster.org` returns the VPS's public address.
+- frpc logged `start proxy success` for the world's port
+  (`kubectl logs -n vps-relay deploy/vps-relay -c frpc`); see the
+  troubleshooting in {doc}`/how-to/vps-relay`.
+- From the LAN, try `192.168.1.92:<port>` directly, to separate a cluster
+  problem from a relay or DNS problem.
+- nuc2 is the only node that can run worlds. While it is down or draining,
+  every world is down.
+
+### An RCON tool is refused
+
+Check where it runs. From a pod, or from a host that is a cluster node other
+than nuc2 and ws03, the NetworkPolicy drops it by design.
 
 ## Removing the dashboard
 
-First **delete every world from the dashboard** — each delete takes a final
-snapshot. Worlds are Helm releases and PVCs created by the dashboard at
-runtime, not by ArgoCD, so ArgoCD will not clean them up. Deleting a world
-PVC by hand leaves the world without a volume. On `nfs-stable` it moves the
-data to the archive folder on the NAS ({doc}`nfs-stable-paths`). On
-`nfs-rwx`, where worlds made before `nfs-stable` stay until they are moved,
-it deletes the data (`reclaimPolicy: Delete`).
+First **delete every world from the dashboard**; each delete takes a final
+snapshot. Worlds are Helm releases and claims created by the dashboard at
+runtime, not by ArgoCD, so ArgoCD does not clean them up. Deleting a world's
+claim by hand leaves the world without a volume, and moves its data to the
+archive folder on the NAS ({doc}`/how-to/nfs-stable-paths`).
 
-Then set `enable_minecraft: false` and push. ArgoCD prunes the dashboard
-and its ingress. The NAS archive and store directories are
-static NFS volumes and are never deleted by the cluster. Remove the `mc` DNS
-record and the `minecraft` tunnel route (from `dns_only_records` and
-`tunnel_services`, then `just cf-apply`; or in the dashboard if you do not
-manage Cloudflare as code), and remove the
-`minecraft` entry from `vps_relay.forwards` and its ports on the VPS.
+Then:
+
+1. Set `enable_minecraft: false` and push. ArgoCD prunes the dashboard and its
+   Ingress. The archive and the store are static NFS volumes and are never
+   deleted by the cluster.
+2. Remove `{ name = "minecraft" }` from `tunnel_services` and `mc` from
+   `dns_only_records`, then `just cf-apply`.
+3. Remove the `minecraft` entry from `vps_relay.forwards`, and close its ports
+   on the VPS ({doc}`/how-to/vps-relay`).

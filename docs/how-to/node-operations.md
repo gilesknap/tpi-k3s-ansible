@@ -1,7 +1,32 @@
-# Node Operations
+# Node operations
 
-Common operations for managing cluster nodes: shutdown, reboot, drain, add, and remove.
-Routine OS updates and reboots are automatic; see {doc}`/explanations/upgrade-model`.
+Runbooks for the cluster's six nodes: package updates, shutdown and reboot,
+power-cycling through the BMC, fencing, draining, moving a local PV, and
+adding or removing a node. Routine OS updates and reboots are automatic
+({doc}`/explanations/upgrade-model`), so most of this page is for the
+exceptions. {doc}`/explanations/architecture/hardware` describes the nodes
+themselves.
+
+| Node | Address | What to remember before touching it |
+|------|---------|--------------------------------------|
+| `node02` | 192.168.1.82 | Control plane and etcd. The Kubernetes API is down while it is; running pods carry on. |
+| `node03` | 192.168.1.83 | Warm-standby control plane; an ordinary worker until it is needed. |
+| `node04` | 192.168.1.84 | Holds the Prometheus and Grafana `local-nvme` PVs: monitoring is down while it is. |
+| `nuc1` | 192.168.1.91 | Worker with nothing pinned to it. |
+| `nuc2` | 192.168.1.92 | Holds Jellyfin, every Minecraft world and scrap's backup copy. |
+| `ws03` | 192.168.1.10 | The owner's workstation. No automation reboots it; see [](#what-never-applies-to-ws03). |
+
+`node02`, `node03` and `node04` are RK1 modules in slots 2 to 4 of the
+Turing Pi, whose BMC is `turingpi` (192.168.1.80).
+
+:::{note}
+`node01` (192.168.1.81, the CM4 in slot 1) was the control plane before the
+move to `node02`. It is not a member of the cluster, but it is still listed
+in `hosts.yml` and still answers SSH. Any command on this page that targets
+`all_nodes` reaches it too, and a `pb_all.yml --tags k3s` run without
+`--limit` would install K3s on it and join it as a worker. Use `--limit`
+until it is removed from the inventory.
+:::
 
 ## Apply package updates to nodes
 
@@ -9,22 +34,23 @@ The `update_packages` role is part of the `servers` play — **not** a tag of it
 To run package updates (e.g. after adding a new package to the role):
 
 ```bash
-# All nodes
-ansible-playbook pb_all.yml --tags servers
+# Chosen nodes
+ansible-playbook pb_all.yml --tags servers --limit node03,node04
 
-# Specific nodes only
-ansible-playbook pb_all.yml --tags servers --limit node02,node03
+# Every cluster node (node01 is left out: see the note above)
+ansible-playbook pb_all.yml --tags servers --limit 'all_nodes:!node01'
 
 # Also reboot now the nodes that need it: drained, one at a time
-ansible-playbook pb_all.yml --tags servers -e reboot_now=true
+ansible-playbook pb_all.yml --tags servers --limit 'all_nodes:!node01' -e reboot_now=true
 ```
 
 `update_packages` does not reboot a node that is in the cluster. If an upgrade
 needs a reboot it leaves `/var/run/reboot-required` for kured, which drains and
 reboots the node in the nightly window, and says so in the output. With
 `-e reboot_now=true` the nodes that need it are drained, rebooted and uncordoned
-one at a time instead. A node not yet running k3s is rebooted straight away, and
-workstations are never rebooted. See {doc}`/explanations/upgrade-model`.
+one at a time instead. A node not yet running K3s is rebooted straight away, and
+`ws03` is never rebooted: the play only warns that it needs one. See
+{doc}`/explanations/upgrade-model`.
 
 :::{note}
 `--tags update_packages` will silently do nothing — the correct tag is `servers`,
@@ -32,47 +58,56 @@ which runs the `move_fs`, `rk1_os`, `update_packages` and `k8s_data_dirs` roles.
 :::
 
 :::{warning}
-`--tags servers` also converts every RK1 node still on the old ubuntu-rockchip
-vendor image (the `rk1_os` role; RK1s installed by the current `flash` role are
-already stock Ubuntu and are skipped): it drains the node, reboots it into GRUB, runs a release
-upgrade of 15–20 minutes and reboots it again. Nodes are converted one at a time,
-but each is out of the cluster for the duration. Use `--limit` to choose which
-nodes are converted when. Apart from this conversion, `--tags servers` reboots
-no node that is in the cluster unless you pass `-e reboot_now=true`. See [](../explanations/ansible-roles.md).
+`--tags servers` also runs the `rk1_os` role, which converts an RK1 still on
+the old ubuntu-rockchip vendor image to stock Ubuntu: it drains the node,
+reboots it into GRUB, runs a release upgrade of 15–20 minutes and reboots it
+again, one node at a time. All three RK1s here already run stock Ubuntu
+26.04, so the role has nothing left to convert. Apart from that
+conversion, `--tags servers` reboots no node that is in the cluster unless
+you pass `-e reboot_now=true`. See {doc}`/explanations/ansible-roles`.
 :::
 
-## Shutdown all nodes
+## Shut down or reboot a node
+
+These ad-hoc commands do not drain the node first. For a planned reboot of
+one node, drain it ([](#drain-a-node-for-maintenance)) or let
+`-e reboot_now=true` above do the drain, reboot and uncordon.
 
 ```bash
-ansible all_nodes -a "/sbin/shutdown now" -f 10 --become
-```
-
-## Reboot all nodes
-
-```bash
-ansible all_nodes -m reboot -f 10 --become
-```
-
-## Shutdown or reboot a single node
-
-```bash
-# Shutdown
+# Shut down
 ansible node03 -a "/sbin/shutdown now" --become
 
 # Reboot
 ansible node03 -m reboot --become
 ```
 
+## Shut down or reboot the whole cluster
+
+For a power cut or moving the hardware. The pattern leaves `ws03` (and
+`node01`) out:
+
+```bash
+# Shut down
+ansible 'all_nodes:!ws03:!node01' -a "/sbin/shutdown now" -f 10 --become
+
+# Reboot
+ansible 'all_nodes:!ws03:!node01' -m reboot -f 10 --become
+```
+
+Every node goes down at once, so nothing is drained and everything is
+unavailable until `node02` and the workers are back. The nodes come back by
+themselves and need no playbook run.
+
 ## Hard power-cycle a Turing Pi node via the BMC
 
-Use this when a Turing Pi node is `NotReady` and SSH times out — the
-graceful `ansible -m reboot` above needs a working kubelet and `sshd`
-on the target, so it cannot recover an unreachable node.
+Use this when an RK1 is `NotReady` and SSH times out. The graceful
+`ansible -m reboot` above needs a working `sshd` on the target, so it
+cannot recover an unreachable node.
 
-The BMC is reachable as `root@turingpi`. Each slot maps to a node via
-`slot_num` in `hosts.yml`: node01→1, node02→2, node03→3, node04→4.
-`nuc2` and `ws03` are not on the BMC — power them with their own
-buttons.
+The BMC is reachable as `root@turingpi`. Each slot maps to a node through
+`slot_num` in `hosts.yml`: `node02` is slot 2, `node03` slot 3 and `node04`
+slot 4 (slot 1 holds `node01`). `nuc1`, `nuc2` and `ws03` are not on the
+BMC: power them with their own buttons.
 
 ```bash
 # Inspect what the BMC thinks of all four slots
@@ -86,18 +121,18 @@ kubectl get nodes -w
 ```
 
 :::{warning}
-A hard power-cycle is an unclean shutdown for any in-flight writes. If
-the node carries live local-PV data (Prometheus and Grafana on
-node04 — see the "Local PV data paths are sacred"
-rule in `CLAUDE.md`), expect fsck on boot and check the affected pods'
-logs once the node returns.
+A hard power-cycle is an unclean shutdown for any in-flight writes. `node04`
+carries live local PV data (Prometheus and Grafana, under
+`/var/lib/k8s-data`): expect a filesystem check on boot and read the
+affected pods' logs once the node returns. Power-cycling `node02` takes the
+Kubernetes API down until it is back.
 :::
 
 :::{note}
-Don't `kubectl drain` first — the node is already unreachable, so the
-drain will hang waiting for pods that can't be contacted. Just
-power-cycle and let workloads reschedule (or come back, for DaemonSets
-pinned to the node).
+Don't `kubectl drain` first: the node is already unreachable, so the
+drain hangs waiting for pods that can't be contacted. Power-cycle it and
+let its pods come back with it. If the node is not coming back, power it
+off and fence it instead (next section).
 :::
 
 (fence-a-dead-node)=
@@ -111,7 +146,7 @@ it anywhere else. Fencing tells Kubernetes the node is off. It uses the
 taint, `node.kubernetes.io/out-of-service=nodeshutdown:NoExecute`.
 
 1. Make sure the node is **powered off**: `tpi power off -n <slot>` on
-   the BMC, or unplug it. `NotReady` alone is not enough. A node that
+   the BMC for an RK1, the power button or the plug for a NUC. `NotReady` alone is not enough. A node that
    lost its network or its k3s agent may still be running its pods, and
    two copies of a single-writer app such as scrap corrupt its data.
 2. Fence it. The recipe refuses a `Ready` node, warns, and asks you to
@@ -133,8 +168,11 @@ taint, `node.kubernetes.io/out-of-service=nodeshutdown:NoExecute`.
    just node-unfence nuc2
    ```
 
-Workloads pinned to the dead node, such as those on its `local-nvme`
-PVs, stay `Pending` until it returns.
+The recipes are `scripts/node-fence fence|unfence <node>`. Workloads pinned
+to the dead node stay `Pending` until it returns: Prometheus and Grafana
+for `node04`; Jellyfin and the Minecraft worlds for `nuc2`. Fencing `node02`
+is not possible, since the API it would be done through runs there: see
+{doc}`recover-control-plane`.
 
 ## Drain a node for maintenance
 
@@ -149,6 +187,13 @@ kubectl drain node03 --ignore-daemonsets --delete-emptydir-data
 # Uncordon the node (allow pods to schedule again)
 kubectl uncordon node03
 ```
+
+CoreDNS, ingress-nginx, oauth2-proxy and cloudflared each run two replicas
+with a PodDisruptionBudget, so draining one node leaves them serving; drain
+one node at a time. scrap restarts on another node, restoring its database
+from its Litestream replica. Pods bound to a `local-nvme` PV on the drained
+node (Prometheus and Grafana on `node04`, Jellyfin on `nuc2`) and the
+Minecraft worlds on `nuc2` stay down until it is uncordoned.
 
 (move-a-local-nvme-pv)=
 ## Move a local-nvme PV to another node
@@ -173,7 +218,7 @@ directory on the host, so deleting the PV object does not delete any data.
    The tag runs only that role. `--tags servers` would also run
    `move_fs`, `rk1_os` and `update_packages`.
 
-   If the workload has a backup ({doc}`backup-restore`), take a fresh one
+   If the workload has a backup ({doc}`/how-to/backup-restore`), take a fresh one
    now, while it still runs on the old node.
 
    Merge the change into the branch ArgoCD tracks (`repo_branch`, normally
@@ -202,7 +247,8 @@ directory on the host, so deleting the PV object does not delete any data.
 
    The new node's directory starts empty. Bring the data across with the
    workload's own backup and restore, not by copying files under the data
-   paths by hand (see "Never touch `/var/lib/k8s-data`" in `CLAUDE.md`).
+   paths by hand: nothing but the `k8s_data_dirs` role writes under
+   `/var/lib/k8s-data` on an RK1 (a hard rule in `CLAUDE.md`).
 3. Delete the PV through ArgoCD and sync, so ArgoCD re-creates it with the
    new node. `argocd --core` uses the kube context's namespace, so set it
    to `argo-cd` first:
@@ -232,85 +278,161 @@ directory on the host, so deleting the PV object does not delete any data.
 
 The old directory stays on the old node, as a fallback. Do not remove it
 by hand: only `pb_decommission.yml -e wipe_local_data=true` or a re-flash
-removes it.
+removes it ({doc}`/how-to/reflash-rebuild`).
 
-## Add extra (non-Turing Pi) nodes
+A new workload that needs a `local-nvme` volume gets its own PV and its own
+node, never a shared pool: add an entry to `local_storage` and to
+`k8s_data_dirs`, as above. {doc}`/explanations/architecture/storage` has
+the reasoning.
 
-To add standalone Linux servers to the cluster:
+## Add a node
 
-### Step 1: Add to inventory
+The `/add-node` command in Claude Code walks through this checklist, asking
+for the details and making the edits. `nuc1` was the last node added this
+way; the examples use it. The node needs Ubuntu installed (24.04 or later),
+a fixed address and a name on the router, since the `known_hosts` role
+looks it up as `<node>.lan`.
 
-Edit `hosts.yml` and add entries under `extra_nodes`:
+1. **Inventory.** Add the node to `hosts.yml` under `extra_nodes`, with
+   only the variables it needs:
 
-```yaml
-extra_nodes:
-  hosts:
-    nuc1:
-    nuc2:
-  vars:
-    ansible_user: "{{ ansible_account }}"
+   ```yaml
+   extra_nodes:
+     hosts:
+       ws03:
+         nvidia_gpu_node: true # installs the NVIDIA container toolkit
+         workstation: true # taint NoSchedule, never rebooted or upgraded for you
+       nuc2:
+         node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
+         flannel_iface: enp3s0 # the interface carrying node_ip
+         intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
+       nuc1: # single NIC, nothing special
+   ```
 
-all_nodes:
-  children:
-    turingpi_nodes:
-    extra_nodes:       # Make sure extra_nodes is listed here
-```
+   A node with interfaces on two subnets needs both `node_ip` and
+   `flannel_iface`. Without them K3s and flannel pick the default-route
+   interface, and cross-node pod networking fails. A new RK1 goes under
+   `turingpi_nodes` instead, with `slot_num`, `type: rk1` and `root_dev`.
+2. **Sandbox allow-list.** The claude-sandbox blocks every private address
+   that is not listed, so add the node's IP as an `allow-ip` line in
+   `.devcontainer/claude-sandbox.conf`, then apply it from a devcontainer
+   terminal (it takes effect at the next sandbox launch):
 
-### Step 2: Bootstrap Ansible access
+   ```bash
+   just sandbox-conf
+   ```
 
-```bash
-ansible-playbook pb_add_nodes.yml -e ansible_user=<your-username> -K
-```
+3. **Ansible access.** `pb_add_nodes.yml` creates the `ansible` account
+   with the key from `pub_keys/ansible_rsa.pub` and passwordless sudo. Run
+   it yourself in a devcontainer terminal: `-K` prompts for a sudo
+   password, which Claude Code's shell cannot answer.
 
-`ansible_user` is an existing user on the new servers with SSH access and sudo
-(pass it with `-e`: `-u` is overridden by the `ansible_user` that `hosts.yml` sets
-for `extra_nodes`), and `-K` prompts for its sudo password. The playbook creates the `ansible` user with SSH key
-authentication and passwordless sudo. Re-running it on an existing node is safe: it
-adds the key from `pub_keys/ansible_rsa.pub` without removing other keys already in
-the `ansible` user's `authorized_keys`.
+   ```bash
+   ansible-playbook pb_add_nodes.yml --limit nuc1 -e ansible_user=<existing-user> -K
+   ansible nuc1 -m ping
+   ```
 
-### Step 3: Join the cluster
+   The existing user must be passed with `-e`, not `-u`: `hosts.yml` sets
+   `ansible_user` for `extra_nodes` to the `ansible` account, which does not
+   exist on the new node yet and overrides `-u`. Re-running the playbook on
+   a node that is already set up is safe; it adds the key without removing
+   others.
+4. **Join the cluster.**
 
-```bash
-ansible-playbook pb_all.yml --limit nuc1,nuc2 --tags known_hosts,servers,k3s
-```
+   ```bash
+   ansible-playbook pb_all.yml --limit nuc1 --tags known_hosts,servers,k3s
+   kubectl get nodes
+   ```
 
-The new nodes will be prepared (known_hosts, package updates) and joined to the
-existing K3s cluster as workers.
+   This records the host keys, dist-upgrades the node (rebooting it if
+   needed, as it is not in the cluster yet) and installs the K3s agent at
+   the version `node02` runs. A new RK1 is flashed in the same run, with
+   the BMC in the limit: `--limit turingpi,<node> -e do_flash=true` and no
+   `--tags`.
+5. **Claude's SSH key.** Add the sandbox's key to the node's `ansible`
+   account, so Claude sessions can run Ansible against it. Skip this for a
+   freshly flashed RK1, whose cloud-init seed already carries the key:
+
+   ```bash
+   ansible-playbook pb_all.yml --tags claude_key --limit nuc1
+   ```
+
+6. **Minecraft RCON exception list.** Pods on a cluster node reach a
+   world's RCON port as that node's IP, so every node's IP is in the
+   `except` list of `minecraft.worlds.rcon_allowed_cidrs` in
+   `kubernetes-services/values.yaml`. Add the new node as a `/32`. Two nodes
+   stay allowed on purpose, so RCON clients can run on them: `nuc2`, where
+   the worlds run, and `ws03`, whose taint keeps workload pods off it.
+7. **Commit.** `hosts.yml`, `claude-sandbox.conf` and `values.yaml` go
+   through a branch and a PR like any other change
+   ({doc}`/how-to/work-in-branches`).
+
+Nothing else needs adjusting. The control-plane taints are applied by node
+name, kured and the device-plugin DaemonSets follow labels and taints, and
+there is no replicated storage to rebalance: the node holds no volumes
+until a workload is given a `local-nvme` PV pinned to it.
 
 ## Remove a worker node
 
-### Step 1: Drain the node
+`node02` cannot be removed this way: move the control plane first
+([](recover-control-plane.md#move-the-control-plane)).
+
+1. Check that nothing is pinned to the node: no `local_storage` entry in
+   `kubernetes-services/values.yaml` names it (move the PV first,
+   {ref}`move-a-local-nvme-pv`), and it is not `minecraft.worlds.node`.
+2. Drain it and delete it from Kubernetes:
+
+   ```bash
+   kubectl drain nuc1 --ignore-daemonsets --delete-emptydir-data
+   kubectl delete node nuc1
+   ```
+
+3. Uninstall the K3s agent:
+
+   ```bash
+   ssh ansible@nuc1 sudo k3s-agent-uninstall.sh
+   ```
+
+   The script stops before its full cleanup, because this repository's
+   `k3s-apparmor-profile.service` is still installed: see
+   [](recover-control-plane.md#k3s-uninstall-leaves-files-behind).
+4. Remove the node from `hosts.yml`, its `allow-ip` line from
+   `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`,
+   and `standby_control_plane` in `group_vars/all.yml` if it named this
+   node. Commit the change.
+
+(what-never-applies-to-ws03)=
+## What never applies to ws03
+
+`ws03` is a desktop in daily use that also lends its NVIDIA GPU to the
+cluster ({doc}`/explanations/decisions/0005-ws03-workstation-taint`). It is
+`workstation: true` in `hosts.yml`, which takes it out of every automated
+disruption:
+
+- kured does not run on it, so it is never rebooted in the nightly window.
+- `update_packages` never reboots it, even with `-e reboot_now=true`, and
+  leaves its unattended-upgrades policy alone.
+- The K3s upgrade Plans do not select it. Upgrade its agent by hand with
+  `just upgrade-workstation ws03` ({doc}`/how-to/upgrade-k3s`).
+- Its `workstation=true:NoSchedule` taint keeps ordinary pods off it, so
+  draining it moves almost nothing.
+
+Reboot it yourself when it suits. Leave it out of whole-cluster shutdown
+and reboot commands, as above.
+
+## Run an ad-hoc command on the nodes
 
 ```bash
-kubectl drain node03 --ignore-daemonsets --delete-emptydir-data
-```
+# Disk usage on the cluster's nodes
+ansible 'all_nodes:!node01' -a "df -h" --become
 
-### Step 2: Delete from Kubernetes
-
-```bash
-kubectl delete node node03
-```
-
-### Step 3: Uninstall K3s on the node
-
-```bash
-ssh ansible@node03 'sudo /usr/local/bin/k3s-agent-uninstall.sh'
-```
-
-### Step 4: Remove from inventory
-
-Remove the node from `hosts.yml` and commit the change.
-
-## Run an ad-hoc command on all nodes
-
-```bash
-# Check disk usage
-ansible all_nodes -a "df -h" --become
-
-# Check K3s agent status
-ansible all_nodes -a "systemctl status k3s-agent" --become
+# K3s agent status on the workers
+ansible 'all_nodes:!node01:!node02' -a "systemctl is-active k3s-agent" --become
 
 # Run a role standalone
-ansible all_nodes -m include_role -a name=known_hosts
+ansible 'all_nodes:!node01' -m include_role -a name=known_hosts
 ```
+
+Inside the claude-sandbox, add `--private-key /root/.config/claude-ssh/id_ed25519`
+to `ansible` and `ansible-playbook`, and `-i` with the same path to `ssh`:
+nothing passes that key automatically.

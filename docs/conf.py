@@ -1,6 +1,6 @@
 """Configuration file for the Sphinx documentation builder."""
 
-project = "K3s Cluster Commissioning"
+project = "gkcluster K3s homelab"
 copyright = "2024, Giles Knap"
 author = "Giles Knap"
 

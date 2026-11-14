@@ -1,12 +1,14 @@
-# Recover the Control Plane
+# Recover the control plane
 
-This runbook rebuilds a lost single-server control plane from the nightly
-encrypted etcd backup on the NAS ({ref}`etcd-offsite-backup`). The workers
-and their data are untouched. The restore can go onto the old control-plane
-node, rebuilt, or onto any spare node. The examples use `node02`, an RK1
-in Turing Pi slot 2, as the lost control plane and `node03` as the spare.
-The same procedure, planned, moves a healthy control plane to another
-node: see [](#move-the-control-plane).
+The cluster has one K3s server, `node02`, and so one etcd member. This
+runbook rebuilds it from the nightly encrypted etcd backup on the NAS
+({ref}`etcd-offsite-backup`) if it is lost. The workers and their data are
+untouched. The restore can go onto `node02` itself, rebuilt, or onto the
+warm standby, `node03`; the examples use those two. The same procedure,
+planned, moves a healthy control plane to another node: see
+[](#move-the-control-plane). That is how the control plane got to `node02`.
+{doc}`/explanations/architecture/backups` explains what is backed up, when
+and to where.
 
 A restore takes the cluster back to the moment of the snapshot. Most
 changes after that point come back by themselves, since ArgoCD re-syncs
@@ -19,12 +21,13 @@ from Git. Objects created by hand after the snapshot, such as a rotated
 |---------|--------|
 | API down, node boots and its disk is fine | `sudo systemctl restart k3s` on the node and read `journalctl -u k3s`. No restore. |
 | etcd data damaged, OS fine | Restore from a local snapshot in `/var/lib/rancher/k3s/server/db/snapshots` (see {doc}`backup-restore`). No reflash. |
-| Control-plane OS or storage lost: dead eMMC/SD, failed upgrade, accidental reflash | **This runbook.** |
-| No usable backup, or several nodes lost | Full rebuild from Git: {doc}`reflash-rebuild` and {doc}`bootstrap-cluster`. |
+| Control-plane OS or storage lost: dead NVMe, failed upgrade, accidental reflash | **This runbook.** |
+| No usable backup, or several nodes lost | Full rebuild from Git: {doc}`/how-to/reflash-rebuild` and {doc}`/tutorials/build-the-cluster`. |
 
-The workers, the API server certificate and your kubeconfig all reach the
-API through `k3s_api_name` in `group_vars/all.yml` (e.g. `k3s.lan`), a DNS
-record on your router that points at the control plane. Wherever the control
+The workers, the API server certificate and the kubeconfig all reach the
+API through `k3s_api_name` in `group_vars/all.yml`: `k3s.lan`, a DNS record
+on the router (OpenWrt, 192.168.1.1) that points at the control plane,
+192.168.1.82 today. Wherever the control
 plane comes back, point that record at it and the workers follow; nothing
 has to keep the old node's IP. The `k3s` role refuses to run until the name
 resolves to the `control_plane` node.
@@ -34,19 +37,19 @@ resolves to the `control_plane` node.
 - **The old node, rebuilt.** Keeps its hostname and IP, so the DNS record
   needs no change. Use this when the hardware is fine and only its OS or
   disk was lost.
-- **A spare node** (`node03` here). Use this when the old hardware is dead
+- **A spare node** (`node03`). Use this when the old hardware is dead
   or slow to replace. A worker serves, but it loses its workloads while it
   changes role, and the `cluster` tag later taints it `NoSchedule`. Prefer a
   node that holds no `local-nvme` PV (`local_storage` in
   `kubernetes-services/values.yaml`): a pod pinned there by its PV cannot
-  restart on it once it is tainted.
+  restart on it once it is tainted. That rules out `node04` and `nuc2`.
 
-Name the spare in advance as `standby_control_plane` in
-`group_vars/all.yml` (e.g. `node03`). The `cluster` tag gives it a
+The spare is named in advance as `standby_control_plane` in
+`group_vars/all.yml`: `node03`. The `cluster` tag gives it a
 `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` taint, so
 the scheduler keeps it light while other nodes have room but can still use
-it. Little then has to move off it when it changes role. Leave the variable
-empty to have no standby.
+it. Little then has to move off it when it changes role. An empty variable
+means no standby.
 
 For a spare node, set it as the control plane first, on a branch:
 
@@ -68,8 +71,8 @@ standby again.
 - The age private key for the backups, which you keep offline.
 - SSH access to the NAS, or any machine that can mount the NFS share.
 - A machine with this repository checked out and SSH access to the nodes
-  as the `ansible` user. Your own machine is best, because the decrypted
-  bundle holds every cluster Secret in plaintext.
+  as the `ansible` user: the devcontainer on `ws03`, not a Claude session,
+  because the decrypted bundle holds every cluster Secret in plaintext.
 
 :::{warning}
 Do not run the `k3s` tag, or `pb_all.yml` without `--tags`, against the
@@ -135,7 +138,9 @@ ansible-playbook pb_all.yml --limit turingpi,node02 \
 
 This runs `tpi flash` through the BMC (`roles/flash`), bootstraps the
 `ansible` account, refreshes the SSH host keys and installs the base
-packages. A node outside a Turing Pi is reinstalled by hand, then
+packages. `flash_force` wipes the node's NVMe
+({doc}`/how-to/reflash-rebuild`); `node02` holds no local PV, so only the
+dead control plane is lost. A NUC is reinstalled by hand, then
 `--tags known_hosts,servers`.
 
 ## 3. Restore etcd
@@ -188,15 +193,15 @@ remove on other servers.
 ## 4. Point the API name at the new control plane
 
 On a spare node, point the `k3s_api_name` DNS record at the new node's IP.
-With an OpenWrt `dns_router`, that is one command, which also checks the
-name resolves on the controller:
+One command does it on the router (`dns_router` in `group_vars/all.yml`,
+reached over SSH and changed with `uci`), and checks that the name resolves
+on the controller:
 
 ```bash
 just k3s-api-dns 192.168.1.83
 ```
 
-On another router, change the record by hand. Either way, check it from a
-worker too:
+Check it from a worker too:
 
 ```bash
 getent hosts k3s.lan
@@ -282,8 +287,8 @@ If something is off:
 ## 6. Fallback: rebuild from Git
 
 If no bundle decrypts, or the restore fails, rebuild the cluster from Git
-({doc}`reflash-rebuild`, {doc}`bootstrap-cluster`) and restore stateful data
-from the NAS ({doc}`backup-restore`). The `local-nvme` data directories on
+({doc}`/how-to/reflash-rebuild`, {doc}`/tutorials/build-the-cluster`) and
+restore stateful data from the NAS ({doc}`/how-to/backup-restore`). The `local-nvme` data directories on
 the workers survive a rebuild.
 
 ## Move the control plane
@@ -294,13 +299,14 @@ Workloads keep running throughout. Moving an RK1 control plane to another
 RK1 took about 15 minutes of API downtime, from stopping the old server to
 the DNS change. Before you start, the `k3s_api_name`
 record must exist and every agent must already use it (run
-`ansible-playbook pb_all.yml --tags k3s` once and check with
+`ansible-playbook pb_all.yml --tags k3s --limit 'all_nodes:!node01'` once
+and check with
 `sudo grep K3S_URL /etc/systemd/system/k3s-agent.service.env`).
 
 1. Pick the new node as in [](#choose-the-target-node); a node with no
    `local-nvme` PV is best. Move any PV it holds first: re-pin it in
-   `local_storage` and `k8s_data_dirs` and copy its data (see
-   [](node-operations.md#move-a-local-nvme-pv-to-another-node)).
+   `local_storage` and `k8s_data_dirs` and bring its data across (see
+   {ref}`move-a-local-nvme-pv`).
 2. Drain it and remove its agent:
 
    ```bash
@@ -344,7 +350,8 @@ record must exist and every agent must already use it (run
    `ansible-playbook pb_all.yml --tags k3s --limit node02`.
 8. Taint the new control plane with
    `ansible-playbook pb_all.yml --tags cluster`, and update anything else
-   that names the old node's IP, such as a Cloudflare SSH tunnel route.
+   that names the old node, such as the API server comment on its
+   `allow-ip` line in `.devcontainer/claude-sandbox.conf`.
    The same run sets `NoSchedule` on node03, removes its
    `standby-control-plane` taint and puts that taint on the new
    `standby_control_plane`, if any.
@@ -357,8 +364,8 @@ record must exist and every agent must already use it (run
 then stop early, with `Additional k3s services installed, skipping
 uninstall of k3s`, if any other `/etc/systemd/system/k3s*.service` remains.
 This repository installs `k3s-apparmor-profile.service` on nodes where
-AppArmor is enabled and `k3s-etcd-backup.service` on the control plane, so
-on those nodes the scripts stop there. They leave the `k3s` binary, the
+AppArmor is enabled (every node here) and `k3s-etcd-backup.service` on the
+control plane, so the scripts stop there. They leave the `k3s` binary, the
 `kubectl`, `crictl` and `ctr` links, `k3s-killall.sh`, `/etc/rancher/k3s`,
 all of `/var/lib/rancher/k3s` and `/run/flannel`, and they delete
 themselves.

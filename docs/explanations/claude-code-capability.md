@@ -1,9 +1,15 @@
 # Lessons learned using Claude Code for infrastructure
 
-This page analyses the architectural choices and working practices that allow
-an LLM agent (Claude Code) to operate this K3s cluster project with minimal
-human supervision — including autonomous multi-hour rebuilds. The goal is to
-extract transferable techniques for other infrastructure projects.
+This page sets out the choices in this repo, and the working habits around
+it, that let an LLM agent (Claude Code) operate the gkcluster.org cluster
+with little supervision, up to rebuilding it unattended. It is the part of
+these docs most likely to be useful to someone else: the cluster is
+specific to one home, but the techniques carry over to other
+infrastructure projects.
+
+For how Claude is fenced in (the sandbox, its network jail and its
+credentials), see {doc}`/explanations/architecture/claude-code`. For the
+set-up steps, see {doc}`/how-to/claude-code`.
 
 ## What makes this project complex
 
@@ -12,12 +18,12 @@ stacking on top of each other:
 
 | Dimension | Detail |
 |-----------|--------|
-| **Hardware** | Heterogeneous: 4× RK1 ARM SoCs on a Turing Pi board, plus x86 nodes (NUC, workstation) with different roles and taints |
-| **Services** | ~20 ArgoCD-managed applications — cert-manager, ingress-nginx, Grafana, Prometheus, and more |
-| **Provisioning layers** | Ansible (OS + K3s) → Helm (ArgoCD root app) → ArgoCD (everything else) — three layers, each with its own failure modes |
-| **Stateful data** | Grafana dashboards and Prometheus metrics — both must survive cluster rebuilds |
-| **Secret management** | Vault-derived secrets, SealedSecrets, OAuth client credentials, cookie secrets — each with different rotation rules |
-| **Auth stack** | GitHub OAuth → oauth2-proxy → Dex → per-service OIDC — a four-hop chain where any link can break silently |
+| **Hardware** | Mixed: three RK1 arm64 modules on a Turing Pi board (node02, node03, node04), two amd64 NUCs (nuc1, nuc2) and a GPU workstation (ws03), each with its own role, taints and devices ({doc}`/explanations/architecture/hardware`) |
+| **Services** | 25 ArgoCD applications (a root and 24 children): the platform (ingress-nginx, cert-manager, cloudflared, Sealed Secrets, oauth2-proxy), monitoring, and the things the cluster is for (scrap, Jellyfin, the Minecraft dashboard, ntfy) |
+| **Provisioning layers** | Ansible (OS and K3s), then Ansible installing ArgoCD and its root application, then ArgoCD for everything else, with OpenTofu for the Cloudflare edge alongside. Each layer fails in its own way |
+| **Stateful data** | Grafana and Prometheus on node04; Jellyfin's library database on nuc2; scrap's database, replicated to the NAS; every Minecraft world on the NAS. All of it must survive a rebuild ({doc}`/explanations/architecture/storage`) |
+| **Secret management** | 13 SealedSecrets, sealed again on every rebuild because the sealing key is new. Some values are generated at random, some come from outside (GitHub OAuth apps, Cloudflare, Tailscale, Google Drive), and some are held by clients and must not change (scrap's MCP token, the ntfy tokens) |
+| **Auth stack** | Cloudflare Access at the edge, then ingress-nginx, then either Dex (ArgoCD, Grafana, argocd-monitor) or oauth2-proxy (Headlamp, Alertmanager, scrap, Minecraft), all ending at GitHub. A chain where any link can break without an error ({doc}`/explanations/architecture/authentication`) |
 
 An agent that can operate this system safely is doing something non-trivial.
 The rest of this page explains what makes it possible.
@@ -26,37 +32,43 @@ The rest of this page explains what makes it possible.
 
 ### Guardrails before capabilities
 
-The project's `CLAUDE.md` file (about 110 lines) establishes hard boundaries before
+The project's `CLAUDE.md` file (about 115 lines) establishes hard boundaries before
 granting any capabilities. The most important rules:
 
 - **Never mutate the live cluster** — no `kubectl apply/patch/delete` on
   ArgoCD-managed resources. All fixes go through the CD pipeline.
 - **Never commit to main** — work in branches, merge when verified.
 - **Local PV data paths are sacred** — the decommission playbook preserves
-  `/home/k8s-data` and `/var/lib/k8s-data` by default.
+  `/home/k8s-data` and `/var/lib/k8s-data` by default, and nothing but the
+  `k8s_data_dirs` role may write under `/var/lib/k8s-data` on an RK1.
+- **Never write to the first 16 MiB of an RK1's eMMC**, where U-Boot lives.
 
-These are not suggestions. They are structural constraints that make entire
-categories of mistakes impossible. The devcontainer reinforces this
-structurally: Claude runs inside a bwrap sandbox that `--clearenv`s the
-forwarded host SSH agent and tmpfs-masks `/root/.ssh`, so a prompt
-injection cannot reach host SSH keys even though normal terminals in the
-same devcontainer can use them. Git credential helpers are blanked.
-Credentials are scoped per-repository via named Docker volumes.
+Each rule names its exceptions (`kubeseal`, `ansible-playbook --tags
+cluster`, restarting a workload), so the agent does not have to guess
+where the edge is.
+
+Rules in a file are still only rules. The devcontainer backs them with a
+boundary that does not depend on the agent's behaviour: Claude runs in a
+sandbox that cannot see the owner's SSH agent or keys, can reach only the
+listed cluster addresses, and pushes with a token scoped to this repo
+({doc}`/explanations/architecture/claude-code`).
 
 ### Encoded operational knowledge
 
-The `.claude/` directory contains **about 2,000 lines** across 10 files — more
-configuration surface than many of the services it manages:
+The `.claude/` directory contains **about 2,000 lines** across 10 files, more
+than many of the services it manages:
 
 | Type | Count | Total lines | Purpose |
 |------|-------|-------------|---------|
 | Commands | 5 | about 1,300 | Step-by-step runbooks (rebuild, bootstrap, add-node, test-oauth, pr-squash) |
 | Skills | 5 | about 700 | On-demand domain knowledge (ansible, argocd, sealed-secrets, oauth, cloudflare) |
 
-The largest single file is `rebuild-cluster.md` at about 570 lines — an 8-phase
+The largest single file is `rebuild-cluster.md` at about 580 lines — an 8-phase
 runbook encoding knowledge from real incidents: WaitForFirstConsumer PV
 binding, Prometheus webhook bootstrap races, OAuth cookie collisions across
-namespaces, and the precise order of Dex restarts after a reseal.
+namespaces, the precise order of Dex restarts after a reseal, and a gate
+that refuses to start until every Minecraft world is somewhere a rebuild
+will find it again.
 
 This knowledge would otherwise live in a human operator's head. Encoding it
 in machine-readable runbooks means the agent performs rebuilds the same way
@@ -64,21 +76,31 @@ every time, without forgetting steps.
 
 ### Configuration concentration
 
-Almost every cluster-level choice lives in two files totalling **about 500
-lines**, much of it comments:
+Almost every cluster-level choice lives in two files totalling **about 590
+lines**, most of it comments:
 
-- `group_vars/all.yml` (about 170 lines) — cluster domain, admin emails, repo URL,
-  storage paths
-- `kubernetes-services/values.yaml` (about 340 lines) — service toggles and
-  version pins
+- `group_vars/all.yml` (about 165 lines) — the control plane and its
+  standby, the API name, cluster domain, admin emails, repo URL, the host
+  directories behind the local volumes
+- `kubernetes-services/values.yaml` (about 425 lines) — service switches,
+  version pins, NAS paths and the maintenance windows
 
-A third file, `hosts.yml`, owns the hardware topology
-(hostnames, IPs, per-node flags). It is deliberately not templated
-through the other two — hardware varies too much between forks. But
-it is still a small, single place to look when the agent needs to
-know which physical node runs what.
+A third file, `hosts.yml` (under 70 lines), owns the hardware: the node
+names and the per-node flags (`workstation`, `nvidia_gpu_node`,
+`intel_gpu_node`, `node_ip`). It is a small, single place to look when the
+agent needs to know which machine does what. The Cloudflare edge follows
+the same idea: one list, `tunnel_services` in `cloudflare/locals.tf`, is
+every public hostname.
 
-Six `enable_*` flags control which optional services and features are deployed. When Claude
+The comments are part of the design. Where two files must agree, each
+says so at the point of use with a `SYNC:` note (for example the
+`local_storage` entries in `values.yaml` and the `k8s_data_dirs` entries in
+`all.yml`), so an agent editing one is told about the other.
+
+Six `enable_*` flags in `values.yaml` control the optional services and
+features (`enable_oauth2_proxy`, `enable_cloudflare_tunnel`,
+`enable_minecraft`, `enable_vps_relay`, `enable_jellyfin` and
+`enable_kyverno`, the last of which is off). When Claude
 needs to enable or disable a service, there is exactly one place to look.
 This concentration is deliberate: a small change surface means fewer places
 for an agent to make mistakes, and fewer files to read before understanding
@@ -98,6 +120,34 @@ compounding errors.
 The combination creates a system where mistakes are recoverable by default.
 Push a fix, wait for sync. The blast radius of any single error is bounded
 by the git diff.
+
+### Guard rails written as code
+
+Where a rule can be checked by a machine, it is, so that it does not rest
+on anyone remembering it:
+
+- **The edge refuses to publish an unprotected hostname.**
+  `cloudflare/access_guard.tf` holds preconditions that fail `tofu plan`
+  if a public hostname has no Cloudflare Access application in front of
+  it, or if an application that lets anyone in targets a hostname not
+  marked `access_bypass = true` in `locals.tf`. Adding a service to the
+  list cannot expose it by accident, whoever makes the change.
+- **Checks have no off switch.** `just check` runs `ansible-lint` and the
+  Sphinx build with warnings as errors, and `CLAUDE.md` forbids `# noqa`
+  and `warn_list` entries, so the agent's only way past a warning is to
+  fix it.
+- **Secrets cannot be committed by mistake.** gitleaks runs in pre-commit
+  and in CI, and lets a SealedSecret through only if its file is named
+  `*-secret.yaml`.
+- **New releases wait two weeks.** The comments beside the image and
+  chart pins in `values.yaml` (rclone, age, Jellyfin, sqlite) record that
+  each was pinned to a release at least two weeks old when chosen, as a
+  buffer against a compromised release, and tell whoever bumps them to
+  keep the rule. The one exception is written down with its date and
+  reason next to the pin it applies to.
+- **Downloads are checked.** Binaries fetched at run time (age in the
+  off-site backup, the Headlamp Argo CD plugin) are pinned by sha256 in
+  `values.yaml`, and the pod will not start on a mismatch.
 
 ### Incremental workflow
 
@@ -183,8 +233,21 @@ feasibility and suggests alternatives. The Longhorn migration started not
 as "drop Longhorn" but as a planning session where the operator asked how
 to achieve data retention across rebuilds and proposed several options —
 Claude evaluated trade-offs and the decision to use local PVs emerged from
-the discussion. Catching a bad assumption in planning costs one exchange;
+the discussion (recorded in
+{doc}`ADR 12 </explanations/decisions/0012-drop-longhorn>`). Catching a bad assumption in planning costs one exchange;
 catching it mid-implementation costs unwinding work.
+
+### Verify a subagent's "it isn't there"
+
+Long tasks are split across subagents, and a subagent's report is only as
+good as its search. `CLAUDE.md` carries a rule for this: a **negative**
+finding ("X is never written", "tag Z does not exist") must be checked with
+a grep before any guidance is deleted or rewritten because of it. A
+positive finding that quotes a file is cheap to trust; a negative one
+requires the search to have been exhaustive, and indirect call chains
+(justfile, then script, then playbook, then role) are easy to miss. Acting
+on a false negative removes documentation or a skill that something still
+depends on.
 
 ### Document complexity as you encounter it
 
@@ -211,11 +274,14 @@ automatically, so each session's lessons are available to the next.
 
 ### Structural safety over behavioural safety
 
-The devcontainer's SSH agent isolation and credential scoping mean Claude
-literally cannot perform certain dangerous actions even if its reasoning
-goes wrong. This is more reliable than rules that say "don't do X" — the
-capability is removed, not just discouraged. Invest in making bad actions
-impossible rather than just forbidden.
+The sandbox's isolation from the owner's SSH agent, its network jail and
+the repo-scoped GitHub token mean Claude cannot perform certain dangerous
+actions even if its reasoning goes wrong. This is more reliable than rules
+that say "don't do X": the capability is removed, not just discouraged.
+The same thinking gives Claude a key of its own for the nodes
+(`just claude-ssh-bootstrap`), which can be revoked with one command
+without touching the owner's. Invest in making bad actions impossible
+rather than just forbidden.
 
 ## Techniques for other projects
 
@@ -239,13 +305,13 @@ These are concrete, actionable steps drawn from the patterns above.
 
 4. **Encode operational knowledge as runbooks.** Complex multi-step
    procedures (rebuilds, migrations, incident response) should be
-   machine-readable command files, not wiki pages. A 570-line runbook that
+   machine-readable command files, not wiki pages. A 580-line runbook that
    an agent follows precisely is more reliable than a human following a
    checklist from memory.
 
 5. **Isolate credentials structurally.** Don't rely on rules saying "don't
-   use the host SSH key." Disable the host SSH agent in the container
-   configuration. Don't rely on "don't commit secrets." Use pre-commit
+   use the host SSH key." Run the agent where it cannot see the key or the
+   agent socket. Don't rely on "don't commit secrets." Use pre-commit
    hooks that block them. Structural isolation survives reasoning failures.
 
 6. **Build trust incrementally.** Start with read-only tasks, graduate to
@@ -290,3 +356,18 @@ These are concrete, actionable steps drawn from the patterns above.
     and can read the full log on demand when something fails. This is a
     clarity technique — the agent reasons better when its context contains
     decisions and outcomes rather than raw command output.
+
+13. **Turn rules into failing checks.** A rule the agent must remember
+    will one day be forgotten; a precondition that fails the plan will
+    not. `cloudflare/access_guard.tf` is the model here: the policy
+    "nothing public without a login" is a few lines of code that stop the
+    change before it reaches Cloudflare.
+
+14. **Make the agent verify absence.** Require a direct search before
+    acting on any "not found" from a subagent or a summary. Wrongly
+    deleting something load-bearing costs far more than one grep.
+
+15. **Write the reason next to the value.** A pin with a comment saying
+    why it is pinned, what else must change with it and what rule governs
+    bumping it is something an agent can maintain. A bare version number
+    is something it will "tidy".

@@ -1,50 +1,72 @@
-# Backup and Restore
+# Backup and restore
 
-This guide covers the backup strategy for a cluster managed by this project.
+The procedures for taking, checking and restoring every backup of the
+cluster, and for rebuilding it after a disaster. For the overview (what is
+copied where, and why) see {doc}`/explanations/architecture/backups`.
 
-## What needs backing up?
+## What needs backing up
 
-The key insight of a GitOps-managed cluster is that **the Git repository is the backup
-for all configuration**. ArgoCD can fully reconstruct the cluster state from the repo.
+The Git repository is the backup of all configuration: ArgoCD rebuilds the
+cluster's state from it. What is **not** in Git:
 
-What is **not** in Git and needs separate backup:
+| Data | Where it lives | Backup |
+|------|----------------|--------|
+| Grafana and Jellyfin state | `local-nvme` PVs on node04 and nuc2 | nightly CronJobs to `/bigdisk/k8s-cluster/backups/` on the NAS |
+| scrap | the NAS (`/bigdisk/k8s-cluster/scrap-data`), database replicated by Litestream | the scrap chart's CronJobs to `backups/scrap/`, and a nightly copy off the NAS to nuc2 |
+| Sealed Secrets private keys | Secrets in `kube-system` | nightly age-encrypted export to `backups/etcd/`, plus an offline copy |
+| etcd snapshot and K3s token | node02 | nightly age-encrypted bundle to `backups/etcd/` |
+| Admin password | the `admin-auth` Secret (not in Git) | re-create it with `just set-admin-password` |
+| Cloudflare OpenTofu state and its passphrase | `cloudflare/terraform.tfstate` and `cloudflare/.secrets/state-passphrase` (both gitignored) | not backed up by the cluster: keep a copy of the state on the NAS and the passphrase in the password manager; see below |
+| `nfs-stable` volumes, including the Minecraft worlds | the NAS, `/k8s-dynamic/stable/<namespace>/<pvc>` | they survive a rebuild in place; the worlds also go off site |
+| `nfs-rwx` scratch volumes | the NAS, `/k8s-dynamic/<namespace>/<pvc>-<pv>` | none: not re-bound after a rebuild (no claim uses the class today) |
 
-| Data | Where it lives | Backup approach |
-|------|-----------------|-----------------|
-| Stateful app data | static local-nvme PVs on worker nodes | nightly CronJob → NFS NAS |
-| scrap | NFS NAS, database replicated by Litestream | scrap chart's CronJobs → NFS NAS, nightly copy off the NAS |
-| Sealed Secrets private keys | `kube-system` namespace | nightly age-encrypted export → NFS NAS, plus your own offline copy |
-| etcd snapshot + k3s token | control plane | nightly age-encrypted bundle → NFS NAS |
-| Admin passwords | `admin-auth` secrets (manual) | re-create from password manager |
-| Cloudflare OpenTofu state + passphrase | `cloudflare/terraform.tfstate` (gitignored), `cloudflare/.secrets/state-passphrase` | copy to the NAS / password manager; recreatable by import ({doc}`cloudflare-as-code`), except the tunnel secret: a re-created state makes a new one, so its first apply rotates the tunnel token (reseal with `just cf-seal-tunnel-token`, restart cloudflared) |
-| Default dynamic NFS volumes (`nfs-stable`), incl. Minecraft worlds | NFS NAS, `<nfs_csi.stable_share>/<namespace>/<pvc>` | survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots) |
-| Scratch dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
+The Cloudflare state can be re-created by import
+({doc}`/how-to/cloudflare-as-code`), except for the tunnel secret: a
+re-created state makes a new one, so its first apply rotates the tunnel
+token (reseal it with `just cf-seal-tunnel-token` and restart cloudflared).
 
 The backups on the NAS, and the Minecraft data, also go off site: a nightly
 job copies them, age-encrypted, to Google Drive. Not everything in the table
 does; {ref}`offsite-backup` lists what does and does not.
 
-## Stateful app data: CronJob-to-NFS backups
+## Nightly timetable
+
+| When | What | Runs as |
+|------|------|---------|
+| 23:15 Europe/London | etcd bundle and sealed-secrets keys | `k3s-etcd-backup.timer` on node02 |
+| 01:45 Europe/London (weekly: Sunday 01:50) | Jellyfin | CronJobs `jellyfin-daily`, `jellyfin-weekly` in `backups`, on nuc2 |
+| 02:45 UTC (weekly: Sunday 03:45 UTC) | Grafana | CronJobs `grafana-daily`, `grafana-weekly` in `backups`, on node04 |
+| 03:30 Europe/London (monthly: the 1st, 03:50 UTC) | scrap | CronJobs `scrap-backup`, `scrap-backup-monthly` in `scrap` |
+| 05:00 Europe/London | scrap's newest run, copied off the NAS | CronJob `scrap-backup-copy` in `scrap`, on nuc2 |
+| 05:30 Europe/London | the backups on the NAS and the Minecraft data, to Google Drive | CronJob `offsite-backup` in `backups` |
+
+The Grafana and `scrap-backup-monthly` CronJobs set no `timeZone`, so they
+run in the time zone of the K3s server on node02, which is UTC: an hour
+later by the clock in summer. List them all with
+`kubectl get cronjobs -A`.
+
+## Grafana and Jellyfin: CronJob-to-NFS backups
 
 The `backups` ArgoCD Application (`kubernetes-services/templates/backups.yaml`)
-deploys one daily and one weekly CronJob per stateful workload. Each CronJob
-mounts a single NFS PV — `/bigdisk/k8s-cluster` on the NAS — with a
-workload-specific `subPath` so it only sees its own target subdirectory.
+deploys one daily and one weekly CronJob per workload. Each runs on the node
+that holds the workload's `local-nvme` PV, reads the data from its host path
+(read-only), and mounts the one NFS PV `k8s-cluster-nfs`
+(`/bigdisk/k8s-cluster` on the NAS, 192.168.1.3) with a `subPath`, so it sees
+only its own target directory.
 
 | Workload | Backup method | NFS path |
 |----------|---------------|----------|
-| Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana`, tarred with `provisioning/` | `backups/grafana/<date>_<HHMM>.tar.gz` (daily), `backups/grafana/weekly/<date>.tar.gz` (weekly), each containing `grafana.db` and `provisioning/` |
-| Jellyfin database and config | `sqlite3 .backup` of the database, plus the config, plugins and library definitions, from its config volume (not subtitles or metadata); see {doc}`jellyfin` | `backups/jellyfin/<date>_<HHMM>.tar.gz` (daily), `backups/jellyfin/weekly/<date>.tar.gz` (weekly) |
+| Grafana sqlite | `sqlite3 .backup` on `/var/lib/k8s-data/grafana` (node04), tarred with `provisioning/` | `backups/grafana/<date>_<HHMM>.tar.gz` (daily), `backups/grafana/weekly/<date>.tar.gz` (weekly), each containing `grafana.db` and `provisioning/` |
+| Jellyfin database and config | `sqlite3 .backup` of the database, plus the config, plugins, library definitions, playlists and scheduled tasks, from its config volume, `/home/k8s-data/jellyfin` on nuc2 (not subtitles or metadata); see {doc}`/how-to/jellyfin` | `backups/jellyfin/<date>_<HHMM>.tar.gz` (daily), `backups/jellyfin/weekly/<date>.tar.gz` (weekly) |
 
-Prometheus is deliberately **not** backed up — metrics are reconstructible
-via re-scrape, and the snapshot-API dance is not worth the complexity.
+Prometheus is deliberately **not** backed up: its metrics build up again
+by scraping, and a consistent copy needs its snapshot API, which is not
+worth the complexity.
 
 ### Retention
 
-- Grafana: daily at `02:45`, weekly on Sunday at `03:45` (cluster time).
-  Jellyfin: daily at `01:45`, weekly on Sunday at `01:50` (Europe/London).
-- Daily backups older than 7 days and weekly backups older than 28 days are
-  deleted (`find -mtime +7` / `+28`).
+Each run deletes its own old files: daily backups older than 7 days and
+weekly backups older than 28 days (`find -mtime +7` / `+28`).
 
 ### Trigger a one-off backup
 
@@ -70,9 +92,9 @@ snapshot of `grafana.db` plus the `provisioning/` directory. To restore one:
    StatefulSet with `kubectl` does not stick: ArgoCD's self-heal reverts it.
 
 2. **Restore in a one-off pod** in the `monitoring` namespace that mounts the
-   Grafana PVC and the NAS backup directory. Fill in your NAS address and
-   `nfs.cluster_share_path` from `kubernetes-services/values.yaml`, and the
-   backup to restore:
+   Grafana PVC and the NAS backup directory (`nfs.server` and
+   `nfs.cluster_share_path` in `kubernetes-services/values.yaml`). Fill in
+   the backup to restore:
 
    ```yaml
    apiVersion: v1
@@ -105,29 +127,34 @@ snapshot of `grafana.db` plus the `provisioning/` directory. To restore one:
            claimName: storage-grafana-prometheus-0
        - name: backup
          nfs:
-           server: <nfs.server>
-           path: <nfs.cluster_share_path>/backups/grafana
+           server: 192.168.1.3
+           path: /bigdisk/k8s-cluster/backups/grafana
            readOnly: true
    ```
 
-   The PVC is bound to a `local-nvme` PV, so the pod lands on the Grafana
-   node by itself. Check `kubectl -n monitoring logs grafana-restore`, then
+   The PVC is bound to a `local-nvme` PV, so the pod lands on node04 by
+   itself. Check `kubectl -n monitoring logs grafana-restore`, then
    `kubectl -n monitoring delete pod grafana-restore`.
 
 3. **Start Grafana again** by reverting the `replicas: 0` commit and pushing.
 
+Jellyfin's restore is on its own page: {doc}`/how-to/jellyfin`.
+
 ## scrap
 
-scrap's chart makes its own backups (see {doc}`scrap`):
+scrap's chart makes its own backups (see {doc}`/how-to/scrap`), each taken
+from the database's Litestream replica (`scrap backup --from-replica`):
 
-- **Daily:** `scrap-backup` runs at 03:30 and keeps 7 runs.
-- **Monthly:** `scrap-backup-monthly` keeps 12 runs in `monthly/`.
+- **Daily:** `scrap-backup` runs at 03:30 Europe/London and keeps 7 runs.
+- **Monthly:** `scrap-backup-monthly` runs at 03:50 UTC on the 1st and keeps 12
+  runs in `monthly/`.
 - **Format:** each run is a directory named like `20261019T033000Z`, with the
   database, the files and a `COMPLETE` marker.
 - **Location:** the `scrap-backups-nfs` volume, at
   `/bigdisk/k8s-cluster/backups/scrap` on the NAS.
 - **Off-NAS copy:** at 05:00 `scrap-backup-copy` copies the newest complete
-  run to a `local-nvme` PV, keeping 3. It fails if that run is over 26 hours
+  run to a `local-nvme` PV on nuc2 (`/home/k8s-data/scrap-backup-copy`),
+  keeping 3. It fails if that run is over 26 hours
   old, so a stalled backup shows as a failed Job.
 
 Take one now:
@@ -145,7 +172,7 @@ every start. A plain `scrap restore` would be undone, so a restore is
 The next start takes it up in place of the replica, and keeps the old replica
 as `/data/litestream.retired-<time>`.
 
-1. Stop scrap through git. Argo CD would scale it straight back up, so
+1. Stop scrap through Git. ArgoCD would scale it straight back up, so
    commit a pause in `kubernetes-services/templates/scrap.yaml`'s chart
    values:
 
@@ -221,12 +248,12 @@ ones.
 
 **A planned rebuild does not need the old keys.** The rebuild path reads
 the plaintext values from the old cluster (`scripts/export-external-creds`)
-and reseals everything against the new key ({doc}`manage-sealed-secrets`).
+and reseals everything against the new key ({doc}`/how-to/manage-sealed-secrets`).
 The key backup is for a cluster that died: with it you can restore the keys
 before the controller starts, so the SealedSecrets in Git decrypt as they
 are, or decrypt them offline with
 `kubeseal --recovery-unseal --recovery-private-key <keys.yaml>`
-({doc}`manage-sealed-secrets`). That pair, the SealedSecrets in Git and the
+({doc}`/how-to/manage-sealed-secrets`). That pair, the SealedSecrets in Git and the
 key backup, is the recovery copy of every sealed credential. The `.env`
 that a rebuild exports is not: delete it once the rebuild is verified.
 
@@ -255,15 +282,16 @@ cannot export them; the etcd bundle is still uploaded.
 
 ### Keep an offline copy
 
-The NAS copy is lost with the NAS, so keep one elsewhere too (password
-manager, encrypted drive), encrypted to your age key. Pipe the export
+The NAS copy also goes to Google Drive ({ref}`offsite-backup`), but keep one
+more outside both (password manager, encrypted drive), encrypted to the
+backup age key. Pipe the export
 straight into age, so the plaintext keys never touch a disk:
 
 ```bash
 f=sealed-secrets-keys-$(date +%F).yaml.age
 kubectl get secret -n kube-system \
   -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
-  | age -r age1... -o "$f"   # your etcd_backup_age_recipient
+  | age -r age1... -o "$f"   # etcd_backup_age_recipient in group_vars/all.yml
 # Check it holds the keys (prints a count, not the keys):
 age -d -i ~/k3s-etcd-backup.agekey "$f" | grep -c '^  kind: Secret$'
 ```
@@ -309,29 +337,29 @@ still decrypt the SealedSecrets in Git.
 
 ## etcd backup and restore
 
-K3s runs an embedded etcd datastore on the control plane. A snapshot holds
+K3s runs an embedded etcd datastore on the control plane, node02. A snapshot holds
 the full cluster state, including every Secret, unencrypted.
 
-K3s takes its own snapshots every 12 hours (00:00 and 12:00 UTC, keeping 5)
-into `/var/lib/rancher/k3s/server/db/snapshots/`, but only on the control
-plane: losing that node loses them too. The nightly off-node backup below
+K3s takes its own snapshots every 12 hours (at 00:00 and 12:00, keeping 5)
+into `/var/lib/rancher/k3s/server/db/snapshots/`, but only on node02:
+losing that node loses them too. The nightly off-node backup below
 covers that case.
 
 (etcd-offsite-backup)=
 ### Nightly encrypted off-node backup
 
 The `etcd_backup` role installs a systemd timer, `k3s-etcd-backup.timer`, on
-the control plane. It runs outside Kubernetes, so it keeps working when the
+the control plane (`control_plane` in `group_vars/all.yml`, node02). It runs outside Kubernetes, so it keeps working when the
 API server does not. Every night at 23:15 Europe/London, before the
 upgrade windows, it:
 
 1. takes a snapshot with `k3s etcd-snapshot save --name nightly`, or uses the
    newest existing snapshot if the server cannot take one;
-2. streams the snapshot, the server token (needed to restore it), the node
-   password and the k3s config through
+2. bundles the snapshot, the server token (needed to restore it), the node
+   password and the k3s config into one tar stream, encrypted with
    [age](https://github.com/FiloSottile/age) to the **public** key in
-   `etcd_backup_age_recipient`, so no plaintext is written to disk;
-3. mounts the NAS share, copies the result to
+   `etcd_backup_age_recipient`, so no plaintext leaves the node;
+3. mounts the NAS share at `/mnt/k8s-cluster` (only while it runs), copies the result to
    `backups/etcd/k3s-etcd-<node>-<UTC time>.tar.age`, checks the copy's
    checksum, updates `LATEST`, and keeps the newest 14;
 4. ships each `pre-upgrade-<version>` snapshot (taken by an automatic k3s
@@ -351,7 +379,9 @@ empty the job fails on every run and uploads nothing.
 
 #### One-time setup
 
-1. On your own machine, create the key pair. `age-keygen -o
+This is done; it is repeated only for a new key pair or a new NAS.
+
+1. On a machine outside the cluster, create the key pair. `age-keygen -o
    ~/k3s-etcd-backup.agekey` prints the public key (`age1...`). Keep the key
    file offline, in two places; without it no backup can be decrypted.
 2. Set the public key in `group_vars/all.yml`:
@@ -360,7 +390,7 @@ empty the job fails on every run and uploads nothing.
    etcd_backup_age_recipient: age1...
    ```
 
-3. Create `backups/etcd/` on the NAS ({doc}`nas-setup`). On an existing
+3. Create `backups/etcd/` on the NAS ({doc}`/how-to/nas-setup`). On an existing
    share, run this on the NAS:
 
    ```bash
@@ -371,11 +401,11 @@ empty the job fails on every run and uploads nothing.
 4. Install the timer:
 
    ```bash
-   ansible-playbook pb_all.yml --limit node02 --tags etcd_backup   # your control_plane
+   ansible-playbook pb_all.yml --limit node02 --tags etcd_backup
    just etcd-backup-now
    ```
 
-5. Prove that you can decrypt a bundle: copy it to your machine and run
+5. Prove that a bundle decrypts: copy it to the machine with the key and run
    `age -d -i ~/k3s-etcd-backup.agekey <bundle> | tar -t`.
 
 #### Alerts and manual checks
@@ -402,9 +432,10 @@ ssh node02 sudo k3s etcd-snapshot list
 
 ### Restore
 
-If the control plane is gone, follow {doc}`recover-control-plane`.
+If the control plane is gone, follow {doc}`/how-to/recover-control-plane`:
+it restores the newest bundle onto node03, the warm standby.
 
-If the node is healthy but its etcd data is damaged, restore a local
+If node02 is healthy but its etcd data is damaged, restore a local
 snapshot in place:
 
 :::{warning}
@@ -438,8 +469,8 @@ Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
 | `backups/<path>.age` | each file under `backups/` on the NAS (the Grafana and Jellyfin tarballs, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`); files that already end `.age` (the etcd bundles, `pre-upgrade/` snapshots and dated sealed-secrets key exports) go up as they are | once, the first night it is there |
 | `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's daily, monthly and curated runs) as one tarball | once it has its `COMPLETE` marker |
 | `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once the run folder is two days old (its modification time) |
-| `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`<nfs.cluster_share_path>/<minecraft.store_subdir>`: its backups, snapshots and state), and from `nfs_csi.stable_share` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
-| `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`minecraft.archive_path`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
+| `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`/bigdisk/k8s-cluster/minecraft`: its backups, snapshots and state), and from `/k8s-dynamic/stable` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
+| `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`/bigdisk/minecraft-archive`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
 
 A backup is uploaded when no file of its name is on Drive yet, so each goes
 up once. Skipped: dotfiles, files written in the last 10 minutes, and
@@ -449,15 +480,16 @@ copies are uploaded).
 
 **Not** copied off site:
 
-- the live scrap data volume (`scrap-data`, with the database's Litestream
+- the live scrap data volume (`scrap-data-nfs`, with the database's Litestream
   replica): only scrap's backup runs are, so up to a day of pages can be lost
   with the NAS;
-- every other `nfs-stable` and `nfs-rwx` volume (other namespaces' dynamic
-  NFS claims);
+- any other `nfs-stable` or `nfs-rwx` volume (today the Minecraft worlds
+  are the only dynamic NFS claims);
 - the `local-nvme` PVs themselves (only the Grafana and Jellyfin backups made
   from them); Prometheus is not backed up at all;
 - the Cloudflare OpenTofu state and its passphrase, and the admin passwords;
-- media, photos and anything else on the NAS outside the paths above.
+- the media library (`/bigdisk/media`) and anything else on the NAS outside
+  the paths above.
 
 The worlds are copied while they run. A world whose server was mid-write
 can need the copy from the night before, or one of the dashboard's own
@@ -536,10 +568,10 @@ In the steady state the folder holds:
   the worlds;
 - one archive tarball (more if the archive changes).
 
-For example, with about 240 MB of new backups a day (etcd 50 MB, Jellyfin
+With about 240 MB of new backups a day (etcd 50 MB, Jellyfin
 70 MB, scrap 120 MB), a 3.6 GB Minecraft tarball and a 5.8 GB archive, the
 defaults come to about 43 + 25 + 6 = 75 GB. A free 15 GB Google account
-needs less: lower `prune_days` (30 gives about 7 GB of backups) and
+would need less: lower `prune_days` (30 gives about 7 GB of backups) and
 `offsite_backup.minecraft.keep` (2 gives about 7 GB).
 
 ### Alerts
@@ -558,17 +590,19 @@ CronJob is disabled:
 
 ### Set it up
 
-You need a Google account with space for the backups (see above), and an
-age key pair (the etcd backup's: {ref}`etcd-offsite-backup`).
+This is done, and `offsite_backup.enabled` is `true`; the steps are kept
+for a new Google account or OAuth client. They need a Google account with
+space for the backups (see above), and the age key pair of the etcd backup
+({ref}`etcd-offsite-backup`).
 
 1. **Create an OAuth client** in the [Google Cloud console](https://console.cloud.google.com/):
    1. Create a project (any name, e.g. `home-cluster-backup`) and enable
       the **Google Drive API** in it.
    2. Under **Google Auth Platform**, configure the consent screen as
-      **External**, add your address as a test user, and then **publish
+      **External**, add the account's address as a test user, and then **publish
       the app to production**. A consent screen left in *Testing* issues
       refresh tokens that expire after 7 days. An unverified app is fine
-      for your own account: Google warns once, and you continue.
+      for one's own account: Google warns once, then continues.
    3. Under **Clients**, create a client of type **Desktop app** and
       download its JSON (`client_secret_<...>.json`). Keep it outside the
       repository.
@@ -597,7 +631,7 @@ age key pair (the etcd backup's: {ref}`etcd-offsite-backup`).
    Nothing secret is printed or written to disk.
 3. **Turn it on.** Commit the sealed file and set
    `offsite_backup.enabled: true` in `kubernetes-services/values.yaml`. Check
-   `offsite_backup.age_recipient` is your age public key. Open a PR and
+   `offsite_backup.age_recipient` is the age public key. Open a PR and
    merge it.
 4. **Run it once now**, rather than waiting for the night (it refuses while
    a run is going):
@@ -606,8 +640,8 @@ age key pair (the etcd backup's: {ref}`etcd-offsite-backup`).
    just offsite-backup-now
    ```
 
-   Then look in your Drive for the `home-cluster-offsite` folder, and prove
-   you can decrypt a file from it (see below).
+   Then look in the Drive for the `home-cluster-offsite` folder, and prove
+   that a file from it decrypts (see below).
 
 rclone refreshes its access token itself; the refresh token in the Secret
 does not change. Re-run step 2 (and commit) if Google revokes it, for
@@ -617,14 +651,14 @@ A rebuild needs no new consent. A planned rebuild exports the sealed
 `rclone.conf` with the other external credentials
 (`OFFSITE_BACKUP_RCLONE_CONF_B64` in `.env`, from
 `scripts/export-external-creds`) and reseals it against the new key with
-the rest ({doc}`manage-sealed-secrets`). After a cluster that died, restoring
+the rest ({doc}`/how-to/manage-sealed-secrets`). After a cluster that died, restoring
 the old sealing keys ({ref}`sealed-secrets-key-backup`) makes the
 SealedSecret in Git decrypt as it is.
 
 ### Restore from Drive
 
 Download what you need, either from the Drive web page (a folder downloads
-as a zip) or with rclone, on any machine with your rclone config (the
+as a zip) or with rclone, on any machine with the rclone config (the
 sealed one, or a fresh `rclone config` with a `drive.file` remote: a new
 token from the same OAuth client sees the same files):
 
@@ -649,18 +683,26 @@ NAS, under `backups/<app>/`), or restore from it directly.
 ## Disaster recovery
 
 If only the control plane is lost, restore it from the nightly etcd backup
-instead: {doc}`recover-control-plane`.
+instead: {doc}`/how-to/recover-control-plane`.
 
-To rebuild a cluster from scratch:
+To rebuild the cluster from scratch (the full walk-through is
+{doc}`/tutorials/build-the-cluster`; a planned rebuild of the running
+cluster is {doc}`/how-to/reflash-rebuild`):
 
-1. Flash and provision nodes (see tutorials).
-2. Run the one-time NAS setup (`docs/how-to/nas-setup.md`) so the
-   cluster-owned `/bigdisk/k8s-cluster` share exists on the NAS.
-3. Run `ansible-playbook pb_all.yml -e do_flash=true`.
+1. If the NAS was lost too, run the NAS setup again
+   ({doc}`/how-to/nas-setup`), so that `/bigdisk/k8s-cluster` and
+   `/k8s-dynamic/stable` exist. Otherwise leave the NAS alone.
+2. Check the inventory and variables (`hosts.yml`, `group_vars/all.yml`).
+3. Flash and provision the nodes and install the cluster:
+   `ansible-playbook pb_all.yml -e do_flash=true`. `do_flash` refuses to
+   wipe an RK1's NVMe that has a partition table; only `flash_force` does,
+   and on node04 that loses the Grafana and Prometheus local PV data
+   ({doc}`/how-to/reflash-rebuild`).
 4. Restore the sealed-secrets keys if the old cluster died
    ({ref}`sealed-secrets-key-backup`). A planned rebuild reseals instead;
    re-export your offline key copy afterwards.
-5. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
+5. Re-create the `admin-auth` Secret with `just set-admin-password`
+   ({doc}`/tutorials/build-the-cluster`).
    The off-site backup's Drive credentials need nothing: the restored keys
    decrypt its SealedSecret, and a planned rebuild reseals it from `.env`
    ({ref}`offsite-backup`).
@@ -673,13 +715,12 @@ To rebuild a cluster from scratch:
    static NFS volumes re-bind too, and its pod restores the database from
    the replica.
 
-The cluster will be fully operational within minutes, with only persistent data
-requiring explicit restoration.
+The services are back within minutes of the playbook finishing; only data
+on a wiped local PV needs an explicit restore.
 
 Minecraft worlds need no restore: their `nfs-stable` folders on the NAS
 depend only on the PVC's namespace and name, so the dashboard re-creates its
 worlds with their ports and settings, and their PVCs bind to their old data.
-This holds for worlds on `nfs-stable`; move older ones first
-({doc}`nfs-stable-paths`). Any other claim on `nfs-stable`, the default class,
-also comes back with its data. `nfs-rwx` volumes come back empty, in new
+Every world is on `nfs-stable` ({doc}`/how-to/nfs-stable-paths`). Any other
+claim on `nfs-stable`, the default class, also comes back with its data. `nfs-rwx` volumes come back empty, in new
 folders.
