@@ -127,15 +127,12 @@ offsite_backup:
     # Runs as the NAS's squashed-root owner (nobody), which owns the
     # mode-0600 etcd bundles and sealed-secrets key exports.
     uid: 65534
-    # Extra groups for the pod, so `backups` can read scrap's backup runs
-    # (files 0660, owned 10001:10001). 10001 is scrap's uid/gid, hard-coded
-    # in additions/scrap/templates (backup-copy.yaml, migrate-job.yaml) and
-    # in scrap's image. The minecraft container gains it too: harmless.
-    supplemental_groups: [10001]
     # Folders (under backups/) whose subfolders are backup runs, each
     # uploaded as one tarball once it has a COMPLETE marker (scrap's runs),
     # or as <run>.incomplete.tar.age once the run folder (its mtime) is two
-    # days old without one.
+    # days old without one. Their files are scrap's, many mode 0600, so the
+    # `scrap` container (offsite_backup.scrap) uploads these folders, and
+    # `backups` everything else.
     run_dirs: [scrap, scrap/monthly, scrap-curated]
     # Files rewritten in place each night; their dated copies are uploaded.
     exclude:
@@ -148,6 +145,13 @@ offsite_backup:
     # in date or time). 0 never deletes.
     prune_days: 180
     keep_min: 4
+  # The container that uploads backups.run_dirs runs as scrap's uid and gid:
+  # the owner of its backup runs' files, many mode 0600, which no group can
+  # read. 10001 is hard-coded in additions/scrap/templates (backup-copy.yaml,
+  # migrate-job.yaml) and in scrap's image: change them together.
+  scrap:
+    uid: 10001
+    gid: 10001
   # Only with enable_minecraft. Store and archive paths come from the
   # minecraft block, the worlds' share from nfs_csi.
   minecraft:

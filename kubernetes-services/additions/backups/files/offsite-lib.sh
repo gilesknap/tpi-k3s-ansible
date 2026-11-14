@@ -72,7 +72,12 @@ finish() {
     return 1
 }
 
-# remove_partials DIR: delete leftovers of uploads cut off by a killed pod.
+# remove_partials DIR [FILTER...]: delete leftovers of uploads cut off by a
+# killed pod. The rclone --filter options FILTER, if any, come first: an
+# excluded path is left alone.
 remove_partials() {
-    rclone delete --include '.partial-*' "$1" || fail "could not remove old partial uploads in $1"
+    _d=$1
+    shift
+    rclone delete "$@" --filter '+ .partial-*' --filter '- **' "$_d" ||
+        fail "could not remove old partial uploads in $_d"
 }

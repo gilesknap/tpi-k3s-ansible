@@ -4,16 +4,20 @@ age-encrypted to offsite_backup.age_recipient (the cluster holds only that
 public key). Only ever adds dated files; a deletion on the NAS is never
 mirrored. See docs/how-to/backup-restore.md ("Off-site copy to Google Drive").
 
-Two containers run side by side, as the two owners the NAS files need (its
+Three containers run side by side, as the owners the NAS files need (its
 export squashes root to 65534, so no single uid can read everything):
   - backups (uid 65534, nobody: the owner of the root-written, mode 0600
-    etcd bundles): the backups/ tree (files/offsite-backups.sh);
+    etcd bundles): the backups/ tree but for the run_dirs
+    (files/offsite-backups.sh others);
+  - scrap (offsite_backup.scrap.uid, scrap's: the files of its backup runs
+    are its own, many mode 0600): the run_dirs subtrees of backups/
+    (files/offsite-backups.sh runs). Each of these two reads, cleans up and
+    prunes only its own part of backups/ on Drive;
   - minecraft (uid 1000, the dashboard's and the worlds' owner: level.dat is
     0600): the dashboard store, the worlds and the archive
     (files/offsite-minecraft.sh).
-An init container first makes the Drive folders, so the two never race to
-make the same one. The Job fails if either container does, and is retried
-once. A retry uploads only the backups still missing, and no second
+An init container first makes the Drive folders, so no two race to make
+the same one. The Job fails if any container does, and is retried once. A retry uploads only the backups still missing, and no second
 Minecraft nightly if one from the same UTC day is already on Drive.
 
 rclone's credentials are the Secret offsite_backup.secret_name, sealed by
@@ -23,6 +27,13 @@ sees only files it made itself.
 {{- $o := .Values.offsite_backup }}
 {{- if $o.enabled }}
 {{- $mc := $o.minecraft }}
+{{- $folders := list "backups" }}
+{{- range $o.backups.run_dirs }}
+{{- $folders = append $folders (printf "backups/%s" .) }}
+{{- end }}
+{{- if $mc.enabled }}
+{{- $folders = concat $folders (list "minecraft/nightly" "minecraft/archive") }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -75,10 +86,6 @@ spec:
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
-            {{- with $o.backups.supplemental_groups }}
-            supplementalGroups:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
             seccompProfile:
               type: RuntimeDefault
           initContainers:
@@ -130,7 +137,7 @@ spec:
                 - name: WORK
                   value: /work/folders
                 - name: FOLDERS
-                  value: {{ ternary "backups minecraft/nightly minecraft/archive" "backups" $mc.enabled | quote }}
+                  value: {{ join " " $folders | quote }}
                 {{- include "offsite-backup.env" . | nindent 16 }}
               securityContext:
                 runAsUser: {{ $o.backups.uid }}
@@ -146,6 +153,7 @@ spec:
               command:
                 - /bin/sh
                 - /scripts/offsite-backups.sh
+                - others
               env:
                 - name: SRC
                   value: /src/backups
@@ -172,6 +180,44 @@ spec:
                   subPath: backups
                   readOnly: true
                 {{- include "offsite-backup.mounts" . | nindent 16 }}
+            {{- if $o.backups.run_dirs }}
+            - name: scrap
+              image: {{ $o.image }}
+              command:
+                - /bin/sh
+                - /scripts/offsite-backups.sh
+                - runs
+              env:
+                - name: SRC
+                  value: /src/backups
+                - name: WORK
+                  value: /work/scrap
+                - name: RUN_DIRS
+                  value: {{ join " " $o.backups.run_dirs | quote }}
+                - name: EXCLUDE
+                  value: {{ join " " $o.backups.exclude | quote }}
+                - name: PRUNE_DAYS
+                  value: {{ $o.backups.prune_days | quote }}
+                - name: KEEP_MIN
+                  value: {{ $o.backups.keep_min | quote }}
+                {{- include "offsite-backup.env" . | nindent 16 }}
+              securityContext:
+                runAsUser: {{ $o.scrap.uid }}
+                runAsGroup: {{ $o.scrap.gid }}
+                {{- include "offsite-backup.containerSecurity" . | nindent 16 }}
+              resources:
+                {{- include "offsite-backup.resources" . | nindent 16 }}
+              volumeMounts:
+                # The whole backups/ tree, as the backups container has it: a
+                # subPath per run_dir would have the kubelet make any that is
+                # missing (or fail the pod). The script reads only the
+                # run_dirs.
+                - name: nfs
+                  mountPath: /src/backups
+                  subPath: backups
+                  readOnly: true
+                {{- include "offsite-backup.mounts" . | nindent 16 }}
+            {{- end }}
             {{- if $mc.enabled }}
             - name: minecraft
               image: {{ $o.image }}
@@ -233,7 +279,7 @@ spec:
             - name: rclone
               secret:
                 secretName: {{ $o.secret_name }}
-                # Read by both containers' users; nothing else runs in the pod.
+                # Read by every container's user; nothing else runs in the pod.
                 defaultMode: 0444
             - name: scripts
               configMap:
