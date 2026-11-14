@@ -205,20 +205,16 @@ The tunnel's token is not in a dashboard to copy: this repo reads it from
 the OpenTofu state (Cloudflare's API can return it too, but only to an
 edit token, so the code does not ask). The other copy is the old
 cluster's Secret. With the state to hand, put the token in `.env` without
-printing it. Run this from the root of the main checkout, where the state
-is, not from a git worktree:
+printing it. Run this in the main checkout, where the state is, not in a
+git worktree:
 
 ```bash
-(umask 077; t=$(scripts/cf-tofu output -raw tunnel_token) &&
-  touch .env && chmod 600 .env &&
-  sed -i -e '/^CLOUDFLARE_TUNNEL_TOKEN=/d' -e '$a\' .env &&
-  printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "$t" >> .env)
+just cf-env-tunnel-token
 ```
 
-It makes `.env` readable by its owner only, removes any old
-`CLOUDFLARE_TUNNEL_TOKEN` line, and ends the last line if it has no
-newline, so the token goes on a line of its own. If `cf-tofu` fails,
-`.env` is not touched.
+It adds the `CLOUDFLARE_TUNNEL_TOKEN` line to `.env`, or replaces the one
+there, and creates `.env` readable by its owner only if it is missing. It
+needs no cluster. If the state has no valid token, `.env` is not touched.
 
 With no tunnel at all (a new Cloudflare account), create it first:
 {ref}`build the edge from nothing <build-edge-from-nothing>`, below, comes
@@ -349,10 +345,15 @@ just cf-plan      # everything shows as "to add"
 just cf-apply     # asks for the edit token and for confirmation
 ```
 
-Then put the new token in `.env` with the command under
-[Collect the credentials](#collect-the-credentials), and the playbook seals
-it with every other secret. {doc}`/how-to/cloudflare-as-code` has the
-tokens, the state passphrase, `live.auto.tfvars` and the things a new
+Then put the new token in `.env` and load it, before the playbook:
+
+```bash
+just cf-env-tunnel-token
+set -a && source .env && set +a
+```
+
+The `GENERATE_SECRETS=true` run then seals it with every other secret.
+{doc}`/how-to/cloudflare-as-code` has the tokens, the state passphrase, `live.auto.tfvars` and the things a new
 account needs before the first plan.
 
 Once the cluster is up, a later change of token is sealed by

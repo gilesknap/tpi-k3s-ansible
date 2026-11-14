@@ -5,6 +5,10 @@
 # state its import block is a no-op.
 #
 # Import ID formats are those of the provider's docs for each resource.
+#
+# The tunnel's secret cannot be imported: the first apply after importing
+# into an empty state creates random_bytes.tunnel_secret, which updates the
+# tunnel's secret and so rotates its token (reseal it afterwards).
 
 import {
   for_each = var.import_ids.tunnel == null ? toset([]) : toset([var.import_ids.tunnel])
@@ -21,6 +25,12 @@ import {
 import {
   for_each = var.import_ids.cache_ruleset == null ? toset([]) : toset([var.import_ids.cache_ruleset])
   to       = cloudflare_ruleset.cache
+  id       = "zones/${var.zone_id}/${each.value}"
+}
+
+import {
+  for_each = var.import_ids.rate_limit_ruleset == null ? toset([]) : toset([var.import_ids.rate_limit_ruleset])
+  to       = cloudflare_ruleset.rate_limit
   id       = "zones/${var.zone_id}/${each.value}"
 }
 

@@ -27,6 +27,9 @@ variable "tunnel_name" {
   type        = string
 }
 
+# A first apply after import into an empty state also rotates the token: it
+# creates random_bytes.tunnel_secret (which has no import), and that updates
+# the tunnel's secret.
 variable "tunnel_secret_rotation" {
   description = <<-EOT
     Any string; change it (e.g. "1" to "2") to generate a new tunnel secret,
@@ -92,6 +95,8 @@ variable "import_ids" {
     access_apps     = optional(map(string), {})
     access_policies = optional(map(string), {})
     cache_ruleset   = optional(string)
+    # The zone's http_ratelimit entry point ruleset (waf.tf).
+    rate_limit_ruleset = optional(string)
   })
   default = {}
 }

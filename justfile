@@ -77,6 +77,11 @@ cf-apply *args:
 cf-seal-tunnel-token:
     scripts/cf-seal-tunnel-token
 
+# Write the tunnel token from the OpenTofu state into .env without sealing
+# it (first build: before a cluster exists; the token is never printed)
+cf-env-tunnel-token:
+    scripts/cf-seal-tunnel-token --env-only
+
 # Force every tunnel connection to disconnect, then list the connectors
 # (edit token; after a token rotation and cloudflared restart)
 cf-tunnel-disconnect:
