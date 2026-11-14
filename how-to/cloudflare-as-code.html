@@ -1268,8 +1268,7 @@ to a backup location such as the NAS.</p>
 filling <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> again and running the first plan and apply
 (<a class="reference internal" href="#first-init-and-plan">step 4</a>), which imports the objects afresh.
 That apply also sets a new tunnel secret, so it needs the edit token and
-ends with the token rotation steps. The rate-limiting ruleset has no
-import yet: adopt it by hand first, as step 4 describes.</p>
+ends with the token rotation steps.</p>
 <p>Local state suits a single operator. Sharing it, or planning in CI,
 would mean adding an S3-compatible backend to <code class="docutils literal notranslate"><span class="pre">cloudflare/versions.tf</span></code>
 and running <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">init</span> <span class="pre">-migrate-state</span></code>; the state would stay encrypted
@@ -1293,8 +1292,12 @@ api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="n
 api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="nv">$A</span><span class="s2">/access/apps&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
 api<span class="w"> </span><span class="s2">&quot;accounts/</span><span class="nv">$A</span><span class="s2">/access/policies&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | &quot;\(.name) \(.id)&quot;&#39;</span>
 api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">$Z</span><span class="s2">/rulesets&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | select(.phase == &quot;http_request_cache_settings&quot;) | .id&#39;</span>
+api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">$Z</span><span class="s2">/rulesets&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | select(.phase == &quot;http_ratelimit&quot;) | .id&#39;</span>
 </pre></div>
 </div>
+<p>The last two are <code class="docutils literal notranslate"><span class="pre">import_ids.cache_ruleset</span></code> and
+<code class="docutils literal notranslate"><span class="pre">import_ids.rate_limit_ruleset</span></code>. A zone has at most one of each; no output
+means the zone has none, so leave the key out and the apply creates it.</p>
 <p>The cache rule’s <code class="docutils literal notranslate"><span class="pre">ref</span></code>, for <code class="docutils literal notranslate"><span class="pre">cache_rule_refs</span></code>, is in
 <code class="docutils literal notranslate"><span class="pre">api</span> <span class="pre">&quot;zones/$Z/rulesets/&lt;ruleset_id&gt;&quot;</span></code> under <code class="docutils literal notranslate"><span class="pre">.result.rules[].ref</span></code>.</p>
 </section>
@@ -1304,9 +1307,9 @@ api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">
 just<span class="w"> </span>cf-plan
 </pre></div>
 </div>
-<p>The first plan after filling <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> shows the imports, the
-tunnel’s secret and the rate-limiting ruleset:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Plan</span><span class="p">:</span> <span class="n">N</span> <span class="n">to</span> <span class="n">import</span><span class="p">,</span> <span class="mi">2</span> <span class="n">to</span> <span class="n">add</span><span class="p">,</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">change</span><span class="p">,</span> <span class="mi">0</span> <span class="n">to</span> <span class="n">destroy</span><span class="o">.</span>
+<p>The first plan after filling <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> shows the imports and the
+tunnel’s secret:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Plan</span><span class="p">:</span> <span class="n">N</span> <span class="n">to</span> <span class="n">import</span><span class="p">,</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">add</span><span class="p">,</span> <span class="mi">1</span> <span class="n">to</span> <span class="n">change</span><span class="p">,</span> <span class="mi">0</span> <span class="n">to</span> <span class="n">destroy</span><span class="o">.</span>
 </pre></div>
 </div>
 <p>One <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">add</span></code> is <code class="docutils literal notranslate"><span class="pre">random_bytes.tunnel_secret</span></code>: the secret exists only
@@ -1314,31 +1317,13 @@ in the state, so nothing can import it and a state that starts empty
 gets a new one. The one <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">change</span></code> is
 <code class="docutils literal notranslate"><span class="pre">cloudflare_zero_trust_tunnel_cloudflared.cluster</span></code>, updated in place
 with that secret.</p>
-<p>The other <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">add</span></code> is <code class="docutils literal notranslate"><span class="pre">cloudflare_ruleset.rate_limit</span></code>, a known gap:
-<code class="docutils literal notranslate"><span class="pre">imports.tf</span></code> has no import block for it and <code class="docutils literal notranslate"><span class="pre">import_ids</span></code> has no key. A
-zone has one <code class="docutils literal notranslate"><span class="pre">http_ratelimit</span></code> ruleset, so if the zone already has it the
-apply may fail on the clash. Do not apply while the plan adds it and the
-zone still has one. List the zone’s rate-limiting ruleset, with the
-variables and <code class="docutils literal notranslate"><span class="pre">api</span></code> function of step 3 (no output means the zone has
-none, and the apply can create it):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>api<span class="w"> </span><span class="s2">&quot;zones/</span><span class="nv">$Z</span><span class="s2">/rulesets&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.result[] | select(.phase == &quot;http_ratelimit&quot;) | .id&#39;</span>
-</pre></div>
-</div>
-<p>Either adopt the ruleset with a temporary import block, in a file such
-as <code class="docutils literal notranslate"><span class="pre">cloudflare/import-rate-limit.tf</span></code> that you delete after the apply and
-do not commit:</p>
-<div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="nb">import</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="na">to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">cloudflare_ruleset.rate_limit</span>
-<span class="w">  </span><span class="na">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;zones/&lt;zone_id&gt;/&lt;ruleset_id&gt;&quot;</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>The ruleset ID is the one that command printed. Or delete the zone’s
-rate-limiting ruleset first (the API’s
-<code class="docutils literal notranslate"><span class="pre">DELETE</span> <span class="pre">zones/&lt;zone_id&gt;/rulesets/&lt;ruleset_id&gt;</span></code>, with the edit token) and
-let the apply create it: the plan then still shows <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">to</span> <span class="pre">add</span></code>, which is
-right. With the import block the plan shows one more import and
-<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">to</span> <span class="pre">add</span></code>.</p>
+<p>If the plan also adds <code class="docutils literal notranslate"><span class="pre">cloudflare_ruleset.rate_limit</span></code> (or
+<code class="docutils literal notranslate"><span class="pre">cloudflare_ruleset.cache</span></code>), its ID is missing from <code class="docutils literal notranslate"><span class="pre">import_ids</span></code>. A zone
+has one ruleset per phase, so while the zone already has it, an apply that
+creates it fails on the clash. Look the ID up with the <code class="docutils literal notranslate"><span class="pre">http_ratelimit</span></code> (or
+<code class="docutils literal notranslate"><span class="pre">http_request_cache_settings</span></code>) command of step 3, set it in
+<code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>, and plan again: it then shows one more import. Only
+when that command prints nothing is a <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">add</span></code> for the ruleset right.</p>
 <p>Any other <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">add</span></code> or <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">change</span></code>, or any <code class="docutils literal notranslate"><span class="pre">to</span> <span class="pre">destroy</span></code>, means the code
 does not match the live configuration: fix the code (or the values in
 <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>) until only these are left. Then apply:</p>
@@ -1354,9 +1339,9 @@ with <a class="reference internal" href="#cf-rotate-tunnel-token"><span class="s
 <p>Those steps need a running cluster: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code> seals
 against its Sealed Secrets controller, and stops before it updates <code class="docutils literal notranslate"><span class="pre">.env</span></code>
 if it cannot. If the cluster is down too (a rebuild after losing both),
-put the new token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> instead, with the command under “Collect the
-credentials” in <a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>, which replaces an old
-<code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_TUNNEL_TOKEN</span></code> line. The playbook then seals it with every
+put the new token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> instead with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-env-tunnel-token</span></code>, in
+the main checkout (<a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>), which replaces an
+old <code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_TUNNEL_TOKEN</span></code> line and needs no cluster. The playbook then seals it with every
 other secret, and the new pods start with it.
 From then on <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> prints <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">changes.</span> <span class="pre">Your</span> <span class="pre">infrastructure</span> <span class="pre">matches</span> <span class="pre">the</span> <span class="pre">configuration.</span></code> and the import blocks are no-ops.</p>
 </section>
@@ -1377,7 +1362,8 @@ looks up the GitHub login method and the service token by name.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code>, commit the SealedSecret and merge:
 <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> then connects with the new tunnel’s token. This step
 needs a running cluster to seal against. When the cluster is still to
-be built, put the token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> instead and the build seals it
+be built, put the token in <code class="docutils literal notranslate"><span class="pre">.env</span></code> instead with
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-env-tunnel-token</span></code>, and the build seals it
 (<a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>).</p></li>
 </ol>
 <p>A rebuild of the <em>cluster</em> is not this case. The account, the tunnel and
