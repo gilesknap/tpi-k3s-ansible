@@ -1,382 +1,393 @@
-# Services Reference
+# Services reference
 
-All services deployed by ArgoCD, with their chart sources, versions, and access
-methods. If you are trying to decide *what to install*, start with
-**Quick-start configurations** below. If you already know what you want, skip
-down to the **Service catalogue** for the reference table and per-service
-details.
-
-## Quick-start configurations
-
-Not every cluster needs every service. This section helps you pick a
-configuration based on what you actually want to run. Services can be
-individually enabled or disabled — see {doc}`/how-to/add-remove-services`.
-
-### Baseline (always installed)
-
-All configurations below assume the baseline plumbing that makes ingress,
-TLS, and human login work:
-
-- **cert-manager** — Let's Encrypt TLS via Cloudflare DNS-01
-- **ingress-nginx** — HTTP(S) ingress controller
-- **oauth2-proxy** — GitHub OAuth gate for services without native OIDC
-- **Sealed Secrets** — encrypted secrets committed to Git
-- **cloudflared** — outbound Cloudflare tunnel (external access without opening ports)
-
-**Baseline prerequisites:**
-
-- A Cloudflare-managed domain (set via `cluster_domain` in `group_vars/all.yml`)
-- A Cloudflare API token with DNS edit + Tunnel permissions
-- **Two** GitHub OAuth Apps for human logins — one for Dex (OIDC services)
-  and one for oauth2-proxy (services without native OIDC)
-
-See {doc}`/how-to/oauth-setup` and {doc}`/how-to/cloudflare-tunnel` for the
-setup steps.
-
-### Monitoring-only — dashboards and alerts
-
-Metrics, dashboards, and push-notification alerting for the cluster and any
-workloads you add. Useful as a standalone observability cluster.
-
-**Install:** kube-prometheus-stack (Grafana + Prometheus + Alertmanager).
-
-**Hardware prerequisites:**
-
-- One node (arm64 or amd64) for Prometheus and Grafana (both pinned to
-  `node04` in this cluster's values); they can be split across two nodes
-
-**Storage prerequisites:**
-
-- `/var/lib/k8s-data/prometheus` on the Prometheus host (40Gi)
-- `/var/lib/k8s-data/grafana` on the Grafana host (30Gi)
-
-**Other prerequisites:**
-
-- For alerts on a phone: the ntfy service (see {doc}`/how-to/ntfy` and
-  {doc}`/how-to/monitoring`)
-
-### Minecraft — game servers from world backups
-
-An admin dashboard that launches Minecraft Java servers from a read-only
-archive of world backups, with snapshots, restore, and per-world whitelists.
-
-**Install:** Minecraft dashboard (`enable_minecraft: true`), plus the VPS
-relay (`enable_vps_relay: true`).
-
-**Hardware prerequisites:**
-
-- One node to host every world (pinned to `nuc2` by default). Each world
-  defaults to 4Gi of memory, so size the node for the worlds you run at once.
-
-**Storage prerequisites:**
-
-- The NFS CSI storage class `nfs-stable` for per-world data, and its share
-  root on the NAS
-- `minecraft-archive/` (read-only) and `k8s-cluster/minecraft/` on the NAS —
-  see {doc}`/how-to/nas-setup`
-
-**Other prerequisites:**
-
-- A VPS on your tailnet running frps (see {doc}`/how-to/vps-relay` and
-  {doc}`/how-to/minecraft`)
-
-### Full stack — everything
-
-Install every service in the catalogue below. Use this if you have the
-hardware and want the full experience out of the box.
-
-**Minimum hardware:**
-
-- A node for Prometheus and Grafana pinning (`node04` in this cluster)
-- A NAS with an NFS export for backups
-
-**Other prerequisites:**
-
-- Everything listed under the baseline and the individual configurations above
+Everything ArgoCD runs on the cluster, plus ArgoCD itself: where each service
+comes from, which version is pinned, how it is reached and who may use it.
+The live cluster has 25 Applications: the root `all-cluster-services` and the
+24 children it renders from `kubernetes-services/templates/`. Versions here
+are the pins in those templates and in `kubernetes-services/values.yaml`;
+when this page and the code disagree, the code is right.
 
 ## Service catalogue
 
-| Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
-|---------|---------------|---------|-----------|-------------|------|---------|
-| argocd-monitor | `ghcr.io/epics-containers/charts/argocd-monitor` (OCI) | 1.2.0 | `argocd-monitor` | `argocd-monitor.<domain>` | Dex (OIDC) | Dashboard of ArgoCD application status |
-| backups | Local chart | — | `backups` | — | — | Grafana and Jellyfin backup CronJobs to the NAS, and the optional off-site copy to Google Drive |
-| cert-manager | `jetstack/cert-manager` | v1.21.3 | `cert-manager` | — | — | TLS certificate management |
-| cloudflared | Plain manifests | 2026.10.7 | `cloudflared` | — | — | Cloudflare tunnel connector |
-| CoreDNS HA | Plain manifests | — | `kube-system` | — | — | Holds K3s's bundled CoreDNS at 2 replicas |
-| echo | Plain manifests | 0.9.2 | `echo` | `echo.<domain>` | None | HTTP echo test service |
-| Grafana + Prometheus | `prometheus-community/kube-prometheus-stack` | 93.2.2 | `monitoring` | `grafana.<domain>` | Dex (OIDC) | Monitoring and dashboards |
-| Headlamp | `headlamp/headlamp` | 0.46.0 | `headlamp` | `headlamp.<domain>` | OAuth + Token | Kubernetes dashboard (with Argo CD plugin) |
-| home | Local chart | — | `home` | `home.<domain>` | None | Landing page with links to the cluster's services |
-| ingress-nginx | `ingress-nginx/ingress-nginx` | 4.15.1 | `ingress-nginx` | — | — | Ingress controller |
-| Intel GPU device plugin | Upstream release manifests (vendored) | v0.37.1 | `intel-gpu-plugin` | — | — | Advertises `gpu.intel.com/i915` on Intel iGPU nodes |
-| Jellyfin | `jellyfin/jellyfin` | 3.7.0 (image 12.4) | `jellyfin` | — (LAN and Tailscale) | Jellyfin users | Media server with Intel GPU transcoding (optional) |
-| kernel-settings | Inline DaemonSet | — | `kube-system` | — | — | Sysctl tuning for performance |
-| kured | `kubereboot/kured` | 6.1.0 | `kured` | — | — | Reboots nodes after OS updates, one at a time |
-| kyverno | `kyverno/kyverno` | 3.9.1 | `kyverno` | — | — | Policy engine; disabled (`enable_kyverno: false`) |
-| local-storage | Local chart | — | `kube-system` (cluster-scoped) | — | — | `local-nvme` StorageClass and the static node-pinned PVs |
-| Minecraft dashboard | `ghcr.io/gilesknap/charts/minecraft-dashboard` (OCI) | 0.5.2 | `minecraft` | `minecraft.<domain>` | OAuth | Launch and manage Minecraft worlds (optional) |
-| nfs-csi | `csi-driver-nfs` | 4.13.4 | `nfs-csi` | — | — | Dynamic NFS volumes: classes `nfs-stable` (the default) and `nfs-rwx` |
-| ntfy | Local chart (`binwiederhier/ntfy`) | v2.34.0 | `ntfy` | `ntfy.<domain>` | ntfy access tokens (no Cloudflare Access) | Push notifications to phones; alerts from the cluster and outside hosts |
-| NVIDIA device plugin | `nvidia/nvidia-device-plugin` | 0.20.1 | `nvidia-device-plugin` | — | — | Advertises `nvidia.com/gpu` resources to the scheduler |
-| oauth2-proxy | `oauth2-proxy/oauth2-proxy` | 10.7.4 | `oauth2-proxy` | `oauth2.<domain>` | GitHub | OAuth proxy for Headlamp, Alertmanager, the Minecraft dashboard and scrap |
-| scrap | OCI chart `ghcr.io/gilesknap/charts/scrap` | 1.9.2 | `scrap` | `scrap.<domain>` | Cloudflare Access + oauth2-proxy | Personal knowledge store (PWA; `/mcp` behind a bearer token) |
-| Sealed Secrets | `bitnami-labs/sealed-secrets` | 2.22.0 | `kube-system` | — | — | Encrypted secrets in Git |
-| system-upgrade-controller | Upstream release manifests (vendored) | v0.20.2 | `system-upgrade` | — | — | Applies k3s patch releases |
-| VPS relay | Plain manifests (tailscale v1.102.5, frpc v0.71.0) | — | `vps-relay` | — | Tailscale + frp | Publishes chosen TCP/UDP ports on a VPS's public IP (optional) |
+Placement says where the pods run today and what decides it. "Any worker"
+means node03, node04, nuc1 or nuc2: node02 is tainted `NoSchedule` for the
+control plane and ws03 `workstation=true:NoSchedule`, so only pods that
+tolerate those taints land there. node03, the warm-standby control plane,
+carries a `PreferNoSchedule` taint: the scheduler uses it when a spread or
+anti-affinity rule asks for a second node, and otherwise prefers the others.
+
+### Platform
+
+| Application | Source | Version | Namespace | Replicas and placement |
+|-------------|--------|---------|-----------|------------------------|
+| `all-cluster-services` | This repository, `kubernetes-services/` (the root app, created by Ansible) | branch `main` | `argo-cd` | Renders the Applications below |
+| `sealed-secrets` | `bitnami-labs/sealed-secrets` chart | 2.22.0 | `kube-system` | 1, any worker |
+| `cert-manager` | `jetstack/cert-manager` chart | v1.21.3 | `cert-manager` | 1 each of controller, cainjector and webhook, any worker |
+| `ingress` | `kubernetes/ingress-nginx` chart | 4.15.1 | `ingress-nginx` | 2, on different nodes, with a PodDisruptionBudget. K3s ServiceLB publishes its ports 80 and 443 on node03, node04, nuc1 and nuc2 |
+| `oauth2-proxy` | `oauth2-proxy/oauth2-proxy` chart | 10.7.4 | `oauth2-proxy` | 2, on different nodes, with a PodDisruptionBudget |
+| `cloudflared` | Plain manifests, image `cloudflare/cloudflared` | 2026.10.7 | `cloudflared` | 2, required on different nodes, with a PodDisruptionBudget |
+| `coredns` | Plain manifests (an HPA and a PodDisruptionBudget for the CoreDNS that K3s bundles) | n/a | `kube-system` | Holds CoreDNS at 2, on different workers |
+| `local-storage` | Local chart | n/a | cluster-scoped | The `local-nvme` StorageClass and the static PVs on node04 and nuc2 |
+| `nfs-csi` | `kubernetes-csi/csi-driver-nfs` chart | 4.13.4 | `nfs-csi` | Controller 1 (on node02 today), node DaemonSet on all six nodes |
+| `kernel-settings` | Plain manifests, `busybox:1.38` | n/a | `kube-system` | DaemonSet `sysctl-tuning` on node03, node04, nuc1 and nuc2 |
+| `kured` | `kubereboot/kured` chart | 6.1.0 | `kured` | DaemonSet on every node but ws03 |
+| `system-upgrade` | Vendored upstream manifests plus two Plans | controller v0.20.2 | `system-upgrade` | 1 (on node02 today) |
+| `intel-gpu-plugin` | Vendored upstream DaemonSet, kustomize patch | 0.37.1 | `intel-gpu-plugin` | DaemonSet on nuc2 only |
+| `nvidia-device-plugin` | `NVIDIA/k8s-device-plugin` chart | 0.20.1 | `nvidia-device-plugin` | DaemonSet on ws03 only |
+| `backups` | Local chart | n/a | `backups` | CronJobs only: `grafana-daily`, `grafana-weekly` (node04), `jellyfin-daily`, `jellyfin-weekly` (nuc2), `offsite-backup` |
+
+### Operations UIs and monitoring
+
+| Application | Source | Version | Namespace | Replicas and placement |
+|-------------|--------|---------|-----------|------------------------|
+| `grafana-prometheus` | `prometheus-community/kube-prometheus-stack` chart | 93.3.0 (operator images pinned to v0.94.2) | `monitoring` | Prometheus and Grafana on node04 (local PVs); Alertmanager, operator, kube-state-metrics on any worker; node-exporter on all six nodes |
+| `headlamp` | `kubernetes-sigs/headlamp` chart | 0.46.0, Argo CD plugin 0.1.0-alpha | `headlamp` | 1, any worker |
+| `argocd-monitor` | OCI chart `ghcr.io/epics-containers/charts/argocd-monitor` | 1.2.0 | `argocd-monitor` | 1, amd64 nodes only (nuc1 or nuc2) |
+| `home` | Local chart, image `nginxinc/nginx-unprivileged:1.31-alpine` | n/a | `home` | 1, any worker |
+| `echo` | Plain manifests, image `ealen/echo-server` | 0.9.2 | `echo` | 1, any worker |
+| `ntfy` | Local chart, image `binwiederhier/ntfy` | v2.34.0 | `ntfy` | 1, any worker (state on an `emptyDir`) |
+
+### Applications
+
+| Application | Source | Version | Namespace | Replicas and placement | Toggle |
+|-------------|--------|---------|-----------|------------------------|--------|
+| `scrap` | OCI chart `ghcr.io/gilesknap/charts/scrap` | 1.9.2 | `scrap`, `scrap-public` | 1 each, any worker (Litestream on NFS) | none |
+| `jellyfin` | `jellyfin/jellyfin` chart | chart 3.7.0, image 12.4 (`12.4.20261026-211555`) | `jellyfin` | 1, nuc2 (local PV and Iris Xe) | `enable_jellyfin` |
+| `minecraft` | OCI chart `ghcr.io/gilesknap/charts/minecraft-dashboard` | 0.5.2 | `minecraft` | Dashboard 1, any worker; every world on nuc2 | `enable_minecraft` |
+| `vps-relay` | Local chart, images `tailscale/tailscale` and `fatedier/frpc` | v1.102.5, v0.71.0 | `vps-relay` | 1, any worker | `enable_vps_relay` |
+
+Two more switches in `values.yaml` change the set. `enable_kyverno` is `false`:
+`templates/kyverno.yaml` (chart 3.9.1) is not rendered, because the app never
+settled to Synced and no policies were in use. `enable_oauth2_proxy` and
+`enable_cloudflare_tunnel` are both `true`; they do not remove an Application,
+they switch the oauth2-proxy annotations on Headlamp's Ingress and the
+`ssl-redirect` annotation on every tunnelled Ingress.
+{doc}`/how-to/add-remove-services` describes adding and removing Applications.
+
+## Access
+
+Every `gkcluster.org` hostname below is a route on the Cloudflare Tunnel to
+ingress-nginx (`tunnel_services` in `cloudflare/locals.tf`), so a request
+passes Cloudflare Access at the edge, then whatever the service does itself.
+{doc}`/explanations/architecture/authentication` explains the layers and
+{doc}`/tutorials/tour` walks through the UIs.
+
+| URL | Service | Cloudflare Access | In the cluster |
+|-----|---------|-------------------|----------------|
+| <https://home.gkcluster.org> | Landing page with links to everything | Owner | None |
+| <https://argocd.gkcluster.org> | ArgoCD | Owner and viewers (`Demo` app) | GitHub through Dex: `admin_emails` are `role:admin`, anyone else `role:readonly` |
+| <https://argocd-monitor.gkcluster.org> | argocd-monitor | Owner and viewers | Its own oauth2-proxy sidecar against Dex; inherits the ArgoCD role |
+| <https://grafana.gkcluster.org> | Grafana | Owner and viewers | GitHub through Dex: `admin_emails` are Admin, anyone else Viewer |
+| <https://alertmanager.gkcluster.org> | Alertmanager | Owner | oauth2-proxy (`admin_emails`) |
+| <https://headlamp.gkcluster.org> | Headlamp | Owner | oauth2-proxy (`admin_emails`), then a ServiceAccount token |
+| <https://minecraft.gkcluster.org> | Minecraft dashboard | Owner | oauth2-proxy (`admin_emails`) |
+| <https://scrap.gkcluster.org> | scrap | Owner; `/mcp` needs the `mcp-access` service token instead | oauth2-proxy (`admin_emails`); `/mcp` needs scrap's bearer token instead |
+| <https://pages.gkcluster.org> | scrap's public pages | Bypass (public, cached) | None |
+| <https://ntfy.gkcluster.org> | ntfy | Bypass (public, rate-limited) | ntfy access tokens |
+| <https://echo.gkcluster.org> | Echo test service | Owner | None |
+| <https://oauth2.gkcluster.org> | oauth2-proxy's sign-in and callback endpoints | Owner | n/a |
+
+Not on the tunnel:
+
+| Name | What |
+|------|------|
+| `home-lan.gkcluster.org`, `home-tailnet.gkcluster.org` | DNS-only records pointing at the LAN and the tailnet address of an ingress node. They serve the same landing page; its JavaScript fetches `/healthz` on each to show whether the browser is on the LAN or the tailnet |
+| `mc.gkcluster.org:<port>` | DNS-only record for the VPS; Minecraft players connect here ({doc}`/how-to/minecraft`) |
+| `http://192.168.1.92:8096` | Jellyfin, on nuc2's own network: LAN and tailnet only, Jellyfin's own users ({doc}`/how-to/jellyfin`) |
+| `https://k3s.lan:6443` | The Kubernetes API (a router DNS record for node02), for `kubectl` |
+
+### Port-forward fallbacks
+
+When Cloudflare, the tunnel or the ingress is down, `kubectl port-forward`
+from the devcontainer still reaches each service. It skips Cloudflare Access
+and oauth2-proxy, so it relies on the kubeconfig alone.
+
+| Service | Command | Then open |
+|---------|---------|-----------|
+| ArgoCD | `argo.sh`, or `kubectl -n argo-cd port-forward svc/argocd-server 8080:80` | <http://localhost:8080> |
+| Grafana | `grafana.sh`, or `kubectl -n monitoring port-forward sts/grafana-prometheus 3000` | <http://localhost:3000> |
+| Headlamp | `dashboard.sh` (also prints a 24 hour token), or `kubectl -n headlamp port-forward svc/headlamp 4466:80` | <http://localhost:4466> |
+| Prometheus | `kubectl -n monitoring port-forward svc/grafana-prometheus-kube-pr-prometheus 9090` | <http://localhost:9090> |
+| Alertmanager | `kubectl -n monitoring port-forward svc/grafana-prometheus-kube-pr-alertmanager 9093` | <http://localhost:9093> |
+| Minecraft dashboard | `kubectl -n minecraft port-forward svc/minecraft-dashboard 8080:80` | <http://localhost:8080> |
+
+`argo.sh`, `grafana.sh` and `dashboard.sh` are written by the `tools` Ansible
+role. ArgoCD and Grafana still ask for the GitHub login through Dex, whose
+redirects go to the public hostnames, so with the edge down the practical
+tools are `kubectl` and Headlamp with a token:
+
+```bash
+just headlamp-token      # a 100 day ServiceAccount token
+```
+
+## ArgoCD itself
+
+ArgoCD is not in `kubernetes-services/templates/`. The `cluster` Ansible role
+installs it with Helm from `oci://ghcr.io/argoproj/argo-helm/argo-cd`, chart
+**9.4.17** (ArgoCD v3.3.6), into the `argo-cd` namespace
+(`roles/cluster/tasks/argocd.yml`), then applies the AppProject
+`kubernetes` and the root Application from `argo-cd/`. One replica of each
+component, on any worker.
+
+- **Login:** GitHub through its bundled Dex. The built-in admin account is
+  disabled (`admin.enabled: "false"`).
+- **RBAC:** `configs.rbac` maps each of `admin_emails` to `role:admin`;
+  `policy.default` is `role:readonly`.
+- **Dex clients:** `argo-cd`, `argocd-monitor` and `grafana`, so Grafana and
+  argocd-monitor log in through the same Dex.
+- **AppProject:** `sourceRepos` is an allow-list of this repository and the
+  chart registries in the tables above (`argo-cd/argo-project.yaml`). A new
+  chart source must be added there and applied with
+  `ansible-playbook pb_all.yml --tags cluster`.
+
+{doc}`/explanations/architecture/gitops` describes the app-of-apps layout.
 
 ## Service details
 
+### Sealed Secrets
+
+Bitnami's controller, in `kube-system`. It decrypts each `SealedSecret` in Git
+into a Secret. See {doc}`/how-to/manage-sealed-secrets`.
+
 ### cert-manager
 
-Manages TLS certificates via Let's Encrypt. Uses DNS-01 validation through the
-Cloudflare API. Includes a `ClusterIssuer` (`letsencrypt-prod`) and a SealedSecret
-for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi limit.
+Issues one wildcard certificate, `*.gkcluster.org` and `gkcluster.org`, from
+Let's Encrypt by DNS-01 through the Cloudflare API, into the Secret
+`cert-manager/wildcard-tls`. ingress-nginx serves it as its default
+certificate, so no Ingress needs its own. Requests 50m/128Mi, limits
+200m/256Mi.
 
 **Additional manifests:** `additions/cert-manager/templates/`
-- `cloudflare-api-token-secret.yaml` — SealedSecret for DNS API token
-- `issuer-letsencrypt-prod.yaml` — ClusterIssuer for production Let's Encrypt (uses `domain_email` for ACME notifications)
 
-### cloudflared
+- `cloudflare-api-token-secret.yaml`: SealedSecret with the DNS API token
+  ({ref}`cf-dns01-token`)
+- `issuer-letsencrypt-prod.yaml`: the `letsencrypt-prod` ClusterIssuer
+- `wildcard-certificate.yaml`: the wildcard Certificate
 
-Outbound Cloudflare tunnel connector. Runs 2 replicas on different nodes
-(required pod anti-affinity) with a PodDisruptionBudget of `maxUnavailable: 1`.
-Reads the tunnel token from a SealedSecret. Non-root, read-only rootfs.
-
-**Additional manifests:** `additions/cloudflared/`
-- `deployment.yaml` — 2-replica Deployment with hardened security context, and
-  its PodDisruptionBudget
-- `tunnel-secret.yaml` — SealedSecret for tunnel token
-
-### echo
-
-Simple HTTP echo service ([ealen/echo-server](https://github.com/Ealenn/Echo-Server))
-for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel with
-`ssl-redirect: false`. Runs as non-root (65534) with read-only root filesystem.
-Image pinned to `0.9.2`.
-
-**Additional manifests:** `additions/echo/`
-- `manifests.yaml` — Deployment and Service (the Ingress comes from
-  `additions/ingress`)
-
-### Grafana + Prometheus (kube-prometheus-stack)
-
-Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
-Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
-emails in `admin_emails` get Admin role, all other authenticated users get Viewer. Uses
-static `local-nvme` PVs pinned by node affinity (Grafana → node04 30Gi,
-Prometheus → node04 40Gi). Grafana resource limits: 100m/256Mi request,
-500m/512Mi limit. Alertmanager, the Prometheus operator and kube-state-metrics
-do not tolerate the workstation taint, so they stay off workstation nodes;
-node-exporter runs on every node.
-
-Uses `ServerSideApply=true` sync option due to large CRDs.
-
-### Headlamp
-
-Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
-(admin-only, same as Alertmanager). After OAuth login,
-paste a ServiceAccount token generated with
-`kubectl create token headlamp -n headlamp` to access the Kubernetes API.
-The Helm chart creates a ClusterRoleBinding granting `cluster-admin` to
-the default ServiceAccount. Resource limits: 50m/128Mi request,
-200m/256Mi limit.
-
-**Argo CD plugin.** The
-[Argo CD plugin](https://github.com/headlamp-k8s/plugins/tree/main/argocd)
-from the Headlamp project adds an Argo CD sidebar section listing
-Applications with their project, source repo, revision, sync status and
-health, plus buttons to sync or refresh an Application. It drives the
-Kubernetes API rather than the Argo CD REST API, so it needs no Argo CD
-credentials — read and patch rights on `applications.argoproj.io` are
-enough, which the chart's `cluster-admin` ClusterRoleBinding already
-covers. No extra RBAC manifests are required.
-
-The plugin is not on ArtifactHub yet, so the chart's `pluginsManager`
-sidecar (which only accepts ArtifactHub URLs) cannot install it. Instead
-`templates/dashboard.yaml` sets `config.pluginsDir` and adds an
-initContainer that downloads the GitHub release tarball, verifies its
-SHA-256, and unpacks it into an emptyDir shared with the Headlamp
-container. Set `headlamp.argocd_plugin.enabled` to `false` in
-`kubernetes-services/values.yaml` to drop the plugin; bump
-`version` and `sha256` together to upgrade it.
+Its metrics are scraped by a ServiceMonitor in `additions/grafana/`, and
+certificate expiry alerts come from there ({doc}`/how-to/monitoring`).
 
 ### ingress-nginx
 
-NGINX ingress controller. Runs 2 replicas spread across nodes with a
-PodDisruptionBudget of `maxUnavailable: 1`. Admission webhooks are disabled.
-Resource limits: 100m/256Mi request, 500m/512Mi limit.
+The only ingress controller. Two replicas with a topology spread across
+nodes and `maxUnavailable: 1`, so a reboot or drain keeps one serving. The
+admission webhook is disabled: its hook Jobs delete themselves before ArgoCD
+records them, which left every sync stuck. Requests 100m/256Mi, limits
+500m/512Mi.
+
+Most Ingresses are rendered by the small `additions/ingress/` chart, which the
+service templates include as a source with `name`, `service_name`,
+`service_port` and `oauth2_proxy`.
+
+### oauth2-proxy
+
+GitHub login gate for the services with no login of their own: Headlamp,
+Alertmanager, the Minecraft dashboard and scrap. ingress-nginx asks it about
+every request (`auth-url` annotation) and it admits only `admin_emails`. Two
+replicas; sessions live in the encrypted cookie on `.gkcluster.org`, so the
+replicas share no state. Requests 10m/64Mi, limits 100m/128Mi.
+
+**Additional manifests:** `additions/oauth2-proxy/`
+
+- `oauth2-proxy-secret.yaml`: SealedSecret with the GitHub OAuth credentials
+- `error-templates.yaml`: the error page shown to an account that is not allowed
+
+See {doc}`/how-to/oauth-setup`.
+
+### cloudflared
+
+The outbound Cloudflare Tunnel connector. Two replicas on different nodes
+(required anti-affinity) with `maxUnavailable: 1`; non-root, read-only root
+filesystem. The tunnel, its routes and its DNS records are code in
+`cloudflare/`; the pod only needs the tunnel token.
+
+**Additional manifests:** `additions/cloudflared/`
+
+- `deployment.yaml`: the Deployment and its PodDisruptionBudget
+- `networkpolicy.yaml`: the pod's NetworkPolicy
+- `tunnel-secret.yaml`: SealedSecret with the tunnel token
+  (`just cf-seal-tunnel-token`)
+
+See {doc}`/how-to/cloudflare-as-code` and
+{doc}`/explanations/architecture/networking`.
 
 ### CoreDNS HA
 
-Adds a HorizontalPodAutoscaler fixed at 2 replicas and a PodDisruptionBudget
-to the CoreDNS Deployment that K3s manages. See {doc}`/explanations/upgrade-model`.
+K3s owns the CoreDNS Deployment and re-applies it at every server restart, so
+this Application does not replace it. It adds an HPA with `minReplicas` and
+`maxReplicas` both 2, which holds the Deployment at two replicas, and a
+PodDisruptionBudget. See {doc}`/explanations/upgrade-model`.
+
+### local-storage and nfs-csi
+
+`local-storage` defines the `local-nvme` class and one static, node-pinned PV
+per entry of `local_storage` in `values.yaml`: Prometheus and Grafana on
+node04, Jellyfin, scrap's backup copy and scrap's frozen copy on nuc2. It also
+marks K3s's `local-path` class as not the default.
+
+`nfs-csi` provides the two dynamic classes on the NAS: `nfs-stable` (the
+default; one fixed folder per claim under `/k8s-dynamic/stable`, archived on
+delete) and `nfs-rwx` (a scratch folder per volume under `/k8s-dynamic`,
+deleted with the claim).
+
+See {doc}`/explanations/architecture/storage` and
+{doc}`/how-to/nfs-stable-paths`.
 
 ### kernel-settings
 
-DaemonSet that applies system tuning on all nodes:
-- Sets `rmem_max` and `wmem_max` to 7500000 (network buffers)
+A DaemonSet that raises `net.core.rmem_max` and `net.core.wmem_max` to
+7500000 on the nodes it runs on, for network buffers.
 
-All busybox images pinned to `1.38`.
+### kured and system-upgrade-controller
 
-### kured
+The nightly maintenance pair. kured reboots a node when
+`/var/run/reboot-required` exists, between 02:30 and 05:00 Europe/London, one
+node at a time, after draining it; it runs on node02 but not on ws03, and
+skips a node that is running a K3s upgrade Job. system-upgrade-controller
+applies K3s patch releases of the `k3s.minor` line (v1.34) between 01:00 and
+02:00 through two Plans (`additions/k3s-upgrade-plans/`), which exclude ws03.
 
-DaemonSet that reboots a node when `/var/run/reboot-required` exists, inside
-the nightly reboot window, one node at a time, after draining it. Runs on the
-control plane but not on workstation nodes. Exposes `kured_*` metrics to
-Prometheus. See {doc}`/explanations/upgrade-model`.
+The controller's manifests are vendored unchanged from its GitHub release in
+`additions/system-upgrade-controller/`, so a sync or rebuild does not depend
+on GitHub downloads. To upgrade it, re-download both files and update the
+version and sha256 sums as the `kustomization.yaml` header there describes.
 
-### Jellyfin
+See {doc}`/explanations/upgrade-model` and {doc}`/how-to/upgrade-k3s`.
 
-Optional (`enable_jellyfin`). The upstream
-[jellyfin/jellyfin](https://github.com/jellyfin/jellyfin-helm) chart, pinned
-to one node: its data, config and logs are a static `local-nvme` PV there
-(`local_storage.jellyfin`), mounted at a host install's paths
-(`/var/lib/jellyfin`, `/etc/jellyfin`, `/var/log/jellyfin`), and the pod requests that node's Intel iGPU
-(`gpu.intel.com/i915: 1`, see [Intel GPU device plugin](#intel-gpu-device-plugin))
-with the node's `render` and `video` groups in `supplementalGroups`. It runs as
-a fixed uid/gid (`jellyfin.uid`/`gid`). The media library is a static
-read-only NFS PV, mounted at the path a host install used. No Ingress and no
-Cloudflare route: LAN and Tailscale only, with `hostNetwork` (off in a trial,
-`jellyfin.host_network`). No PodDisruptionBudget, so kured can drain the node.
-Init containers can seed the volume once from a host install
-(`jellyfin.seed_from_host`), and the `backups` app backs up the database and
-config nightly (`jellyfin-daily`, `jellyfin-weekly`).
+### backups
 
-See {doc}`/how-to/jellyfin`.
+CronJobs that write to `/bigdisk/k8s-cluster/backups` on the NAS through the
+static `k8s-cluster-nfs` volume: Grafana's database daily and weekly (on
+node04), Jellyfin's database and config daily and weekly (on nuc2), and
+`offsite-backup`, which at 05:30 uploads every backup, age-encrypted, to the
+Google Drive folder `home-cluster-offsite`. scrap's backups are CronJobs of
+its own chart, and etcd's is a systemd timer on node02. See
+{doc}`/how-to/backup-restore`.
 
-### Minecraft dashboard
+### Grafana + Prometheus (kube-prometheus-stack)
 
-Optional (`enable_minecraft`). Deployed from the OCI chart published by
-[gilesknap/k3s-minecraft](https://github.com/gilesknap/k3s-minecraft), which
-creates the dashboard Deployment, Service, a namespace-scoped
-ServiceAccount/Role, and three static NFS volumes: the world archive
-(mounted read-only), the writable store, and the `nfs-stable` share (mounted
-read-only, to check world folders and archives). The dashboard itself installs
-one [itzg Minecraft](https://github.com/itzg/minecraft-server-charts)
-Helm release per world in the `minecraft` namespace, each with a dynamic
-`nfs-stable` PVC and a NodePort from `30565`–`30584`, pinned to one node.
-Protected by oauth2-proxy (admin-only, same as Headlamp).
+Prometheus, Grafana, Alertmanager, the operator, kube-state-metrics and
+node-exporter, with this cluster's alert rules and the Alertmanager to ntfy
+route. Synced with `ServerSideApply=true` because of the size of its CRDs.
+See {doc}`/how-to/monitoring`.
 
-See {doc}`/how-to/minecraft` for setup.
+### Headlamp
+
+Kubernetes dashboard behind oauth2-proxy. After the GitHub login, paste a
+ServiceAccount token (`just headlamp-token`); the chart binds the `headlamp`
+ServiceAccount to `cluster-admin`. Requests 50m/128Mi, limits 200m/256Mi.
+
+The [Argo CD plugin](https://github.com/headlamp-k8s/plugins/tree/main/argocd)
+adds a sidebar section listing Applications with sync and health status and
+buttons to sync or refresh. It drives the Kubernetes API, not the ArgoCD API,
+so it needs no ArgoCD credentials. The plugin is not on ArtifactHub, so
+`templates/dashboard.yaml` adds an init container that downloads the release
+tarball, verifies its SHA-256 and unpacks it into an `emptyDir`. Bump
+`headlamp.argocd_plugin.version` and `sha256` together; set `enabled: false`
+to drop it.
+
+### argocd-monitor
+
+A dashboard of Application status from
+[epics-containers/argocd-monitor](https://github.com/epics-containers/argocd-monitor),
+with links from each workload to its Grafana dashboard. It logs in through
+Dex with its own oauth2-proxy sidecar (client `argocd-monitor`, SealedSecret
+`argocd-monitor-oauth`) and talks to `argocd-server` inside the cluster.
+Pinned to amd64 nodes.
+
+### home
+
+nginx serving a static landing page from a ConfigMap, with a card per web UI
+and the LAN and tailnet probes described under Access.
+
+### echo
+
+[ealen/echo-server](https://github.com/Ealenn/Echo-Server): returns the
+request it received as JSON, which shows the headers that Cloudflare,
+ingress-nginx and oauth2-proxy add. Non-root with a read-only root
+filesystem.
+
+### ntfy
+
+Self-hosted push notifications at `ntfy.gkcluster.org`, locked down:
+`auth-default-access: deny-all`, no sign-up, no web app, no attachments. Users,
+tokens and access are declarative, from the `ntfy-auth` SealedSecret and the
+chart's values: write-only senders (`alertmanager` on `cluster-alerts`, `vps`
+on `vps-alerts`) and a read-only `phone` user. It is public through the tunnel
+with a bypass Access application, because the phone app cannot log in to
+Access, and a Cloudflare rate-limiting rule. A NetworkPolicy admits only
+ingress-nginx and the Alertmanager pods. See {doc}`/how-to/ntfy`.
 
 ### scrap
 
 Personal knowledge store ([gilesknap/scrap](https://github.com/gilesknap/scrap)).
-The Argo CD Application deploys the chart from a git tag into the `scrap`
-namespace in its Litestream mode, so it runs on any node. The database is on
-the pod's emptyDir, replicated to a static NFS data volume, and the backups
-are on a second static NFS volume. There is also a nightly copy of the newest
-backup to a `local-nvme` PV, a NetworkPolicy admitting only `ingress-nginx`,
-and Claude ingest enabled. The PWA is protected by
-Cloudflare Access plus oauth2-proxy. A separate `/mcp` Ingress (`mcp_ingress_enabled: true`)
-bypasses oauth2-proxy and is protected by a Cloudflare Access service token
-plus scrap's own bearer token (`SCRAP_MCP_TOKEN`, from `scrap-secrets`).
+The pod runs on any node: the database is on an `emptyDir`, replicated by
+Litestream to a static NFS volume on the NAS. The web UI is behind Cloudflare
+Access and oauth2-proxy; `/mcp` has its own Ingress behind a Cloudflare
+service token and scrap's bearer token; public pages are served from the
+`scrap-public` namespace at `pages.gkcluster.org`. See {doc}`/how-to/scrap`.
 
-**Additional manifests:** `additions/scrap/`
-- `templates/mcp-ingress.yaml` — `/mcp`-only Ingress without oauth2-proxy
-- `templates/nfs-volumes.yaml` — static NFS PVs and PVCs for data and backups
-- `templates/backup-copy.yaml` — the nightly off-NAS backup copy
-- `templates/legacy-pvc.yaml`, `templates/migrate-job.yaml` — the pre-Litestream
-  claims, kept as a frozen copy, and the one-off move to NFS
-- `templates/scrap-secret.yaml` — SealedSecret `scrap-secrets`
-  (`ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN`; sealed per cluster)
-- `templates/public-namespace.yaml` — the `scrap-public` namespace for the
-  public pages site
-- `templates/scrap-publish-secret.yaml`, `templates/scrap-public-publish-secret.yaml`
-  — SealedSecrets `scrap-publish` (the public-pages upload token) in `scrap`
-  and `scrap-public`
+### Jellyfin
 
-See {doc}`/how-to/scrap` for setup.
+The upstream chart, pinned to nuc2 for its config volume (a `local-nvme` PV at
+`/home/k8s-data/jellyfin`) and the Iris Xe (see
+[Intel GPU device plugin](#intel-gpu-device-plugin)). `hostNetwork`, so it
+answers on nuc2's port 8096 on the LAN and the tailnet; no Ingress and no
+Cloudflare route. The library is a read-only NFS mount of `/bigdisk/media`.
+See {doc}`/how-to/jellyfin`.
+
+### Minecraft dashboard
+
+The OCI chart from
+[gilesknap/k3s-minecraft](https://github.com/gilesknap/k3s-minecraft): an
+admin UI that installs one
+[itzg Minecraft](https://github.com/itzg/minecraft-server-charts) Helm release
+per world in its own namespace, each with an `nfs-stable` claim and a NodePort
+from 30565 to 30584 on nuc2. Players come in through the VPS relay. See
+{doc}`/how-to/minecraft`.
 
 ### VPS relay
 
-Optional (`enable_vps_relay`). One Deployment with two containers: a
-Tailscale userspace sidecar that joins the tailnet as an ephemeral node
-tagged `tag:vps-relay` and offers SOCKS5 on `127.0.0.1:1055`, and frpc,
-which dials frps on the VPS through it. Every entry in `vps_relay.forwards`
-becomes one frp proxy per port, so frps publishes those ports on the VPS and
-relays each connection to the same port on the entry's `target`. All
-connections are outbound from the cluster. Both containers run non-root
-with a read-only root filesystem and no service-account token.
-
-**Additional manifests:** `additions/vps-relay/`
-- `templates/deployment.yaml` and `templates/frpc-configmap.yaml` — the pod
-  and its generated `frpc.toml`
-- `templates/vps-relay-secret.yaml` — SealedSecret for the Tailscale OAuth
-  client secret and the frp token (created by you; not shipped)
-
-See {doc}`/how-to/vps-relay` for setup, including the frps runbook for the
-VPS.
-
-### oauth2-proxy
-
-Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Headlamp,
-Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations.
-Runs 2 replicas spread across nodes with a PodDisruptionBudget of
-`maxUnavailable: 1`; sessions live in the encrypted cookie, so replicas share no
-state. Resource limits: 10m/64Mi request, 100m/128Mi limit.
-
-**Additional manifests:** `additions/oauth2-proxy/`
-- `oauth2-proxy-secret.yaml` — SealedSecret for GitHub OAuth credentials
-
-See {doc}`/how-to/oauth-setup` for configuration details.
-
-### ntfy
-
-Push-notification server ([ntfy](https://ntfy.sh)), locked down:
-`auth-default-access: deny-all`, no sign-up, no login, no web app and no
-attachments. Users, tokens and access are declarative: the users and tokens
-come from the `ntfy-auth` SealedSecret, the access list from the chart's
-values, so no `ntfy user add` is ever run. One write-only user per sender
-(`alertmanager` on `cluster-alerts`, `vps` on `vps-alerts`) and a
-read-only `phone` user; no admin user. A daily cap of 500 messages per
-visitor. One replica with its SQLite user database and
-message cache (12h) on an `emptyDir`, so it is not pinned to a node. A
-NetworkPolicy admits only `ingress-nginx`. Non-root (10001) with a
-read-only root filesystem; probes on `/v1/health`. Resource limits:
-10m/32Mi request, 500m/256Mi limit. Public through the Cloudflare tunnel
-with a Cloudflare Access **Bypass** application, as the phone app cannot
-log in to Access.
-
-**Additional manifests:** `additions/ntfy/`
-- `templates/deployment.yaml`, `templates/service.yaml`,
-  `templates/configmap.yaml` (`server.yml`), `templates/networkpolicy.yaml`
-- `templates/ntfy-auth-secret.yaml` — SealedSecret with the users and
-  tokens (`just seal-ntfy`)
-
-See {doc}`/how-to/ntfy` for setup.
+One pod with two containers: a Tailscale userspace sidecar that joins the
+tailnet as an ephemeral node tagged `tag:vps-relay`, and frpc, which dials
+frps on the VPS through it. Each entry in `vps_relay.forwards` publishes its
+ports on the VPS's public address and relays them to the same ports on its
+`target`; today that is the `minecraft` forward, 30565 to 30584 to nuc2. Every
+connection is outbound from the cluster. Both containers are non-root with a
+read-only root filesystem and no service-account token. See
+{doc}`/how-to/vps-relay`.
 
 ### NVIDIA device plugin
 
-DaemonSet that detects NVIDIA GPUs and advertises `nvidia.com/gpu` resources to the
-Kubernetes scheduler. Schedules on nodes with label `nvidia.com/gpu.present=true`
-(applied by the `k3s` Ansible role for `nvidia_gpu_node` hosts). Once running, it
-also sets the `nvidia.com/gpu.present` label and the `nvidia.com/gpu` allocatable
-resource on the node.
+DaemonSet that advertises ws03's GPU as `nvidia.com/gpu`. It schedules on
+nodes labelled `nvidia.com/gpu.present=true`, which the `k3s` Ansible role
+sets for hosts with `nvidia_gpu_node: true` in `hosts.yml`, and tolerates the
+`workstation` taint. A pod that wants the GPU must tolerate that taint too.
 
-Requires the NVIDIA container runtime to be configured in k3s's containerd. The
-`update_packages` role writes a `config.toml.tmpl` that sets the NVIDIA runtime as
-default and survives k3s-agent restarts.
+The node needs the NVIDIA container runtime in K3s's containerd: the
+`update_packages` role writes a `config.toml.tmpl` that makes it the default
+runtime and survives `k3s-agent` restarts.
 
 ### Intel GPU device plugin
 
 DaemonSet from
 [intel-device-plugins-for-kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes)
-that advertises an Intel iGPU (for example Iris Xe) as the `gpu.intel.com/i915`
-resource, so a pod gets `/dev/dri` for VAAPI or Quick Sync through a resource
-request instead of running privileged. Schedules on nodes with label
-`intel.feature.node.kubernetes.io/gpu=true`, applied by the `k3s` Ansible role
-for `intel_gpu_node` hosts. That is the label Node Feature Discovery would set,
-so NFD can replace the inventory flag later without changing the plugin.
+that advertises nuc2's Iris Xe as the `gpu.intel.com/i915` resource, so a pod
+gets `/dev/dri` for VAAPI or Quick Sync through a resource request instead of
+running privileged. It schedules on nodes labelled
+`intel.feature.node.kubernetes.io/gpu=true`, which the `k3s` Ansible role sets
+for hosts with `intel_gpu_node: true` in `hosts.yml`. That is the label Node
+Feature Discovery would set, so NFD could replace the inventory flag later
+without changing the plugin.
 
 It is the upstream release's plain DaemonSet, vendored in
-`additions/intel-gpu-plugin/upstream/` so that a sync never fetches from GitHub,
-with a kustomize patch for the node selector and `-shared-dev-num`. It needs
-neither the Intel operator nor cert-manager. `-shared-dev-num` sets how many pods
-may share each GPU; it starts at 1, so raise it before running a second GPU pod.
-Like any DaemonSet pod it is not evicted when kured drains the node, and it has
-no PodDisruptionBudget, so it never blocks a reboot.
+`additions/intel-gpu-plugin/upstream/` so that a sync never fetches from
+GitHub, with a kustomize patch for the node selector, a toleration of the
+`workstation` taint and `-shared-dev-num`. It needs neither the Intel operator
+nor cert-manager. `-shared-dev-num` sets how many pods may share each GPU; it
+is 1, and Jellyfin holds that one, so raise it before running a second GPU
+pod. Like any DaemonSet pod it is not evicted when kured drains the node, and
+it has no PodDisruptionBudget, so it never blocks a reboot.
 
 The i915 kernel driver ships with Ubuntu, so the node needs no extra packages.
 
@@ -389,60 +400,26 @@ resources:
 ```
 
 The plugin mounts the node's `/dev/dri/card*` and `/dev/dri/renderD*` into the
-container with their host ownership, `root:render` mode `0660`. A container that
-runs as root can use them as they are. A non-root container also needs the
-node's `render` group ID in `supplementalGroups`. Look it up on the node with
-`getent group render`: it differs between distributions and can change across
-an OS release upgrade.
+container. On nuc2 the render node is `root:render`, mode `0660`, so a
+non-root container carries the node's `render` group ID in
+`supplementalGroups`, as Jellyfin does. Look it up on the node with
+`getent group render`: it is allocated dynamically and can change across an
+OS release upgrade. (In the live Jellyfin pod the device nodes show as owned
+by the pod's own uid and gid, so the group is a second line of access there.)
 
 ```yaml
 securityContext:
-  supplementalGroups: [993] # the node's render GID
+  supplementalGroups: [992] # nuc2's render GID
 ```
 
-**Verifying:** check the node advertises the resource, then run a test pod
-that lists the devices and queries VAAPI with the `vainfo` bundled in the
-Jellyfin image:
+**Verifying:** check the node advertises the resource, then query VAAPI from
+the Jellyfin pod, which holds the GPU, with the `vainfo` bundled in its image:
 
 ```bash
 kubectl get nodes -o custom-columns='NODE:.metadata.name,I915:.status.allocatable.gpu\.intel\.com/i915'
-kubectl run vainfo --rm -it --restart=Never --image=jellyfin/jellyfin:10.10.7 \
-  --overrides='{"spec":{"containers":[{"name":"vainfo","image":"jellyfin/jellyfin:10.10.7",
-    "command":["sh","-c","ls -l /dev/dri && /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128"],
-    "resources":{"limits":{"gpu.intel.com/i915":"1"}}}]}}'
+kubectl -n jellyfin exec deploy/jellyfin -- sh -c \
+  'ls -l /dev/dri && /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128'
 ```
 
-`vainfo` should list the iHD driver and its `VAProfile...` entrypoints. If the
+`vainfo` lists the iHD driver and its `VAProfile...` entrypoints. If the
 render node has another number, use the one `ls` printed.
-
-### system-upgrade-controller
-
-Rancher's controller plus two Plans (`additions/k3s-upgrade-plans/`) that keep
-the nodes on the newest k3s patch of `k3s.minor`, in the nightly upgrade
-window. Workstation nodes are excluded. See {doc}`/how-to/upgrade-k3s`.
-
-The controller's manifests are vendored unchanged from its GitHub release in
-`additions/system-upgrade-controller/`, so a sync or rebuild does not depend
-on GitHub release downloads. To upgrade it, re-download both files and update
-the version and sha256 sums, as the `kustomization.yaml` header there
-describes, and the version in the table above.
-
-### Sealed Secrets
-
-Bitnami Sealed Secrets controller. Installed in `kube-system` namespace. Decrypts
-`SealedSecret` resources into regular Kubernetes Secrets.
-
-## ArgoCD itself
-
-ArgoCD is not in the `kubernetes-services/templates/` directory — it is installed
-directly by the Ansible `cluster` role using the OCI Helm chart (v9.4.17). It is the
-foundation that all other services depend on.
-
-Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
-emails to `role:admin` or `role:readonly` via `configs.rbac` in
-`roles/cluster/tasks/argocd.yml`.
-
-Access: `argocd.<domain>` (via Cloudflare tunnel) or `kubectl port-forward svc/argocd-server -n argo-cd 8080:80`.
-
-See {doc}`/explanations/authentication` for details on how Dex is shared
-across services.

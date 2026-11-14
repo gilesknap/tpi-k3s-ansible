@@ -1,15 +1,16 @@
-# Push Notifications with ntfy
+# Push notifications with ntfy
 
 [ntfy](https://ntfy.sh) is a small publish/subscribe server for push
 notifications. A sender POSTs a message to a topic over HTTPS; the ntfy
-phone app, subscribed to that topic, shows it as a notification. This
-repository runs a self-hosted, locked-down ntfy at `ntfy.<domain>` for:
+phone app, subscribed to that topic, shows it as a notification. The
+cluster runs its own locked-down ntfy at `ntfy.gkcluster.org`, so that
+alerts reach the owner's Android phone without passing through a
+third-party service. It carries two topics:
 
-- notifications to the owner's Android phone;
-- cluster alerts (Alertmanager publishing to `cluster-alerts`; see
-  {doc}`monitoring`);
-- alerts from hosts outside the cluster, such as a VPS, publishing to
-  `vps-alerts` over HTTPS.
+- `cluster-alerts`: Alertmanager's pushes (see {doc}`monitoring` for
+  which alerts are routed there);
+- `vps-alerts`: alerts from the VPS, published over HTTPS from outside
+  the cluster.
 
 The cluster wiring is:
 
@@ -17,8 +18,15 @@ The cluster wiring is:
 - A small local chart (`kubernetes-services/additions/ntfy/`) with the
   Deployment, Service, the `server.yml` ConfigMap, a NetworkPolicy and the
   `ntfy-auth` SealedSecret.
-- An ingress for `ntfy.<domain>` through the Cloudflare tunnel, with no
-  oauth2-proxy and no Cloudflare Access.
+- An ingress for `ntfy.gkcluster.org` through the Cloudflare Tunnel, with no
+  oauth2-proxy and no Cloudflare Access login, because the phone app can
+  complete neither. Its annotations turn off nginx's buffering and raise
+  the read timeout to 180 seconds, as a subscription is a long-lived
+  stream.
+
+The pod runs `binwiederhier/ntfy:v2.34.0` (the `image` value in
+`kubernetes-services/additions/ntfy/values.yaml`), one replica with the
+`Recreate` strategy, on whichever node the scheduler picks.
 
 ## Security model
 
@@ -27,7 +35,7 @@ ntfy's own authentication is the only gate, so the server is locked down:
 | Setting | Effect |
 |---|---|
 | `auth-default-access: deny-all` | Anonymous clients can neither publish nor subscribe |
-| `enable-signup: false`, `enable-login: false` | No accounts can be created and there is no browser login |
+| `enable-signup: false`, `enable-login: false`, `enable-reservations: false` | No accounts can be created, there is no browser login and no topic can be reserved |
 | `web-root: disable` | No web app; the server is an API only |
 | no `attachment-cache-dir` | Attachments are off; messages are text, at most 4 KB |
 | `behind-proxy: true`, `proxy-forwarded-header: CF-Connecting-IP` | For tunnel traffic, visitor rate limits (ntfy defaults) apply per real client, not to the tunnel (but see the caveat below) |
@@ -100,8 +108,13 @@ local volume could not deliver them. SQLite is never put on NFS.
 
 ## Deploy
 
-1. Seal the users and tokens, if `ntfy-auth-secret.yaml` does not exist
-   yet (a fork) or the cluster's sealing key has changed:
+ntfy is deployed and has no enable flag: the `ntfy` Application is always
+part of the cluster. These are the steps that put it there, and that
+check it after a change.
+
+1. Seal the users and tokens. This is needed only when
+   `ntfy-auth-secret.yaml` does not decrypt on the cluster (it was sealed
+   for another one) or a sender has been added:
 
    ```bash
    just seal-ntfy
@@ -113,70 +126,67 @@ local volume could not deliver them. SQLite is never put on NFS.
    and Alertmanager's copy of its token into
    `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml`.
    No value is printed. Commit and push both. A cluster rebuild does this
-   for you (see [Rebuilds](#rebuilds)).
+   by itself (see [Rebuilds](#rebuilds)).
 
-2. Add the tunnel route, the Access bypass and the rate limit
+2. Apply the tunnel route, the Access bypass and the rate limit
    (see [Cloudflare](#cloudflare) below).
 
 3. Let ArgoCD sync the `ntfy` Application, then check:
 
    ```bash
-   curl https://ntfy.<domain>/v1/health     # {"healthy":true,...}
-   curl -d test https://ntfy.<domain>/vps-alerts   # 403: anonymous is denied
+   curl https://ntfy.gkcluster.org/v1/health     # {"healthy":true,...}
+   curl -d test https://ntfy.gkcluster.org/vps-alerts   # 403: anonymous is denied
    ```
 
 ### Cloudflare
 
-The edge configuration for ntfy is in `cloudflare/` (see
-{doc}`cloudflare-as-code`), and `just cf-apply` sets it up:
+ntfy's edge configuration is three pieces of code in `cloudflare/`,
+applied with `just cf-apply` ({doc}`cloudflare-as-code`):
 
-- **Tunnel route and DNS record:** the `ntfy` entry in `tunnel_services`
-  (`cloudflare/locals.tf`), routed to ingress-nginx like the other
-  services.
-- **Access bypass:** the wildcard Access application covers every
-  subdomain, and the phone app cannot complete an Access login. The
-  `ntfy` application in `cloudflare/access.tf` uses the reusable
-  `bypass` policy; it is more specific than the wildcard, so it takes
-  precedence for `ntfy.<domain>`.
-- **Rate limit:** as the hostname is open to the internet, a WAF
-  rate-limiting rule (`cloudflare/waf.tf`) blocks, for 10 seconds, a
-  client IP that sends more than 17 requests in 10 seconds (about 100 a
-  minute) to ntfy's topic paths (including comma-joined topics),
-  `/v1/` or `/`. These are the Free plan's limits, which also rule out
-  matching on the hostname, so the rule matches those paths on every
-  host in the zone instead. Requests to other paths, such as an unknown
-  topic, are not counted; ntfy denies them. Keep the rule's topic list
-  in step with `access` in
-  `kubernetes-services/additions/ntfy/values.yaml`. ntfy's own
-  per-visitor limits still apply behind it.
+- **Tunnel route and DNS record** (`locals.tf`): the entry
+  `{ name = "ntfy", access_bypass = true }` in `tunnel_services`, routed
+  to ingress-nginx like every other service.
+- **Access bypass** (`access.tf`): the `clusterapps` wildcard application
+  puts a browser login in front of every subdomain, which the phone app
+  and `curl` cannot complete. The `ntfy` application, for exactly
+  `ntfy.gkcluster.org`, uses the reusable `bypass` policy; it is more
+  specific than the wildcard, so it wins for this hostname. The
+  `access_bypass = true` flag is what allows it: without the flag,
+  `access_guard.tf` fails the plan for any application that lets everyone
+  in ({ref}`cf-access-bypass`).
+- **Rate limit** (`waf.tf`): as the hostname is open to the internet, the
+  zone's rate-limiting rule blocks, for 10 seconds, a client IP that
+  sends more than 17 requests in 10 seconds (about 100 a minute) to
+  ntfy's topic paths (`/cluster-alerts*` and `/vps-alerts*`, which also
+  covers `/json`, `/sse`, `/ws` and comma-joined topics), `/v1/*` or `/`.
+  These are the Free plan's limits, which also rule out matching on the
+  hostname, so the rule matches those paths on every host in the zone.
+  Requests to other paths, such as an unknown topic, are not counted;
+  ntfy denies them. ntfy's own per-visitor limits still apply behind it.
 
-If you do not manage Cloudflare with that code, make the same three
-changes in the [dashboard](https://dash.cloudflare.com/): a tunnel
-route for `ntfy.<domain>` to
-`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`
-(delete any existing `ntfy` A record first, so the tunnel can create its
-CNAME; see {doc}`cloudflare-web-tunnel`); a self-hosted Access
-application for `ntfy.<domain>` with a policy of Action **Bypass** and
-Include **Everyone**, as in
-[Bypass application for API endpoints](cloudflare-web-tunnel.md#bypass-application-for-api-endpoints);
-and a rate-limiting rule under **Security → WAF → Rate limiting rules**
-like the one above.
+:::{important}
+The topic names are written in three places that must agree: `access`
+in `kubernetes-services/additions/ntfy/values.yaml` (who may use a
+topic), `ntfy_topics` in `cloudflare/waf.tf` (the rate limit), and the
+publishers themselves. A new topic needs all three, then `just cf-apply`.
+:::
 
 ## Android app
 
 1. Install the ntfy app from Google Play or F-Droid.
-2. Print the server URL and the tokens, in your own terminal (the command
-   only reads the live Secret):
+2. Print the server URL and the tokens, in the owner's own terminal and
+   not through a Claude session, as the output is secret (the command only
+   reads the live Secret):
 
    ```bash
    just ntfy-tokens
    ```
 
 3. In the app, open **Settings → Advanced → Custom headers** and add a
-   header for the server `https://ntfy.<domain>`: name `Authorization`,
+   header for the server `https://ntfy.gkcluster.org`: name `Authorization`,
    value `Bearer <phone token>`. The app sends it on every request to that
    server.
-4. Under **Settings → Default server**, set `https://ntfy.<domain>`.
+4. Under **Settings → Default server**, set `https://ntfy.gkcluster.org`.
 5. Subscribe to `cluster-alerts` and `vps-alerts`, using the server above.
 
 :::{note}
@@ -231,10 +241,12 @@ bridge component:
   have synced: Alertmanager uses the new token straight away, and ntfy
   rejects it (and so drops those alerts) until the new pod starts.
 
-## Publishing from a VPS
+## Publishing from the VPS
 
-Keep the **vps** token in a file only root can read, as the whole header
-line, so it is never on a command line (where `ps` would show it):
+The VPS publishes its own alerts to `vps-alerts` over the public
+hostname, with the `vps` user's token. The token is kept in a file only
+root can read, as the whole header line, so it is never on a command line
+(where `ps` would show it):
 
 ```bash
 sudo install -m 600 -o root -g root /dev/null /etc/ntfy-header
@@ -249,7 +261,7 @@ Then, from a root cron job, systemd unit or script (`-H @file` needs curl
 curl -fsS -H @/etc/ntfy-header \
   -H "Title: backup failed" -H "Priority: high" \
   -d "nightly backup on $(hostname) exited 1" \
-  https://ntfy.<domain>/vps-alerts
+  https://ntfy.gkcluster.org/vps-alerts
 ```
 
 The token can only publish to `vps-alerts`; a leaked copy cannot read
@@ -284,8 +296,8 @@ The user names are listed once, in `SENDERS` in
 `scripts/lib/ntfy_auth.py`. Every script (sealing, the rebuild export and
 generation, `just ntfy-tokens`) derives them from there.
 
-- **To add a sender:** add it to `SENDERS` (with `"owner"` if you hand its
-  token out yourself, `"cluster"` for an in-cluster publisher, which also
+- **To add a sender:** add it to `SENDERS` (with `"owner"` if its token is
+  handed out by hand, `"cluster"` for an in-cluster publisher, which also
   needs a `CLUSTER_COPIES` entry if it runs outside the `ntfy` namespace), add its
   topic grants to `access` in `kubernetes-services/additions/ntfy/values.yaml`,
   run `just seal-ntfy` (which generates its token), commit, push and
@@ -304,8 +316,9 @@ remove its line from `.env`.
 
 ## Monitoring
 
-Add an external uptime check, from outside the cluster and the home
-network, on `https://ntfy.<domain>/v1/health` (it needs no token and
-returns `{"healthy":true}`). If ntfy is down, alerts cannot reach the
-phone, so this check should alert through some other channel, such as
-the uptime service's own email.
+ntfy cannot report its own failure: if it is down, no alert reaches the
+phone. `https://ntfy.gkcluster.org/v1/health` needs no token and returns
+`{"healthy":true}`, so it suits an uptime check run from outside the
+cluster and the home network, alerting through some other channel such
+as the uptime service's own email. No such check is defined in this
+repo.

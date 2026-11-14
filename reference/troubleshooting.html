@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Troubleshooting &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Troubleshooting &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -51,8 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Production Readiness Checklist" href="production-checklist.html" />
-    <link rel="prev" title="CLI Tools Reference" href="cli-tools.html" />
+    <link rel="prev" title="Commands and tools" href="cli-tools.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +124,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +147,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +263,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -326,13 +325,12 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook Tags Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="inventory.html">Inventory Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="services.html">Services Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">CLI Tools Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="services.html">Services reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inventory.html">Inventory reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook tags reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">Commands and tools</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Troubleshooting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="production-checklist.html">Production Readiness Checklist</a></li>
 </ul>
 </div>
 </nav></div>
@@ -395,7 +393,10 @@
                   
   <section id="troubleshooting">
 <h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h1>
-<p>Common issues and their solutions.</p>
+<p>Problems this cluster has actually had, or can have with the code as it
+is, and their fixes. Fixes follow the cluster’s one rule: a change to
+anything ArgoCD manages goes through Git, not <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>. Restarting a
+workload, or asking ArgoCD to refresh, changes nothing in Git and is fine.</p>
 <section id="flashing">
 <h2>Flashing<a class="headerlink" href="#flashing" title="Link to this heading">#</a></h2>
 <section id="usb-error-during-tpi-flash">
@@ -403,13 +404,13 @@
 <p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">Error</span> <span class="pre">occured</span> <span class="pre">during</span> <span class="pre">flashing:</span> <span class="pre">&quot;USB&quot;</span></code></p>
 <p><strong>Cause:</strong> BMC firmware USB enumeration bug.</p>
 <p><strong>Fix:</strong> Power-cycle the entire Turing Pi board (not just the individual node).
-After the BMC reboots, retry the flash:</p>
+After the BMC (<code class="docutils literal notranslate"><span class="pre">turingpi</span></code>, 192.168.1.80) reboots, retry the flash:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>flash<span class="w"> </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>You can verify the USB device is visible before flashing:</p>
+<p>To check that the USB device is visible before flashing:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the BMC</span>
 ssh<span class="w"> </span>root@turingpi
 tpi<span class="w"> </span>advanced<span class="w"> </span>msd<span class="w"> </span>--node<span class="w"> </span>&lt;slot&gt;
@@ -423,10 +424,11 @@ lsusb<span class="w">  </span><span class="c1"># should show device ID 2207:350b
 <p><strong>Symptom:</strong> SSH connection refused or timeout after <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> completes.</p>
 <p><strong>Possible causes:</strong></p>
 <ol class="arabic simple">
-<li><p>Node hasn’t finished booting — wait 60–90 seconds (an RK1’s first boot of its
+<li><p>Node hasn’t finished booting: wait 60–90 seconds (an RK1’s first boot of its
 staging OS takes a few minutes; watch it with <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">uart</span> <span class="pre">-n</span> <span class="pre">&lt;slot&gt;</span> <span class="pre">get</span></code> on the BMC)</p></li>
-<li><p>IP address changed — check <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> matches the DHCP lease or static IP</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> entry stale — delete the old entry and re-run:</p></li>
+<li><p>IP address changed: check that the node’s name still resolves to the address
+the router gives it (node02 to node04 are 192.168.1.82 to .84)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> entry stale: delete the old entry and re-run:</p></li>
 </ol>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-keygen<span class="w"> </span>-R<span class="w"> </span>&lt;node-ip&gt;
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>known_hosts
@@ -499,23 +501,24 @@ ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags
 <h2>ArgoCD<a class="headerlink" href="#argocd" title="Link to this heading">#</a></h2>
 <section id="application-stuck-in-syncing">
 <h3>Application stuck in “Syncing”<a class="headerlink" href="#application-stuck-in-syncing" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> An application shows <code class="docutils literal notranslate"><span class="pre">Syncing</span></code> indefinitely in the ArgoCD UI.</p>
+<p><strong>Symptom:</strong> An application shows <code class="docutils literal notranslate"><span class="pre">Syncing</span></code> indefinitely at
+<code class="docutils literal notranslate"><span class="pre">https://argocd.gkcluster.org</span></code>.</p>
 <p><strong>Possible causes:</strong></p>
 <ol class="arabic simple">
-<li><p>Invalid manifest — check the <strong>Events</strong> tab for validation errors</p></li>
-<li><p>Namespace doesn’t exist — ArgoCD creates namespaces only if <code class="docutils literal notranslate"><span class="pre">CreateNamespace=true</span></code>
-is set in sync options (this project sets it for all apps)</p></li>
-<li><p>Resource hooks timing out — check hook pod logs</p></li>
+<li><p>Invalid manifest: check the <strong>Events</strong> tab, and the sync result, for
+validation errors</p></li>
+<li><p>Resource hook timing out: check the hook pod’s logs</p></li>
+<li><p>A stale manifest cache: ArgoCD has not fetched the commit that fixes it</p></li>
 </ol>
-<p><strong>Fix:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Force a hard refresh</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>patch<span class="w"> </span>app<span class="w"> </span>&lt;app-name&gt;<span class="w"> </span>--type<span class="w"> </span>merge<span class="w"> </span>-p<span class="w"> </span><span class="s1">&#39;{&quot;operation&quot;:{&quot;sync&quot;:{&quot;force&quot;:true}}}&#39;</span>
-
-<span class="c1"># Or delete and let ArgoCD recreate from git</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>delete<span class="w"> </span>app<span class="w"> </span>&lt;app-name&gt;
-<span class="c1"># ArgoCD will re-create it from the parent all-cluster-services app</span>
+<p><strong>Fix:</strong> Push the fix, then make ArgoCD fetch it now instead of at its next
+poll:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>annotate<span class="w"> </span>application<span class="w"> </span>&lt;app-name&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>argocd.argoproj.io/refresh<span class="o">=</span>hard<span class="w"> </span>--overwrite
 </pre></div>
 </div>
+<p>To stop a sync that will never finish, use <strong>Terminate</strong> on the
+application’s sync status in the ArgoCD UI. Do not delete or patch the
+<code class="docutils literal notranslate"><span class="pre">Application</span></code>: the root app, <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code>, owns it.</p>
 </section>
 <section id="application-stuck-in-running-operation-admission-webhooks">
 <h3>Application stuck in “Running” operation (admission webhooks)<a class="headerlink" href="#application-stuck-in-running-operation-admission-webhooks" title="Link to this heading">#</a></h3>
@@ -524,9 +527,9 @@ never reaches <code class="docutils literal notranslate"><span class="pre">Synce
 <p><strong>Cause:</strong> Charts like <code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> and <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> include
 admission webhook jobs with <code class="docutils literal notranslate"><span class="pre">helm.sh/hook-delete-policy:</span> <span class="pre">hook-succeeded</span></code>. The
 job deletes itself before ArgoCD records completion, leaving the operation stuck.</p>
-<p><strong>Fix:</strong> Disable admission webhooks in the chart values:</p>
-<p>The value path depends on the chart (both are already set in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>):</p>
+<p><strong>Fix:</strong> The webhooks are disabled in both charts’ values, in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>; keep them so, and do the same for a new
+chart that shows this:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># kube-prometheus-stack (grafana.yaml), under helm.valuesObject</span>
 <span class="nt">prometheusOperator</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">admissionWebhooks</span><span class="p">:</span>
@@ -538,29 +541,77 @@ job deletes itself before ArgoCD records completion, leaving the operation stuck
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
-<p>If the operation is already stuck, clear it manually:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>patch<span class="w"> </span>app<span class="w"> </span>&lt;app-name&gt;<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>--type<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-p<span class="w"> </span><span class="s1">&#39;[{&quot;op&quot;: &quot;remove&quot;, &quot;path&quot;: &quot;/operation&quot;}]&#39;</span>
+<p>An operation that is already stuck is ended with <strong>Terminate</strong> in the
+ArgoCD UI.</p>
+</section>
+<section id="application-is-unknown-with-invalidspecerror-or-comparisonerror">
+<h3>Application is <code class="docutils literal notranslate"><span class="pre">Unknown</span></code> with <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> or <code class="docutils literal notranslate"><span class="pre">ComparisonError</span></code><a class="headerlink" href="#application-is-unknown-with-invalidspecerror-or-comparisonerror" title="Link to this heading">#</a></h3>
+<p>Three conditions, three fixes:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Condition</p></th>
+<th class="head"><p>Cause</p></th>
+<th class="head"><p>Fix</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">InvalidSpecError:</span> <span class="pre">application</span> <span class="pre">repo</span> <span class="pre">X</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">permitted</span> <span class="pre">in</span> <span class="pre">project</span> <span class="pre">kubernetes</span></code></p></td>
+<td><p>the chart’s repository is not in the AppProject’s allow-list</p></td>
+<td><p>add it to <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> in <code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>, run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>, then restart the application controller (below)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ComparisonError:</span> <span class="pre">failed</span> <span class="pre">to</span> <span class="pre">resolve</span> <span class="pre">revision</span> <span class="pre">...:</span> <span class="pre">403</span></code> or <code class="docutils literal notranslate"><span class="pre">404</span></code></p></td>
+<td><p>an OCI chart given with an <code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix, or a chart version that is not published</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">repoURL</span></code> is the bare <code class="docutils literal notranslate"><span class="pre">ghcr.io/&lt;org&gt;/charts</span></code> with <code class="docutils literal notranslate"><span class="pre">chart:</span> <span class="pre">&lt;name&gt;</span></code>, and the same bare form in <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code>; check the version with <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">pull</span> <span class="pre">oci://ghcr.io/&lt;org&gt;/charts/&lt;chart&gt;</span> <span class="pre">--version</span> <span class="pre">&lt;ver&gt;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ComparisonError:</span> <span class="pre">values</span> <span class="pre">don't</span> <span class="pre">meet</span> <span class="pre">the</span> <span class="pre">specifications</span> <span class="pre">of</span> <span class="pre">the</span> <span class="pre">schema(s)</span></code></p></td>
+<td><p>the chart’s <code class="docutils literal notranslate"><span class="pre">values.schema.json</span></code> rejects the <code class="docutils literal notranslate"><span class="pre">valuesObject</span></code></p></td>
+<td><p>fix the key in the template</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>ArgoCD keeps showing an <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> after the AppProject is fixed,
+and a refresh does not clear it. Restart the application controller, which
+validates again:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>argo-cd<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>argocd-application-controller-0
+</pre></div>
+</div>
+</section>
+<section id="app-is-synced-and-healthy-but-the-pod-has-old-settings">
+<h3>App is Synced and Healthy but the pod has old settings<a class="headerlink" href="#app-is-synced-and-healthy-but-the-pod-has-old-settings" title="Link to this heading">#</a></h3>
+<p><strong>Cause:</strong> the change touched only a ConfigMap or Secret that the pod reads
+as environment variables. Those are read when the pod starts, and unless
+the chart puts a checksum of the config on the pod template, nothing
+restarts it. The same holds after re-sealing a secret
+(<a class="reference internal" href="../how-to/manage-sealed-secrets.html#rotate-a-secret"><span class="std std-ref">Rotate a secret</span></a>).</p>
+<p><strong>Fix:</strong> compare, then restart the workload:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>cm<span class="w"> </span>-n<span class="w"> </span>&lt;ns&gt;<span class="w"> </span>&lt;cm&gt;<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.&lt;KEY&gt;}&#39;</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>&lt;ns&gt;<span class="w"> </span>&lt;pod&gt;<span class="w"> </span>--<span class="w"> </span>printenv<span class="w"> </span>&lt;KEY&gt;
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>-n<span class="w"> </span>&lt;ns&gt;<span class="w"> </span>deployment/&lt;name&gt;
 </pre></div>
 </div>
 </section>
 </section>
 <section id="oauth-authentication">
 <h2>OAuth / Authentication<a class="headerlink" href="#oauth-authentication" title="Link to this heading">#</a></h2>
-<section id="viewer-emails-can-access-oauth2-proxy-gated-services">
-<h3>Viewer emails can access oauth2-proxy-gated services<a class="headerlink" href="#viewer-emails-can-access-oauth2-proxy-gated-services" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Users with viewer emails can access admin-only services
-(Headlamp, Alertmanager) — oauth2-proxy returns 202 instead of 403.</p>
+<p>How the layers fit together (Cloudflare Access at the edge, then oauth2-proxy
+or Dex in the cluster) is in <a class="reference internal" href="../explanations/architecture/authentication.html"><span class="doc">Authentication</span></a>.</p>
+<section id="any-github-user-can-pass-oauth2-proxy">
+<h3>Any GitHub user can pass oauth2-proxy<a class="headerlink" href="#any-github-user-can-pass-oauth2-proxy" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> an account that is not in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> reaches a service
+gated by oauth2-proxy (Headlamp, Alertmanager): oauth2-proxy answers 202
+instead of 403.</p>
 <p><strong>Cause:</strong> The oauth2-proxy Helm chart generates <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[&quot;*&quot;]</span></code> in
-its default ConfigMap. This acts as an OR with <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> —
+its default ConfigMap. This acts as an OR with <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code>:
 any email from any domain passes the domain check, so the restrictive email
 file is silently ignored.</p>
-<p><strong>Fix:</strong> Set <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[]</span></code> explicitly via <code class="docutils literal notranslate"><span class="pre">config.configFile</span></code> in the
-Helm values so that only emails in the <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> (admin list)
-are accepted. See <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>.</p>
+<p><strong>Fix:</strong> <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code> sets
+<code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[]</span></code> through <code class="docutils literal notranslate"><span class="pre">config.configFile</span></code>, so that only the emails in
+<code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code> (rendered from <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>) are accepted. This
+has regressed once: do not remove that override.</p>
 <p><strong>Diagnosis:</strong> Check the live ConfigMap:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>configmap<span class="w"> </span>oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy<span class="w"> </span>-o<span class="w"> </span>yaml
-<span class="c1"># Look for: email_domains = [&quot;*&quot;]  ← this is the bug</span>
+<span class="c1"># email_domains = [&quot;*&quot;] is the bug; it must be []</span>
 </pre></div>
 </div>
 <p>Watch auth decisions in real time:</p>
@@ -569,32 +620,68 @@ are accepted. See <code class="docutils literal notranslate"><span class="pre">k
 </pre></div>
 </div>
 </section>
+<section id="after-authenticating">
+<h3>403 after authenticating<a class="headerlink" href="#after-authenticating" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> GitHub login succeeds, then oauth2-proxy returns 403; its log
+shows <code class="docutils literal notranslate"><span class="pre">AuthFailure:</span> <span class="pre">unauthorized</span></code> with an email address.</p>
+<p><strong>Cause:</strong> The email on the GitHub account is not in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. Or it was added, but the oauth2-proxy pod
+has not restarted since (ArgoCD updates the ConfigMap, but that does not
+always restart the pod).</p>
+<p><strong>Fix:</strong> Add the email to <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> through a PR if it is missing, then
+restart oauth2-proxy:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
+</pre></div>
+</div>
+<p>A 403 page from Cloudflare instead (before any GitHub prompt from the
+cluster) means the address is not in the Access policies: those are
+<code class="docutils literal notranslate"><span class="pre">owner_emails</span></code> and <code class="docutils literal notranslate"><span class="pre">viewer_emails</span></code> in the Cloudflare code
+(<a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>).</p>
+</section>
 <section id="oauth2-proxy-returns-403-csrf-cookie-not-found">
-<h3>oauth2-proxy returns 403 — CSRF cookie not found<a class="headerlink" href="#oauth2-proxy-returns-403-csrf-cookie-not-found" title="Link to this heading">#</a></h3>
+<h3>oauth2-proxy returns 403: CSRF cookie not found<a class="headerlink" href="#oauth2-proxy-returns-403-csrf-cookie-not-found" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> After GitHub authorisation, the oauth2-proxy callback returns
 403 with “CSRF cookie not found” in the pod logs.</p>
-<p><strong>Cause:</strong> The tunnel route was changed (e.g. from direct-to-service to
-through-ingress) while stale oauth2-proxy cookies remained in the browser.
-The CSRF cookie set during <code class="docutils literal notranslate"><span class="pre">/oauth2/start</span></code> doesn’t match the callback
-context.</p>
-<p><strong>Fix:</strong> Clear all cookies for <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> (or use incognito) and
-re-authenticate. If the problem persists, restart the oauth2-proxy pod:</p>
+<p><strong>Cause:</strong> Stale oauth2-proxy cookies in the browser, from before a change
+to the route or to the proxy’s cookie secret. The CSRF cookie set during
+<code class="docutils literal notranslate"><span class="pre">/oauth2/start</span></code> doesn’t match the callback.</p>
+<p><strong>Fix:</strong> Clear all cookies for <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> (or use a private window)
+and log in again. If the problem persists, restart oauth2-proxy:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
 </pre></div>
 </div>
 </section>
-<section id="oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list">
-<h3>oauth2-proxy returns 403 — unauthorized (email not in allow list)<a class="headerlink" href="#oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> oauth2-proxy logs show <code class="docutils literal notranslate"><span class="pre">AuthFailure:</span> <span class="pre">unauthorized</span></code> with an
-email address.</p>
-<p><strong>Cause:</strong> The email is not in <code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code>. This can happen
-after editing <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> without
-restarting the oauth2-proxy pod (ArgoCD updates the config but doesn’t
-always trigger a pod restart).</p>
-<p><strong>Fix:</strong> Restart the oauth2-proxy pod after changing the email list:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/oauth2-proxy<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy
+<section id="oidc-discovery-returns-html-grafana-argocd-monitor-or-argocd-login-fails">
+<h3>OIDC discovery returns HTML (Grafana, argocd-monitor or ArgoCD login fails)<a class="headerlink" href="#oidc-discovery-returns-html-grafana-argocd-monitor-or-argocd-login-fails" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Logging in to Grafana, argocd-monitor or ArgoCD itself fails
+with an error such as
+<code class="docutils literal notranslate"><span class="pre">expected</span> <span class="pre">Content-Type</span> <span class="pre">=</span> <span class="pre">application/json,</span> <span class="pre">got</span> <span class="pre">&quot;text/html&quot;</span></code>, or “invalid
+JSON” from the discovery document.</p>
+<p><strong>Cause:</strong> These services use ArgoCD’s Dex, at
+<code class="docutils literal notranslate"><span class="pre">https://argocd.gkcluster.org/api/dex</span></code>. From inside the cluster that name
+resolves to Cloudflare, so the request leaves the cluster, comes back
+through the tunnel, and is met by Cloudflare Access, which answers with its
+HTML login page.</p>
+<p><strong>Fix:</strong> The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag writes a split-horizon override: a
+<code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code> whose <code class="docutils literal notranslate"><span class="pre">cluster-domain.server</span></code>
+block makes <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolve to the ingress-nginx Service’s
+ClusterIP for pods, then restarts argocd-server. The task waits up to five
+minutes for ArgoCD to create the ingress Service; if it timed out on a
+fresh build, or the Service was re-created with a new ClusterIP, run the
+tag again:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>configmap<span class="w"> </span>coredns-custom<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w">   </span><span class="c1"># is it there?</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>ingress-nginx<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>ingress-ingress-nginx-controller<span class="w">   </span><span class="c1"># same ClusterIP?</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
 </pre></div>
 </div>
+</section>
+<section id="login-works-on-the-lan-but-not-from-outside">
+<h3>Login works on the LAN but not from outside<a class="headerlink" href="#login-works-on-the-lan-but-not-from-outside" title="Link to this heading">#</a></h3>
+<p><strong>Cause:</strong> The browser must reach <code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code> to finish the
+GitHub flow, so that name must be a tunnel route like the services it
+protects. It is one of the <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>;
+check that it still is (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> shows no change), and that a new
+service was added there too (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>).</p>
 </section>
 </section>
 <section id="browser">
@@ -613,7 +700,7 @@ assets may not match the current backend state.</p>
 <strong>Clear site data</strong> (tick all boxes including “Unregister service workers”)</p></li>
 <li><p>Hard-reload: <code class="docutils literal notranslate"><span class="pre">Ctrl+Shift+R</span></code> (Windows/Linux) or <code class="docutils literal notranslate"><span class="pre">Cmd+Shift+R</span></code> (macOS)</p></li>
 </ol>
-<p><strong>Fix (nuclear — reset all Chrome state for one site):</strong></p>
+<p><strong>Fix (reset all Chrome state for one site):</strong></p>
 <ol class="arabic simple">
 <li><p>Navigate to the affected URL</p></li>
 <li><p>Click the padlock/tune icon in the address bar → <strong>Site settings</strong></p></li>
@@ -621,7 +708,7 @@ assets may not match the current backend state.</p>
 origin</p></li>
 <li><p>Reload the page</p></li>
 </ol>
-<p><strong>Fix (Chrome profile reset — if the above doesn’t help):</strong></p>
+<p><strong>Fix (Chrome profile reset, if the above doesn’t help):</strong></p>
 <p>Chrome can cache redirect state in places that “Clear site data” doesn’t reach.
 A profile reset clears this without deleting bookmarks or saved passwords:</p>
 <ol class="arabic simple">
@@ -637,7 +724,7 @@ A profile reset clears this without deleting bookmarks or saved passwords:</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>When testing cluster changes that affect web UIs, use an incognito window first.
-This avoids polluting your browser cache with intermediate states.</p>
+This keeps intermediate states out of the browser cache.</p>
 </div>
 </section>
 </section>
@@ -646,39 +733,62 @@ This avoids polluting your browser cache with intermediate states.</p>
 <section id="static-pv-not-bound">
 <h3>Static PV not bound<a class="headerlink" href="#static-pv-not-bound" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> A pod stuck <code class="docutils literal notranslate"><span class="pre">Pending</span></code> with events like <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">persistent</span> <span class="pre">volumes</span> <span class="pre">available</span> <span class="pre">for</span> <span class="pre">this</span> <span class="pre">claim</span></code>.</p>
-<p><strong>Check:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span> <span class="pre">-o</span> <span class="pre">custom-columns=NAME:.metadata.name,CLASS:.spec.storageClassName,STATUS:.status.phase,CLAIM:.spec.claimRef.name</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">local-nvme</span></code> — every PV listed in
-<code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code> should be <code class="docutils literal notranslate"><span class="pre">Bound</span></code>.</p>
-<p><strong>Fix:</strong> Verify the data directory exists on the target node (the
-<code class="docutils literal notranslate"><span class="pre">node</span></code>/<code class="docutils literal notranslate"><span class="pre">path</span></code> pair in its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry, e.g.
-<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/&lt;app&gt;</span></code>); re-run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">k8s_data_dirs</span></code> to let the
-<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role recreate any missing directory.</p>
+<p><strong>Check:</strong> every PV of the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> class (rendered by
+<code class="docutils literal notranslate"><span class="pre">additions/local-storage/</span></code> from <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>) should be <code class="docutils literal notranslate"><span class="pre">Bound</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pv<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span>NAME:.metadata.name,CLASS:.spec.storageClassName,STATUS:.status.phase,CLAIM:.spec.claimRef.name<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>local-nvme
+</pre></div>
+</div>
+<p><strong>Fix:</strong> Check that the data directory exists on its node:
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code> and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code> on node04,
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/&lt;app&gt;</span></code> on nuc2 (the <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> of the entry in
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, which must match <code class="docutils literal notranslate"><span class="pre">local_storage</span></code>).
+The <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role re-creates a missing directory; never create or
+change anything under <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> by hand:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>k8s_data_dirs
+</pre></div>
+</div>
 </section>
-<section id="restoring-from-an-nfs-backup">
-<h3>Restoring from an NFS backup<a class="headerlink" href="#restoring-from-an-nfs-backup" title="Link to this heading">#</a></h3>
-<p>The daily/weekly backup CronJobs in the <code class="docutils literal notranslate"><span class="pre">backups</span></code> namespace write
-compressed dumps to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS. To find
-the latest, <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-lt</span> <span class="pre">/bigdisk/k8s-cluster/backups/&lt;app&gt;/</span></code> on the
-NAS host and pick the newest archive.</p>
+<section id="pod-pending-because-its-node-is-down">
+<h3>Pod <code class="docutils literal notranslate"><span class="pre">Pending</span></code> because its node is down<a class="headerlink" href="#pod-pending-because-its-node-is-down" title="Link to this heading">#</a></h3>
+<p>A workload on a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV can run only on that PV’s node (Grafana and
+Prometheus on node04; Jellyfin and scrap’s backup copy on nuc2). It waits
+for the node; there is nothing to fix in the cluster. If the node is dead
+for good, see <a class="reference internal" href="../how-to/node-operations.html#fence-a-dead-node"><span class="std std-ref">Fail over from a dead node (fence)</span></a> and <a class="reference internal" href="../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a>.</p>
+</section>
+<section id="restoring-from-a-backup">
+<h3>Restoring from a backup<a class="headerlink" href="#restoring-from-a-backup" title="Link to this heading">#</a></h3>
+<p>The backups are under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS (on the
+NAS itself, <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/</span></code>), and
+encrypted on Google Drive. The restore recipes are in
+<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>.</p>
 </section>
 </section>
 <section id="networking">
 <h2>Networking<a class="headerlink" href="#networking" title="Link to this heading">#</a></h2>
 <section id="ingress-returning-404-or-503">
 <h3>Ingress returning 404 or 503<a class="headerlink" href="#ingress-returning-404-or-503" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">https://&lt;service&gt;.&lt;domain&gt;</span></code> returns 404 Not Found or 503 Bad
-Gateway.</p>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">https://&lt;service&gt;.gkcluster.org</span></code> returns 404 Not Found or 503
+Service Temporarily Unavailable from nginx.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic simple">
 <li><p><strong>Service exists?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">svc</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span></code></p></li>
 <li><p><strong>Endpoints populated?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">endpoints</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">&lt;svc-name&gt;</span></code></p></li>
-<li><p><strong>Ingress resource correct?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code></p></li>
-<li><p><strong>TLS certificate ready?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cert</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span></code></p></li>
-<li><p><strong>DNS resolving?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&lt;service&gt;.&lt;domain&gt;</span></code> — should return worker node IPs</p></li>
+<li><p><strong>Ingress resource correct?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
+(ingresses made by <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> are named <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-ingress</span></code>)</p></li>
+<li><p><strong>Is the request reaching nginx?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&lt;service&gt;.gkcluster.org</span></code> returns
+Cloudflare addresses for every tunnelled name, not node addresses: the
+path is Cloudflare, cloudflared, then ingress-nginx. A 404 that is not
+nginx’s means the hostname is not a tunnel route, and fell to the
+tunnel’s catch-all (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>).</p></li>
 </ol>
 </section>
 <section id="certificate-not-issuing">
 <h3>Certificate not issuing<a class="headerlink" href="#certificate-not-issuing" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cert</span></code> shows <code class="docutils literal notranslate"><span class="pre">False</span></code> for Ready.</p>
+<p>The cluster has one certificate: <code class="docutils literal notranslate"><span class="pre">wildcard-cert</span></code> in the <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code>
+namespace (issued by DNS-01 through Cloudflare), which ingress-nginx serves
+as its default (<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>).</p>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cert</span> <span class="pre">-n</span> <span class="pre">cert-manager</span></code> shows <code class="docutils literal notranslate"><span class="pre">False</span></code> for Ready.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic">
 <li><p><strong>Check cert-manager logs:</strong></p>
@@ -694,142 +804,196 @@ kubectl<span class="w"> </span>get<span class="w"> </span>challenge<span class="
 </div>
 </li>
 <li><p><strong>Cloudflare API token valid?</strong> The SealedSecret in
-<code class="docutils literal notranslate"><span class="pre">additions/cert-manager/templates/cloudflare-api-token-secret.yaml</span></code> must decrypt to a
-valid token with <code class="docutils literal notranslate"><span class="pre">Zone:DNS:Edit</span></code> permission.</p></li>
+<code class="docutils literal notranslate"><span class="pre">additions/cert-manager/templates/cloudflare-api-token-secret.yaml</span></code> must
+decrypt to a token that can edit the zone’s DNS: <a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-dns01-token"><span class="std std-ref">cert-manager’s DNS-01 token</span></a>.</p></li>
 </ol>
+</section>
+<section id="home-lan-gkcluster-org-does-not-resolve-on-the-lan-dns-rebinding-protection">
+<h3><code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code> does not resolve on the LAN (DNS rebinding protection)<a class="headerlink" href="#home-lan-gkcluster-org-does-not-resolve-on-the-lan-dns-rebinding-protection" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">nslookup</span> <span class="pre">home-lan.gkcluster.org</span></code> returns <code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code> or no
+address, while <code class="docutils literal notranslate"><span class="pre">nslookup</span> <span class="pre">home-lan.gkcluster.org</span> <span class="pre">1.1.1.1</span></code> returns a
+192.168.1.x address. The home page’s LAN probe fails with it.</p>
+<p><strong>Cause:</strong> <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> is a DNS-only record that points at a private
+address (<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> in the Cloudflare code); the home page probes
+it to tell whether the browser is on the LAN. Routers and resolvers with
+DNS rebinding protection drop answers that contain private addresses.
+Every tunnelled name is a proxied record that resolves to Cloudflare’s
+addresses, so it is not affected.</p>
+<p><strong>Fix:</strong> allow the domain on the router. On OpenWrt (192.168.1.1), add
+<code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code> to dnsmasq’s rebind domain whitelist (Network, DHCP and
+DNS), or add <code class="docutils literal notranslate"><span class="pre">list</span> <span class="pre">rebind_domain</span> <span class="pre">'gkcluster.org'</span></code> to <code class="docutils literal notranslate"><span class="pre">/etc/config/dhcp</span></code>.</p>
+</section>
+<section id="a-node-cannot-resolve-node-lan-or-k3s-lan">
+<h3>A node cannot resolve <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code> or <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code><a class="headerlink" href="#a-node-cannot-resolve-node-lan-or-k3s-lan" title="Link to this heading">#</a></h3>
+<p><strong>Cause:</strong> the node’s resolver was pointed at a public DNS server. The
+<code class="docutils literal notranslate"><span class="pre">.lan</span></code> names, including the API name <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, exist only on the router.</p>
+<p><strong>Fix:</strong> point it back at the router, for example
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">resolvectl</span> <span class="pre">dns</span> <span class="pre">&lt;interface&gt;</span> <span class="pre">192.168.1.1</span></code>.</p>
 </section>
 </section>
 <section id="cloudflare-tunnel">
 <h2>Cloudflare Tunnel<a class="headerlink" href="#cloudflare-tunnel" title="Link to this heading">#</a></h2>
-<section id="redirect-loop-through-tunnel">
-<h3>Redirect loop through tunnel<a class="headerlink" href="#redirect-loop-through-tunnel" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Browser shows <code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code> when accessing a
-tunnelled service.</p>
-<p><strong>Cause:</strong> The tunnel service URL uses HTTPS, and ingress-nginx forces
-an SSL redirect — creating an infinite loop.</p>
-<p><strong>Fix:</strong> Use <code class="docutils literal notranslate"><span class="pre">http://</span></code> (not <code class="docutils literal notranslate"><span class="pre">https://</span></code>) for the tunnel service URL in
-the Cloudflare dashboard. The echo ingress has <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">false</span></code> as
-a reference.</p>
-</section>
-<section id="waf-blocks-access-to-ssh-tunnel">
-<h3>WAF blocks access to SSH tunnel<a class="headerlink" href="#waf-blocks-access-to-ssh-tunnel" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">cloudflared</span> <span class="pre">access</span> <span class="pre">login</span></code> returns
-<code class="docutils literal notranslate"><span class="pre">failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">Access</span> <span class="pre">application</span></code>.</p>
-<p><strong>Fix:</strong> Add a WAF skip rule for the SSH hostname. See
-<a class="reference internal" href="../how-to/cloudflare-ssh-tunnel.html"><span class="doc">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</span></a> Part 3 for details.</p>
+<p>Tunnel routes, DNS records and Access apps are code in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>
+(<a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>): a fix made in the Cloudflare dashboard
+is reverted by the next <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p>
+<section id="redirect-loop-through-the-tunnel">
+<h3>Redirect loop through the tunnel<a class="headerlink" href="#redirect-loop-through-the-tunnel" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> Browser shows <code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code> on a tunnelled service.</p>
+<p><strong>Cause:</strong> cloudflared talks plain HTTP to ingress-nginx
+(<code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>,
+<code class="docutils literal notranslate"><span class="pre">local.ingress_nginx</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>). An Ingress that forces an
+SSL redirect answers every such request with a redirect to HTTPS, which
+comes back the same way.</p>
+<p><strong>Fix:</strong> The Ingress must have <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>. The templates set
+<code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code> from <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> (which is <code class="docutils literal notranslate"><span class="pre">true</span></code>); a new
+service’s template must do the same. Check:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>ssl-redirect
+</pre></div>
+</div>
+<p>If it shows <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code>, check that ArgoCD has synced the app. A route in
+<code class="docutils literal notranslate"><span class="pre">locals.tf</span></code> must also keep the <code class="docutils literal notranslate"><span class="pre">http://</span></code> scheme.</p>
 </section>
 <section id="tunnel-not-connecting">
 <h3>Tunnel not connecting<a class="headerlink" href="#tunnel-not-connecting" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> cloudflared pods are running but the Cloudflare dashboard shows
-the tunnel as inactive.</p>
+<p><strong>Symptom:</strong> cloudflared pods are running but Cloudflare shows the tunnel
+as down, and the public hostnames return a Cloudflare tunnel error.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic">
-<li><p><strong>Tunnel token valid?</strong> The SealedSecret must decrypt to a valid token:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>cloudflared-credentials<span class="w"> </span>-n<span class="w"> </span>cloudflared<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.data.TUNNEL_TOKEN}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-c<span class="w"> </span><span class="m">20</span>
+<li><p><strong>Pods running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">cloudflared</span></code> (two replicas)</p></li>
+<li><p><strong>Logs show errors?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">cloudflared</span> <span class="pre">deployment/cloudflared</span> <span class="pre">|</span> <span class="pre">tail</span> <span class="pre">-30</span></code></p></li>
+<li><p><strong>Tunnel token valid?</strong> The <code class="docutils literal notranslate"><span class="pre">cloudflared-credentials</span></code> Secret must exist
+(its SealedSecret decrypted) and hold the current token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>cloudflared-credentials<span class="w"> </span>-n<span class="w"> </span>cloudflared
+kubectl<span class="w"> </span>get<span class="w"> </span>sealedsecret<span class="w"> </span>-n<span class="w"> </span>cloudflared
 </pre></div>
 </div>
+<p>A <code class="docutils literal notranslate"><span class="pre">cf-apply</span></code> that rotated the tunnel secret needs the token sealed again
+with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code>, then a restart of cloudflared. Never
+print the token.</p>
 </li>
-<li><p><strong>Pods running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">cloudflared</span></code></p></li>
-<li><p><strong>Logs show errors?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">cloudflared</span> <span class="pre">deployment/cloudflared</span> <span class="pre">|</span> <span class="pre">tail</span> <span class="pre">-30</span></code></p></li>
-<li><p><strong>Outbound connectivity?</strong> The pod needs to reach <code class="docutils literal notranslate"><span class="pre">*.cloudflareresearch.com</span></code> on port 7844.</p></li>
+<li><p><strong>Outbound connectivity?</strong> The pods need to reach Cloudflare’s edge on
+port 7844 (TCP and UDP).</p></li>
 </ol>
 </section>
-<section id="connection-refused-for-tunnelled-service">
-<h3>Connection refused for tunnelled service<a class="headerlink" href="#connection-refused-for-tunnelled-service" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> Cloudflare returns 502 Bad Gateway.</p>
+<section id="bad-gateway-from-cloudflare">
+<h3>502 Bad Gateway from Cloudflare<a class="headerlink" href="#bad-gateway-from-cloudflare" title="Link to this heading">#</a></h3>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic simple">
-<li><p><strong>Service URL correct?</strong> The hostname in the tunnel config must match
-the Kubernetes service DNS name (e.g.
-<code class="docutils literal notranslate"><span class="pre">ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>).</p></li>
-<li><p><strong>Service port correct?</strong> Use port 80 (not 443) for HTTP backends.</p></li>
-<li><p><strong>Ingress resource exists?</strong> Check the target namespace has an ingress
-for the hostname.</p></li>
+<li><p><strong>Route goes to the ingress?</strong> Every entry of <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> uses the
+ingress controller’s Service on port 80. A route straight to a service
+also bypasses oauth2-proxy.</p></li>
+<li><p><strong>ingress-nginx running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">ingress-nginx</span></code></p></li>
+<li><p><strong>Ingress resource exists</strong> for the hostname? <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-A</span></code></p></li>
 </ol>
 </section>
-<section id="new-tunnel-hostname-won-t-resolve-on-lan">
-<h3>New tunnel hostname won’t resolve on LAN<a class="headerlink" href="#new-tunnel-hostname-won-t-resolve-on-lan" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> You add a new public hostname in the Cloudflare tunnel
-dashboard, Cloudflare auto-creates the proxied CNAME, but LAN clients
-keep getting <code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code> for the new name. Public resolvers (<code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&#64;1.1.1.1</span></code>) return the record correctly.</p>
-<p><strong>Cause:</strong> Negative DNS caching. Before the record existed, your
-router / <code class="docutils literal notranslate"><span class="pre">systemd-resolved</span></code> / browser queried the name, got
-<code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code>, and cached <em>that</em> result for its TTL. The cache doesn’t
-clear when Cloudflare publishes the new record — you have to flush it.</p>
-<p><strong>Fix:</strong> Flush the LAN-side caches in order of how hard they are to
-reach:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Local browser — use incognito or clear browser DNS cache</span>
-<span class="c1">#    (chrome://net-internals/#dns → &quot;Clear host cache&quot;)</span>
+<section id="new-tunnel-hostname-won-t-resolve-on-the-lan">
+<h3>New tunnel hostname won’t resolve on the LAN<a class="headerlink" href="#new-tunnel-hostname-won-t-resolve-on-the-lan" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> After <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> adds a service, LAN clients keep getting
+<code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code> for the new name. Public resolvers (<code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&#64;1.1.1.1</span></code>) return the
+record correctly.</p>
+<p><strong>Cause:</strong> Negative DNS caching. Before the record existed, the router,
+<code class="docutils literal notranslate"><span class="pre">systemd-resolved</span></code> or the browser asked for the name, got <code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code>, and
+cached that answer for its TTL.</p>
+<p><strong>Fix:</strong> Flush the caches, nearest first:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Browser: a private window, or chrome://net-internals/#dns, &quot;Clear host cache&quot;</span>
 
 <span class="c1"># 2. systemd-resolved on the client</span>
 sudo<span class="w"> </span>resolvectl<span class="w"> </span>flush-caches
 
-<span class="c1"># 3. The router&#39;s DNS cache — usually via Reboot or a &quot;Flush DNS&quot;</span>
-<span class="c1">#    button in the admin UI. This is the one that tends to persist.</span>
+<span class="c1"># 3. The router (OpenWrt, 192.168.1.1): restart dnsmasq. This is the one</span>
+<span class="c1">#    that tends to persist.</span>
 </pre></div>
 </div>
 <p>To confirm the negative cache is the cause, bypass the local resolver:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dig<span class="w"> </span>@1.1.1.1<span class="w"> </span>new-hostname.example.com<span class="w">  </span><span class="c1"># public resolver — should work</span>
-dig<span class="w"> </span>new-hostname.example.com<span class="w">           </span><span class="c1"># local resolver — still NXDOMAIN</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dig<span class="w"> </span>@1.1.1.1<span class="w"> </span>&lt;service&gt;.gkcluster.org<span class="w">  </span><span class="c1"># public resolver: answers</span>
+dig<span class="w"> </span>&lt;service&gt;.gkcluster.org<span class="w">           </span><span class="c1"># local resolver: still NXDOMAIN</span>
 </pre></div>
 </div>
-<p>If only the local-resolver lookup fails, you are hitting cached
-<code class="docutils literal notranslate"><span class="pre">NXDOMAIN</span></code>, not a Cloudflare problem.</p>
+</section>
+<section id="just-cf-plan-fails-no-access-app-protects-a-hostname">
+<h3><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> fails: no Access app protects a hostname<a class="headerlink" href="#just-cf-plan-fails-no-access-app-protects-a-hostname" title="Link to this heading">#</a></h3>
+<p><strong>Cause:</strong> the guard in <code class="docutils literal notranslate"><span class="pre">cloudflare/access_guard.tf</span></code> and <code class="docutils literal notranslate"><span class="pre">dns.tf</span></code>. A
+hostname routed through the tunnel must be covered by an Access app (the
+<code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> wildcard covers names one label below the domain), or be
+marked public on purpose.</p>
+<p><strong>Fix:</strong> see <a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-access-bypass"><span class="std std-ref">Services that are public on purpose, and service tokens</span></a>.</p>
 </section>
 </section>
 <section id="nfs-mount-issues">
 <h2>NFS Mount Issues<a class="headerlink" href="#nfs-mount-issues" title="Link to this heading">#</a></h2>
 <section id="pvc-stuck-in-pending">
 <h3>PVC stuck in Pending<a class="headerlink" href="#pvc-stuck-in-pending" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> A PersistentVolumeClaim backed by NFS stays in <code class="docutils literal notranslate"><span class="pre">Pending</span></code>.</p>
+<p><strong>Symptom:</strong> A PersistentVolumeClaim backed by the NAS stays in <code class="docutils literal notranslate"><span class="pre">Pending</span></code>,
+or its pod stays in <code class="docutils literal notranslate"><span class="pre">ContainerCreating</span></code> with a mount error.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic">
-<li><p><strong>NFS server reachable?</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>run<span class="w"> </span>nfs-test<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--image<span class="o">=</span>busybox:1.37<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span>-c<span class="w"> </span><span class="m">3</span><span class="w"> </span>&lt;nfs-ip&gt;
+<li><p><strong>NAS reachable?</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>run<span class="w"> </span>nfs-test<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span>--image<span class="o">=</span>busybox:1.37<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span>-c<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">192</span>.168.1.3
 </pre></div>
 </div>
 </li>
-<li><p><strong>Export path correct?</strong> Check <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> matches
-the NFS server’s <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code>.</p></li>
-<li><p><strong>PV exists and is Available?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code></p></li>
-<li><p><strong>StorageClass mismatch?</strong> Static NFS PVs (backups, scrap, jellyfin media)
-have no StorageClass and bind by name; dynamic ones come from the
-<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class: check <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">sc</span></code> and the
-csi-driver-nfs controller logs.</p></li>
+<li><p><strong>Directory exists on the NAS?</strong> The cluster creates none of the
+directories it mounts under <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code>, nor <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>: they
+are made by hand (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>), with the owner the workload
+runs as. A missing directory fails the mount; a wrong owner shows up
+later as <code class="docutils literal notranslate"><span class="pre">Permission</span> <span class="pre">denied</span></code> in the pod.</p></li>
+<li><p><strong>Static or dynamic?</strong> Static NFS PVs (<code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code>, scrap’s two,
+<code class="docutils literal notranslate"><span class="pre">jellyfin-media-nfs</span></code>, the Minecraft dashboard’s three) have no
+StorageClass and bind by name: check <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code>. Dynamic ones come
+from the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> class: check
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">sc</span></code> and the logs of <code class="docutils literal notranslate"><span class="pre">csi-nfs-controller</span></code> in the <code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code>
+namespace.</p></li>
 </ol>
+</section>
+<section id="an-nfs-stable-pv-stuck-released">
+<h3>An <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PV stuck <code class="docutils literal notranslate"><span class="pre">Released</span></code><a class="headerlink" href="#an-nfs-stable-pv-stuck-released" title="Link to this heading">#</a></h3>
+<p>Deleting a PVC whose name already has an archived folder makes the driver’s
+archive fail and retry. See <a class="reference internal" href="../how-to/nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>.</p>
 </section>
 </section>
 <section id="k3s-control-plane">
 <h2>K3s Control Plane<a class="headerlink" href="#k3s-control-plane" title="Link to this heading">#</a></h2>
+<p>The control plane is node02; <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> reaches it as <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, a DNS record
+on the router.</p>
 <section id="api-server-unreachable">
 <h3>API server unreachable<a class="headerlink" href="#api-server-unreachable" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> commands fail with <code class="docutils literal notranslate"><span class="pre">connection</span> <span class="pre">refused</span></code> on port 6443.</p>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> commands fail with <code class="docutils literal notranslate"><span class="pre">connection</span> <span class="pre">refused</span></code> or time out
+on port 6443.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic">
+<li><p><strong>Name resolves to the control plane?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">k3s.lan</span></code> should
+return 192.168.1.82.</p></li>
 <li><p><strong>K3s service running?</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>k3s<span class="w">   </span><span class="c1"># your control_plane node</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span>sudo<span class="w"> </span>systemctl<span class="w"> </span>status<span class="w"> </span>k3s
 </pre></div>
 </div>
 </li>
-<li><p><strong>Certificates valid?</strong> Check <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/tls/</span></code> on the
-control plane node.</p></li>
 <li><p><strong>Disk full?</strong> etcd can fail if the node runs out of disk space:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02<span class="w"> </span>df<span class="w"> </span>-h<span class="w"> </span>/
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span>df<span class="w"> </span>-h<span class="w"> </span>/
 </pre></div>
 </div>
 </li>
+<li><p><strong>Certificates valid?</strong> Check <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/tls/</span></code> on
+node02.</p></li>
 </ol>
+<p>If node02 is dead, restore the control plane onto node03, the warm standby:
+<a class="reference internal" href="../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>.</p>
 </section>
 <section id="etcd-database-too-large">
 <h3>etcd database too large<a class="headerlink" href="#etcd-database-too-large" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> K3s logs show <code class="docutils literal notranslate"><span class="pre">mvcc:</span> <span class="pre">database</span> <span class="pre">space</span> <span class="pre">exceeded</span></code>.</p>
-<p><strong>Fix:</strong> Compact and defragment etcd:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02
+<p><strong>Fix:</strong> Take a snapshot, then restart K3s:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02
 sudo<span class="w"> </span>k3s<span class="w"> </span>etcd-snapshot<span class="w"> </span>save<span class="w"> </span>--name<span class="w"> </span>manual-backup
 sudo<span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>k3s
 </pre></div>
 </div>
 <p>K3s’s embedded etcd auto-compacts, but a restart forces immediate compaction.</p>
+</section>
+<section id="the-nightly-etcd-backup-alert-fires">
+<h3>The nightly etcd backup alert fires<a class="headerlink" href="#the-nightly-etcd-backup-alert-fires" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupStale</span></code> and the related alerts, and how
+to check the job on node02 by hand: <a class="reference internal" href="../how-to/backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>.</p>
 </section>
 </section>
 <section id="node-os">
@@ -866,7 +1030,8 @@ back to its stock profile silently.</p>
 <h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
 <section id="rk1-module-not-detected-in-slot">
 <h3>RK1 module not detected in slot<a class="headerlink" href="#rk1-module-not-detected-in-slot" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">info</span></code> shows a slot as empty despite a module being seated.</p>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">info</span></code> shows a slot as empty despite a module being seated
+(the RK1s node02, node03 and node04 are in slots 2 to 4).</p>
 <p><strong>Fix:</strong></p>
 <ol class="arabic simple">
 <li><p>Power off the board</p></li>
@@ -897,17 +1062,8 @@ tpi<span class="w"> </span>info
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">CLI Tools Reference</p>
+        <p class="prev-next-title">Commands and tools</p>
       </div>
-    </a>
-    <a class="right-next"
-       href="production-checklist.html"
-       title="next page">
-      <div class="prev-next-info">
-        <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Production Readiness Checklist</p>
-      </div>
-      <i class="fa-solid fa-angle-right"></i>
     </a>
 </div>
                 </footer>
@@ -947,12 +1103,16 @@ tpi<span class="w"> </span>info
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">ArgoCD</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-syncing">Application stuck in “Syncing”</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-stuck-in-running-operation-admission-webhooks">Application stuck in “Running” operation (admission webhooks)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#application-is-unknown-with-invalidspecerror-or-comparisonerror">Application is <code class="docutils literal notranslate"><span class="pre">Unknown</span></code> with <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> or <code class="docutils literal notranslate"><span class="pre">ComparisonError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#app-is-synced-and-healthy-but-the-pod-has-old-settings">App is Synced and Healthy but the pod has old settings</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth-authentication">OAuth / Authentication</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#viewer-emails-can-access-oauth2-proxy-gated-services">Viewer emails can access oauth2-proxy-gated services</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-returns-403-csrf-cookie-not-found">oauth2-proxy returns 403 — CSRF cookie not found</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-returns-403-unauthorized-email-not-in-allow-list">oauth2-proxy returns 403 — unauthorized (email not in allow list)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#any-github-user-can-pass-oauth2-proxy">Any GitHub user can pass oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-authenticating">403 after authenticating</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-returns-403-csrf-cookie-not-found">oauth2-proxy returns 403: CSRF cookie not found</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oidc-discovery-returns-html-grafana-argocd-monitor-or-argocd-login-fails">OIDC discovery returns HTML (Grafana, argocd-monitor or ArgoCD login fails)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#login-works-on-the-lan-but-not-from-outside">Login works on the LAN but not from outside</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser">Browser</a><ul class="nav section-nav flex-column">
@@ -961,29 +1121,34 @@ tpi<span class="w"> </span>info
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-nvme-pvs-and-nfs-backups">Local-nvme PVs and NFS backups</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#static-pv-not-bound">Static PV not bound</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restoring-from-an-nfs-backup">Restoring from an NFS backup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pod-pending-because-its-node-is-down">Pod <code class="docutils literal notranslate"><span class="pre">Pending</span></code> because its node is down</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restoring-from-a-backup">Restoring from a backup</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-returning-404-or-503">Ingress returning 404 or 503</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#certificate-not-issuing">Certificate not issuing</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#home-lan-gkcluster-org-does-not-resolve-on-the-lan-dns-rebinding-protection"><code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code> does not resolve on the LAN (DNS rebinding protection)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-node-cannot-resolve-node-lan-or-k3s-lan">A node cannot resolve <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code> or <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare-tunnel">Cloudflare Tunnel</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-through-tunnel">Redirect loop through tunnel</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#waf-blocks-access-to-ssh-tunnel">WAF blocks access to SSH tunnel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-through-the-tunnel">Redirect loop through the tunnel</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tunnel-not-connecting">Tunnel not connecting</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#connection-refused-for-tunnelled-service">Connection refused for tunnelled service</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-tunnel-hostname-won-t-resolve-on-lan">New tunnel hostname won’t resolve on LAN</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bad-gateway-from-cloudflare">502 Bad Gateway from Cloudflare</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-tunnel-hostname-won-t-resolve-on-the-lan">New tunnel hostname won’t resolve on the LAN</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#just-cf-plan-fails-no-access-app-protects-a-hostname"><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> fails: no Access app protects a hostname</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-mount-issues">NFS Mount Issues</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pvc-stuck-in-pending">PVC stuck in Pending</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#an-nfs-stable-pv-stuck-released">An <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PV stuck <code class="docutils literal notranslate"><span class="pre">Released</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-control-plane">K3s Control Plane</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api-server-unreachable">API server unreachable</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-database-too-large">etcd database too large</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nightly-etcd-backup-alert-fires">The nightly etcd backup alert fires</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-os">Node OS</a><ul class="nav section-nav flex-column">

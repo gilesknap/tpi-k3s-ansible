@@ -1,0 +1,1423 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Security model &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/security';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Storage" href="storage.html" />
+    <link rel="prev" title="Authentication" href="authentication.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Security model</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="security-model">
+<h1>Security model<a class="headerlink" href="#security-model" title="Link to this heading">#</a></h1>
+<p>This is a single-administrator homelab that happens to be reachable from the
+internet. The design goal is that nothing at home accepts an inbound
+connection, every published hostname has an identity check in front of it,
+and no credential that matters sits in Git or on the NAS in a readable form.
+This page walks the trust boundaries from the outside in, and ends with the
+risks that are accepted on purpose.</p>
+<section id="trust-zones">
+<h2>Trust zones<a class="headerlink" href="#trust-zones" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    internet((&quot;Internet&quot;))
+
+    subgraph cf[&quot;Cloudflare&quot;]
+        access[&quot;Edge: TLS, Access, rate limit&quot;]
+    end
+
+    vps[&quot;VPS: frps&lt;br/&gt;listed game ports only&quot;]
+
+    subgraph home[&quot;Home LAN 192.168.1.0/24&quot;]
+        subgraph cluster[&quot;K3s cluster&quot;]
+            pods[&quot;Workloads&quot;]
+            cp[&quot;node02: API and etcd&quot;]
+        end
+        nas[&quot;The NAS: data and&lt;br/&gt;encrypted backups&quot;]
+        dev[&quot;Devcontainer:&lt;br/&gt;operator and Claude sandbox&quot;]
+    end
+
+    tailnet[&quot;Tailnet&quot;]
+    drive[&quot;Google Drive:&lt;br/&gt;encrypted copies&quot;]
+    key[&quot;age private key&lt;br/&gt;offline&quot;]
+
+    internet --&gt; access
+    internet --&gt; vps
+    pods -. &quot;tunnel, dialled out&quot; .-&gt; access
+    pods -. &quot;frpc, dialled out&quot; .-&gt; tailnet
+    tailnet -.-&gt; vps
+    dev --&gt; cp
+    pods --&gt; nas
+    nas --&gt; drive
+    key -. &quot;only way to read&quot; .-&gt; drive
+    key -. &quot;only way to read&quot; .-&gt; nas
+    </pre><p>Dashed lines are connections opened from inside. No arrow from the internet
+ends inside the house.</p>
+</section>
+<section id="the-edge">
+<h2>The edge<a class="headerlink" href="#the-edge" title="Link to this heading">#</a></h2>
+<p><strong>No inbound ports.</strong> The router forwards nothing. Web traffic arrives over a
+tunnel that <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> opens outwards, and game traffic over a link that
+<code class="docutils literal notranslate"><span class="pre">frpc</span></code> opens outwards (<a class="reference internal" href="networking.html"><span class="doc">Networking and ingress</span></a>). The
+home IP address is in no DNS record.</p>
+<p><strong>Access in front of every hostname.</strong> A wildcard Access application makes
+<code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> owner-only, and <code class="docutils literal notranslate"><span class="pre">cloudflare/access_guard.tf</span></code> fails
+<code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">plan</span></code> if any tunnelled or proxied hostname is not covered by an
+application that asks for an identity or a service token. The only exceptions
+are the hostnames flagged <code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>:
+<code class="docutils literal notranslate"><span class="pre">pages</span></code> (public static pages) and <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> (its own token authentication). The
+guard works in both directions, so an application that lets everyone in
+cannot be pointed at a hostname that is not on that list. Details:
+<a class="reference internal" href="authentication.html"><span class="doc">Authentication</span></a>.</p>
+<p><strong>One rate-limit rule.</strong> The Free plan allows a single rule, and it is spent
+on ntfy, the one service whose own login faces the internet
+(<code class="docutils literal notranslate"><span class="pre">cloudflare/waf.tf</span></code>): about 100 requests a minute per client on ntfy’s
+paths, then a 10-second block. The Free plan cannot match on hostname, so
+the rule matches those paths on every host; a new service must not use a
+path that starts with a topic name or <code class="docutils literal notranslate"><span class="pre">/v1/</span></code>.</p>
+<p><strong>The VPS relay publishes only what is listed.</strong> <code class="docutils literal notranslate"><span class="pre">frps</span></code> on the VPS accepts
+only the ports in its <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code>, which mirror <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> (today
+the Minecraft game range, <code class="docutils literal notranslate"><span class="pre">30565-30584</span></code>). Its control port listens on the
+VPS’s tailnet address only, the tailnet policy lets the relay’s tag reach
+that one port and nothing else, and the relay pod advertises no routes. The
+VPS has no way to open a connection into the house. Plain-text RCON
+(<code class="docutils literal notranslate"><span class="pre">30600-30619</span></code>) is never forwarded.</p>
+</section>
+<section id="the-cluster">
+<h2>The cluster<a class="headerlink" href="#the-cluster" title="Link to this heading">#</a></h2>
+<section id="scheduling-and-delivery">
+<h3>Scheduling and delivery<a class="headerlink" href="#scheduling-and-delivery" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>The control plane runs no workloads.</strong> node02 carries
+<code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/master:NoSchedule</span></code>, so application pods never
+share a node with etcd and the API server. node03, the warm standby, has
+only a soft <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code> taint.</p></li>
+<li><p><strong>ArgoCD can only deploy from an allow-list.</strong> The <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> AppProject
+(<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>) restricts <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> to this repository,
+the scrap repository and the named Helm registries the services use.
+Someone with ArgoCD admin rights cannot point an Application at an
+arbitrary repository. The project does allow every namespace and every
+cluster-scoped kind: it is the cluster’s own platform project, not a
+tenant sandbox.</p></li>
+<li><p><strong>The ArgoCD <code class="docutils literal notranslate"><span class="pre">admin</span></code> account is disabled.</strong> All logins go through Dex and
+GitHub.</p></li>
+<li><p><strong>No admission policy engine.</strong> Kyverno is present in the repository but
+switched off (<code class="docutils literal notranslate"><span class="pre">enable_kyverno:</span> <span class="pre">false</span></code>); no policies were in use.</p></li>
+</ul>
+</section>
+<section id="pod-security">
+<h3>Pod security<a class="headerlink" href="#pod-security" title="Link to this heading">#</a></h3>
+<p>There is no cluster-wide Pod Security Standard, because a handful of system
+workloads genuinely need privilege. Security contexts are set per workload.
+The workloads this repository writes the pod spec for are non-root with
+every capability dropped; two upstream charts (Headlamp, argocd-monitor) are
+left at their weaker defaults.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Workload</p></th>
+<th class="head"><p>Runs as</p></th>
+<th class="head"><p>Root filesystem</p></th>
+<th class="head"><p>Privilege</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>cloudflared</p></td>
+<td><p>65532, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None, all capabilities dropped</p></td>
+<td><p>Token from the environment, not the command line</p></td>
+</tr>
+<tr class="row-odd"><td><p>echo</p></td>
+<td><p>65534, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p>home</p></td>
+<td><p>101, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p>ntfy</p></td>
+<td><p>10001, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p>State on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>vps-relay (Tailscale and frpc)</p></td>
+<td><p>1000, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p>Tailscale in userspace: no <code class="docutils literal notranslate"><span class="pre">NET_ADMIN</span></code>, no <code class="docutils literal notranslate"><span class="pre">/dev/net/tun</span></code>; no API token mounted</p></td>
+</tr>
+<tr class="row-odd"><td><p>scrap</p></td>
+<td><p>10001, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p>Every container, including Litestream</p></td>
+</tr>
+<tr class="row-even"><td><p>scrap-public</p></td>
+<td><p>10001, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p>Namespace enforces the <code class="docutils literal notranslate"><span class="pre">restricted</span></code> standard; no egress</p></td>
+</tr>
+<tr class="row-odd"><td><p>oauth2-proxy</p></td>
+<td><p>2000, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft worlds and dashboard</p></td>
+<td><p>1000, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p>Headlamp</p></td>
+<td><p>100, non-root</p></td>
+<td><p>Writable</p></td>
+<td><p>None, but capabilities not dropped</p></td>
+<td><p>Chart defaults; its ServiceAccount is <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> (below)</p></td>
+</tr>
+<tr class="row-even"><td><p>argocd-monitor (and its oauth2-proxy sidecar)</p></td>
+<td><p>The images’ own users</p></td>
+<td><p>Writable</p></td>
+<td><p>None, but no security context set</p></td>
+<td><p>Chart defaults</p></td>
+</tr>
+<tr class="row-odd"><td><p>Jellyfin</p></td>
+<td><p>122, non-root</p></td>
+<td><p>Writable</p></td>
+<td><p>None</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code>; GPU through the Intel device plugin, not <code class="docutils literal notranslate"><span class="pre">privileged</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code> (<code class="docutils literal notranslate"><span class="pre">sysctl-tuning</span></code>)</p></td>
+<td><p>root</p></td>
+<td><p>Writable</p></td>
+<td><p><strong>Privileged</strong> init container, <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code></p></td>
+<td><p>Sets two host sysctls, then sleeps</p></td>
+</tr>
+<tr class="row-odd"><td><p>kured</p></td>
+<td><p>root</p></td>
+<td><p>Read-only</p></td>
+<td><p><strong>Privileged</strong></p></td>
+<td><p>Has to reboot the host</p></td>
+</tr>
+<tr class="row-even"><td><p>NFS CSI driver</p></td>
+<td><p>root</p></td>
+<td><p>Mixed</p></td>
+<td><p><strong>Privileged</strong> <code class="docutils literal notranslate"><span class="pre">nfs</span></code> container</p></td>
+<td><p>Has to mount on the host</p></td>
+</tr>
+<tr class="row-odd"><td><p>ServiceLB (<code class="docutils literal notranslate"><span class="pre">svclb-*</span></code>)</p></td>
+<td><p>root</p></td>
+<td><p>Writable</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NET_ADMIN</span></code></p></td>
+<td><p>K3s’s own load balancer pods</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Headlamp is a known soft spot.</strong> Its ServiceAccount is bound to
+<code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> by the chart, and the token that <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code> mints
+for the login page lasts 100 days. Anyone who gets past Access and
+oauth2-proxy and holds that token has the whole cluster.</p>
+</section>
+<section id="images-and-charts">
+<h3>Images and charts<a class="headerlink" href="#images-and-charts" title="Link to this heading">#</a></h3>
+<p>Every image and chart is pinned to a version tag in Git, never <code class="docutils literal notranslate"><span class="pre">latest</span></code>.
+Renovate (<code class="docutils literal notranslate"><span class="pre">renovate.json</span></code>) watches the Application templates and the
+manifests under <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code>, opens a pull request for each new
+version, and merges Helm chart bumps automatically.</p>
+<p>A few pins carry an extra, manual rule: when chosen, the version was the
+newest release <strong>at least two weeks old</strong>, as a buffer against a compromised
+release. That applies to ntfy, the Jellyfin chart and image, and the rclone,
+age and SQLite tools the backup jobs use. Renovate still offers newer
+versions for these; the rule is recorded beside each pin and kept by hand.
+Tools that are downloaded at run time (age, the Headlamp ArgoCD plugin) are
+checked against a SHA-256 in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> and the pod fails if it differs.</p>
+</section>
+<section id="networkpolicies">
+<h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
+<p>There is no default-deny. With one administrator and every workload
+deployed from this repository, namespace-wide deny rules would mostly
+generate debugging work. Policies exist where a pod trusts its network
+neighbours in a way that matters:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Namespace</p></th>
+<th class="head"><p>Policy</p></th>
+<th class="head"><p>Admits</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p>Only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
+<td><p>ingress-nginx to the web port; scrap’s pod to the upload receiver. All egress is denied</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace and the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>, on port 8080</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code></p></td>
+<td><p>The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, and from nuc2’s second LAN</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<td><p>Nothing. The tunnel only dials out, and nothing scrapes its metrics port</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre  class="mermaid">
+        flowchart LR
+    nginx[&quot;ingress-nginx&quot;]
+    am[&quot;Alertmanager&quot;]
+    dash[&quot;Minecraft dashboard&quot;]
+    lan[&quot;LAN hosts&lt;br/&gt;not cluster nodes&quot;]
+    any[&quot;Anyone&quot;]
+
+    scrap[&quot;scrap&quot;]
+    pub[&quot;scrap-public&quot;]
+    ntfy[&quot;ntfy&quot;]
+    rcon[&quot;World RCON 25575&quot;]
+    game[&quot;World game port 25565&quot;]
+    cfd[&quot;cloudflared&quot;]
+
+    nginx --&gt; scrap
+    nginx --&gt;|&quot;web&quot;| pub
+    scrap --&gt;|&quot;upload&quot;| pub
+    nginx --&gt; ntfy
+    am --&gt; ntfy
+    dash --&gt; rcon
+    lan --&gt; rcon
+    any --&gt; game
+    cfd -. &quot;outbound only,&lt;br/&gt;no inbound allowed&quot; .-&gt; nginx
+    </pre><p>Two properties of K3s’s built-in policy controller (kube-router’s) are worth
+knowing:</p>
+<ul class="simple">
+<li><p>It <strong>always admits traffic from a pod’s own node</strong>. Kubelet probes keep
+working under a deny-all rule, but so do host-network pods on that node.</p></li>
+<li><p>A pod on another node that reaches a NodePort arrives with its node’s
+address. That is why the RCON rule excludes the cluster nodes’ addresses
+from the LAN range (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>): otherwise any
+pod could reach RCON by way of a node. nuc2 and ws03 stay allowed so that
+build tools can run on them. A node that joins the cluster must be added
+to the exclusion list.</p></li>
+</ul>
+<p>The ntfy and scrap policies limit who reaches the pod directly. Anything
+that can reach ingress-nginx can still reach them through it, which is why
+ntfy’s tokens and the oauth2-proxy check are the real gates.</p>
+</section>
+</section>
+<section id="the-nodes">
+<h2>The nodes<a class="headerlink" href="#the-nodes" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>SSH is by key, to one account.</strong> Ansible connects as <code class="docutils literal notranslate"><span class="pre">ansible</span></code>, an
+account with no password and passwordless sudo, whose authorised keys come
+from <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code>. Only the public key is in Git. The
+private key stays on the operator’s machine and reaches the devcontainer
+through VS Code’s forwarded SSH agent, so it is never copied into the
+container.</p></li>
+<li><p><strong>Nodes patch themselves.</strong> unattended-upgrades installs packages, kernels
+included, from 00:00; system-upgrade-controller applies K3s patch releases
+from 01:00; kured drains and reboots one node at a time between 02:30 and
+05:00 when a reboot is pending (<a class="reference internal" href="../upgrade-model.html"><span class="doc">Automatic maintenance</span></a>). ws03
+is the exception: it is a desktop, keeps its own update policy, and no
+automation reboots it.</p></li>
+<li><p><strong>Multipath TCP is off</strong> on every node (<code class="docutils literal notranslate"><span class="pre">net.mptcp.enabled=0</span></code>, in
+<code class="docutils literal notranslate"><span class="pre">/etc/sysctl.d/90-disable-mptcp.conf</span></code>), as a mitigation for a kernel MPTCP
+vulnerability (CVE-2026-98432). Nothing in the cluster uses MPTCP. Ansible
+sets it, not the <code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code> DaemonSet, because that DaemonSet cannot
+run on the tainted nodes. <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">sysctl</span></code>
+applies it alone.</p></li>
+<li><p><strong>A corrected containerd AppArmor profile</strong> is loaded before K3s starts
+(<code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/apparmor.yml</span></code>). Ubuntu 25.04 and later stack container
+profiles with <code class="docutils literal notranslate"><span class="pre">unconfined</span></code>, and containerd’s stock profile then denies
+every signal sent inside a container: nginx reloads, graceful shutdowns,
+Go’s preemption. The role ships containerd’s template with the extra peer
+rule, so containers stay confined and signals work again.</p></li>
+</ul>
+</section>
+<section id="secrets">
+<h2>Secrets<a class="headerlink" href="#secrets" title="Link to this heading">#</a></h2>
+<p>Nothing secret is in Git in a readable form.</p>
+<pre  class="mermaid">
+        flowchart LR
+    plain[&quot;Plain value&lt;br/&gt;on the operator's machine&quot;]
+    kubeseal[&quot;kubeseal&lt;br/&gt;encrypts with the controller's public key&quot;]
+    git[&quot;SealedSecret in Git&lt;br/&gt;*-secret.yaml&quot;]
+    argo[&quot;ArgoCD sync&quot;]
+    ctrl[&quot;sealed-secrets controller&lt;br/&gt;holds the private key&quot;]
+    secret[&quot;Secret in the namespace&quot;]
+    pod[&quot;Pod&quot;]
+
+    plain --&gt; kubeseal --&gt; git --&gt; argo --&gt; ctrl --&gt; secret --&gt; pod
+    </pre><ul class="simple">
+<li><p><strong>Sealed Secrets.</strong> Each credential is encrypted with <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code> against
+the controller’s public key and committed as a <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code>. Only the
+controller, in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code>, can turn it back into a Secret, and a sealed
+value is bound to its name and namespace. Procedures and the full list:
+<a class="reference internal" href="../../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>.</p></li>
+<li><p><strong>Automatic key renewal is off</strong> (<code class="docutils literal notranslate"><span class="pre">keyrenewperiod:</span> <span class="pre">&quot;0&quot;</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/sealed-secrets.yaml</span></code>). Renewal only adds a
+key: it retires nothing and re-encrypts nothing, so it bought no security,
+and it made every offline key backup stale within a month. The key is
+rotated by hand instead (<a class="reference internal" href="../../how-to/manage-sealed-secrets.html#rotate-sealing-key"><span class="std std-ref">Rotate the key by hand</span></a>).</p></li>
+<li><p><strong>The sealing keys are backed up, encrypted.</strong> The nightly etcd backup on
+the control plane also exports them, age-encrypted, to the NAS
+(<a class="reference internal" href="../../how-to/backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>). With that file and the repository, a
+dead cluster’s secrets can be recovered.</p></li>
+<li><p><strong>One secret is created out of band.</strong> <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code>, Grafana’s built-in
+administrator account, is set with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code> and never
+committed.</p></li>
+<li><p><strong>The backups cannot be read by anything that holds them.</strong> etcd
+snapshots contain every Secret in plain text, so every backup is encrypted
+with <a class="reference external" href="https://github.com/FiloSottile/age">age</a> to a public key
+(<code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>, and the same key in
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code>; a pre-commit hook checks they match). The
+private key is kept offline by the owner. The cluster, the NAS and Google
+Drive hold only ciphertext
+(<a class="reference internal" href="backups.html"><span class="doc">Backups and disaster recovery</span></a>).</p></li>
+<li><p><strong>The Cloudflare state is encrypted too.</strong> OpenTofu’s state file holds
+the tunnel secret and the Access email lists; it is local, gitignored and
+encrypted with a passphrase.</p></li>
+<li><p><strong>gitleaks runs in pre-commit</strong> with the default rules.
+<code class="docutils literal notranslate"><span class="pre">.gitleaks.toml</span></code> allow-lists files named <code class="docutils literal notranslate"><span class="pre">*-secret.yaml</span></code> (singular), which
+is where the encrypted SealedSecrets live. A file named <code class="docutils literal notranslate"><span class="pre">*-secrets.yaml</span></code>
+is not allow-listed and is blocked.</p></li>
+</ul>
+</section>
+<section id="operator-tooling">
+<h2>Operator tooling<a class="headerlink" href="#operator-tooling" title="Link to this heading">#</a></h2>
+<p>Day-to-day operation is done by Claude Code inside the devcontainer, and it
+runs only inside claude-sandbox: a <code class="docutils literal notranslate"><span class="pre">bwrap</span></code> jail with no SSH agent, no
+<code class="docutils literal notranslate"><span class="pre">~/.ssh</span></code>, and a network egress filter that reaches private addresses only
+if they are listed (the nodes, the BMC and the NAS). It holds its own SSH
+key for the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, which <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span> <span class="pre">revoke</span></code>
+removes from every node. The full account is on
+<a class="reference internal" href="claude-code.html"><span class="doc">Claude Code integration</span></a>.</p>
+</section>
+<section id="accepted-risks">
+<h2>Accepted risks<a class="headerlink" href="#accepted-risks" title="Link to this heading">#</a></h2>
+<p>These are known and left as they are.</p>
+<ul class="simple">
+<li><p><strong>One control plane.</strong> node02 holds the only etcd member. Its loss stops
+the API, though running pods keep serving, until it is restored onto
+node03 from the nightly backup
+(<a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>). Three RK1 servers would spend
+memory the 8 GB nodes do not have.</p></li>
+<li><p><strong>The Headlamp token is cluster-admin</strong>, lasts 100 days, and is pasted
+into a browser. It is protected by Access and oauth2-proxy and by nothing
+else.</p></li>
+<li><p><strong>The Drive token can delete what it uploaded.</strong> rclone’s <code class="docutils literal notranslate"><span class="pre">drive.file</span></code>
+scope lets it see and change only its own files, but that includes
+deleting them. Someone who takes over the cluster cannot read the
+off-site backups, but could destroy them. The NAS copies would remain.</p></li>
+<li><p><strong>Pinned workloads go down with their node.</strong> Grafana and Prometheus
+(node04), and Jellyfin and the Minecraft worlds (nuc2), have no replica.
+That is the price of not running replicated storage
+(<a class="reference internal" href="storage.html"><span class="doc">Storage</span></a>).</p></li>
+<li><p><strong>The LAN is trusted more than the internet.</strong> ingress-nginx answers on
+the LAN without Cloudflare Access in front. The in-cluster login still
+applies, but the services with no login at the ingress (<code class="docutils literal notranslate"><span class="pre">home</span></code>, <code class="docutils literal notranslate"><span class="pre">echo</span></code>)
+are open to any device on the LAN, and Jellyfin and RCON are LAN services
+by design.</p></li>
+<li><p><strong>No default-deny between namespaces.</strong> A compromised pod can reach most
+other Services in the cluster.</p></li>
+<li><p><strong>Viewer rules are only as narrow as their values.</strong> The guard detects an
+open policy, not a wide one, such as a public email domain in
+<code class="docutils literal notranslate"><span class="pre">viewer_email_domains</span></code>.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="authentication.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Authentication</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="storage.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Storage</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trust-zones">Trust zones</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-edge">The edge</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cluster">The cluster</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scheduling-and-delivery">Scheduling and delivery</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pod-security">Pod security</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#images-and-charts">Images and charts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networkpolicies">NetworkPolicies</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nodes">The nodes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#secrets">Secrets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#operator-tooling">Operator tooling</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accepted-risks">Accepted risks</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/security.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/security.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1423 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Build the cluster from bare metal &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/build-the-cluster';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How-to guides" href="../how-to.html" />
+    <link rel="prev" title="A tour of the cluster" href="tour.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tour.html">A tour of the cluster</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Build the cluster from bare metal</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../tutorials.html" class="nav-link">Tutorials</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Build the cluster from bare metal</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="build-the-cluster-from-bare-metal">
+<h1>Build the cluster from bare metal<a class="headerlink" href="#build-the-cluster-from-bare-metal" title="Link to this heading">#</a></h1>
+<p>This is the one end-to-end path from powered-off hardware to the running
+cluster, as it is done for gkcluster.org. It is written for the owner
+rebuilding after a disaster, and for a visitor who wants to see every step
+such a build involves. The values shown are this cluster’s; the
+<a class="reference internal" href="#adapting-this-to-other-hardware"><span class="std std-ref">last section</span></a> lists what is specific to
+this site.</p>
+<p>Two neighbouring procedures have their own pages:</p>
+<ul class="simple">
+<li><p>re-flashing one node, or rebuilding K3s on machines that already run
+Ubuntu: <a class="reference internal" href="../how-to/reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a></p></li>
+<li><p>bringing back the <em>same</em> cluster (its etcd state and sealing key) from
+the encrypted backup: <a class="reference internal" href="../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a></p></li>
+</ul>
+<section id="what-must-exist-first">
+<h2>What must exist first<a class="headerlink" href="#what-must-exist-first" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>What</p></th>
+<th class="head"><p>Detail</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>The hardware</p></td>
+<td><p>The Turing Pi board <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> with three RK1s (each with an NVMe drive), <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, as on <a class="reference internal" href="../explanations/architecture/hardware.html"><span class="doc">Hardware and nodes</span></a>. The board’s BMC has an ext4 SD card mounted at <code class="docutils literal notranslate"><span class="pre">/mnt/sdcard</span></code>, where OS images are staged</p></td>
+</tr>
+<tr class="row-odd"><td><p>Names and addresses</p></td>
+<td><p>The OpenWrt router at 192.168.1.1 gives every machine a fixed DHCP lease and resolves its name (<code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node02.lan</span></code>). The inventory holds names, not addresses</p></td>
+</tr>
+<tr class="row-even"><td><p>Ubuntu on the amd64 machines</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> are installed by hand (Ubuntu, 26.04 today), with a login that can <code class="docutils literal notranslate"><span class="pre">sudo</span></code>. Only the RK1s are flashed by Ansible</p></td>
+</tr>
+<tr class="row-odd"><td><p>The NAS</p></td>
+<td><p>The QNAP at 192.168.1.3 with the cluster’s directories made by hand, per <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>: <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/</span></code> (<a class="reference internal" href="../how-to/nas-setup.html#scrap-nas-directories"><span class="std std-ref">scrap directories</span></a>, <a class="reference internal" href="../how-to/nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>) and <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> (<a class="reference internal" href="../how-to/nas-setup.html#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>). Ansible never touches the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p>The Cloudflare zone</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code> on Cloudflare, with Zero Trust enabled and its two login methods (GitHub and one-time PIN) added in the dashboard (<a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Two GitHub OAuth apps</p></td>
+<td><p>One for Dex (ArgoCD, Grafana, argocd-monitor) and one for oauth2-proxy (<a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set up OAuth authentication</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p>The tailnet and the VPS</p></td>
+<td><p>A Tailscale OAuth client for the relay pod, and frps running on the VPS (<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>The age key pair</p></td>
+<td><p>The private key, kept offline, that decrypts every backup. Its public key is <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> (<a class="reference internal" href="../how-to/backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="prepare-the-workstation">
+<h2>Prepare the workstation<a class="headerlink" href="#prepare-the-workstation" title="Link to this heading">#</a></h2>
+<p>The build runs from the repo’s devcontainer on a Linux workstation with
+podman, VS Code and the Dev Containers extension (with
+<code class="docutils literal notranslate"><span class="pre">dev.containers.dockerPath</span></code> set to <code class="docutils literal notranslate"><span class="pre">podman</span></code>).</p>
+<ol class="arabic">
+<li><p><strong>The ansible key.</strong> One key pair gives Ansible its login on every
+node. Its public half is committed as <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code>; the
+private half stays on the workstation. Load it into <code class="docutils literal notranslate"><span class="pre">ssh-agent</span></code> before
+opening the container, because VS Code forwards the agent that is
+running at that moment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh-add<span class="w"> </span>~/.ssh/ansible_rsa
+</pre></div>
+</div>
+</li>
+<li><p><strong>Authorise the key on the BMC.</strong> The BMC is the one machine Ansible
+cannot prepare for itself. On a board that does not have the key yet:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>pub_keys/ansible_rsa.pub<span class="w"> </span>root@turingpi:.ssh/authorized_keys
+ssh<span class="w"> </span>root@turingpi<span class="w">     </span><span class="c1"># must now work without a password</span>
+</pre></div>
+</div>
+<p>Then set a strong root password on the BMC with <code class="docutils literal notranslate"><span class="pre">passwd</span></code>.</p>
+</li>
+<li><p><strong>Open the devcontainer.</strong> <code class="docutils literal notranslate"><span class="pre">code</span> <span class="pre">.</span></code> in the repo, then <strong>Reopen in
+Container</strong>. The build installs the cluster tools (<code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>,
+<code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd</span></code>) with <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">tools</span></code>.
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">setup</span></code> then checks the forwarded agent and signs <code class="docutils literal notranslate"><span class="pre">gh</span></code> in
+(<a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Set up and run Claude Code</span></a>).</p></li>
+</ol>
+</section>
+<section id="the-three-configuration-files">
+<h2>The three configuration files<a class="headerlink" href="#the-three-configuration-files" title="Link to this heading">#</a></h2>
+<p>Everything about the cluster that is a choice lives in three files. On a
+rebuild of this cluster they are already right; read them rather than edit
+them.</p>
+<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> is the inventory: which machines exist and what is special
+about each.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">turingpi_nodes</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node02</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
+<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span><span class="w">      </span><span class="c1"># install Ubuntu on the NVMe</span>
+<span class="w">    </span><span class="nt">node03</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">    </span><span class="nt">node04</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="nt">extra_nodes</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">ws03</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">nvidia_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># NVIDIA container toolkit</span>
+<span class="w">      </span><span class="nt">workstation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># taint NoSchedule</span>
+<span class="w">    </span><span class="nt">nuc2</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">node_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w">       </span><span class="c1"># multi-homed: use this subnet</span>
+<span class="w">      </span><span class="nt">flannel_iface</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enp3s0</span>
+<span class="w">      </span><span class="nt">intel_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">        </span><span class="c1"># Iris Xe for Jellyfin</span>
+<span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> holds the Ansible-side choices:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node02</span>
+<span class="nt">standby_control_plane</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node03</span>
+<span class="nt">k3s_api_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">k3s.lan</span>
+<span class="nt">dns_router</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root@192.168.1.1</span>
+<span class="nt">cluster_domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gkcluster.org</span>
+<span class="nt">repo_remote</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/gilesknap/tpi-k3s-ansible.git</span>
+<span class="nt">repo_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+</pre></div>
+</div>
+<p>It also carries <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, <code class="docutils literal notranslate"><span class="pre">domain_email</span></code>, the age public key and
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>, the host directories behind the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volumes.</p>
+<p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> holds what ArgoCD reads: the service
+switches, chart versions and storage locations.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">k3s</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">minor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.34</span>
+<span class="nt">enable_oauth2_proxy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">enable_cloudflare_tunnel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">enable_minecraft</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">enable_vps_relay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">enable_jellyfin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">nfs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span>
+<span class="w">  </span><span class="nt">cluster_share_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/k8s-cluster</span>
+<span class="nt">nfs_csi</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">stable_share</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/k8s-dynamic/stable</span>
+</pre></div>
+</div>
+<p>Two things in these files must agree across them, and the comments in the
+files say so: <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> appears in both <code class="docutils literal notranslate"><span class="pre">all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>,
+and each <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> entry in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> must name the same node and
+path as its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry in <code class="docutils literal notranslate"><span class="pre">all.yml</span></code>. <a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory reference</span></a>
+and <a class="reference internal" href="../reference/variables.html"><span class="doc">Variables reference</span></a> describe every setting.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> still lists <code class="docutils literal notranslate"><span class="pre">node01</span></code>, the CM4 in slot 1 that was the control
+plane before node02. It is not a member of the cluster today, but it is
+powered on and answers SSH, so a playbook run over the whole inventory
+would upgrade it and join it as a worker. The run below leaves it out with
+<code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">'all:!node01'</span></code>.</p>
+</div>
+</section>
+<section id="point-the-api-name-at-the-control-plane">
+<h2>Point the API name at the control plane<a class="headerlink" href="#point-the-api-name-at-the-control-plane" title="Link to this heading">#</a></h2>
+<p>Workers join the cluster, and the kubeconfig reaches it, through the name
+<code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> rather than through node02’s address, so that the control plane
+can move to another node later. Create the record on the router before the
+run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>k3s-api-dns<span class="w"> </span><span class="m">192</span>.168.1.82
+</pre></div>
+</div>
+<p>The recipe adds or updates the record on the OpenWrt router over SSH and
+checks that the name now resolves in the devcontainer. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role
+refuses to start if it does not.</p>
+</section>
+<section id="put-the-nucs-and-the-workstation-under-ansible">
+<h2>Put the NUCs and the workstation under Ansible<a class="headerlink" href="#put-the-nucs-and-the-workstation-under-ansible" title="Link to this heading">#</a></h2>
+<p>The RK1s get their <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account when they are flashed. The three
+hand-installed machines get it from a small playbook, run once with an
+existing login on them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">ansible_user</span><span class="o">=</span>&lt;login&gt;<span class="w"> </span>-K
+</pre></div>
+</div>
+<p>It creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> user, authorises <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> and
+grants passwordless <code class="docutils literal notranslate"><span class="pre">sudo</span></code>. <code class="docutils literal notranslate"><span class="pre">-K</span></code> asks for the login’s <code class="docutils literal notranslate"><span class="pre">sudo</span></code> password. From
+here on the main playbook treats all six machines alike.
+<a class="reference internal" href="../how-to/node-operations.html"><span class="doc">Node operations</span></a> has the same steps for adding one node to a
+running cluster.</p>
+</section>
+<section id="collect-the-credentials">
+<h2>Collect the credentials<a class="headerlink" href="#collect-the-credentials" title="Link to this heading">#</a></h2>
+<p>Every SealedSecret in the repo is encrypted to the sealing key of the
+cluster that made it. A newly built cluster has a new key, so every one of
+them is sealed again during the build. Most secret values are random and
+are simply generated afresh; a few come from outside and have to be
+supplied:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Where it comes from</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GITHUB_CLIENT_ID</span></code>, <code class="docutils literal notranslate"><span class="pre">GITHUB_CLIENT_SECRET</span></code></p></td>
+<td><p>The GitHub OAuth app for Dex</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OAUTH2_PROXY_CLIENT_ID</span></code>, <code class="docutils literal notranslate"><span class="pre">OAUTH2_PROXY_CLIENT_SECRET</span></code></p></td>
+<td><p>The GitHub OAuth app for oauth2-proxy</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_API_TOKEN</span></code></p></td>
+<td><p>cert-manager’s DNS-01 token (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-dns01-token"><span class="std std-ref">cert-manager’s DNS-01 token</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CLOUDFLARE_TUNNEL_TOKEN</span></code></p></td>
+<td><p>The tunnel’s token, held in the OpenTofu state</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">VPS_RELAY_TS_OAUTH_CLIENT_SECRET</span></code>, <code class="docutils literal notranslate"><span class="pre">VPS_RELAY_FRP_TOKEN</span></code></p></td>
+<td><p>The Tailscale OAuth client and the frp token (optional: without them the relay’s secret is skipped)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SCRAP_ANTHROPIC_API_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code>, <code class="docutils literal notranslate"><span class="pre">SCRAP_PUBLISH_TOKEN</span></code></p></td>
+<td><p>scrap’s Claude API key and its two tokens (optional: without the API key scrap’s secrets are skipped)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">OFFSITE_BACKUP_RCLONE_CONF_B64</span></code></p></td>
+<td><p>rclone’s Google Drive credentials for the off-site backup (optional)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NTFY_&lt;USER&gt;_TOKEN</span></code></p></td>
+<td><p>ntfy’s access tokens; any that are missing are generated</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The first six are required. While the old cluster is still running, one
+command reads all of them out of it into <code class="docutils literal notranslate"><span class="pre">.env</span></code> at the repo root, which is
+gitignored:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>export-external-creds
+</pre></div>
+</div>
+<p>It also exports the tokens that clients hold copies of (scrap’s MCP token,
+the ntfy tokens), so a rebuild does not invalidate every phone and Claude
+session. Keep a copy of <code class="docutils literal notranslate"><span class="pre">.env</span></code> somewhere safe and off the cluster: after a
+real disaster it is the quick way back, and without it each value has to be
+fetched again from where it was issued.</p>
+</section>
+<section id="run-the-playbook">
+<h2>Run the playbook<a class="headerlink" href="#run-the-playbook" title="Link to this heading">#</a></h2>
+<p>The build commits the newly sealed secrets and pushes them, and nothing is
+ever committed to <code class="docutils literal notranslate"><span class="pre">main</span></code>, so it runs on a branch that ArgoCD is told to
+track:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>rebuild-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>
+git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>HEAD<span class="w">      </span><span class="c1"># ArgoCD cannot track a branch that is not on GitHub</span>
+
+<span class="nb">set</span><span class="w"> </span>-a<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a
+<span class="nv">GENERATE_SECRETS</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span><span class="s1">&#39;all:!node01&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span><span class="k">$(</span>git<span class="w"> </span>branch<span class="w"> </span>--show-current<span class="k">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">all:!node01</span></code> keeps <code class="docutils literal notranslate"><span class="pre">localhost</span></code> and <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> in the run, which the
+<code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">flash</span></code> and <code class="docutils literal notranslate"><span class="pre">cluster</span></code> stages need.</p>
+<pre  class="mermaid">
+        flowchart LR
+    tools[&quot;tools&lt;br/&gt;CLIs in the devcontainer&quot;] --&gt; flash[&quot;flash&lt;br/&gt;RK1 eMMC via the BMC&quot;]
+    flash --&gt; kh[&quot;known_hosts&lt;br/&gt;node host keys&quot;]
+    kh --&gt; servers[&quot;servers&lt;br/&gt;Ubuntu on NVMe, packages,&lt;br/&gt;data directories&quot;]
+    servers --&gt; k3s[&quot;k3s&lt;br/&gt;control plane, workers,&lt;br/&gt;etcd backup timer&quot;]
+    k3s --&gt; cluster[&quot;cluster&lt;br/&gt;ArgoCD, sealed secrets,&lt;br/&gt;root application&quot;]
+    cluster --&gt; argo[&quot;ArgoCD syncs&lt;br/&gt;the 24 child applications&quot;]
+    </pre><p>Each stage is a tag in <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> and can be run on its own
+(<a class="reference internal" href="../reference/playbook-tags.html"><span class="doc">Playbook tags reference</span></a>):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Stage</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tools</span></code></p></td>
+<td><p>Installs <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd</span></code> and the port-forward scripts in the devcontainer</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">flash</span></code></p></td>
+<td><p>For each RK1 that does not answer SSH: builds an eMMC image from two pinned downloads (Ubuntu’s 26.04 preinstalled server image and Armbian’s build of mainline U-Boot), copies it to the BMC, flashes it with <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> and boots it. This is a staging copy of Ubuntu; the eMMC ends up holding only U-Boot. The RK1s are flashed one after another</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code></p></td>
+<td><p>Records each node’s host key for the devcontainer and for the Claude sandbox</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">servers</span></code></p></td>
+<td><p>On each RK1, writes the same Ubuntu image to the NVMe, clears the eMMC’s partition table so U-Boot boots the NVMe, and reboots into it. Then on every node: package upgrades, unattended-upgrades, the NVIDIA runtime on ws03, and the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> directories on node04 and nuc2</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
+<td><p>Installs K3s on node02, joins the other five through <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> with their labels (and ws03’s <code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint), and installs the nightly encrypted etcd backup on node02</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
+<td><p>Taints node02 <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> and node03 <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code>, installs ArgoCD with its Dex login and RBAC, waits for the Sealed Secrets controller, generates and seals every secret, commits and pushes them, then creates the root application <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The root application is created last on purpose: if ArgoCD started syncing
+before the new SealedSecrets were pushed, it would apply the old ones,
+which the new controller cannot decrypt.</p>
+<p><strong>How long it takes.</strong> An RK1 takes about 25 minutes from bare metal:
+about ten to flash the eMMC, a few to boot the staging system, and about
+five to install the NVMe and reboot. With three RK1s flashed in turn, the
+flash stage is most of the run. The K3s and cluster stages take ten to
+twenty minutes, and ArgoCD needs a few more minutes after the playbook ends
+to bring every application to <code class="docutils literal notranslate"><span class="pre">Healthy</span></code>. The controller needs about 6 GB
+free in <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> while it builds the RK1 image.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code> flashes the eMMC of any Turing Pi node that does not
+answer SSH, so check that every node you want kept is up before using it.
+It never wipes an RK1’s NVMe that has a partition table: the play stops and
+asks for <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">flash_force=true</span></code>. That flag re-flashes running nodes too, and
+wiping an NVMe is a fresh install that destroys the node’s
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>. On node04 that is Grafana’s and Prometheus’s data.
+Read <a class="reference internal" href="../how-to/reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a> before passing it.</p>
+</div>
+<p>An untagged run ends with one more play, <code class="docutils literal notranslate"><span class="pre">claude_key</span></code>, which authorises
+Claude’s own SSH key on every node. On a workstation where that key has not
+been made yet the play fails after everything else is done; run
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code> afterwards (<a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Set up and run Claude Code</span></a>).</p>
+<p>On later runs leave <code class="docutils literal notranslate"><span class="pre">do_flash</span></code> out. Every stage is idempotent and skips
+what is already done.</p>
+<section id="what-the-secrets-step-did">
+<h3>What the secrets step did<a class="headerlink" href="#what-the-secrets-step-did" title="Link to this heading">#</a></h3>
+<p>With <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> stage ran
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code>, which:</p>
+<ol class="arabic simple">
+<li><p>generated every random secret (the Dex client secrets, cookie secrets,
+the shared admin password) and combined them with the values from
+<code class="docutils literal notranslate"><span class="pre">.env</span></code>;</p></li>
+<li><p>sealed them all against the new cluster’s key into the <code class="docutils literal notranslate"><span class="pre">*-secret.yaml</span></code>
+files under <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/</span></code>;</p></li>
+<li><p>ran <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code>, which creates the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> Secret in
+the <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> namespace.</p></li>
+</ol>
+<p>The admin password is printed in the playbook output and saved to
+<code class="docutils literal notranslate"><span class="pre">/tmp/cluster-secrets/admin-password.txt</span></code>; set <code class="docutils literal notranslate"><span class="pre">ADMIN_PASSWORD</span></code> beforehand
+to choose it. <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> is the one Secret that is created directly and
+not sealed: Grafana’s chart needs it to exist for the built-in admin
+account. That account cannot be used to sign in, because the password form
+is turned off, so Grafana is only usable once <code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret</span></code> (one
+of the sealed secrets above) exists and Dex is answering.</p>
+<p>If a run was made without <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS</span></code>, do the same afterwards by
+hand: source <code class="docutils literal notranslate"><span class="pre">.env</span></code>, run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code>, then commit and push
+the changed files.</p>
+</section>
+</section>
+<section id="the-cloudflare-edge">
+<h2>The Cloudflare edge<a class="headerlink" href="#the-cloudflare-edge" title="Link to this heading">#</a></h2>
+<p>The public side (DNS records, the tunnel and its hostnames, Cloudflare
+Access, cache and rate-limit rules) is OpenTofu code in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>. It
+is separate from the cluster and survives a rebuild untouched. On a
+rebuild, <code class="docutils literal notranslate"><span class="pre">.env</span></code> already carried the tunnel’s token, so cloudflared
+reconnects by itself and this confirms nothing has drifted:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>cf-init<span class="w">      </span><span class="c1"># once per checkout: provider and encrypted local state</span>
+just<span class="w"> </span>cf-plan<span class="w">      </span><span class="c1"># expect &quot;No changes&quot;</span>
+</pre></div>
+</div>
+<p>Building the edge from nothing is the same commands plus an apply:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>cf-init
+just<span class="w"> </span>cf-plan
+just<span class="w"> </span>cf-apply<span class="w">             </span><span class="c1"># asks for the edit token and for confirmation</span>
+just<span class="w"> </span>cf-seal-tunnel-token<span class="w"> </span><span class="c1"># seals the new tunnel&#39;s token for cloudflared</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">cf-seal-tunnel-token</span></code> reads the token from the encrypted state, writes
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/cloudflared/tunnel-secret.yaml</span></code> without ever
+printing the token, and updates <code class="docutils literal notranslate"><span class="pre">.env</span></code> if it is there. Commit and push the
+file and ArgoCD delivers it. <a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a> has the
+tokens, the state passphrase and <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>.</p>
+</section>
+<section id="verify">
+<h2>Verify<a class="headerlink" href="#verify" title="Link to this heading">#</a></h2>
+<p>Work down this list; each item depends on the ones above it.</p>
+<ol class="arabic">
+<li><p><strong>Nodes.</strong> Six nodes <code class="docutils literal notranslate"><span class="pre">Ready</span></code>; node02 has the roles
+<code class="docutils literal notranslate"><span class="pre">control-plane,etcd</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>wide
+</pre></div>
+</div>
+</li>
+<li><p><strong>Applications and secrets.</strong> All 25 applications <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and
+<code class="docutils literal notranslate"><span class="pre">Healthy</span></code>, and every SealedSecret decrypted.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>status
+kubectl<span class="w"> </span>get<span class="w"> </span>sealedsecrets<span class="w"> </span>-A
+</pre></div>
+</div>
+<p>A SealedSecret that says <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">key</span> <span class="pre">could</span> <span class="pre">decrypt</span> <span class="pre">secret</span></code> means ArgoCD is
+still on the old files: run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">argocd-sync</span></code>. Then restart the pods
+that read secrets at start-up with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">restart-dex</span></code>.</p>
+</li>
+<li><p><strong>The wildcard certificate.</strong> <code class="docutils literal notranslate"><span class="pre">wildcard-cert</span></code> in <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code> shows
+<code class="docutils literal notranslate"><span class="pre">READY</span> <span class="pre">True</span></code>. cert-manager gets it from Let’s Encrypt with a DNS-01
+challenge, which takes a few minutes.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>certificate<span class="w"> </span>-A
+</pre></div>
+</div>
+</li>
+<li><p><strong>Volumes.</strong> Every PV is <code class="docutils literal notranslate"><span class="pre">Bound</span></code>, including the static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code>
+ones (<code class="docutils literal notranslate"><span class="pre">grafana-local</span></code>, <code class="docutils literal notranslate"><span class="pre">prometheus-local</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-local</span></code>,
+<code class="docutils literal notranslate"><span class="pre">scrap-backup-copy-local</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-local</span></code>) and the NFS ones.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pv
+</pre></div>
+</div>
+</li>
+<li><p><strong>Logins.</strong> Open <a class="reference external" href="https://home.gkcluster.org">https://home.gkcluster.org</a> and sign in to ArgoCD and
+to Grafana with GitHub. Then open Headlamp and paste a token from
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code>. <a class="reference internal" href="tour.html"><span class="doc">A tour of the cluster</span></a> walks through every
+service.</p></li>
+<li><p><strong>Backups.</strong> Run the two backups that have a recipe. The first leaves
+an encrypted bundle on the NAS under
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/etcd/</span></code>; the second uploads what is on the
+NAS to Google Drive and follows the job’s log:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>etcd-backup-now
+just<span class="w"> </span>offsite-backup-now
+</pre></div>
+</div>
+<p>The other backup jobs run overnight; look the next morning
+(<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>).</p>
+</li>
+<li><p><strong>An off-site file decrypts.</strong> Download one file from the
+<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code> folder on Google Drive and decrypt it with the
+offline age key (<a class="reference internal" href="../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). A backup that has never been
+decrypted is not yet a backup.</p></li>
+<li><p><strong>Merge.</strong> Open a pull request from the build branch, merge it, and put
+the cluster back on <code class="docutils literal notranslate"><span class="pre">main</span></code> (<a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>switch-branch<span class="w"> </span>main
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="let-claude-drive-it">
+<h2>Let Claude drive it<a class="headerlink" href="#let-claude-drive-it" title="Link to this heading">#</a></h2>
+<p>Two commands in <code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code> run these steps from a Claude Code
+session in the devcontainer.</p>
+<p><code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> is the one used here. It rebuilds K3s and everything
+above it on machines that are already installed; it does not re-flash. Its
+eight phases are: preparation (a gate that checks the Minecraft worlds will
+survive, the rebuild branch, a copy of the wildcard certificate so Let’s
+Encrypt is not asked again, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code>);
+decommission with <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>, which keeps <code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>; the rebuild itself, the <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> run
+above with <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">k3s,servers,cluster</span></code>; post-rebuild fixes (sync, restore
+the certificate, restart Dex); a health check that polls until everything
+is healthy; checks by <code class="docutils literal notranslate"><span class="pre">curl</span></code>; checks in a browser; and preparing the pull
+request. It works without asking at each step and commits to its own
+branch. It is also how a change to the roles or to secret handling is
+tested before it is merged (<a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">/bootstrap-cluster</span></code> is the first-build interview: it asks about the
+hardware, the domain, the repository and the optional features, writes the
+three configuration files from the answers, checks the ansible key, runs
+the playbook (with <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code> if all six credentials are
+exported) and writes the credentials it generated to
+<code class="docutils literal notranslate"><span class="pre">/tmp/cluster-credentials.txt</span></code>. It was written when the repo was meant to
+be forked, so it asks questions whose answers are already in the files
+here; for this cluster the steps on this page are shorter.</p>
+<div class="tip admonition" id="adapting-this-to-other-hardware">
+<p class="admonition-title">Adapting this to other hardware</p>
+<p>This repo builds one particular cluster, and is not a template. Someone
+borrowing from it would need to change at least:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: the machines, their slots, and the per-node flags.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code>, <code class="docutils literal notranslate"><span class="pre">domain_email</span></code>, <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>,
+<code class="docutils literal notranslate"><span class="pre">repo_remote</span></code>, <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>, <code class="docutils literal notranslate"><span class="pre">dns_router</span></code> (the
+<code class="docutils literal notranslate"><span class="pre">k3s-api-dns</span></code> recipe assumes OpenWrt) and the age public key.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> pair, which pins each
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volume to a named node and path.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nfs</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs_csi</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>: the NFS server and its paths, and
+the directory layout made by hand on the NAS.</p></li>
+<li><p>Every SealedSecret: they can only be decrypted by this cluster, so each
+must be sealed again from your own values.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code> (from <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars.example</span></code>): the
+account, zone, team and email values behind the OpenTofu code.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, <code class="docutils literal notranslate"><span class="pre">cf_access_team</span></code> and the Minecraft, VPS relay and
+Jellyfin blocks in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>, which name this site’s nodes and
+addresses.</p></li>
+<li><p>The Network row of the home page, hard-coded in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/home/templates/manifests.yaml</span></code>.</p></li>
+</ul>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="tour.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">A tour of the cluster</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../how-to.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">How-to guides</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-must-exist-first">What must exist first</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prepare-the-workstation">Prepare the workstation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-three-configuration-files">The three configuration files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#point-the-api-name-at-the-control-plane">Point the API name at the control plane</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#put-the-nucs-and-the-workstation-under-ansible">Put the NUCs and the workstation under Ansible</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#collect-the-credentials">Collect the credentials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-playbook">Run the playbook</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-the-secrets-step-did">What the secrets step did</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cloudflare-edge">The Cloudflare edge</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify">Verify</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#let-claude-drive-it">Let Claude drive it</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/tutorials/build-the-cluster.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/tutorials/build-the-cluster.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

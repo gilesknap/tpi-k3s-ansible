@@ -1,127 +1,211 @@
-# Using Claude Code
+# Set up and run Claude Code
 
-This project includes [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-configuration for AI-assisted development with safe autonomy guardrails.
+The procedures for running [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+against this cluster. Claude runs inside
+[claude-sandbox](https://github.com/DiamondLightSource/claude-sandbox), a
+bubblewrap jail inside the devcontainer, with its own narrow set of
+credentials. {doc}`/explanations/architecture/claude-code` explains that
+structure and why it is built that way; this page is only what to type.
 
-## Sandbox installation
+Two places come up throughout:
 
-The sandbox is [claude-sandbox](https://github.com/DiamondLightSource/claude-sandbox),
-installed from its upstream release by `.devcontainer/postCreate.sh` — no
-sandbox code is vendored into this repo. The installer picks the newest
-release tag, so a devcontainer rebuild also brings the sandbox up to date;
-`claude-sandbox version` reports what is installed and `claude-sandbox update`
-upgrades between rebuilds.
+- the **outer devcontainer**: an ordinary VS Code terminal in the
+  container. It runs as root, has the forwarded SSH agent, and can write
+  `/etc`.
+- the **sandbox**: where `claude` runs. It sees the workspace, `/cache`
+  and a short list of paths under `/root`, and nothing else of the
+  container's home directory.
 
-The installer places a shadow `claude` on `$PATH` that wraps the real binary
-in `bwrap`, plus a global integrity guard (installed to `/etc`, so a session
-cannot edit it away) that fails closed if Claude is ever launched unwrapped.
-Run `claude-sandbox verify` for the live PASS/FAIL battery.
+## Before opening the container
 
-Two pieces of wiring are this repo's, because an installer cannot supply them:
+Load the ansible key into a running `ssh-agent` on the workstation:
 
-`--device=/dev/net/tun` in `devcontainer.json`'s `runArgs`
-: Required by the fail-closed network egress jail. Without it, `claude`
-  refuses to launch.
+```bash
+ssh-add ~/.ssh/ansible_rsa
+ssh-add -l
+```
 
-`.devcontainer/claude-sandbox.conf`
-: Copied to `/etc/claude-sandbox.conf` by `postCreate.sh` after the install.
-  It widens the writable bind to `/workspaces` (peer projects) plus `/cache`,
-  and lists each cluster host, plus the NAS, as an `allow-ip` — the egress jail blackholes
-  RFC1918 by default, so ansible, `ssh` and `kubectl` would otherwise fail
-  from inside the sandbox. Keep the list in step with `hosts.yml` (plus the NAS), and
-  re-apply with `just sandbox-conf` after a `claude-sandbox update`.
+VS Code forwards the agent that is running when the container starts, and
+copies `~/.ssh/known_hosts` in. If no agent is running at that moment the
+container has no `SSH_AUTH_SOCK`, and Ansible cannot reach the nodes until
+the container is reopened.
 
-  It also binds back the three `/root` paths this repo's tooling lives in.
-  The sandbox wipes `$HOME` to a tmpfs and restores only its own allowlist,
-  which does not include them:
+## What the container build sets up
 
-  | Path | Why |
-  | --- | --- |
-  | `/root/bin` | `bin_dir` — where the `tools` role installs `kubectl`, `helm`, `kubeseal`, `argocd`. The `/usr/local/bin` entries are symlinks into it, so without the bind they dangle and the CLIs are "not found" despite appearing to exist |
-  | `/root/.kube` | The kubeconfig, so a visible `kubectl` has a cluster to talk to |
-  | `/root/.config/claude-ssh` | Claude's own ansible-account key from `just claude-ssh-bootstrap`; `$HOME/.config` is a strict allowlist upstream (`gh` + `glab` only) |
+Nothing here needs doing by hand; it is listed so that a broken container
+can be diagnosed.
 
-  Symptom when these are missing: `kubectl` reports `command not found`
-  inside the sandbox while resolving fine in an ordinary devcontainer
-  terminal.
+| Piece | Where it comes from |
+|-------|---------------------|
+| claude-sandbox itself | Its VS Code extension (`diamondlightsource.claude-sandbox-vscode` in `devcontainer.json`) installs the upstream release. No sandbox code is kept in this repo |
+| `--device=/dev/net/tun` | A `runArgs` entry in `devcontainer.json`. The sandbox's network jail needs it; without it `claude` refuses to start |
+| `/etc/claude-sandbox.conf` | `.devcontainer/postCreate.sh` copies this repo's `.devcontainer/claude-sandbox.conf` over the installer's default |
+| `kubectl`, `helm`, `kubeseal`, `argocd` | `postCreate.sh` runs `ansible-playbook pb_all.yml --tags tools`, which installs them in `/root/bin` (a volume, so they survive a rebuild) |
+| Node host keys | `postCreate.sh` runs `--tags known_hosts`, which writes them to `/etc/ssh/ssh_known_hosts`, the only copy the sandbox can read |
+| Git credentials | `postStart.sh` clears any credential helper and SSH rewrite copied in from the host, so that only the `gh` token below can push |
 
-## Credential isolation
+This repo's `claude-sandbox.conf` makes three changes to the sandbox's
+defaults: the writable workspace is the whole of `/workspaces` (so sibling
+repos can be edited); `/cache`, `/root/bin`, `/root/.kube` and
+`/root/.config/claude-ssh` are bound in; and each cluster host and the NAS
+is an `allow-ip`, because the sandbox otherwise blocks every private
+address.
 
-The devcontainer applies several layers of protection against prompt injection
-attacks (malicious instructions hidden in GitHub issues, web content, or
-repository files that attempt to misuse Claude's tool access):
+## First-time setup
 
-**Sandbox-enforced isolation from host credentials:**
-: Claude runs inside a bwrap sandbox that uses `--clearenv` and a
-  strict-under-`/root` tmpfs overlay. Only an
-  explicit allowlist of dotfiles is bind-mounted back into the sandbox —
-  `.ssh` is deliberately excluded, and `SSH_AUTH_SOCK` is not re-exported.
-  So even though VS Code forwards the host SSH agent to the devcontainer
-  (for use in your own terminals), Claude cannot reach it. The same boundary
-  applies to `~/.netrc`, `~/.Xauthority`, `/etc/shadow`, and the rest of
-  `$HOME`'s contents.
+In the outer devcontainer:
 
-**Git credential helper blanking:**
-: `postStartCommand` runs `git config --global credential.helper ''`, which
-  overrides any credential helper injected by VS Code's Dev Containers
-  extension. Remote pushes require an explicit fine-grained PAT via
-  `gh auth login` + `gh auth setup-git`.
+```bash
+just setup
+```
 
-**Scoped GitHub authentication:**
-: GitHub CLI auth is persisted in a per-repo container volume
-  (`gh-auth-${localWorkspaceFolderBasename}`). Use a fine-grained PAT scoped
-  to only the repositories needed, rather than a broad OAuth token. The volume
-  isolation means each project gets its own credential scope.
+This checks that the forwarded agent has a key, then runs
+`claude-sandbox gh-auth`, which asks for a GitHub token and stores it where
+the sandbox can use it. Give it a fine-grained personal access token
+scoped to this repository (and any sibling repo Claude should push to),
+with read and write on contents and pull requests. `claude-sandbox gh-auth`
+can also be run by itself. The token is kept in a volume named for the
+repo (`gh-auth-tpi-k3s-ansible`), so it survives a container rebuild and is
+not shared with other projects.
+
+Then start Claude Code from the VS Code extension, or with `claude` in a
+terminal.
+
+## Give Claude its own access to the nodes
+
+The sandbox cannot see the forwarded SSH agent, so by default Claude can
+use `kubectl` but cannot SSH to a node or run a playbook. To allow that,
+give it a key of its own. In the outer devcontainer:
+
+```bash
+just claude-ssh-bootstrap
+```
+
+The recipe creates an ed25519 key pair in `/root/.config/claude-ssh` if
+there is none (a volume, `iac2-claude-ssh`, so it persists), then runs the
+`claude_key` play of `pb_all.yml`, which adds the public key to the
+`ansible` account on every node. It has to run in the outer devcontainer
+because the first connection to each node uses the owner's key from the
+agent.
+
+Inside the sandbox nothing passes that key automatically, so Claude names
+it each time:
+
+```bash
+ssh -i /root/.config/claude-ssh/id_ed25519 ansible@node03
+ansible-playbook pb_all.yml --tags servers \
+  --private-key /root/.config/claude-ssh/id_ed25519
+```
+
+To take the access away again, on every node:
+
+```bash
+just claude-ssh-bootstrap revoke
+```
+
+## After updating the sandbox
+
+`claude-sandbox update`, run in the outer devcontainer, upgrades the
+sandbox between container rebuilds. Its installer writes its own default
+over `/etc/claude-sandbox.conf`, which drops this repo's `allow-ip` and
+`allow-write` lines. Put them back straight afterwards:
+
+```bash
+just sandbox-conf
+```
+
+The sandbox reads the file at each launch, so start a new Claude session
+for it to take effect. The same recipe applies an edit to
+`.devcontainer/claude-sandbox.conf` without rebuilding the container.
+
+## When a node is added
+
+The sandbox reaches only the private addresses listed in
+`.devcontainer/claude-sandbox.conf`. Today those are the BMC and every
+host in `hosts.yml`, plus the NAS:
+
+| Address | Host |
+|---------|------|
+| 192.168.1.80 | `turingpi` (BMC) |
+| 192.168.1.81 to .84 | `node01` to `node04` (node02 is also the K3s API) |
+| 192.168.1.91, .92 | `nuc1`, `nuc2` |
+| 192.168.1.10 | `ws03` |
+| 192.168.1.3 | the NAS |
+
+When a node joins, or one changes address:
+
+1. Add an `allow-ip = <address> # <name>` line to
+   `.devcontainer/claude-sandbox.conf` and commit it.
+2. `just sandbox-conf` in the outer devcontainer.
+3. `ansible-playbook pb_all.yml --tags known_hosts` in the outer
+   devcontainer, so the new host key reaches `/etc/ssh/ssh_known_hosts`.
+4. `just claude-ssh-bootstrap`, so the new node accepts Claude's key.
+5. Start a new Claude session.
+
+If the control plane moves, check that its address is in the list: the
+kubeconfig uses the name `k3s.lan`, which must resolve to an allowed
+address.
+
+## Check the sandbox
+
+```bash
+claude-sandbox verify
+```
+
+This runs the sandbox's own battery of isolation checks and prints a
+`PASS` or `FAIL` line for each. It works in the outer devcontainer and
+inside a session. `claude-sandbox version` reports what is installed.
+
+## Symptoms and fixes
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `claude` refuses to start | `/dev/net/tun` is missing from the container | Rebuild the devcontainer from this repo's `devcontainer.json` |
+| `kubectl: command not found` inside the sandbox, while it works in an ordinary terminal | `/etc/claude-sandbox.conf` has lost the `allow-write = /root/bin` line, so the links in `/usr/local/bin` point at nothing. Usually after `claude-sandbox update` | `just sandbox-conf`, then a new session |
+| `kubectl` is found but has no cluster | The `/root/.kube` bind is missing (same cause), or the kubeconfig was never fetched | `just sandbox-conf`; if still empty, `ansible-playbook pb_all.yml --tags tools` in the outer devcontainer |
+| A node, the API or the NAS times out from the sandbox only | Its address is not an `allow-ip` | Add it as in [When a node is added](#when-a-node-is-added) |
+| `ssh ansible@<node>` says `Permission denied (publickey)` | The key was not named, or was never deployed | Add `-i /root/.config/claude-ssh/id_ed25519`; if it still fails, `just claude-ssh-bootstrap` |
+| `Host key verification failed` | The node was re-flashed and `/etc/ssh/ssh_known_hosts` is stale. The sandbox cannot write `/etc` | `ansible-playbook pb_all.yml --tags known_hosts` in the outer devcontainer |
+| `gh` or `git push` is not authenticated | No token, or the container was recreated without its volume | `claude-sandbox gh-auth` in the outer devcontainer |
+| `apt-get` fails with a read-only filesystem | The sandbox cannot change the container | Install the package in the outer devcontainer; the sandbox sees it at once |
 
 ## Permissions
 
-This repo ships **no committed permission policy**. What is checked in under
-`.claude/` is the agent toolkit only — the workspace commands in
-`.claude/commands/` and the on-demand skills in `.claude/skills/`. Tool
-approvals are per-developer and accumulate in `.claude/settings.local.json`,
-which is gitignored, so your allowlist is yours and never lands in a PR.
+The repo commits no permission policy. `.claude/` holds only the commands
+and skills below. The tool approvals a session collects are written to
+`.claude/settings.local.json`, which is personal and gitignored, so one
+person's allow-list never reaches a pull request. To change what is
+approved, edit the `allow`, `ask` and `deny` lists under `permissions` in
+that file; a pattern such as `Bash(kubectl get *)` matches any
+`kubectl get` command.
 
-Containment comes from two other places instead:
+The approvals are a convenience, not the safety boundary. The boundary is
+the sandbox, which holds whatever a session has been allowed to run, and
+the rules in `CLAUDE.md`, which Claude follows but nothing enforces.
 
-**The sandbox**
-: The bwrap jail and its fail-closed egress filter (see above). This is the
-  hard boundary — it holds whatever a session has approved, because it is
-  enforced outside the agent rather than by it.
+## Commands and skills
 
-**`CLAUDE.md`**
-: The hard rules — never mutate the live cluster, never commit to `main`,
-  protected data paths. These are conventions the agent follows, not
-  enforcement, so treat them as guidance rather than a guarantee.
+Claude reads `CLAUDE.md` at the start of every session: the hard rules
+(never change the live cluster by hand, never commit to `main`, the data
+paths that must not be touched), the key paths and the conventions.
 
-## CLAUDE.md
+**Commands** are runbooks, started by typing their name in a session:
 
-The `CLAUDE.md` file at the repo root provides project-specific guidance to AI
-agents. It captures the hard rules (never mutate the live cluster, never commit
-to `main`, protected data paths), conventions, key file paths, and pointers to
-on-demand skills. Read it directly for the current set — it changes as the
-project evolves.
+| Command | What it does |
+|---------|--------------|
+| `/rebuild-cluster` | Decommissions and rebuilds K3s and every service, keeping the data, then verifies the result and prepares the pull request |
+| `/bootstrap-cluster` | The interview-driven first build of a cluster |
+| `/add-node` | Adds a machine to the inventory and joins it |
+| `/test-oauth-flow` | Walks each login in a browser and checks it ends where it should |
+| `/pr-squash` | Regroups a branch's commits into a clean pull request |
 
-## Workflow
+Text after the name is passed to the command, for example
+`/rebuild-cluster test PR 123 on branch my-change`.
 
-1. On the host, make sure your ansible key is loaded into a running
-   `ssh-agent` before opening the container. VS Code will forward
-   `SSH_AUTH_SOCK` and copy `~/.ssh/known_hosts` into the devcontainer
-   automatically.
-2. Open the repo in the devcontainer (tools are installed automatically)
-3. Set up GitHub CLI auth: `claude-sandbox gh-auth` (use a fine-grained PAT),
-   or `just setup` to check the SSH agent at the same time
-4. Launch Claude Code from the VS Code extension or CLI
-5. The agent reads `CLAUDE.md` and the `.claude/` toolkit on startup
-6. Approve tools as they are requested; the answers persist in
-   `.claude/settings.local.json` for subsequent sessions
+**Skills** are background knowledge that Claude loads when a task calls
+for it, or when asked by name: `/ansible`, `/argocd`, `/cloudflare`,
+`/oauth` and `/sealed-secrets`. Each records the traps met in that area
+(for instance, that a SealedSecret file must be named `*-secret.yaml`).
 
-## Customising permissions
-
-Edit `.claude/settings.local.json` to adjust your own approvals — move entries
-between the `allow`, `ask`, and `deny` lists under `permissions`. Patterns use
-glob syntax, so `Bash(kubectl get *)` matches any `kubectl get` command.
-
-To impose a policy on everyone working in the repo rather than just yourself,
-put the same `permissions` block in a committed `.claude/settings.json`. Both
-files are merged with your user-global `~/.claude/settings.json`, with the
-more specific file winning.
+{doc}`/explanations/claude-code-capability` describes how these are used
+and kept up to date.

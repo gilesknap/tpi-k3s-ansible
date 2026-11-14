@@ -1,148 +1,91 @@
-# Inventory Reference
+# Inventory reference
 
-The Ansible inventory file `hosts.yml` defines all hosts and their groupings.
+`hosts.yml` at the repo root is the only Ansible inventory (`ansible.cfg` names
+it, so no `-i` is needed). It lists machines by name, without addresses: the
+router's DNS resolves `node02`, `nuc2` and the rest, and the `known_hosts` role
+looks each one up as `<name>.lan` (`local_domain`).
 
-## Host groups
+For what the machines are, see {doc}`/explanations/architecture/hardware`.
 
-| Group | Purpose | Used by |
+## Groups
+
+| Group | Members | Used by |
 |-------|---------|---------|
-| `controller` | The devcontainer (localhost) | `tools`, `cluster` roles |
-| `turing_pis` | Turing Pi BMC hosts | `flash`, `known_hosts` roles |
-| `<bmc>_nodes` | Nodes on a specific Turing Pi | `flash`, all node roles |
-| `extra_nodes` | Non-Turing Pi servers | All node roles |
-| `all_nodes` | Union of all node groups | `known_hosts`, `move_fs`, `update_packages`, `k3s` |
+| `controller` | `localhost`, with a local connection | Sets how Ansible reaches the devcontainer. The plays that run there (`tools`, `cluster`) target `localhost` directly |
+| `turing_pis` | `turingpi` (the BMC) | The `flash` play, which drives `tpi` on the BMC, and `known_hosts` |
+| `turingpi_nodes` | `node01` to `node04` | The `flash` role, to find the BMC's nodes; member of `all_nodes` |
+| `extra_nodes` | `ws03`, `nuc2`, `nuc1` | `pb_add_nodes.yml`, which gives Ansible its account on a machine whose OS was installed by hand; member of `all_nodes` |
+| `all_nodes` | `turingpi_nodes` and `extra_nodes` | Every node play in `pb_all.yml` (`known_hosts`, `servers`, `k3s`, `claude_key`) and `pb_decommission.yml` |
 
-## Naming conventions
+`turing_pis` connects as `tpi_user` (`root`); the node groups connect as
+`ansible_account` (`ansible`), with sudo.
 
-### Turing Pi node groups
+### The `<bmc>_nodes` rule
 
-Node groups for Turing Pi boards **must** be named `<bmc_hostname>_nodes`. The flash
-role uses this convention to discover which nodes belong to each BMC.
-
-Examples:
-
-- BMC hostname `turingpi` → node group `turingpi_nodes`
-- BMC hostname `turingpi-2` → node group `turingpi-2_nodes`
-
-### The `all_nodes` group
-
-The `all_nodes` group is a union of all node groups. Define it using `children`:
-
-```yaml
-all_nodes:
-  children:
-    turingpi_nodes:
-    extra_nodes:
-```
+The group holding a Turing Pi's nodes must be named after the BMC's inventory
+name plus `_nodes`. The `flash` role runs on the BMC and finds its nodes with
+`groups[inventory_hostname + '_nodes']`, so the BMC `turingpi` owns
+`turingpi_nodes`. A second board called `turingpi2` would need a
+`turingpi2_nodes` group, added to `all_nodes` as well (`hosts.yml` carries a
+commented-out sketch of one).
 
 ## Per-node variables
 
-| Variable | Required | Values | Description |
-|----------|----------|--------|-------------|
-| `slot_num` | For Turing Pi nodes | `1`–`4` | Physical slot on the board (slot 1 nearest coin battery) |
-| `type` | For Turing Pi nodes | `rk1`, `pi4` | Compute module type (determines OS image) |
-| `root_dev` | Optional, RK1 only | Device path | The disk to install the OS on (e.g. `/dev/nvme0n1`); the eMMC then holds only U-Boot |
-| `nvidia_gpu_node` | Optional | `true`/`false` | Set `true` for nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node `nvidia.com/gpu.present=true`. Required for GPU workloads. |
-| `intel_gpu_node` | Optional | `true`/`false` | Set `true` for nodes with an Intel iGPU. Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin advertises `gpu.intel.com/i915` there. |
-| `workstation` | Optional | `true`/`false` | Applies `workstation=true:NoSchedule` taint and `node-role=workstation` label, set when the agent registers so nothing schedules there before them; the label also keeps the node out of automatic K3s upgrades. Only tolerating workloads (GPU, monitoring) schedule here. |
-| `node_ip` | Optional | IP address | Forces K3s to use this IP (passed as `--node-ip`). Required for multi-homed nodes where the default route interface is on the wrong subnet. |
-| `flannel_iface` | Optional | Interface name | Forces flannel's VXLAN tunnel to use this interface (passed as `--flannel-iface`). Must match the interface carrying `node_ip`. Required alongside `node_ip` on multi-homed nodes. |
+| Variable | Applies to | Values | Effect |
+|----------|------------|--------|--------|
+| `slot_num` | Turing Pi nodes, required | `1` to `4` | The slot on the board, which `tpi` powers and flashes (slot 1 is nearest the coin battery) |
+| `type` | Turing Pi nodes, required | `rk1`, `pi4` | The compute module, which decides the image flashed |
+| `root_dev` | RK1, optional | Device path | The disk the OS is installed on (`/dev/nvme0n1`); the eMMC then holds only U-Boot. `move_fs` refuses it on any other `type` |
+| `nvidia_gpu_node` | Optional | `true`/`false` | Installs the NVIDIA driver and container toolkit, configures K3s's containerd with the NVIDIA runtime and labels the node `nvidia.com/gpu.present=true` |
+| `intel_gpu_node` | Optional | `true`/`false` | Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node |
+| `workstation` | Optional | `true`/`false` | Registers the agent with the `workstation=true:NoSchedule` taint and the `node-role=workstation` label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation ({doc}`/explanations/upgrade-model`) |
+| `node_ip` | Optional | IPv4 address | Passed to the agent as `--node-ip`. Needed on a multi-homed node whose default route is on the wrong subnet |
+| `flannel_iface` | Optional | Interface name | Passed as `--flannel-iface`: the interface that carries `node_ip` |
 
-## Example: Turing Pi only
+The two GPU flags default to `false` in `group_vars/all.yml`. Which node is the
+control plane is not an inventory setting: `control_plane` and
+`standby_control_plane` in `group_vars/all.yml` name them
+({doc}`/reference/variables`).
 
-```yaml
-controller:
-  hosts:
-    localhost:
-      ansible_connection: local
+## The inventory as it stands
 
-turing_pis:
-  hosts:
-    turingpi:
-  vars:
-    ansible_user: "{{ tpi_user }}"
+| Host | Group | Address | Slot | `type` | `root_dev` | Flags | In the cluster |
+|------|-------|---------|------|--------|------------|-------|----------------|
+| `turingpi` | `turing_pis` | 192.168.1.80 | | | | | BMC, not a node |
+| `node01` | `turingpi_nodes` | 192.168.1.81 | 1 | `pi4` | | | No (see below) |
+| `node02` | `turingpi_nodes` | 192.168.1.82 | 2 | `rk1` | `/dev/nvme0n1` | | Control plane and etcd (`control_plane`) |
+| `node03` | `turingpi_nodes` | 192.168.1.83 | 3 | `rk1` | `/dev/nvme0n1` | | Worker, warm standby (`standby_control_plane`) |
+| `node04` | `turingpi_nodes` | 192.168.1.84 | 4 | `rk1` | `/dev/nvme0n1` | | Worker |
+| `ws03` | `extra_nodes` | 192.168.1.10 | | | | `nvidia_gpu_node`, `workstation` | Worker, tainted |
+| `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `flannel_iface: enp3s0`, `intel_gpu_node` | Worker |
+| `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
 
-turingpi_nodes:
-  hosts:
-    node01:
-      slot_num: 1
-      type: pi4
-    node02:
-      slot_num: 2
-      type: rk1
-      root_dev: /dev/nvme0n1
-    node03:
-      slot_num: 3
-      type: rk1
-      root_dev: /dev/nvme0n1
-    node04:
-      slot_num: 4
-      type: rk1
-      root_dev: /dev/nvme0n1
-  vars:
-    ansible_user: "{{ ansible_account }}"
+The addresses are not in `hosts.yml`; they are the ones the router hands out,
+and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.
 
-all_nodes:
-  children:
-    turingpi_nodes:
-```
+:::{note}
+`node01` (the CM4 in slot 1) was the control plane before that role moved to
+`node02`. It is still listed in `hosts.yml`, so it is still a member of
+`all_nodes`, but it is not a member of the running cluster: `kubectl get nodes`
+shows `node02`, `node03`, `node04`, `nuc1`, `nuc2` and `ws03`. A playbook run
+without `--limit` still tries to reach it.
+:::
 
-## Example: Standalone servers only
+## What else to touch when a node is added or removed
 
-```yaml
-controller:
-  hosts:
-    localhost:
-      ansible_connection: local
+`hosts.yml` is not the only file that knows the list of nodes. The `/add-node`
+command covers the inventory, the playbooks and the RCON allow-list; the other
+rows are done by hand, and {doc}`/how-to/node-operations` has the procedures.
 
-extra_nodes:
-  hosts:
-    server1:
-    server2:
-    server3:
-  vars:
-    ansible_user: "{{ ansible_account }}"
+| Where | What | Why |
+|-------|------|-----|
+| `.devcontainer/claude-sandbox.conf` | An `allow-ip` line for the node's address, then `just sandbox-conf` | claude-sandbox blocks every private address that is not listed, so Ansible, SSH and kubectl inside it cannot reach an unlisted node |
+| `kubernetes-services/values.yaml`, `minecraft.worlds.rcon_allowed_cidrs` | The node's address as a `/32` under `except` | Pods on another node reach a world's RCON port from their node's address, so every node but the world node (`nuc2`) and `ws03` is carved out of the LAN allow-list |
+| `group_vars/all.yml`, `k8s_data_dirs` and `values.yaml`, `local_storage` | An entry in each, with the same `node` and `path` | Only if the node will hold a `local-nvme` PV: the first creates the host directory, the second the PV pinned to it ({ref}`move-a-local-nvme-pv`) |
+| `group_vars/all.yml`, `control_plane` and `standby_control_plane` | The node's name | Only if it takes one of those roles ({doc}`/how-to/recover-control-plane`) |
+| `pb_all.yml --tags claude_key` (or `just claude-ssh-bootstrap`) | Run once the node is up | Puts the Claude sandbox's SSH key on the node's `ansible` account. A flashed RK1 gets it from its cloud-init seed instead |
+| The router | A fixed address and a DNS name for the node | The inventory holds names only |
 
-all_nodes:
-  children:
-    extra_nodes:
-```
-
-## Example: Mixed (Turing Pi + extra nodes)
-
-```yaml
-controller:
-  hosts:
-    localhost:
-      ansible_connection: local
-
-turing_pis:
-  hosts:
-    turingpi:
-  vars:
-    ansible_user: "{{ tpi_user }}"
-
-turingpi_nodes:
-  hosts:
-    node01:
-      slot_num: 1
-      type: pi4
-    node02:
-      slot_num: 2
-      type: rk1
-      root_dev: /dev/nvme0n1
-  vars:
-    ansible_user: "{{ ansible_account }}"
-
-extra_nodes:
-  hosts:
-    nuc1:
-    nuc2:
-  vars:
-    ansible_user: "{{ ansible_account }}"
-
-all_nodes:
-  children:
-    turingpi_nodes:
-    extra_nodes:
-```
+A machine outside the Turing Pi also needs its OS installed by hand and one run
+of `pb_add_nodes.yml` before `pb_all.yml` can reach it
+({doc}`/reference/playbook-tags`).

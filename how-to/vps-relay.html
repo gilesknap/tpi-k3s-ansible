@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Expose Cluster Ports Through a VPS Relay &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Expose cluster ports through the VPS relay &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -47,12 +47,447 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/vps-relay';</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Add or Remove Services" href="add-remove-services.html" />
-    <link rel="prev" title="Deploy scrap" href="scrap.html" />
+    <link rel="next" title="Monitoring and alerts" href="monitoring.html" />
+    <link rel="prev" title="Push notifications with ntfy" href="ntfy.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +560,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +583,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +699,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -325,43 +760,36 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
-<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
-<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare as Code (OpenTofu)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
-<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push Notifications with ntfy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Expose Cluster Ports Through a VPS Relay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
-<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
-<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
-<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
-<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
-<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
 </ul>
 </div>
 </nav></div>
@@ -403,9 +831,9 @@
       </a>
     </li>
     
-    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Expose Cluster Ports Through a VPS Relay</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Expose cluster ports through the VPS relay</span></li>
   </ul>
 </nav>
 </div>
@@ -422,24 +850,67 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="expose-cluster-ports-through-a-vps-relay">
-<h1>Expose Cluster Ports Through a VPS Relay<a class="headerlink" href="#expose-cluster-ports-through-a-vps-relay" title="Link to this heading">#</a></h1>
-<p>The <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> service publishes chosen cluster ports on the fixed public IP
-of a VPS. Use it when the cluster cannot accept inbound connections, for
-example because the home connection is behind ISP carrier-grade NAT (CGNAT),
-or when you do not want to publish your home IP. Minecraft game ports are the
-first user; any TCP or UDP service can be added as one more list entry.</p>
-<p>The Cloudflare tunnel (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>) already covers HTTP(S)
-services. The relay is for protocols the tunnel cannot carry.</p>
+  <section id="expose-cluster-ports-through-the-vps-relay">
+<h1>Expose cluster ports through the VPS relay<a class="headerlink" href="#expose-cluster-ports-through-the-vps-relay" title="Link to this heading">#</a></h1>
+<p>The <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> service publishes chosen cluster ports on the fixed
+public address of a small VPS. The Cloudflare Tunnel carries only
+HTTP(S) (<a class="reference internal" href="../explanations/architecture/networking.html"><span class="doc">Networking and ingress</span></a>); the relay is for
+everything else, without forwarding a port on the home router or
+publishing the home address.</p>
+<section id="what-runs-today">
+<h2>What runs today<a class="headerlink" href="#what-runs-today" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p></p></th>
+<th class="head"><p></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Forwards</p></td>
+<td><p>One: <code class="docutils literal notranslate"><span class="pre">minecraft</span></code>, TCP <code class="docutils literal notranslate"><span class="pre">30565-30584</span></code> (twenty game ports)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Target</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.92</span></code>, nuc2, where every Minecraft world runs on a NodePort in that range (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p>Public name</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org</span></code>, a DNS-only A record on the VPS’s public address; players connect to <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>In the cluster</p></td>
+<td><p>One <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> pod (two containers, <code class="docutils literal notranslate"><span class="pre">tailscale</span></code> and <code class="docutils literal notranslate"><span class="pre">frpc</span></code>) in the <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> namespace; it holds no state and runs on any node</p></td>
+</tr>
+<tr class="row-even"><td><p>On the VPS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">frps</span></code> v0.71.0 as a Podman Quadlet, its control port (7000) bound to the VPS’s tailnet address only</p></td>
+</tr>
+<tr class="row-odd"><td><p>Link between them</p></td>
+<td><p>The tailnet. The pod dials <code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code>; nothing reaches the VPS’s control port from the internet</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The settings are the <code class="docutils literal notranslate"><span class="pre">vps_relay</span></code> block in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, switched on by <code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>.</p>
+</section>
 <section id="how-it-works">
 <h2>How it works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>player ──► VPS public :port ──► frps ◄══ tunnel opened BY the cluster, over the tailnet ══ frpc ──► target:port
-</pre></div>
-</div>
-<ul class="simple">
+<pre  class="mermaid">
+        flowchart LR
+    player[&quot;Player&quot;]
+    subgraph vps[&quot;VPS&quot;]
+        frps[&quot;frps: public ports 30565-30584, control port on the tailnet only&quot;]
+    end
+    subgraph pod[&quot;vps-relay pod&quot;]
+        frpc[&quot;frpc&quot;]
+        ts[&quot;tailscale (userspace, SOCKS5 on 127.0.0.1:1055)&quot;]
+    end
+    world[&quot;Minecraft world on nuc2, 192.168.1.92&quot;]
+    player -- &quot;mc.gkcluster.org:30565&quot; --&gt; frps
+    frpc -- &quot;dials out through&quot; --&gt; ts
+    ts -- &quot;tailnet, TLS, shared token&quot; --&gt; frps
+    frpc -- &quot;same port number&quot; --&gt; world
+    </pre><ul class="simple">
 <li><p>The <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> Deployment runs two containers in one pod:</p>
 <ul>
-<li><p><strong>tailscale</strong> joins your tailnet as an <strong>ephemeral</strong> node tagged
+<li><p><strong>tailscale</strong> joins the tailnet as an <strong>ephemeral</strong> node tagged
 <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>, in <strong>userspace mode</strong> (no <code class="docutils literal notranslate"><span class="pre">NET_ADMIN</span></code>, no
 <code class="docutils literal notranslate"><span class="pre">/dev/net/tun</span></code>, no <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code>). It exposes a SOCKS5 proxy on
 <code class="docutils literal notranslate"><span class="pre">127.0.0.1:1055</span></code> inside the pod.</p></li>
@@ -449,13 +920,14 @@ registers one proxy per forwarded port.</p></li>
 </ul>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">frps</span></code> on the VPS listens for players on each forwarded port and relays
-each connection back down the tunnel that frpc opened. frpc delivers it to
-the forward’s <code class="docutils literal notranslate"><span class="pre">target</span></code> on the same port number.</p></li>
+each connection back down the connection that frpc opened. frpc delivers
+it to the forward’s <code class="docutils literal notranslate"><span class="pre">target</span></code> on the same port number.</p></li>
 </ul>
 <p><strong>Every connection is opened from the cluster side.</strong> The VPS never
 initiates a connection into the home network, the tailnet policy gives the
 VPS no access to the relay node, and the relay node advertises no subnet
-routes.</p>
+routes. A compromised VPS can therefore reach only what the relay already
+forwards to it: the game ports on nuc2.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Piece</p></th>
@@ -470,7 +942,7 @@ routes.</p>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> SealedSecret</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/vps-relay/templates/vps-relay-secret.yaml</span></code></p></td>
-<td><p>Tailscale OAuth client secret + frp token (created by you)</p></td>
+<td><p>Tailscale OAuth client secret and the frp token</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">frps</span></code></p></td>
 <td><p>The VPS (Podman Quadlet, run by systemd)</p></td>
@@ -481,8 +953,8 @@ routes.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> may reach only the VPS’s frp port</p></td>
 </tr>
 <tr class="row-even"><td><p>Public DNS name</p></td>
-<td><p>Cloudflare <strong>DNS-only</strong> A record</p></td>
-<td><p>Points at the VPS’s public IP</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">mc</span></code> entry in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>)</p></td>
+<td><p>A DNS-only A record on the VPS’s public address</p></td>
 </tr>
 </tbody>
 </table>
@@ -498,32 +970,35 @@ tailnet connection between the pod and the VPS.</p></li>
 </ul>
 </section>
 </section>
-<section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<section id="set-up-the-relay">
+<h2>Set up the relay<a class="headerlink" href="#set-up-the-relay" title="Link to this heading">#</a></h2>
+<p>Steps 1 to 7 are how the relay was built, and are what to repeat for a
+replacement VPS or after losing the Tailscale OAuth client. A cluster
+rebuild needs none of them: the VPS side is untouched, and the two
+credentials are carried over and resealed
+(<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p>
+<p>Prerequisites:</p>
 <ul class="simple">
-<li><p>A VPS with a public IPv4 address, already on your tailnet (<code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code>).</p></li>
-<li><p>Admin access to your tailnet’s policy file and its OAuth clients.</p></li>
-<li><p>A DNS name you can point at the VPS (for example a grey-cloud Cloudflare
-record in your cluster domain).</p></li>
+<li><p>A VPS with a public IPv4 address, Podman 4.4 or newer, and already on
+the tailnet (<code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code>).</p></li>
+<li><p>Admin access to the tailnet’s policy file and its OAuth clients.</p></li>
 </ul>
-</section>
 <section id="step-1-tailnet-policy">
-<h2>Step 1: Tailnet policy<a class="headerlink" href="#step-1-tailnet-policy" title="Link to this heading">#</a></h2>
-<p><strong>Tag the VPS</strong> (for example <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code>). An untagged VPS belongs to your user,
-so any rule that lets your own devices reach things (<code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code>, or
+<h3>Step 1: Tailnet policy<a class="headerlink" href="#step-1-tailnet-policy" title="Link to this heading">#</a></h3>
+<p><strong>Tag the VPS</strong> (<code class="docutils literal notranslate"><span class="pre">tag:vps</span></code>). An untagged VPS belongs to the owner’s user,
+so any rule that lets the owner’s own devices reach things (<code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code>, or
 the default allow-all) would also let the VPS reach the relay. A tagged VPS
-is a separate identity that you grant nothing. Tagging also stops its key
-expiring; if you use Tailscale SSH to reach it, your <code class="docutils literal notranslate"><span class="pre">ssh</span></code> rules must then
-name the tag.</p>
-<p>In the Tailscale admin console, <strong>Access controls</strong>, merge the following
-into your policy file:</p>
+is a separate identity that is granted nothing. Tagging also stops its key
+expiring; Tailscale SSH rules that reach it must then name the tag.</p>
+<p>In the Tailscale admin console, <strong>Access controls</strong>, the policy file
+has:</p>
 <div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
 <span class="w">  </span><span class="s2">&quot;tagOwners&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="s2">&quot;tag:vps&quot;</span><span class="o">:</span><span class="w">       </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">],</span>
 <span class="w">    </span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">]</span>
 <span class="w">  </span><span class="p">},</span>
 <span class="w">  </span><span class="s2">&quot;grants&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="c1">// Your own devices keep full access. Tagged devices are not members,</span>
+<span class="w">    </span><span class="c1">// The owner&#39;s own devices keep full access. Tagged devices are not members,</span>
 <span class="w">    </span><span class="c1">// so this does not cover the VPS.</span>
 <span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:member&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
 <span class="w">    </span><span class="c1">// The relay may reach only frps on the VPS.</span>
@@ -538,14 +1013,14 @@ into your policy file:</p>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">tests</span></code> are checked on every save, so a later policy edit cannot quietly
-let the VPS dial in. If your file uses <code class="docutils literal notranslate"><span class="pre">acls</span></code> rather than <code class="docutils literal notranslate"><span class="pre">grants</span></code>, the
+let the VPS dial in. In a file that uses <code class="docutils literal notranslate"><span class="pre">acls</span></code> rather than <code class="docutils literal notranslate"><span class="pre">grants</span></code>, the
 relay rule is <code class="docutils literal notranslate"><span class="pre">{&quot;action&quot;:</span> <span class="pre">&quot;accept&quot;,</span> <span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;tag:vps-relay&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;tag:vps:7000&quot;]}</span></code>.</p>
 <p>Then apply the tag on the VPS (or in the console, <strong>Machines → ⋯ → Edit ACL
 tags</strong>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tailscale<span class="w"> </span>up<span class="w"> </span>--advertise-tags<span class="o">=</span>tag:vps<span class="w"> </span>--reset
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">--reset</span></code> also clears any other <code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code> options you set earlier, such as
+<p><code class="docutils literal notranslate"><span class="pre">--reset</span></code> also clears any other <code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code> options set earlier, such as
 <code class="docutils literal notranslate"><span class="pre">--ssh</span></code> or <code class="docutils literal notranslate"><span class="pre">--accept-routes</span></code>. Add them back on the same command, or use the
 console instead.</p>
 <div class="admonition warning">
@@ -553,12 +1028,12 @@ console instead.</p>
 <p>A new tailnet starts with an allow-all rule (<code class="docutils literal notranslate"><span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;*&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;*&quot;]</span></code>).
 While that rule is present, every device on the tailnet, including the VPS,
 can reach the relay node. Remove it; the <code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code> grant above
-replaces it for your own devices. The relay advertises no routes, so even
-then the VPS cannot reach the rest of your home network through it.</p>
+replaces it for the owner’s own devices. The relay advertises no routes, so
+even then the VPS cannot reach the rest of the home network through it.</p>
 </div>
 </section>
 <section id="step-2-oauth-client">
-<h2>Step 2: OAuth client<a class="headerlink" href="#step-2-oauth-client" title="Link to this heading">#</a></h2>
+<h3>Step 2: OAuth client<a class="headerlink" href="#step-2-oauth-client" title="Link to this heading">#</a></h3>
 <p>The pod authenticates with an OAuth client secret. Unlike auth keys, which
 expire after at most 90 days, OAuth clients do not expire.</p>
 <ol class="arabic simple">
@@ -574,12 +1049,12 @@ pod joins as an ephemeral node that Tailscale removes soon after the pod
 goes away. No Tailscale state is stored in the cluster.</p>
 </section>
 <section id="step-3-set-up-frps-on-the-vps">
-<h2>Step 3: Set up frps on the VPS<a class="headerlink" href="#step-3-set-up-frps-on-the-vps" title="Link to this heading">#</a></h2>
+<h3>Step 3: Set up frps on the VPS<a class="headerlink" href="#step-3-set-up-frps-on-the-vps" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> does the whole VPS side. It needs Podman 4.4 or
 newer and Tailscale up on the VPS, and it:</p>
 <ul class="simple">
 <li><p>writes <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.toml</span></code>, with the control port bound to the VPS’s
-tailnet IP only and <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code> set to exactly the ports you give it;</p></li>
+tailnet IP only and <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code> set to exactly the ports it is given;</p></li>
 <li><p>generates the shared frp token into <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> (root-only) on the
 first run, and prints it once for sealing;</p></li>
 <li><p>installs frps as a Podman Quadlet (<code class="docutils literal notranslate"><span class="pre">/etc/containers/systemd/frps.container</span></code>),
@@ -592,11 +1067,11 @@ only, with <code class="docutils literal notranslate"><span class="pre">ufw</spa
 <p>It is idempotent: re-running it keeps the existing token, replaces only the
 files that changed, and restarts frps only when something did, so players
 connected through the relay are not dropped by a no-op run.</p>
-<p>The frp control port defaults to 7000. If you change <code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code>, run
+<p>The frp control port is 7000. After a change to <code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code>, run
 the script with the same value (<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">FRP_PORT=&lt;port&gt;</span> <span class="pre">./vps-relay-setup</span> <span class="pre">...</span></code>)
 and change the port in the tailnet grant and <code class="docutils literal notranslate"><span class="pre">tests</span></code> in Step 1 to match.</p>
 <p>In the devcontainer, print the forwards in the form the script takes:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>vps-relay-forwards<span class="w">        </span><span class="c1"># e.g. tcp:30565-30584</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>vps-relay-forwards<span class="w">        </span><span class="c1"># tcp:30565-30584</span>
 </pre></div>
 </div>
 <p>Copy the script to the VPS and run it with those arguments:</p>
@@ -605,14 +1080,13 @@ ssh<span class="w"> </span>&lt;vps&gt;
 sudo<span class="w"> </span>./vps-relay-setup<span class="w"> </span>tcp:30565-30584
 </pre></div>
 </div>
-<p>Save the printed token in your password manager: you need it for Step 4,
-and again for cluster rebuilds. <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">./vps-relay-setup</span> <span class="pre">--show-token</span></code>
-prints it again later.</p>
-<p>Also open the forwarded ports in your VPS provider’s cloud firewall, if it
+<p>Save the printed token in the password manager: it is needed for Step 4.
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">./vps-relay-setup</span> <span class="pre">--show-token</span></code> prints it again later.</p>
+<p>Also open the forwarded ports in the VPS provider’s cloud firewall, if it
 has one. Do not open <code class="docutils literal notranslate"><span class="pre">7000</span></code> there.</p>
 </section>
 <section id="step-4-seal-the-credentials">
-<h2>Step 4: Seal the credentials<a class="headerlink" href="#step-4-seal-the-credentials" title="Link to this heading">#</a></h2>
+<h3>Step 4: Seal the credentials<a class="headerlink" href="#step-4-seal-the-credentials" title="Link to this heading">#</a></h3>
 <p>Seal both values into the <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> namespace as the
 <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> Secret. The file name must end in <code class="docutils literal notranslate"><span class="pre">-secret.yaml</span></code>
 (singular), because the <code class="docutils literal notranslate"><span class="pre">.gitleaks.toml</span></code> allowlist only covers that pattern.
@@ -636,19 +1110,19 @@ kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="
 <p>The <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> namespace does not need to exist yet.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>For cluster rebuilds, export the two values as
-<code class="docutils literal notranslate"><span class="pre">VPS_RELAY_TS_OAUTH_CLIENT_SECRET</span></code> and <code class="docutils literal notranslate"><span class="pre">VPS_RELAY_FRP_TOKEN</span></code> alongside the
-other external credentials. <code class="docutils literal notranslate"><span class="pre">scripts/export-external-creds</span></code> captures them
-from a running cluster, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code> re-seals them when
-both are set (and skips them when neither is).</p>
+<p>A cluster rebuild does not repeat this step.
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code> reads the two values from the running
+cluster as <code class="docutils literal notranslate"><span class="pre">VPS_RELAY_TS_OAUTH_CLIENT_SECRET</span></code> and <code class="docutils literal notranslate"><span class="pre">VPS_RELAY_FRP_TOKEN</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code> reseals them when both are set (and
+skips them when neither is).</p>
 </div>
 </section>
 <section id="step-5-configure-and-enable-the-relay">
-<h2>Step 5: Configure and enable the relay<a class="headerlink" href="#step-5-configure-and-enable-the-relay" title="Link to this heading">#</a></h2>
+<h3>Step 5: Configure and enable the relay<a class="headerlink" href="#step-5-configure-and-enable-the-relay" title="Link to this heading">#</a></h3>
 <p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_vps_relay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="nt">vps_relay</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">vps_tailnet_host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100.x.y.z</span><span class="w">     </span><span class="c1"># the VPS&#39;s tailnet IP or MagicDNS name</span>
+<span class="w">  </span><span class="nt">vps_tailnet_host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100.76.74.70</span><span class="w">  </span><span class="c1"># the VPS&#39;s tailnet IP or MagicDNS name</span>
 <span class="w">  </span><span class="nt">frp_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7000</span>
 <span class="w">  </span><span class="nt">forwards</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span>
@@ -665,14 +1139,24 @@ UDP over its TCP tunnel).</p>
 <p>Commit and push. ArgoCD creates the <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> Application and namespace.</p>
 </section>
 <section id="step-6-point-dns-at-the-vps">
-<h2>Step 6: Point DNS at the VPS<a class="headerlink" href="#step-6-point-dns-at-the-vps" title="Link to this heading">#</a></h2>
-<p>Create an <code class="docutils literal notranslate"><span class="pre">A</span></code> record for the public name (for example <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code>) with
-the VPS’s public IP and the <strong>DNS only</strong> (grey cloud) proxy status. The
-address is static. Cloudflare’s proxy only carries
-HTTP(S), so the record must not be proxied.</p>
+<h3>Step 6: Point DNS at the VPS<a class="headerlink" href="#step-6-point-dns-at-the-vps" title="Link to this heading">#</a></h3>
+<p>The public name is an entry in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code> (gitignored, since it holds the VPS’s
+public address), in the form shown in <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars.example</span></code>:</p>
+<div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="nb">dns_only_records</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nb">mc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="na">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;A&quot;, content = &quot;&lt;VPS public IPv4&gt;&quot;</span><span class="w"> </span><span class="p">}</span><span class="c1"> # VPS relay</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> should show one DNS record to add; apply it with
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>). The record is DNS-only
+(<code class="docutils literal notranslate"><span class="pre">proxied</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>): Cloudflare’s proxy carries only HTTP(S),
+so a proxied record would not pass game traffic. The name itself is
+<code class="docutils literal notranslate"><span class="pre">minecraft.dns_name</span></code> (<code class="docutils literal notranslate"><span class="pre">mc</span></code>) in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>: players
+connect to <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code>.</p>
 </section>
 <section id="step-7-verify">
-<h2>Step 7: Verify<a class="headerlink" href="#step-7-verify" title="Link to this heading">#</a></h2>
+<h3>Step 7: Verify<a class="headerlink" href="#step-7-verify" title="Link to this heading">#</a></h3>
 <ol class="arabic">
 <li><p><strong>Pod</strong> — both containers are running and the tailscale container is
 Ready:</p>
@@ -689,14 +1173,16 @@ node after a pod restart) tagged <code class="docutils literal notranslate"><spa
 </pre></div>
 </div>
 </li>
-<li><p><strong>Public port</strong> — from outside your network (an online port checker, or
-<code class="docutils literal notranslate"><span class="pre">nc</span> <span class="pre">-vz</span> <span class="pre">&lt;vps-public-ip&gt;</span> <span class="pre">30565</span></code>), a forwarded port is open while its
-target is listening.</p></li>
+<li><p><strong>Public port</strong> — from outside the home network (an online port
+checker, or <code class="docutils literal notranslate"><span class="pre">nc</span> <span class="pre">-vz</span> <span class="pre">mc.gkcluster.org</span> <span class="pre">30565</span></code>), a forwarded port is open
+while its target is listening, that is, while a world is running on
+that port.</p></li>
 <li><p><strong>Direction</strong> — the VPS cannot open a connection to the relay node. On
 the VPS, <code class="docutils literal notranslate"><span class="pre">nc</span> <span class="pre">-vz</span> <span class="pre">-w</span> <span class="pre">5</span> <span class="pre">&lt;relay-tailnet-ip&gt;</span> <span class="pre">22</span></code> must time out: the policy
 drops the packets. A prompt <code class="docutils literal notranslate"><span class="pre">connection</span> <span class="pre">refused</span></code> means the policy still
 lets the VPS reach the node (see the warning in Step 1).</p></li>
 </ol>
+</section>
 </section>
 <section id="adding-a-forward">
 <h2>Adding a forward<a class="headerlink" href="#adding-a-forward" title="Link to this heading">#</a></h2>
@@ -706,8 +1192,10 @@ plain-text admin protocols such as the Minecraft worlds’ RCON NodePorts
 (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code>): they are LAN-only.</p></li>
 <li><p><strong>On the VPS</strong>, re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> with the new list from
 <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">vps-relay-forwards</span></code>. It updates <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code>, restarts frps and
-opens the ports. Firewall rules for ports you have <em>removed</em> are left
-in place; close them by hand.</p></li>
+opens the ports. Firewall rules for ports that were <em>removed</em> are left
+in place; close them by hand. Check <code class="docutils literal notranslate"><span class="pre">frps</span></code>’s image version against
+<code class="docutils literal notranslate"><span class="pre">images.frpc</span></code> in <code class="docutils literal notranslate"><span class="pre">additions/vps-relay/values.yaml</span></code> at the same time:
+<code class="docutils literal notranslate"><span class="pre">FRP_VERSION</span></code> in the script keeps the two in step.</p></li>
 <li><p>Commit and push. The ConfigMap checksum changes, so the pod restarts with
 the new <code class="docutils literal notranslate"><span class="pre">frpc.toml</span></code>.</p></li>
 </ol>
@@ -748,9 +1236,9 @@ recovers without a restart.</p>
 <h3>Rotating the credentials<a class="headerlink" href="#rotating-the-credentials" title="Link to this heading">#</a></h3>
 <p>Re-seal <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> as in Step 4 and push. The pod reads the
 Secret only when it starts, so the new values take effect at its next
-restart. If you rotated the frp token, update <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> on the VPS
+restart. After rotating the frp token, update <code class="docutils literal notranslate"><span class="pre">/etc/frp/frps.env</span></code> on the VPS
 to match (or delete it and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code>, which generates a
-new token for you to seal).</p>
+new token to seal).</p>
 </section>
 <section id="the-public-port-is-closed">
 <h3>The public port is closed<a class="headerlink" href="#the-public-port-is-closed" title="Link to this heading">#</a></h3>
@@ -770,7 +1258,10 @@ proxy.</p></li>
 resources and the ephemeral tailnet node disappears shortly afterwards.
 Then, on the VPS, run <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">stop</span> <span class="pre">frps</span></code>, delete
 <code class="docutils literal notranslate"><span class="pre">/etc/containers/systemd/frps.container</span></code> and <code class="docutils literal notranslate"><span class="pre">/etc/frp/</span></code>, and close the
-firewall ports. Finally delete the DNS record and revoke the OAuth client.</p>
+firewall ports. Finally remove <code class="docutils literal notranslate"><span class="pre">mc</span></code> from <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (and its ID
+from <code class="docutils literal notranslate"><span class="pre">import_ids</span></code>, if it was imported), run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, and revoke
+the Tailscale OAuth client. Minecraft worlds are then reachable from the
+LAN only.</p>
 </section>
 </section>
 
@@ -785,20 +1276,20 @@ firewall ports. Finally delete the DNS record and revoke the OAuth client.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="scrap.html"
+       href="ntfy.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Deploy scrap</p>
+        <p class="prev-next-title">Push notifications with ntfy</p>
       </div>
     </a>
     <a class="right-next"
-       href="add-remove-services.html"
+       href="monitoring.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Add or Remove Services</p>
+        <p class="prev-next-title">Monitoring and alerts</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -821,18 +1312,21 @@ firewall ports. Finally delete the DNS record and revoke the OAuth client.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-runs-today">What runs today</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How it works</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trade-offs">Trade-offs</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-tailnet-policy">Step 1: Tailnet policy</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-oauth-client">Step 2: OAuth client</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-set-up-frps-on-the-vps">Step 3: Set up frps on the VPS</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-seal-the-credentials">Step 4: Seal the credentials</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-configure-and-enable-the-relay">Step 5: Configure and enable the relay</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-point-dns-at-the-vps">Step 6: Point DNS at the VPS</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-verify">Step 7: Verify</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-the-relay">Set up the relay</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-tailnet-policy">Step 1: Tailnet policy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-oauth-client">Step 2: OAuth client</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-set-up-frps-on-the-vps">Step 3: Set up frps on the VPS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-seal-the-credentials">Step 4: Seal the credentials</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-configure-and-enable-the-relay">Step 5: Configure and enable the relay</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-point-dns-at-the-vps">Step 6: Point DNS at the VPS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#step-7-verify">Step 7: Verify</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-a-forward">Adding a forward</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-pod-is-stuck-in-createcontainerconfigerror">The pod is stuck in <code class="docutils literal notranslate"><span class="pre">CreateContainerConfigError</span></code></a></li>

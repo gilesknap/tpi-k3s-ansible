@@ -1,0 +1,1267 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Claude Code integration &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/claude-code';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Automatic maintenance" href="../upgrade-model.html" />
+    <link rel="prev" title="Backups and disaster recovery" href="backups.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Claude Code integration</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="claude-code-integration">
+<h1>Claude Code integration<a class="headerlink" href="#claude-code-integration" title="Link to this heading">#</a></h1>
+<p>Claude Code does much of the work on this cluster: it writes the changes,
+runs the playbooks, reads the cluster’s state and opens the pull requests.
+To do that it holds real credentials, so where it runs and what it can
+reach are part of the architecture. This page describes that structure.
+<a class="reference internal" href="../../how-to/claude-code.html"><span class="doc">Set up and run Claude Code</span></a> has the setup steps, and
+<a class="reference internal" href="../claude-code-capability.html"><span class="doc">Lessons learned using Claude Code for infrastructure</span></a> covers the working practices
+and what was learned from them.</p>
+<section id="where-it-runs">
+<h2>Where it runs<a class="headerlink" href="#where-it-runs" title="Link to this heading">#</a></h2>
+<p>Claude runs in three nested layers on the owner’s workstation:</p>
+<ol class="arabic simple">
+<li><p><strong>The devcontainer</strong> (<code class="docutils literal notranslate"><span class="pre">.devcontainer/</span></code>). The same container that is the
+Ansible controller, with <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd</span></code> and
+OpenTofu. It uses the host’s network.</p></li>
+<li><p><strong>The claude-sandbox jail.</strong> <code class="docutils literal notranslate"><span class="pre">claude</span></code> on the <code class="docutils literal notranslate"><span class="pre">PATH</span></code> is a wrapper that
+starts the real binary inside a <code class="docutils literal notranslate"><span class="pre">bwrap</span></code> jail. <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> is replaced by an
+empty tmpfs and only an allow-list of paths is bound back in. A guard
+installed in <code class="docutils literal notranslate"><span class="pre">/etc</span></code> refuses to start Claude outside the wrapper.</p></li>
+<li><p><strong>The egress jail.</strong> Claude gets its own network namespace in which
+every private (RFC 1918) address is unreachable, except the hosts named
+by <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code>. It needs <code class="docutils literal notranslate"><span class="pre">/dev/net/tun</span></code> (a <code class="docutils literal notranslate"><span class="pre">runArgs</span></code> entry in
+<code class="docutils literal notranslate"><span class="pre">devcontainer.json</span></code>) and fails closed: without the device Claude does
+not start.</p></li>
+</ol>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph HOST[&quot;Owner's workstation&quot;]
+        AGENT[&quot;Host SSH agent&lt;br/&gt;and ~/.ssh&quot;]
+        subgraph DC[&quot;Devcontainer&quot;]
+            TERM[&quot;Owner's terminal&quot;]
+            subgraph SB[&quot;claude-sandbox: bwrap jail and egress filter&quot;]
+                CLAUDE[&quot;Claude Code&lt;br/&gt;/workspaces, kubeconfig,&lt;br/&gt;its own SSH key, GitHub PAT&quot;]
+            end
+        end
+    end
+
+    NODES[&quot;Nodes and the BMC&lt;br/&gt;SSH as ansible&quot;]
+    API[&quot;Kubernetes API&lt;br/&gt;k3s.lan:6443 on node02&quot;]
+    NAS[&quot;The NAS&lt;br/&gt;192.168.1.3&quot;]
+    GH[&quot;GitHub and the&lt;br/&gt;public internet&quot;]
+    LAN[&quot;Rest of the LAN:&lt;br/&gt;router, other devices,&lt;br/&gt;192.168.0.0/24&quot;]
+
+    AGENT --&gt; TERM
+    AGENT -. &quot;not visible&quot; .- CLAUDE
+    CLAUDE --&gt;|&quot;allow-ip&quot;| NODES
+    CLAUDE --&gt;|&quot;allow-ip&quot;| API
+    CLAUDE --&gt;|&quot;allow-ip&quot;| NAS
+    CLAUDE --&gt; GH
+    CLAUDE -. &quot;blackholed&quot; .- LAN
+    </pre><p>The sandbox’s configuration is <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>, copied
+to <code class="docutils literal notranslate"><span class="pre">/etc/claude-sandbox.conf</span></code> when the container is created. It is read
+from <code class="docutils literal notranslate"><span class="pre">/etc</span></code> and never from the workspace, because the workspace is
+writable from inside the sandbox: a session could otherwise widen the next
+session’s reach. It sets three things:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Why</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">workspace-root</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/workspaces</span></code></p></td>
+<td><p>The parent of this repository, so sibling repositories can be edited in the same session</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">allow-write</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/cache</span></code>, <code class="docutils literal notranslate"><span class="pre">/root/bin</span></code>, <code class="docutils literal notranslate"><span class="pre">/root/.kube</span></code>, <code class="docutils literal notranslate"><span class="pre">/root/.config/claude-ssh</span></code></p></td>
+<td><p>The Python environment, the CLIs the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role installs, the kubeconfig and Claude’s SSH key. Everything else under <code class="docutils literal notranslate"><span class="pre">/root</span></code> is absent</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">allow-ip</span></code></p></td>
+<td><p>The BMC (.80), node01 to node04 (.81 to .84), nuc1 (.91), nuc2 (.92), ws03 (.10) and the NAS (.3)</p></td>
+<td><p>Without these, <code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code> and <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> cannot reach the cluster. The list is kept in step with <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">sandbox-conf</span></code> re-applies the file after a <code class="docutils literal notranslate"><span class="pre">claude-sandbox</span> <span class="pre">update</span></code>,
+which restores the upstream defaults.</p>
+</section>
+<section id="what-it-can-reach-and-with-which-credential">
+<h2>What it can reach, and with which credential<a class="headerlink" href="#what-it-can-reach-and-with-which-credential" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Target</p></th>
+<th class="head"><p>Credential</p></th>
+<th class="head"><p>Where it lives</p></th>
+<th class="head"><p>Scope</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Nodes, over SSH</p></td>
+<td><p>Claude’s own ed25519 key for the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">iac2-claude-ssh</span></code> volume, at <code class="docutils literal notranslate"><span class="pre">/root/.config/claude-ssh</span></code></p></td>
+<td><p>Full: <code class="docutils literal notranslate"><span class="pre">ansible</span></code> has passwordless sudo</p></td>
+</tr>
+<tr class="row-odd"><td><p>Kubernetes API</p></td>
+<td><p>The admin kubeconfig</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">iac2-kube</span></code> volume, at <code class="docutils literal notranslate"><span class="pre">/root/.kube</span></code></p></td>
+<td><p>Full cluster admin</p></td>
+</tr>
+<tr class="row-even"><td><p>GitHub</p></td>
+<td><p>A fine-grained personal access token</p></td>
+<td><p>A per-repository volume, <code class="docutils literal notranslate"><span class="pre">gh-auth-&lt;folder&gt;</span></code>, at <code class="docutils literal notranslate"><span class="pre">/root/.config/gh</span></code></p></td>
+<td><p>Only the repositories the token names</p></td>
+</tr>
+<tr class="row-odd"><td><p>The NAS</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+<td><p>Network reach only (it is the NFS server)</p></td>
+</tr>
+<tr class="row-even"><td><p>scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
+<td><p>A Cloudflare Access service token and a scrap bearer token</p></td>
+<td><p>The MCP server entry in Claude’s own configuration, outside this repository</p></td>
+<td><p>scrap’s tools only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>The SSH key is separate and revocable.</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code>
+generates the key pair on first use and runs the <code class="docutils literal notranslate"><span class="pre">claude_key</span></code> play in
+<code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>, which adds the public key to the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account on every
+node; <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span> <span class="pre">revoke</span></code> removes it everywhere. The recipe
+is run from an ordinary devcontainer terminal, because it needs the
+owner’s key to reach the nodes the first time. Nothing passes the key
+automatically: inside the sandbox it is named explicitly
+(<code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">-i</span> <span class="pre">/root/.config/claude-ssh/id_ed25519</span> <span class="pre">ansible&#64;node02</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">--private-key</span></code> for Ansible). Host keys come from
+<code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code>, which the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play fills when the
+container is created and which the sandbox sees read-only.</p>
+<p><strong>The owner’s SSH identity never enters the sandbox.</strong> VS Code forwards
+the host’s SSH agent into the devcontainer for the owner’s own terminals.
+The sandbox clears the environment, so <code class="docutils literal notranslate"><span class="pre">SSH_AUTH_SOCK</span></code> is not set inside
+it, and <code class="docutils literal notranslate"><span class="pre">~/.ssh</span></code> is not on the allow-list. The keys that can push to every
+repository the owner has, or log in to other machines, are out of reach.</p>
+<p><strong>Git can only use the token.</strong> <code class="docutils literal notranslate"><span class="pre">postStart.sh</span></code> blanks the credential
+helpers that VS Code copies in from the host and rewrites GitHub SSH URLs
+to HTTPS, so the only way to push is the token in <code class="docutils literal notranslate"><span class="pre">gh</span></code>’s own store.</p>
+<p>Claude’s node and cluster credentials are as powerful as the owner’s. The
+design does not pretend otherwise: it limits where they can be used from
+(one jail), what else that jail can touch (nothing on the LAN but the
+cluster), and makes them cheap to revoke.</p>
+</section>
+<section id="what-constrains-it">
+<h2>What constrains it<a class="headerlink" href="#what-constrains-it" title="Link to this heading">#</a></h2>
+<p>Three different kinds of constraint apply, and they should not be
+confused.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Kind</p></th>
+<th class="head"><p>What</p></th>
+<th class="head"><p>Holds even if the agent is misled?</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Hard boundary</strong></p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">bwrap</span></code> jail, the egress filter, the missing SSH agent, the scoped GitHub token</p></td>
+<td><p>Yes. It is enforced outside the agent</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Convention</strong></p></td>
+<td><p>The hard rules in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code></p></td>
+<td><p>No. The agent follows them; nothing enforces them</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Process</strong></p></td>
+<td><p>Branches, pull request review, CI, ArgoCD self-heal</p></td>
+<td><p>Mostly. A bad change is visible in a diff before it merges, and cluster drift is reverted</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The repository commits no permission policy. Tool approvals are personal,
+accumulate in <code class="docutils literal notranslate"><span class="pre">.claude/settings.local.json</span></code> (gitignored), and are a
+convenience, not a boundary.</p>
+<p>The conventions in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> are the ones a new session most needs:</p>
+<ul class="simple">
+<li><p>Never mutate the live cluster; changes go through Git
+(<a class="reference internal" href="gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a> lists the sanctioned
+exceptions).</p></li>
+<li><p>Never commit to <code class="docutils literal notranslate"><span class="pre">main</span></code>; rebase over <code class="docutils literal notranslate"><span class="pre">main</span></code> before new work.</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> before pushing, and resolve warnings instead of
+suppressing them.</p></li>
+<li><p>The local volume paths (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code>, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>) and the
+NAS directories are never wiped; nothing touches <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> on
+an RK1 or the first 16 MiB of its eMMC outside the roles built for it.</p></li>
+<li><p>A new <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> workload names its node explicitly.</p></li>
+<li><p>The browser used for testing is the owner’s logged-in Chrome: no Google
+services, and no changes to GitHub through it.</p></li>
+<li><p>A subagent’s negative finding (“X is never used”) is verified with a
+search before anything is deleted because of it.</p></li>
+</ul>
+</section>
+<section id="the-toolkit">
+<h2>The toolkit<a class="headerlink" href="#the-toolkit" title="Link to this heading">#</a></h2>
+<p>What is checked in under <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> is the agent’s toolkit for this
+cluster.</p>
+<p>Commands (<code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code>):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Command</p></th>
+<th class="head"><p>Does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bootstrap-cluster</span></code></p></td>
+<td><p>Walks through building the cluster from scratch: configuration, secrets, playbooks</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code></p></td>
+<td><p>Decommissions and rebuilds the cluster, preserving local volume and NAS data; the test for rebuild-affecting changes</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/add-node</span></code></p></td>
+<td><p>Adds a worker: inventory, <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code>, the playbooks, and the settings that depend on the node list</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/test-oauth-flow</span></code></p></td>
+<td><p>Checks every service’s sign-in end to end in a browser, in a subagent</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code></p></td>
+<td><p>Regroups a branch into logical commits on a new branch and opens the pull request</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Skills (<code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>), loaded when the topic comes up:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Skill</p></th>
+<th class="head"><p>Covers</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ansible</span></code></p></td>
+<td><p>Playbook structure, tags, topology rules, branch switching and known foot-guns</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code></p></td>
+<td><p>Branch repointing, wiring OCI charts, clearing a stuck spec error</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflare</span></code></p></td>
+<td><p>The tunnel and Access configuration</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth</span></code></p></td>
+<td><p>The oauth2-proxy and Dex sign-in paths and how they fail</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code></p></td>
+<td><p>Sealing, rotating and troubleshooting, including the file-naming rule gitleaks enforces</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The cluster also serves Claude. scrap, the owner’s knowledge store, has an
+MCP endpoint at <code class="docutils literal notranslate"><span class="pre">scrap.gkcluster.org/mcp</span></code> that Claude sessions use to
+search and write notes. An MCP client cannot complete a browser sign-in,
+so that path skips oauth2-proxy and is protected by a Cloudflare Access
+service token plus scrap’s own bearer token (<a class="reference internal" href="../../how-to/scrap.html"><span class="doc">Run scrap</span></a>).</p>
+</section>
+<section id="the-working-loop">
+<h2>The working loop<a class="headerlink" href="#the-working-loop" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart LR
+    PLAN[&quot;Plan with&lt;br/&gt;the owner&quot;] --&gt; BR[&quot;Branch&lt;br/&gt;from main&quot;]
+    BR --&gt; IMPL[&quot;Implement&quot;]
+    IMPL --&gt; CHK[&quot;just check&quot;]
+    CHK --&gt;|&quot;fails&quot;| IMPL
+    CHK --&gt; PR[&quot;Pull request&lt;br/&gt;and CI&quot;]
+    PR --&gt; REV[&quot;Owner reviews&quot;]
+    REV --&gt;|&quot;changes wanted&quot;| IMPL
+    REV --&gt; MERGE[&quot;Merge to main&quot;]
+    MERGE --&gt; SYNC[&quot;ArgoCD syncs&quot;]
+    SYNC --&gt; VERIFY[&quot;Verify with&lt;br/&gt;read-only kubectl&quot;]
+    PR -. &quot;rebuild-affecting change&quot; .-&gt; RB[&quot;/rebuild-cluster&lt;br/&gt;on the PR branch&quot;]
+    RB -.-&gt; REV
+    </pre><p>The loop is the same whether the owner or Claude makes the change
+(<a class="reference internal" href="../../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>). What Claude adds is that it can carry
+the whole loop: write the change, run the checks, open the pull request,
+watch ArgoCD apply it and confirm the result from the cluster. The owner’s
+part is the plan and the review. Because delivery is by Git, everything
+Claude changes is in a diff that was reviewed, and can be reverted the
+same way.</p>
+<p>A few operations are outside the sandbox’s reach by design and are run by
+the owner in a devcontainer terminal: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code>, the
+<code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play (it writes <code class="docutils literal notranslate"><span class="pre">/etc</span></code>), and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">upgrade-workstation</span></code>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="backups.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Backups and disaster recovery</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../upgrade-model.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Automatic maintenance</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-it-runs">Where it runs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-it-can-reach-and-with-which-credential">What it can reach, and with which credential</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-constrains-it">What constrains it</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-toolkit">The toolkit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-working-loop">The working loop</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/claude-code.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/claude-code.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

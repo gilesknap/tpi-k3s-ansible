@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Inventory Reference &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Inventory reference &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -51,8 +51,8 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Services Reference" href="services.html" />
-    <link rel="prev" title="Playbook Tags Reference" href="playbook-tags.html" />
+    <link rel="next" title="Variables reference" href="variables.html" />
+    <link rel="prev" title="Services reference" href="services.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +125,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +148,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +264,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -326,13 +326,12 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook Tags Reference</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Inventory Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="services.html">Services Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">CLI Tools Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="services.html">Services reference</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Inventory reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook tags reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">Commands and tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="production-checklist.html">Production Readiness Checklist</a></li>
 </ul>
 </div>
 </nav></div>
@@ -376,7 +375,7 @@
     
     <li class="breadcrumb-item"><a href="../reference.html" class="nav-link">Reference</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Inventory Reference</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Inventory reference</span></li>
   </ul>
 </nav>
 </div>
@@ -394,63 +393,55 @@
                 <article class="bd-article">
                   
   <section id="inventory-reference">
-<h1>Inventory Reference<a class="headerlink" href="#inventory-reference" title="Link to this heading">#</a></h1>
-<p>The Ansible inventory file <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> defines all hosts and their groupings.</p>
-<section id="host-groups">
-<h2>Host groups<a class="headerlink" href="#host-groups" title="Link to this heading">#</a></h2>
+<h1>Inventory reference<a class="headerlink" href="#inventory-reference" title="Link to this heading">#</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> at the repo root is the only Ansible inventory (<code class="docutils literal notranslate"><span class="pre">ansible.cfg</span></code> names
+it, so no <code class="docutils literal notranslate"><span class="pre">-i</span></code> is needed). It lists machines by name, without addresses: the
+router’s DNS resolves <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and the rest, and the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role
+looks each one up as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">local_domain</span></code>).</p>
+<p>For what the machines are, see <a class="reference internal" href="../explanations/architecture/hardware.html"><span class="doc">Hardware and nodes</span></a>.</p>
+<section id="groups">
+<h2>Groups<a class="headerlink" href="#groups" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Group</p></th>
-<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Members</p></th>
 <th class="head"><p>Used by</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">controller</span></code></p></td>
-<td><p>The devcontainer (localhost)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">cluster</span></code> roles</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">localhost</span></code>, with a local connection</p></td>
+<td><p>Sets how Ansible reaches the devcontainer. The plays that run there (<code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">cluster</span></code>) target <code class="docutils literal notranslate"><span class="pre">localhost</span></code> directly</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">turing_pis</span></code></p></td>
-<td><p>Turing Pi BMC hosts</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">flash</span></code>, <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> roles</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi</span></code> (the BMC)</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">flash</span></code> play, which drives <code class="docutils literal notranslate"><span class="pre">tpi</span></code> on the BMC, and <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code></p></td>
-<td><p>Nodes on a specific Turing Pi</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">flash</span></code>, all node roles</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node01</span></code> to <code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">flash</span></code> role, to find the BMC’s nodes; member of <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code></p></td>
-<td><p>Non-Turing Pi servers</p></td>
-<td><p>All node roles</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code>, which gives Ansible its account on a machine whose OS was installed by hand; member of <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
-<td><p>Union of all node groups</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code> and <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code></p></td>
+<td><p>Every node play in <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> (<code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">servers</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s</span></code>, <code class="docutils literal notranslate"><span class="pre">claude_key</span></code>) and <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code></p></td>
 </tr>
 </tbody>
 </table>
 </div>
-</section>
-<section id="naming-conventions">
-<h2>Naming conventions<a class="headerlink" href="#naming-conventions" title="Link to this heading">#</a></h2>
-<section id="turing-pi-node-groups">
-<h3>Turing Pi node groups<a class="headerlink" href="#turing-pi-node-groups" title="Link to this heading">#</a></h3>
-<p>Node groups for Turing Pi boards <strong>must</strong> be named <code class="docutils literal notranslate"><span class="pre">&lt;bmc_hostname&gt;_nodes</span></code>. The flash
-role uses this convention to discover which nodes belong to each BMC.</p>
-<p>Examples:</p>
-<ul class="simple">
-<li><p>BMC hostname <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> → node group <code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></li>
-<li><p>BMC hostname <code class="docutils literal notranslate"><span class="pre">turingpi-2</span></code> → node group <code class="docutils literal notranslate"><span class="pre">turingpi-2_nodes</span></code></p></li>
-</ul>
-</section>
-<section id="the-all-nodes-group">
-<h3>The <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code> group<a class="headerlink" href="#the-all-nodes-group" title="Link to this heading">#</a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code> group is a union of all node groups. Define it using <code class="docutils literal notranslate"><span class="pre">children</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">all_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">children</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi_nodes</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">extra_nodes</span><span class="p">:</span>
-</pre></div>
-</div>
+<p><code class="docutils literal notranslate"><span class="pre">turing_pis</span></code> connects as <code class="docutils literal notranslate"><span class="pre">tpi_user</span></code> (<code class="docutils literal notranslate"><span class="pre">root</span></code>); the node groups connect as
+<code class="docutils literal notranslate"><span class="pre">ansible_account</span></code> (<code class="docutils literal notranslate"><span class="pre">ansible</span></code>), with sudo.</p>
+<section id="the-bmc-nodes-rule">
+<h3>The <code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code> rule<a class="headerlink" href="#the-bmc-nodes-rule" title="Link to this heading">#</a></h3>
+<p>The group holding a Turing Pi’s nodes must be named after the BMC’s inventory
+name plus <code class="docutils literal notranslate"><span class="pre">_nodes</span></code>. The <code class="docutils literal notranslate"><span class="pre">flash</span></code> role runs on the BMC and finds its nodes with
+<code class="docutils literal notranslate"><span class="pre">groups[inventory_hostname</span> <span class="pre">+</span> <span class="pre">'_nodes']</span></code>, so the BMC <code class="docutils literal notranslate"><span class="pre">turingpi</span></code> owns
+<code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code>. A second board called <code class="docutils literal notranslate"><span class="pre">turingpi2</span></code> would need a
+<code class="docutils literal notranslate"><span class="pre">turingpi2_nodes</span></code> group, added to <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code> as well (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> carries a
+commented-out sketch of one).</p>
 </section>
 </section>
 <section id="per-node-variables">
@@ -458,154 +449,204 @@ role uses this convention to discover which nodes belong to each BMC.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Variable</p></th>
-<th class="head"><p>Required</p></th>
+<th class="head"><p>Applies to</p></th>
 <th class="head"><p>Values</p></th>
-<th class="head"><p>Description</p></th>
+<th class="head"><p>Effect</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">slot_num</span></code></p></td>
-<td><p>For Turing Pi nodes</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code>–<code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
-<td><p>Physical slot on the board (slot 1 nearest coin battery)</p></td>
+<td><p>Turing Pi nodes, required</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> to <code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
+<td><p>The slot on the board, which <code class="docutils literal notranslate"><span class="pre">tpi</span></code> powers and flashes (slot 1 is nearest the coin battery)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
-<td><p>For Turing Pi nodes</p></td>
+<td><p>Turing Pi nodes, required</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">rk1</span></code>, <code class="docutils literal notranslate"><span class="pre">pi4</span></code></p></td>
-<td><p>Compute module type (determines OS image)</p></td>
+<td><p>The compute module, which decides the image flashed</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code></p></td>
-<td><p>Optional, RK1 only</p></td>
+<td><p>RK1, optional</p></td>
 <td><p>Device path</p></td>
-<td><p>The disk to install the OS on (e.g. <code class="docutils literal notranslate"><span class="pre">/dev/nvme0n1</span></code>); the eMMC then holds only U-Boot</p></td>
+<td><p>The disk the OS is installed on (<code class="docutils literal notranslate"><span class="pre">/dev/nvme0n1</span></code>); the eMMC then holds only U-Boot. <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> refuses it on any other <code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Set <code class="docutils literal notranslate"><span class="pre">true</span></code> for nodes with an NVIDIA GPU. Installs the NVIDIA driver and container toolkit, configures k3s containerd with the NVIDIA runtime, and labels the node <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>. Required for GPU workloads.</p></td>
+<td><p>Installs the NVIDIA driver and container toolkit, configures K3s’s containerd with the NVIDIA runtime and labels the node <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Set <code class="docutils literal notranslate"><span class="pre">true</span></code> for nodes with an Intel iGPU. Labels the node <code class="docutils literal notranslate"><span class="pre">intel.feature.node.kubernetes.io/gpu=true</span></code>, so the Intel GPU device plugin advertises <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> there.</p></td>
+<td><p>Labels the node <code class="docutils literal notranslate"><span class="pre">intel.feature.node.kubernetes.io/gpu=true</span></code>, so the Intel GPU device plugin runs there and advertises <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code>. Installs nothing on the node</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">workstation</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Applies <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> taint and <code class="docutils literal notranslate"><span class="pre">node-role=workstation</span></code> label, set when the agent registers so nothing schedules there before them; the label also keeps the node out of automatic K3s upgrades. Only tolerating workloads (GPU, monitoring) schedule here.</p></td>
+<td><p>Registers the agent with the <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> taint and the <code class="docutils literal notranslate"><span class="pre">node-role=workstation</span></code> label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation (<a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Automatic maintenance</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code></p></td>
 <td><p>Optional</p></td>
-<td><p>IP address</p></td>
-<td><p>Forces K3s to use this IP (passed as <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code>). Required for multi-homed nodes where the default route interface is on the wrong subnet.</p></td>
+<td><p>IPv4 address</p></td>
+<td><p>Passed to the agent as <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code>. Needed on a multi-homed node whose default route is on the wrong subnet</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p>Interface name</p></td>
-<td><p>Forces flannel’s VXLAN tunnel to use this interface (passed as <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code>). Must match the interface carrying <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>. Required alongside <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> on multi-homed nodes.</p></td>
+<td><p>Passed as <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code>: the interface that carries <code class="docutils literal notranslate"><span class="pre">node_ip</span></code></p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<p>The two GPU flags default to <code class="docutils literal notranslate"><span class="pre">false</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. Which node is the
+control plane is not an inventory setting: <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and
+<code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> name them
+(<a class="reference internal" href="variables.html"><span class="doc">Variables reference</span></a>).</p>
 </section>
-<section id="example-turing-pi-only">
-<h2>Example: Turing Pi only<a class="headerlink" href="#example-turing-pi-only" title="Link to this heading">#</a></h2>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">controller</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">localhost</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">ansible_connection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
-
-<span class="nt">turing_pis</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">tpi_user</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">turingpi_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">node01</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pi4</span>
-<span class="w">    </span><span class="nt">node02</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">    </span><span class="nt">node03</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">    </span><span class="nt">node04</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">ansible_account</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">all_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">children</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi_nodes</span><span class="p">:</span>
-</pre></div>
+<section id="the-inventory-as-it-stands">
+<h2>The inventory as it stands<a class="headerlink" href="#the-inventory-as-it-stands" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Host</p></th>
+<th class="head"><p>Group</p></th>
+<th class="head"><p>Address</p></th>
+<th class="head"><p>Slot</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">root_dev</span></code></p></th>
+<th class="head"><p>Flags</p></th>
+<th class="head"><p>In the cluster</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">turingpi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turing_pis</span></code></p></td>
+<td><p>192.168.1.80</p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>BMC, not a node</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node01</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></td>
+<td><p>192.168.1.81</p></td>
+<td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pi4</span></code></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>No (see below)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></td>
+<td><p>192.168.1.82</p></td>
+<td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rk1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/dev/nvme0n1</span></code></p></td>
+<td><p></p></td>
+<td><p>Control plane and etcd (<code class="docutils literal notranslate"><span class="pre">control_plane</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></td>
+<td><p>192.168.1.83</p></td>
+<td><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rk1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/dev/nvme0n1</span></code></p></td>
+<td><p></p></td>
+<td><p>Worker, warm standby (<code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code></p></td>
+<td><p>192.168.1.84</p></td>
+<td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rk1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/dev/nvme0n1</span></code></p></td>
+<td><p></p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code></p></td>
+<td><p>192.168.1.10</p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code></p></td>
+<td><p>Worker, tainted</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code></p></td>
+<td><p>192.168.1.92</p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code>, <code class="docutils literal notranslate"><span class="pre">flannel_iface:</span> <span class="pre">enp3s0</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code></p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code></p></td>
+<td><p>192.168.1.91</p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>Worker</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The addresses are not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>; they are the ones the router hands out,
+and the sandbox allow-list (<code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>) repeats them.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">node01</span></code> (the CM4 in slot 1) was the control plane before that role moved to
+<code class="docutils literal notranslate"><span class="pre">node02</span></code>. It is still listed in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, so it is still a member of
+<code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>, but it is not a member of the running cluster: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">nodes</span></code>
+shows <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code>, <code class="docutils literal notranslate"><span class="pre">node04</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>. A playbook run
+without <code class="docutils literal notranslate"><span class="pre">--limit</span></code> still tries to reach it.</p>
 </div>
 </section>
-<section id="example-standalone-servers-only">
-<h2>Example: Standalone servers only<a class="headerlink" href="#example-standalone-servers-only" title="Link to this heading">#</a></h2>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">controller</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">localhost</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">ansible_connection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
-
-<span class="nt">extra_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">server1</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">server2</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">server3</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">ansible_account</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">all_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">children</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">extra_nodes</span><span class="p">:</span>
-</pre></div>
+<section id="what-else-to-touch-when-a-node-is-added-or-removed">
+<h2>What else to touch when a node is added or removed<a class="headerlink" href="#what-else-to-touch-when-a-node-is-added-or-removed" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> is not the only file that knows the list of nodes. The <code class="docutils literal notranslate"><span class="pre">/add-node</span></code>
+command covers the inventory, the playbooks and the RCON allow-list; the other
+rows are done by hand, and <a class="reference internal" href="../how-to/node-operations.html"><span class="doc">Node operations</span></a> has the procedures.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Where</p></th>
+<th class="head"><p>What</p></th>
+<th class="head"><p>Why</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code></p></td>
+<td><p>An <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> line for the node’s address, then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">sandbox-conf</span></code></p></td>
+<td><p>claude-sandbox blocks every private address that is not listed, so Ansible, SSH and kubectl inside it cannot reach an unlisted node</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
+<td><p>The node’s address as a <code class="docutils literal notranslate"><span class="pre">/32</span></code> under <code class="docutils literal notranslate"><span class="pre">except</span></code></p></td>
+<td><p>Pods on another node reach a world’s RCON port from their node’s address, so every node but the world node (<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>) and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> is carved out of the LAN allow-list</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> and <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">local_storage</span></code></p></td>
+<td><p>An entry in each, with the same <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code></p></td>
+<td><p>Only if the node will hold a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV: the first creates the host directory, the second the PV pinned to it (<a class="reference internal" href="../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code></p></td>
+<td><p>The node’s name</p></td>
+<td><p>Only if it takes one of those roles (<a class="reference internal" href="../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">claude_key</span></code> (or <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code>)</p></td>
+<td><p>Run once the node is up</p></td>
+<td><p>Puts the Claude sandbox’s SSH key on the node’s <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account. A flashed RK1 gets it from its cloud-init seed instead</p></td>
+</tr>
+<tr class="row-odd"><td><p>The router</p></td>
+<td><p>A fixed address and a DNS name for the node</p></td>
+<td><p>The inventory holds names only</p></td>
+</tr>
+</tbody>
+</table>
 </div>
-</section>
-<section id="example-mixed-turing-pi-extra-nodes">
-<h2>Example: Mixed (Turing Pi + extra nodes)<a class="headerlink" href="#example-mixed-turing-pi-extra-nodes" title="Link to this heading">#</a></h2>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">controller</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">localhost</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">ansible_connection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
-
-<span class="nt">turing_pis</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">tpi_user</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">turingpi_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">node01</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pi4</span>
-<span class="w">    </span><span class="nt">node02</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">slot_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rk1</span>
-<span class="w">      </span><span class="nt">root_dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dev/nvme0n1</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">ansible_account</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">extra_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">nuc2</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">ansible_user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">ansible_account</span><span class="nv"> </span><span class="s">}}&quot;</span>
-
-<span class="nt">all_nodes</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">children</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">turingpi_nodes</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">extra_nodes</span><span class="p">:</span>
-</pre></div>
-</div>
+<p>A machine outside the Turing Pi also needs its OS installed by hand and one run
+of <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> before <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> can reach it
+(<a class="reference internal" href="playbook-tags.html"><span class="doc">Playbook tags reference</span></a>).</p>
 </section>
 </section>
 
@@ -620,20 +661,20 @@ role uses this convention to discover which nodes belong to each BMC.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="playbook-tags.html"
+       href="services.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Playbook Tags Reference</p>
+        <p class="prev-next-title">Services reference</p>
       </div>
     </a>
     <a class="right-next"
-       href="services.html"
+       href="variables.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Services Reference</p>
+        <p class="prev-next-title">Variables reference</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -656,16 +697,13 @@ role uses this convention to discover which nodes belong to each BMC.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#host-groups">Host groups</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#naming-conventions">Naming conventions</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#turing-pi-node-groups">Turing Pi node groups</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-all-nodes-group">The <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code> group</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#groups">Groups</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-bmc-nodes-rule">The <code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code> rule</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#per-node-variables">Per-node variables</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-turing-pi-only">Example: Turing Pi only</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-standalone-servers-only">Example: Standalone servers only</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-mixed-turing-pi-extra-nodes">Example: Mixed (Turing Pi + extra nodes)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-inventory-as-it-stands">The inventory as it stands</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-else-to-touch-when-a-node-is-added-or-removed">What else to touch when a node is added or removed</a></li>
 </ul>
   </nav></div>
 

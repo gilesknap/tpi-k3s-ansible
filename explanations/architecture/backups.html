@@ -1,0 +1,1464 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Backups and disaster recovery &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/backups';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Claude Code integration" href="claude-code.html" />
+    <link rel="prev" title="Storage" href="storage.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Backups and disaster recovery</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="backups-and-disaster-recovery">
+<h1>Backups and disaster recovery<a class="headerlink" href="#backups-and-disaster-recovery" title="Link to this heading">#</a></h1>
+<p>Git is the backup for configuration. Every manifest, chart version, role and
+sealed credential is in this repository, and ArgoCD rebuilds the cluster’s
+contents from it. So the backup system only has to cover what Git cannot
+hold: application data, the cluster’s own state, and a handful of keys.</p>
+<p>This page is the overview: what is backed up, when, to where, and which
+runbook brings it back. The procedures themselves are in
+<a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a> and <a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>.</p>
+<section id="the-shape-of-it">
+<h2>The shape of it<a class="headerlink" href="#the-shape-of-it" title="Link to this heading">#</a></h2>
+<p>Backups move outwards in three steps, and every step that leaves the house
+is encrypted to a key the cluster does not have.</p>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph cluster[&quot;Cluster&quot;]
+        graf[&quot;Grafana on node04&quot;]
+        jf[&quot;Jellyfin on nuc2&quot;]
+        scrap[&quot;scrap&quot;]
+        etcd[&quot;node02: etcd,&lt;br/&gt;K3s token, sealing keys&quot;]
+        mc[&quot;Minecraft worlds&lt;br/&gt;and store&quot;]
+    end
+
+    subgraph nas[&quot;The NAS /bigdisk/k8s-cluster&quot;]
+        bk[&quot;backups/&lt;br/&gt;grafana, jellyfin, scrap, etcd&quot;]
+        live[&quot;scrap-data, minecraft,&lt;br/&gt;k8s-dynamic/stable&quot;]
+    end
+
+    nuc2[&quot;nuc2 local disk&lt;br/&gt;newest scrap run&quot;]
+    drive[&quot;Google Drive&lt;br/&gt;home-cluster-offsite&quot;]
+    key[&quot;age private key&lt;br/&gt;offline, with the owner&quot;]
+
+    graf -- &quot;CronJobs&quot; --&gt; bk
+    jf -- &quot;CronJobs&quot; --&gt; bk
+    scrap -- &quot;Litestream, then CronJobs&quot; --&gt; bk
+    etcd -- &quot;systemd timer, age-encrypted&quot; --&gt; bk
+    mc --&gt; live
+    bk -- &quot;scrap-backup-copy&quot; --&gt; nuc2
+    bk -- &quot;offsite-backup: age, rclone&quot; --&gt; drive
+    live -- &quot;Minecraft tarball: age, rclone&quot; --&gt; drive
+    key -. &quot;decrypts&quot; .-&gt; drive
+    key -. &quot;decrypts etcd bundles&quot; .-&gt; bk
+    </pre><ol class="arabic simple">
+<li><p><strong>To the NAS.</strong> Each stateful workload has a job that writes a
+consistent copy to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code> on the NAS. The NAS
+is a different machine from every node, so this covers a dead disk or a
+dead node.</p></li>
+<li><p><strong>Off the NAS.</strong> scrap’s newest backup is also copied to nuc2’s local
+disk, and everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> is uploaded to Google Drive. That
+covers a dead NAS.</p></li>
+<li><p><strong>Encrypted to an offline key.</strong> The etcd bundles are encrypted before
+they reach the NAS, and everything is encrypted before it reaches Drive,
+with <a class="reference external" href="https://github.com/FiloSottile/age">age</a> to one public key. The
+private key is not on the cluster, the NAS or Drive.</p></li>
+</ol>
+</section>
+<section id="what-is-not-in-git">
+<h2>What is not in Git<a class="headerlink" href="#what-is-not-in-git" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Data</p></th>
+<th class="head"><p>Lives on</p></th>
+<th class="head"><p>Backed up by</p></th>
+<th class="head"><p>When</p></th>
+<th class="head"><p>To</p></th>
+<th class="head"><p>Kept</p></th>
+<th class="head"><p>Encrypted</p></th>
+<th class="head"><p>Restore</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grafana database and provisioning</p></td>
+<td><p>node04, <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> CronJobs (<code class="docutils literal notranslate"><span class="pre">backups</span></code>): <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>, tarred</p></td>
+<td><p>02:45 UTC daily; 03:45 UTC Sundays</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/grafana/</span></code>, <code class="docutils literal notranslate"><span class="pre">weekly/</span></code></p></td>
+<td><p>7 days; 28 days</p></td>
+<td><p>On Drive only</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Jellyfin database, config, plugins, library definitions</p></td>
+<td><p>nuc2, <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> CronJobs (<code class="docutils literal notranslate"><span class="pre">backups</span></code>)</p></td>
+<td><p>01:45 daily; 01:50 Sundays</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/jellyfin/</span></code>, <code class="docutils literal notranslate"><span class="pre">weekly/</span></code></p></td>
+<td><p>7 days; 28 days</p></td>
+<td><p>On Drive only</p></td>
+<td><p><a class="reference internal" href="../../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>scrap database</p></td>
+<td><p>The pod’s <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code></p></td>
+<td><p>Litestream replica</p></td>
+<td><p>Continuous, about a second behind</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">scrap-data/litestream</span></code></p></td>
+<td><p>n/a</p></td>
+<td><p>No</p></td>
+<td><p>Automatic at pod start</p></td>
+</tr>
+<tr class="row-odd"><td><p>scrap database and files</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">scrap-data</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> and <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> CronJobs (<code class="docutils literal notranslate"><span class="pre">scrap</span></code>)</p></td>
+<td><p>03:30 daily; 03:50 UTC on the 1st</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code>, <code class="docutils literal notranslate"><span class="pre">monthly/</span></code></p></td>
+<td><p>7 runs; 12 runs</p></td>
+<td><p>On Drive only</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>scrap’s newest backup run</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> CronJob</p></td>
+<td><p>05:00 daily</p></td>
+<td><p>nuc2 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap-backup-copy</span></code></p></td>
+<td><p>3 runs</p></td>
+<td><p>No</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Prometheus metrics</p></td>
+<td><p>node04, <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>Nothing</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>None: history starts again</p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft worlds</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">k8s-dynamic/stable/minecraft/</span></code></p></td>
+<td><p>The dashboard’s snapshots and promoted backups, on demand</p></td>
+<td><p>When the owner takes one</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">k8s-cluster/minecraft/</span></code></p></td>
+<td><p>The dashboard’s own rules</p></td>
+<td><p>No</p></td>
+<td><p><a class="reference internal" href="../../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Minecraft store, live worlds, deleted worlds</p></td>
+<td><p>The NAS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> (<code class="docutils literal notranslate"><span class="pre">minecraft</span></code> container): one tarball</p></td>
+<td><p>05:30 daily</p></td>
+<td><p>Drive <code class="docutils literal notranslate"><span class="pre">minecraft/nightly/</span></code></p></td>
+<td><p>7 tarballs</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft world archive</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code></p></td>
+<td><p>Once, and again if it changes</p></td>
+<td><p>Drive <code class="docutils literal notranslate"><span class="pre">minecraft/archive/</span></code></p></td>
+<td><p>Never pruned</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>etcd snapshot, K3s server token, node password, K3s config</p></td>
+<td><p>node02</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup.timer</span></code> (systemd, <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role)</p></td>
+<td><p>23:15 daily</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code></p></td>
+<td><p>14 bundles</p></td>
+<td><p>Yes, before leaving the node</p></td>
+<td><p><a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Pre-upgrade etcd snapshots</p></td>
+<td><p>node02</p></td>
+<td><p>Taken by the K3s upgrade Plan; shipped by the same timer</p></td>
+<td><p>Before each K3s patch upgrade</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/etcd/pre-upgrade/</span></code></p></td>
+<td><p>4</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Sealed Secrets private keys</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> Secrets</p></td>
+<td><p>The same timer</p></td>
+<td><p>23:15 daily</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys/</span></code></p></td>
+<td><p>14 dated copies, plus the current one</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS</p></td>
+<td><p>The NAS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">backups</span></code>): rclone</p></td>
+<td><p>05:30 daily</p></td>
+<td><p>Drive <code class="docutils literal notranslate"><span class="pre">home-cluster-offsite/backups/</span></code></p></td>
+<td><p>Until gone from the NAS for 180 days, and never the 4 newest of a series</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>OpenTofu state for Cloudflare</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code> in the working copy (gitignored)</p></td>
+<td><p>By hand</p></td>
+<td><p>After a change</p></td>
+<td><p>The owner’s own copy</p></td>
+<td><p>n/a</p></td>
+<td><p>Yes, by OpenTofu with a passphrase</p></td>
+<td><p><a class="reference internal" href="../../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (Grafana’s built-in admin password)</p></td>
+<td><p>A Secret in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
+<td><p>Not backed up</p></td>
+<td><p>n/a</p></td>
+<td><p>Password manager</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>The age private key</p></td>
+<td><p>Offline</p></td>
+<td><p>The owner, in two places</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>n/a</p></td>
+<td><p>Without it no encrypted backup can be read</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Times are Europe/London unless marked UTC. The CronJobs marked UTC set no
+time zone, so they follow the control plane’s clock, which is UTC; in summer
+they run an hour later by local time.</p>
+<p>Three things in that table deserve a reason:</p>
+<ul class="simple">
+<li><p><strong>Prometheus is not backed up.</strong> Metrics refill by scraping, a consistent
+copy needs the snapshot API, and the history is not worth that machinery.
+Its volume still survives a cluster rebuild.</p></li>
+<li><p><strong>scrap has three layers</strong> because it is the one application whose data
+cannot be recreated. The Litestream replica makes a node loss cost about a
+second. The nightly runs are point-in-time copies of the database and the
+files together. The copy on nuc2 exists because the live data, the
+replica and the backups are all on the same NAS.</p></li>
+<li><p><strong>etcd is backed up outside Kubernetes.</strong> A systemd timer on the control
+plane keeps working when the API server does not, which is exactly when
+the backup matters. K3s also takes its own snapshots twice a day, but they
+stay on node02 and are lost with it.</p></li>
+</ul>
+</section>
+<section id="the-off-site-copy">
+<h2>The off-site copy<a class="headerlink" href="#the-off-site-copy" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/</span></code>,
+settings in <code class="docutils literal notranslate"><span class="pre">offsite_backup</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>) uploads to the folder
+<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code> in a personal Google Drive with rclone. Its rules are
+what make it safe to leave running:</p>
+<ul class="simple">
+<li><p><strong>Encrypted first.</strong> Each file is streamed through <code class="docutils literal notranslate"><span class="pre">age</span></code> straight into
+the upload, so nothing readable is staged anywhere. Files that are
+already <code class="docutils literal notranslate"><span class="pre">.age</span></code> (the etcd bundles) go up as they are.</p></li>
+<li><p><strong>Add only.</strong> It never mirrors a deletion. A backup that the NAS’s own
+retention removes, or that a wiped or encrypted NAS loses, stays on
+Drive.</p></li>
+<li><p><strong>Cautious pruning.</strong> A file on Drive is deleted only when its source has
+been gone from the NAS for more than <code class="docutils literal notranslate"><span class="pre">prune_days</span></code> (180) <strong>and</strong> it is not
+among the <code class="docutils literal notranslate"><span class="pre">keep_min</span></code> (4) newest of its series. An empty <code class="docutils literal notranslate"><span class="pre">backups/</span></code> (a
+missing mount, a wiped NAS) stops the job before it uploads or prunes.</p></li>
+<li><p><strong>A size check on Minecraft.</strong> A nightly tarball smaller than
+<code class="docutils literal notranslate"><span class="pre">min_size_percent</span></code> (50) of the largest one on Drive fails the run and
+stops pruning, so a wiped source cannot push the good copies out.</p></li>
+<li><p><strong>Least privilege.</strong> rclone’s token has the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> scope: it sees
+only files it created. It can delete those, which is an accepted risk
+(<a class="reference internal" href="security.html"><span class="doc">Security model</span></a>).</p></li>
+<li><p><strong>Three identities.</strong> The NAS squashes root and no single user can read
+everything, so three containers run side by side: <code class="docutils literal notranslate"><span class="pre">backups</span></code> as <code class="docutils literal notranslate"><span class="pre">nobody</span></code>
+for the etcd bundles and tarballs, <code class="docutils literal notranslate"><span class="pre">scrap</span></code> as uid 10001 for scrap’s runs,
+and <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> as uid 1000 for the worlds.</p></li>
+</ul>
+<p>What does <strong>not</strong> go off site: scrap’s live data volume (only its backup
+runs do), the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volumes themselves (only the backups made from
+them), other <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> claims, the OpenTofu state, and the media
+library.</p>
+</section>
+<section id="one-night">
+<h2>One night<a class="headerlink" href="#one-night" title="Link to this heading">#</a></h2>
+<p>Every job is timed around the nodes’ own maintenance: backups of the
+cluster’s state first, then patching, then reboots, then the copies that
+depend on everything else having finished.</p>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph before[&quot;Before the nodes change&quot;]
+        etcd[&quot;23:15&lt;br/&gt;etcd backup on node02&quot;]
+    end
+
+    subgraph maint[&quot;Node maintenance&quot;]
+        apt[&quot;00:00&lt;br/&gt;unattended-upgrades&quot;]
+        k3s[&quot;01:00 to 02:00&lt;br/&gt;K3s patch upgrades&quot;]
+        kured[&quot;02:30 to 05:00&lt;br/&gt;kured reboot window&quot;]
+    end
+
+    subgraph tonas[&quot;Backups to the NAS&quot;]
+        jf[&quot;01:45&lt;br/&gt;jellyfin-daily&quot;]
+        graf[&quot;02:45 UTC&lt;br/&gt;grafana-daily&quot;]
+        scrap[&quot;03:30&lt;br/&gt;scrap-backup&quot;]
+    end
+
+    subgraph offnas[&quot;Off the NAS&quot;]
+        copy[&quot;05:00&lt;br/&gt;scrap-backup-copy&quot;]
+        off[&quot;05:30&lt;br/&gt;offsite-backup&quot;]
+    end
+
+    etcd --&gt; apt --&gt; k3s --&gt; kured
+    etcd --&gt; jf --&gt; graf --&gt; scrap
+    kured --&gt; copy
+    scrap --&gt; copy --&gt; off
+    </pre><p>Arrows give the order in time, not a dependency between jobs. The backups to
+the NAS run alongside the maintenance windows, not after them.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Time</p></th>
+<th class="head"><p>What</p></th>
+<th class="head"><p>Where it is set</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>23:15</p></td>
+<td><p>etcd, token and sealing keys to the NAS, encrypted</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_on_calendar</span></code> (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>00:00, up to 30 min later</p></td>
+<td><p>unattended-upgrades installs packages</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">roles/update_packages/defaults</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>01:00 to 02:00</p></td>
+<td><p>system-upgrade-controller starts K3s patch upgrades; a pre-upgrade etcd snapshot comes first</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s.upgrade_window</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>01:45</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code> (Sundays 01:50: <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/backups/templates/cronjob-jellyfin.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>02:30 to 05:00</p></td>
+<td><p>kured drains and reboots nodes that need it, one at a time; never ws03</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>02:45 UTC</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code> (Sundays 03:45 UTC: <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/backups/templates/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>03:30</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> (1st of the month, 03:50 UTC: <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code>)</p></td>
+<td><p>the scrap chart; time zone in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>05:00</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> to nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/scrap/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>05:30</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The order is the design. The etcd backup runs before anything changes the
+nodes, so there is always a snapshot from before the night’s patching. The
+off-site job runs last so that it carries that night’s backups, not the
+previous night’s. The Grafana and scrap jobs do fall inside the reboot
+window; a job interrupted by a reboot is retried, and a missed scrap backup
+is caught by the next step, below.</p>
+</section>
+<section id="knowing-when-a-backup-failed">
+<h2>Knowing when a backup failed<a class="headerlink" href="#knowing-when-a-backup-failed" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>etcd:</strong> the backup script writes <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics through
+node-exporter’s textfile collector. Four rules in
+<code class="docutils literal notranslate"><span class="pre">additions/grafana/etcd-backup-rules.yaml</span></code> fire on a failed run, a bundle
+older than 36 hours, no success ever, or missing metrics. Alertmanager
+pushes these to the phone through ntfy.</p></li>
+<li><p><strong>Off-site:</strong> <code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code> and
+<code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code> (<code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code>) fire from
+kube-state-metrics. They are warnings that are not on the push list, so
+they show in Alertmanager and Grafana but do not reach the phone.</p></li>
+<li><p><strong>The CronJobs to the NAS</strong> are covered by kube-prometheus-stack’s stock
+<code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code>, also shown but not pushed.</p></li>
+<li><p><strong>scrap</strong> has a cross-check: <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> fails if the newest
+complete run is more than 26 hours old, so a backup that silently stopped
+shows up as a failed Job the next morning.</p></li>
+</ul>
+<p>Which alerts are pushed, and how to add one, is in
+<a class="reference internal" href="../../how-to/monitoring.html"><span class="doc">Monitoring and alerts</span></a>.</p>
+</section>
+<section id="recovery">
+<h2>Recovery<a class="headerlink" href="#recovery" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    start{&quot;What did you lose?&quot;}
+
+    app[&quot;One application's data&quot;]
+    worker[&quot;A worker node&quot;]
+    cp[&quot;The control plane, node02&quot;]
+    nas[&quot;The NAS&quot;]
+    all[&quot;Everything&quot;]
+
+    r1[&quot;Restore from the NAS:&lt;br/&gt;backup-restore runbook&quot;]
+    q2{&quot;Did it hold a&lt;br/&gt;local-nvme volume?&quot;}
+    r2a[&quot;Fence it; pods restart elsewhere&quot;]
+    r2b[&quot;Fence it, move the volume,&lt;br/&gt;restore the last backup&quot;]
+    r3[&quot;Restore etcd onto node03,&lt;br/&gt;repoint k3s.lan&quot;]
+    r4[&quot;New NAS directories,&lt;br/&gt;restore from Drive&quot;]
+    r5[&quot;Build tutorial, restore sealing keys,&lt;br/&gt;then restore data from Drive&quot;]
+
+    start --&gt; app --&gt; r1
+    start --&gt; worker --&gt; q2
+    q2 -- &quot;no&quot; --&gt; r2a
+    q2 -- &quot;yes: node04 or nuc2&quot; --&gt; r2b
+    start --&gt; cp --&gt; r3
+    start --&gt; nas --&gt; r4
+    start --&gt; all --&gt; r5
+    </pre><div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Lost</p></th>
+<th class="head"><p>What to do</p></th>
+<th class="head"><p>Runbook</p></th>
+<th class="head"><p>Data lost</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grafana or Jellyfin data (bad upgrade, deleted dashboard)</p></td>
+<td><p>Restore a daily or weekly tarball from the NAS</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>, <a class="reference internal" href="../../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a></p></td>
+<td><p>Up to a day</p></td>
+</tr>
+<tr class="row-odd"><td><p>scrap data</p></td>
+<td><p>Restore a backup run; a lost pod alone restores itself from the replica</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+<td><p>Up to a day from a run; about a second from the replica</p></td>
+</tr>
+<tr class="row-even"><td><p>A Minecraft world</p></td>
+<td><p>Restore a snapshot in the dashboard</p></td>
+<td><p><a class="reference internal" href="../../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a></p></td>
+<td><p>Since the last snapshot</p></td>
+</tr>
+<tr class="row-odd"><td><p>A worker with no local volume (node03, nuc1)</p></td>
+<td><p>Fence it once it is powered off; pods restart elsewhere</p></td>
+<td><p><a class="reference internal" href="../../how-to/node-operations.html#fence-a-dead-node"><span class="std std-ref">Fail over from a dead node (fence)</span></a></p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-even"><td><p>node04 (Grafana, Prometheus)</p></td>
+<td><p>Fence, move the volumes to another node, restore Grafana</p></td>
+<td><p><a class="reference internal" href="../../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a></p></td>
+<td><p>Grafana: up to a day. Prometheus: all history</p></td>
+</tr>
+<tr class="row-odd"><td><p>nuc2 (Jellyfin, Minecraft, scrap’s copy)</p></td>
+<td><p>Fence; scrap moves by itself. Move Jellyfin’s volume and restore it; point <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code> and the relay at another node</p></td>
+<td><p><a class="reference internal" href="../../how-to/node-operations.html#fence-a-dead-node"><span class="std std-ref">Fail over from a dead node (fence)</span></a>, <a class="reference internal" href="../../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a></p></td>
+<td><p>Jellyfin: up to a day. Worlds and scrap: none</p></td>
+</tr>
+<tr class="row-even"><td><p>The control plane (node02)</p></td>
+<td><p>Restore the newest etcd bundle onto node03, then point <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> at it</p></td>
+<td><p><a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a></p></td>
+<td><p>Cluster changes since 23:15; application data is untouched</p></td>
+</tr>
+<tr class="row-odd"><td><p>The NAS</p></td>
+<td><p>Recreate the directories, then restore from Drive</p></td>
+<td><p><a class="reference internal" href="../../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>, <a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
+<td><p>scrap: up to a day (or the nuc2 copy). Worlds: up to a day. Grafana, Jellyfin, etcd: nothing live is lost</p></td>
+</tr>
+<tr class="row-even"><td><p>Everything</p></td>
+<td><p>Build the cluster again, restore the sealing keys so the SealedSecrets in Git decrypt, then restore each data set from Drive</p></td>
+<td><p><a class="reference internal" href="../../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>, <a class="reference internal" href="../../how-to/backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>, <a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
+<td><p>Up to a day everywhere; Prometheus history</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Two cases need no restore at all:</p>
+<ul class="simple">
+<li><p><strong>A planned rebuild</strong> (<code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>, then <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>) keeps the
+local volumes and re-binds scrap’s NFS volumes and the worlds’
+<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> folders. The sealing key does not survive it: the new cluster
+makes its own, and the rebuild seals every secret again under that key
+(<a class="reference internal" href="../../how-to/reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a>). The reasoning is on
+the <a class="reference internal" href="storage.html"><span class="doc">storage page</span></a>.</p></li>
+<li><p><strong>Losing Drive</strong> loses only the third copy.</p></li>
+</ul>
+<p>The one loss with no recovery is the age private key together with the
+cluster: the encrypted backups then cannot be read. That is why the key is
+kept offline in two places, and why proving a bundle decrypts is part of the
+setup in <a class="reference internal" href="../../how-to/backup-restore.html#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="storage.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Storage</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="claude-code.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Claude Code integration</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-shape-of-it">The shape of it</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-not-in-git">What is not in Git</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-off-site-copy">The off-site copy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-night">One night</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#knowing-when-a-backup-failed">Knowing when a backup failed</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recovery">Recovery</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/backups.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/backups.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

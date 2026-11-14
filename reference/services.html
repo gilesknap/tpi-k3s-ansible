@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Services Reference &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Services reference &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -51,8 +51,8 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="CLI Tools Reference" href="cli-tools.html" />
-    <link rel="prev" title="Inventory Reference" href="inventory.html" />
+    <link rel="next" title="Inventory reference" href="inventory.html" />
+    <link rel="prev" title="Reference" href="../reference.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +125,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +148,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +264,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -326,13 +326,12 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook Tags Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="inventory.html">Inventory Reference</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Services Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">CLI Tools Reference</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Services reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inventory.html">Inventory reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="playbook-tags.html">Playbook tags reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-tools.html">Commands and tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="production-checklist.html">Production Readiness Checklist</a></li>
 </ul>
 </div>
 </nav></div>
@@ -376,7 +375,7 @@
     
     <li class="breadcrumb-item"><a href="../reference.html" class="nav-link">Reference</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Services Reference</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Services reference</span></li>
   </ul>
 </nav>
 </div>
@@ -394,566 +393,640 @@
                 <article class="bd-article">
                   
   <section id="services-reference">
-<h1>Services Reference<a class="headerlink" href="#services-reference" title="Link to this heading">#</a></h1>
-<p>All services deployed by ArgoCD, with their chart sources, versions, and access
-methods. If you are trying to decide <em>what to install</em>, start with
-<strong>Quick-start configurations</strong> below. If you already know what you want, skip
-down to the <strong>Service catalogue</strong> for the reference table and per-service
-details.</p>
-<section id="quick-start-configurations">
-<h2>Quick-start configurations<a class="headerlink" href="#quick-start-configurations" title="Link to this heading">#</a></h2>
-<p>Not every cluster needs every service. This section helps you pick a
-configuration based on what you actually want to run. Services can be
-individually enabled or disabled — see <a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or Remove Services</span></a>.</p>
-<section id="baseline-always-installed">
-<h3>Baseline (always installed)<a class="headerlink" href="#baseline-always-installed" title="Link to this heading">#</a></h3>
-<p>All configurations below assume the baseline plumbing that makes ingress,
-TLS, and human login work:</p>
-<ul class="simple">
-<li><p><strong>cert-manager</strong> — Let’s Encrypt TLS via Cloudflare DNS-01</p></li>
-<li><p><strong>ingress-nginx</strong> — HTTP(S) ingress controller</p></li>
-<li><p><strong>oauth2-proxy</strong> — GitHub OAuth gate for services without native OIDC</p></li>
-<li><p><strong>Sealed Secrets</strong> — encrypted secrets committed to Git</p></li>
-<li><p><strong>cloudflared</strong> — outbound Cloudflare tunnel (external access without opening ports)</p></li>
-</ul>
-<p><strong>Baseline prerequisites:</strong></p>
-<ul class="simple">
-<li><p>A Cloudflare-managed domain (set via <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>)</p></li>
-<li><p>A Cloudflare API token with DNS edit + Tunnel permissions</p></li>
-<li><p><strong>Two</strong> GitHub OAuth Apps for human logins — one for Dex (OIDC services)
-and one for oauth2-proxy (services without native OIDC)</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> and <a class="reference internal" href="../how-to/cloudflare-tunnel.html"><span class="doc">Set Up DNS, TLS &amp; Cloudflare Tunnel</span></a> for the
-setup steps.</p>
-</section>
-<section id="monitoring-only-dashboards-and-alerts">
-<h3>Monitoring-only — dashboards and alerts<a class="headerlink" href="#monitoring-only-dashboards-and-alerts" title="Link to this heading">#</a></h3>
-<p>Metrics, dashboards, and push-notification alerting for the cluster and any
-workloads you add. Useful as a standalone observability cluster.</p>
-<p><strong>Install:</strong> kube-prometheus-stack (Grafana + Prometheus + Alertmanager).</p>
-<p><strong>Hardware prerequisites:</strong></p>
-<ul class="simple">
-<li><p>One node (arm64 or amd64) for Prometheus and Grafana (both pinned to
-<code class="docutils literal notranslate"><span class="pre">node04</span></code> in this cluster’s values); they can be split across two nodes</p></li>
-</ul>
-<p><strong>Storage prerequisites:</strong></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code> on the Prometheus host (40Gi)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code> on the Grafana host (30Gi)</p></li>
-</ul>
-<p><strong>Other prerequisites:</strong></p>
-<ul class="simple">
-<li><p>For alerts on a phone: the ntfy service (see <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push Notifications with ntfy</span></a> and
-<a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring with Grafana and Prometheus</span></a>)</p></li>
-</ul>
-</section>
-<section id="minecraft-game-servers-from-world-backups">
-<h3>Minecraft — game servers from world backups<a class="headerlink" href="#minecraft-game-servers-from-world-backups" title="Link to this heading">#</a></h3>
-<p>An admin dashboard that launches Minecraft Java servers from a read-only
-archive of world backups, with snapshots, restore, and per-world whitelists.</p>
-<p><strong>Install:</strong> Minecraft dashboard (<code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">true</span></code>), plus the VPS
-relay (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay:</span> <span class="pre">true</span></code>).</p>
-<p><strong>Hardware prerequisites:</strong></p>
-<ul class="simple">
-<li><p>One node to host every world (pinned to <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> by default). Each world
-defaults to 4Gi of memory, so size the node for the worlds you run at once.</p></li>
-</ul>
-<p><strong>Storage prerequisites:</strong></p>
-<ul class="simple">
-<li><p>The NFS CSI storage class <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> for per-world data, and its share
-root on the NAS</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">minecraft-archive/</span></code> (read-only) and <code class="docutils literal notranslate"><span class="pre">k8s-cluster/minecraft/</span></code> on the NAS —
-see <a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a></p></li>
-</ul>
-<p><strong>Other prerequisites:</strong></p>
-<ul class="simple">
-<li><p>A VPS on your tailnet running frps (see <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> and
-<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a>)</p></li>
-</ul>
-</section>
-<section id="full-stack-everything">
-<h3>Full stack — everything<a class="headerlink" href="#full-stack-everything" title="Link to this heading">#</a></h3>
-<p>Install every service in the catalogue below. Use this if you have the
-hardware and want the full experience out of the box.</p>
-<p><strong>Minimum hardware:</strong></p>
-<ul class="simple">
-<li><p>A node for Prometheus and Grafana pinning (<code class="docutils literal notranslate"><span class="pre">node04</span></code> in this cluster)</p></li>
-<li><p>A NAS with an NFS export for backups</p></li>
-</ul>
-<p><strong>Other prerequisites:</strong></p>
-<ul class="simple">
-<li><p>Everything listed under the baseline and the individual configurations above</p></li>
-</ul>
-</section>
-</section>
+<h1>Services reference<a class="headerlink" href="#services-reference" title="Link to this heading">#</a></h1>
+<p>Everything ArgoCD runs on the cluster, plus ArgoCD itself: where each service
+comes from, which version is pinned, how it is reached and who may use it.
+The live cluster has 25 Applications: the root <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> and the
+24 children it renders from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>. Versions here
+are the pins in those templates and in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>;
+when this page and the code disagree, the code is right.</p>
 <section id="service-catalogue">
 <h2>Service catalogue<a class="headerlink" href="#service-catalogue" title="Link to this heading">#</a></h2>
+<p>Placement says where the pods run today and what decides it. “Any worker”
+means node03, node04, nuc1 or nuc2: node02 is tainted <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> for the
+control plane and ws03 <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code>, so only pods that
+tolerate those taints land there. node03, the warm-standby control plane,
+carries a <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code> taint: the scheduler uses it when a spread or
+anti-affinity rule asks for a second node, and otherwise prefers the others.</p>
+<section id="platform">
+<h3>Platform<a class="headerlink" href="#platform" title="Link to this heading">#</a></h3>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
-<tr class="row-odd"><th class="head"><p>Service</p></th>
-<th class="head"><p>Chart / Source</p></th>
+<tr class="row-odd"><th class="head"><p>Application</p></th>
+<th class="head"><p>Source</p></th>
 <th class="head"><p>Version</p></th>
 <th class="head"><p>Namespace</p></th>
-<th class="head"><p>Ingress URL</p></th>
-<th class="head"><p>Auth</p></th>
-<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Replicas and placement</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>argocd-monitor</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/epics-containers/charts/argocd-monitor</span></code> (OCI)</p></td>
-<td><p>1.2.0</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor.&lt;domain&gt;</span></code></p></td>
-<td><p>Dex (OIDC)</p></td>
-<td><p>Dashboard of ArgoCD application status</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code></p></td>
+<td><p>This repository, <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> (the root app, created by Ansible)</p></td>
+<td><p>branch <code class="docutils literal notranslate"><span class="pre">main</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argo-cd</span></code></p></td>
+<td><p>Renders the Applications below</p></td>
 </tr>
-<tr class="row-odd"><td><p>backups</p></td>
-<td><p>Local chart</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Grafana and Jellyfin backup CronJobs to the NAS, and the optional off-site copy to Google Drive</p></td>
-</tr>
-<tr class="row-even"><td><p>cert-manager</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">jetstack/cert-manager</span></code></p></td>
-<td><p>v1.21.3</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">cert-manager</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>TLS certificate management</p></td>
-</tr>
-<tr class="row-odd"><td><p>cloudflared</p></td>
-<td><p>Plain manifests</p></td>
-<td><p>2026.10.7</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Cloudflare tunnel connector</p></td>
-</tr>
-<tr class="row-even"><td><p>CoreDNS HA</p></td>
-<td><p>Plain manifests</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Holds K3s’s bundled CoreDNS at 2 replicas</p></td>
-</tr>
-<tr class="row-odd"><td><p>echo</p></td>
-<td><p>Plain manifests</p></td>
-<td><p>0.9.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">echo.&lt;domain&gt;</span></code></p></td>
-<td><p>None</p></td>
-<td><p>HTTP echo test service</p></td>
-</tr>
-<tr class="row-even"><td><p>Grafana + Prometheus</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">prometheus-community/kube-prometheus-stack</span></code></p></td>
-<td><p>93.2.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">grafana.&lt;domain&gt;</span></code></p></td>
-<td><p>Dex (OIDC)</p></td>
-<td><p>Monitoring and dashboards</p></td>
-</tr>
-<tr class="row-odd"><td><p>Headlamp</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">headlamp/headlamp</span></code></p></td>
-<td><p>0.46.0</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">headlamp.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth + Token</p></td>
-<td><p>Kubernetes dashboard (with Argo CD plugin)</p></td>
-</tr>
-<tr class="row-even"><td><p>home</p></td>
-<td><p>Local chart</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">home.&lt;domain&gt;</span></code></p></td>
-<td><p>None</p></td>
-<td><p>Landing page with links to the cluster’s services</p></td>
-</tr>
-<tr class="row-odd"><td><p>ingress-nginx</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx/ingress-nginx</span></code></p></td>
-<td><p>4.15.1</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Ingress controller</p></td>
-</tr>
-<tr class="row-even"><td><p>Intel GPU device plugin</p></td>
-<td><p>Upstream release manifests (vendored)</p></td>
-<td><p>v0.37.1</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Advertises <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> on Intel iGPU nodes</p></td>
-</tr>
-<tr class="row-odd"><td><p>Jellyfin</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin/jellyfin</span></code></p></td>
-<td><p>3.7.0 (image 12.4)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
-<td><p>— (LAN and Tailscale)</p></td>
-<td><p>Jellyfin users</p></td>
-<td><p>Media server with Intel GPU transcoding (optional)</p></td>
-</tr>
-<tr class="row-even"><td><p>kernel-settings</p></td>
-<td><p>Inline DaemonSet</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Sysctl tuning for performance</p></td>
-</tr>
-<tr class="row-odd"><td><p>kured</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kubereboot/kured</span></code></p></td>
-<td><p>6.1.0</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Reboots nodes after OS updates, one at a time</p></td>
-</tr>
-<tr class="row-even"><td><p>kyverno</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kyverno/kyverno</span></code></p></td>
-<td><p>3.9.1</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kyverno</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Policy engine; disabled (<code class="docutils literal notranslate"><span class="pre">enable_kyverno:</span> <span class="pre">false</span></code>)</p></td>
-</tr>
-<tr class="row-odd"><td><p>local-storage</p></td>
-<td><p>Local chart</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code> (cluster-scoped)</p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> StorageClass and the static node-pinned PVs</p></td>
-</tr>
-<tr class="row-even"><td><p>Minecraft dashboard</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> (OCI)</p></td>
-<td><p>0.5.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
-<td><p>OAuth</p></td>
-<td><p>Launch and manage Minecraft worlds (optional)</p></td>
-</tr>
-<tr class="row-odd"><td><p>nfs-csi</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">csi-driver-nfs</span></code></p></td>
-<td><p>4.13.4</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Dynamic NFS volumes: classes <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (the default) and <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>ntfy</p></td>
-<td><p>Local chart (<code class="docutils literal notranslate"><span class="pre">binwiederhier/ntfy</span></code>)</p></td>
-<td><p>v2.34.0</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ntfy.&lt;domain&gt;</span></code></p></td>
-<td><p>ntfy access tokens (no Cloudflare Access)</p></td>
-<td><p>Push notifications to phones; alerts from the cluster and outside hosts</p></td>
-</tr>
-<tr class="row-odd"><td><p>NVIDIA device plugin</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">nvidia/nvidia-device-plugin</span></code></p></td>
-<td><p>0.20.1</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the scheduler</p></td>
-</tr>
-<tr class="row-even"><td><p>oauth2-proxy</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code></p></td>
-<td><p>10.7.4</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;</span></code></p></td>
-<td><p>GitHub</p></td>
-<td><p>OAuth proxy for Headlamp, Alertmanager, the Minecraft dashboard and scrap</p></td>
-</tr>
-<tr class="row-odd"><td><p>scrap</p></td>
-<td><p>OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/scrap</span></code></p></td>
-<td><p>1.9.2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">scrap.&lt;domain&gt;</span></code></p></td>
-<td><p>Cloudflare Access + oauth2-proxy</p></td>
-<td><p>Personal knowledge store (PWA; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> behind a bearer token)</p></td>
-</tr>
-<tr class="row-even"><td><p>Sealed Secrets</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code> chart</p></td>
 <td><p>2.22.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Encrypted secrets in Git</p></td>
+<td><p>1, any worker</p></td>
 </tr>
-<tr class="row-odd"><td><p>system-upgrade-controller</p></td>
-<td><p>Upstream release manifests (vendored)</p></td>
-<td><p>v0.20.2</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cert-manager</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jetstack/cert-manager</span></code> chart</p></td>
+<td><p>v1.21.3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cert-manager</span></code></p></td>
+<td><p>1 each of controller, cainjector and webhook, any worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ingress</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes/ingress-nginx</span></code> chart</p></td>
+<td><p>4.15.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
+<td><p>2, on different nodes, with a PodDisruptionBudget. K3s ServiceLB publishes its ports 80 and 443 on node03, node04, nuc1 and nuc2</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code> chart</p></td>
+<td><p>10.7.4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
+<td><p>2, on different nodes, with a PodDisruptionBudget</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<td><p>Plain manifests, image <code class="docutils literal notranslate"><span class="pre">cloudflare/cloudflared</span></code></p></td>
+<td><p>2026.10.7</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<td><p>2, required on different nodes, with a PodDisruptionBudget</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">coredns</span></code></p></td>
+<td><p>Plain manifests (an HPA and a PodDisruptionBudget for the CoreDNS that K3s bundles)</p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+<td><p>Holds CoreDNS at 2, on different workers</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local-storage</span></code></p></td>
+<td><p>Local chart</p></td>
+<td><p>n/a</p></td>
+<td><p>cluster-scoped</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> StorageClass and the static PVs on node04 and nuc2</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-csi/csi-driver-nfs</span></code> chart</p></td>
+<td><p>4.13.4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
+<td><p>Controller 1 (on node02 today), node DaemonSet on all six nodes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code></p></td>
+<td><p>Plain manifests, <code class="docutils literal notranslate"><span class="pre">busybox:1.38</span></code></p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+<td><p>DaemonSet <code class="docutils literal notranslate"><span class="pre">sysctl-tuning</span></code> on node03, node04, nuc1 and nuc2</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubereboot/kured</span></code> chart</p></td>
+<td><p>6.1.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
+<td><p>DaemonSet on every node but ws03</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
+<td><p>Vendored upstream manifests plus two Plans</p></td>
+<td><p>controller v0.20.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
-<td><p>—</p></td>
-<td><p>—</p></td>
-<td><p>Applies k3s patch releases</p></td>
+<td><p>1 (on node02 today)</p></td>
 </tr>
-<tr class="row-even"><td><p>VPS relay</p></td>
-<td><p>Plain manifests (tailscale v1.102.5, frpc v0.71.0)</p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
-<td><p>—</p></td>
-<td><p>Tailscale + frp</p></td>
-<td><p>Publishes chosen TCP/UDP ports on a VPS’s public IP (optional)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
+<td><p>Vendored upstream DaemonSet, kustomize patch</p></td>
+<td><p>0.37.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
+<td><p>DaemonSet on nuc2 only</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NVIDIA/k8s-device-plugin</span></code> chart</p></td>
+<td><p>0.20.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
+<td><p>DaemonSet on ws03 only</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<td><p>Local chart</p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<td><p>CronJobs only: <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> (node04), <code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> (nuc2), <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code></p></td>
 </tr>
 </tbody>
 </table>
 </div>
 </section>
+<section id="operations-uis-and-monitoring">
+<h3>Operations UIs and monitoring<a class="headerlink" href="#operations-uis-and-monitoring" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Application</p></th>
+<th class="head"><p>Source</p></th>
+<th class="head"><p>Version</p></th>
+<th class="head"><p>Namespace</p></th>
+<th class="head"><p>Replicas and placement</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grafana-prometheus</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">prometheus-community/kube-prometheus-stack</span></code> chart</p></td>
+<td><p>93.3.0 (operator images pinned to v0.94.2)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
+<td><p>Prometheus and Grafana on node04 (local PVs); Alertmanager, operator, kube-state-metrics on any worker; node-exporter on all six nodes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-sigs/headlamp</span></code> chart</p></td>
+<td><p>0.46.0, Argo CD plugin 0.1.0-alpha</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p>1, any worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
+<td><p>OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/epics-containers/charts/argocd-monitor</span></code></p></td>
+<td><p>1.2.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
+<td><p>1, amd64 nodes only (nuc1 or nuc2)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
+<td><p>Local chart, image <code class="docutils literal notranslate"><span class="pre">nginxinc/nginx-unprivileged:1.31-alpine</span></code></p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
+<td><p>1, any worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+<td><p>Plain manifests, image <code class="docutils literal notranslate"><span class="pre">ealen/echo-server</span></code></p></td>
+<td><p>0.9.2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+<td><p>1, any worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p>Local chart, image <code class="docutils literal notranslate"><span class="pre">binwiederhier/ntfy</span></code></p></td>
+<td><p>v2.34.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p>1, any worker (state on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="applications">
+<h3>Applications<a class="headerlink" href="#applications" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Application</p></th>
+<th class="head"><p>Source</p></th>
+<th class="head"><p>Version</p></th>
+<th class="head"><p>Namespace</p></th>
+<th class="head"><p>Replicas and placement</p></th>
+<th class="head"><p>Toggle</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p>OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/scrap</span></code></p></td>
+<td><p>1.9.2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
+<td><p>1 each, any worker (Litestream on NFS)</p></td>
+<td><p>none</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin/jellyfin</span></code> chart</p></td>
+<td><p>chart 3.7.0, image 12.4 (<code class="docutils literal notranslate"><span class="pre">12.4.20261026-211555</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin</span></code></p></td>
+<td><p>1, nuc2 (local PV and Iris Xe)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<td><p>OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code></p></td>
+<td><p>0.5.2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<td><p>Dashboard 1, any worker; every world on nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
+<td><p>Local chart, images <code class="docutils literal notranslate"><span class="pre">tailscale/tailscale</span></code> and <code class="docutils literal notranslate"><span class="pre">fatedier/frpc</span></code></p></td>
+<td><p>v1.102.5, v0.71.0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
+<td><p>1, any worker</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Two more switches in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> change the set. <code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> is <code class="docutils literal notranslate"><span class="pre">false</span></code>:
+<code class="docutils literal notranslate"><span class="pre">templates/kyverno.yaml</span></code> (chart 3.9.1) is not rendered, because the app never
+settled to Synced and no policies were in use. <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> and
+<code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> are both <code class="docutils literal notranslate"><span class="pre">true</span></code>; they do not remove an Application,
+they switch the oauth2-proxy annotations on Headlamp’s Ingress and the
+<code class="docutils literal notranslate"><span class="pre">ssl-redirect</span></code> annotation on every tunnelled Ingress.
+<a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or remove a service</span></a> describes adding and removing Applications.</p>
+</section>
+</section>
+<section id="access">
+<h2>Access<a class="headerlink" href="#access" title="Link to this heading">#</a></h2>
+<p>Every <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code> hostname below is a route on the Cloudflare Tunnel to
+ingress-nginx (<code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>), so a request
+passes Cloudflare Access at the edge, then whatever the service does itself.
+<a class="reference internal" href="../explanations/architecture/authentication.html"><span class="doc">Authentication</span></a> explains the layers and
+<a class="reference internal" href="../tutorials/tour.html"><span class="doc">A tour of the cluster</span></a> walks through the UIs.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>URL</p></th>
+<th class="head"><p>Service</p></th>
+<th class="head"><p>Cloudflare Access</p></th>
+<th class="head"><p>In the cluster</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference external" href="https://home.gkcluster.org">https://home.gkcluster.org</a></p></td>
+<td><p>Landing page with links to everything</p></td>
+<td><p>Owner</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://argocd.gkcluster.org">https://argocd.gkcluster.org</a></p></td>
+<td><p>ArgoCD</p></td>
+<td><p>Owner and viewers (<code class="docutils literal notranslate"><span class="pre">Demo</span></code> app)</p></td>
+<td><p>GitHub through Dex: <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are <code class="docutils literal notranslate"><span class="pre">role:admin</span></code>, anyone else <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://argocd-monitor.gkcluster.org">https://argocd-monitor.gkcluster.org</a></p></td>
+<td><p>argocd-monitor</p></td>
+<td><p>Owner and viewers</p></td>
+<td><p>Its own oauth2-proxy sidecar against Dex; inherits the ArgoCD role</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://grafana.gkcluster.org">https://grafana.gkcluster.org</a></p></td>
+<td><p>Grafana</p></td>
+<td><p>Owner and viewers</p></td>
+<td><p>GitHub through Dex: <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are Admin, anyone else Viewer</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://alertmanager.gkcluster.org">https://alertmanager.gkcluster.org</a></p></td>
+<td><p>Alertmanager</p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://headlamp.gkcluster.org">https://headlamp.gkcluster.org</a></p></td>
+<td><p>Headlamp</p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>), then a ServiceAccount token</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://minecraft.gkcluster.org">https://minecraft.gkcluster.org</a></p></td>
+<td><p>Minecraft dashboard</p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://scrap.gkcluster.org">https://scrap.gkcluster.org</a></p></td>
+<td><p>scrap</p></td>
+<td><p>Owner; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> needs the <code class="docutils literal notranslate"><span class="pre">mcp-access</span></code> service token instead</p></td>
+<td><p>oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>); <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> needs scrap’s bearer token instead</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://pages.gkcluster.org">https://pages.gkcluster.org</a></p></td>
+<td><p>scrap’s public pages</p></td>
+<td><p>Bypass (public, cached)</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://ntfy.gkcluster.org">https://ntfy.gkcluster.org</a></p></td>
+<td><p>ntfy</p></td>
+<td><p>Bypass (public, rate-limited)</p></td>
+<td><p>ntfy access tokens</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://echo.gkcluster.org">https://echo.gkcluster.org</a></p></td>
+<td><p>Echo test service</p></td>
+<td><p>Owner</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://oauth2.gkcluster.org">https://oauth2.gkcluster.org</a></p></td>
+<td><p>oauth2-proxy’s sign-in and callback endpoints</p></td>
+<td><p>Owner</p></td>
+<td><p>n/a</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Not on the tunnel:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>What</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet.gkcluster.org</span></code></p></td>
+<td><p>DNS-only records pointing at the LAN and the tailnet address of an ingress node. They serve the same landing page; its JavaScript fetches <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> on each to show whether the browser is on the LAN or the tailnet</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code></p></td>
+<td><p>DNS-only record for the VPS; Minecraft players connect here (<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">http://192.168.1.92:8096</span></code></p></td>
+<td><p>Jellyfin, on nuc2’s own network: LAN and tailnet only, Jellyfin’s own users (<a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">https://k3s.lan:6443</span></code></p></td>
+<td><p>The Kubernetes API (a router DNS record for node02), for <code class="docutils literal notranslate"><span class="pre">kubectl</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="port-forward-fallbacks">
+<h3>Port-forward fallbacks<a class="headerlink" href="#port-forward-fallbacks" title="Link to this heading">#</a></h3>
+<p>When Cloudflare, the tunnel or the ingress is down, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code>
+from the devcontainer still reaches each service. It skips Cloudflare Access
+and oauth2-proxy, so it relies on the kubeconfig alone.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Service</p></th>
+<th class="head"><p>Command</p></th>
+<th class="head"><p>Then open</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ArgoCD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argo.sh</span></code>, or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">argo-cd</span> <span class="pre">port-forward</span> <span class="pre">svc/argocd-server</span> <span class="pre">8080:80</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:8080">http://localhost:8080</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Grafana</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana.sh</span></code>, or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">port-forward</span> <span class="pre">sts/grafana-prometheus</span> <span class="pre">3000</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:3000">http://localhost:3000</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Headlamp</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dashboard.sh</span></code> (also prints a 24 hour token), or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">headlamp</span> <span class="pre">port-forward</span> <span class="pre">svc/headlamp</span> <span class="pre">4466:80</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:4466">http://localhost:4466</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Prometheus</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">port-forward</span> <span class="pre">svc/grafana-prometheus-kube-pr-prometheus</span> <span class="pre">9090</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:9090">http://localhost:9090</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Alertmanager</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">port-forward</span> <span class="pre">svc/grafana-prometheus-kube-pr-alertmanager</span> <span class="pre">9093</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:9093">http://localhost:9093</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Minecraft dashboard</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">minecraft</span> <span class="pre">port-forward</span> <span class="pre">svc/minecraft-dashboard</span> <span class="pre">8080:80</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:8080">http://localhost:8080</a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">argo.sh</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana.sh</span></code> and <code class="docutils literal notranslate"><span class="pre">dashboard.sh</span></code> are written by the <code class="docutils literal notranslate"><span class="pre">tools</span></code> Ansible
+role. ArgoCD and Grafana still ask for the GitHub login through Dex, whose
+redirects go to the public hostnames, so with the edge down the practical
+tools are <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> and Headlamp with a token:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>headlamp-token<span class="w">      </span><span class="c1"># a 100 day ServiceAccount token</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="argocd-itself">
+<h2>ArgoCD itself<a class="headerlink" href="#argocd-itself" title="Link to this heading">#</a></h2>
+<p>ArgoCD is not in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>. The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> Ansible role
+installs it with Helm from <code class="docutils literal notranslate"><span class="pre">oci://ghcr.io/argoproj/argo-helm/argo-cd</span></code>, chart
+<strong>9.4.17</strong> (ArgoCD v3.3.6), into the <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> namespace
+(<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>), then applies the AppProject
+<code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> and the root Application from <code class="docutils literal notranslate"><span class="pre">argo-cd/</span></code>. One replica of each
+component, on any worker.</p>
+<ul class="simple">
+<li><p><strong>Login:</strong> GitHub through its bundled Dex. The built-in admin account is
+disabled (<code class="docutils literal notranslate"><span class="pre">admin.enabled:</span> <span class="pre">&quot;false&quot;</span></code>).</p></li>
+<li><p><strong>RBAC:</strong> <code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> maps each of <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code>;
+<code class="docutils literal notranslate"><span class="pre">policy.default</span></code> is <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>.</p></li>
+<li><p><strong>Dex clients:</strong> <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code> and <code class="docutils literal notranslate"><span class="pre">grafana</span></code>, so Grafana and
+argocd-monitor log in through the same Dex.</p></li>
+<li><p><strong>AppProject:</strong> <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code> is an allow-list of this repository and the
+chart registries in the tables above (<code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>). A new
+chart source must be added there and applied with
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>.</p></li>
+</ul>
+<p><a class="reference internal" href="../explanations/architecture/gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a> describes the app-of-apps layout.</p>
+</section>
 <section id="service-details">
 <h2>Service details<a class="headerlink" href="#service-details" title="Link to this heading">#</a></h2>
+<section id="sealed-secrets">
+<h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
+<p>Bitnami’s controller, in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code>. It decrypts each <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> in Git
+into a Secret. See <a class="reference internal" href="../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>.</p>
+</section>
 <section id="cert-manager">
 <h3>cert-manager<a class="headerlink" href="#cert-manager" title="Link to this heading">#</a></h3>
-<p>Manages TLS certificates via Let’s Encrypt. Uses DNS-01 validation through the
-Cloudflare API. Includes a <code class="docutils literal notranslate"><span class="pre">ClusterIssuer</span></code> (<code class="docutils literal notranslate"><span class="pre">letsencrypt-prod</span></code>) and a SealedSecret
-for the Cloudflare API token. Resource limits: 50m/128Mi request, 200m/256Mi limit.</p>
+<p>Issues one wildcard certificate, <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> and <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, from
+Let’s Encrypt by DNS-01 through the Cloudflare API, into the Secret
+<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>. ingress-nginx serves it as its default
+certificate, so no Ingress needs its own. Requests 50m/128Mi, limits
+200m/256Mi.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/cert-manager/templates/</span></code></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">cloudflare-api-token-secret.yaml</span></code> — SealedSecret for DNS API token</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">issuer-letsencrypt-prod.yaml</span></code> — ClusterIssuer for production Let’s Encrypt (uses <code class="docutils literal notranslate"><span class="pre">domain_email</span></code> for ACME notifications)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cloudflare-api-token-secret.yaml</span></code>: SealedSecret with the DNS API token
+(<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-dns01-token"><span class="std std-ref">cert-manager’s DNS-01 token</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">issuer-letsencrypt-prod.yaml</span></code>: the <code class="docutils literal notranslate"><span class="pre">letsencrypt-prod</span></code> ClusterIssuer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">wildcard-certificate.yaml</span></code>: the wildcard Certificate</p></li>
 </ul>
-</section>
-<section id="cloudflared">
-<h3>cloudflared<a class="headerlink" href="#cloudflared" title="Link to this heading">#</a></h3>
-<p>Outbound Cloudflare tunnel connector. Runs 2 replicas on different nodes
-(required pod anti-affinity) with a PodDisruptionBudget of <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>.
-Reads the tunnel token from a SealedSecret. Non-root, read-only rootfs.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/cloudflared/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">deployment.yaml</span></code> — 2-replica Deployment with hardened security context, and
-its PodDisruptionBudget</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tunnel-secret.yaml</span></code> — SealedSecret for tunnel token</p></li>
-</ul>
-</section>
-<section id="echo">
-<h3>echo<a class="headerlink" href="#echo" title="Link to this heading">#</a></h3>
-<p>Simple HTTP echo service (<a class="reference external" href="https://github.com/Ealenn/Echo-Server">ealen/echo-server</a>)
-for testing ingress, TLS, and headers. Exposed publicly via Cloudflare tunnel with
-<code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">false</span></code>. Runs as non-root (65534) with read-only root filesystem.
-Image pinned to <code class="docutils literal notranslate"><span class="pre">0.9.2</span></code>.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/echo/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">manifests.yaml</span></code> — Deployment and Service (the Ingress comes from
-<code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code>)</p></li>
-</ul>
-</section>
-<section id="grafana-prometheus-kube-prometheus-stack">
-<h3>Grafana + Prometheus (kube-prometheus-stack)<a class="headerlink" href="#grafana-prometheus-kube-prometheus-stack" title="Link to this heading">#</a></h3>
-<p>Full monitoring stack: Prometheus for metrics collection, Grafana for dashboards,
-Alertmanager for alerts. Grafana authenticates via Dex (OIDC) with GitHub —
-emails in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get Admin role, all other authenticated users get Viewer. Uses
-static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs pinned by node affinity (Grafana → node04 30Gi,
-Prometheus → node04 40Gi). Grafana resource limits: 100m/256Mi request,
-500m/512Mi limit. Alertmanager, the Prometheus operator and kube-state-metrics
-do not tolerate the workstation taint, so they stay off workstation nodes;
-node-exporter runs on every node.</p>
-<p>Uses <code class="docutils literal notranslate"><span class="pre">ServerSideApply=true</span></code> sync option due to large CRDs.</p>
-</section>
-<section id="headlamp">
-<h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
-<p>Modern Kubernetes dashboard. Protected by the cluster-wide oauth2-proxy
-(admin-only, same as Alertmanager). After OAuth login,
-paste a ServiceAccount token generated with
-<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">create</span> <span class="pre">token</span> <span class="pre">headlamp</span> <span class="pre">-n</span> <span class="pre">headlamp</span></code> to access the Kubernetes API.
-The Helm chart creates a ClusterRoleBinding granting <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> to
-the default ServiceAccount. Resource limits: 50m/128Mi request,
-200m/256Mi limit.</p>
-<p><strong>Argo CD plugin.</strong> The
-<a class="reference external" href="https://github.com/headlamp-k8s/plugins/tree/main/argocd">Argo CD plugin</a>
-from the Headlamp project adds an Argo CD sidebar section listing
-Applications with their project, source repo, revision, sync status and
-health, plus buttons to sync or refresh an Application. It drives the
-Kubernetes API rather than the Argo CD REST API, so it needs no Argo CD
-credentials — read and patch rights on <code class="docutils literal notranslate"><span class="pre">applications.argoproj.io</span></code> are
-enough, which the chart’s <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code> ClusterRoleBinding already
-covers. No extra RBAC manifests are required.</p>
-<p>The plugin is not on ArtifactHub yet, so the chart’s <code class="docutils literal notranslate"><span class="pre">pluginsManager</span></code>
-sidecar (which only accepts ArtifactHub URLs) cannot install it. Instead
-<code class="docutils literal notranslate"><span class="pre">templates/dashboard.yaml</span></code> sets <code class="docutils literal notranslate"><span class="pre">config.pluginsDir</span></code> and adds an
-initContainer that downloads the GitHub release tarball, verifies its
-SHA-256, and unpacks it into an emptyDir shared with the Headlamp
-container. Set <code class="docutils literal notranslate"><span class="pre">headlamp.argocd_plugin.enabled</span></code> to <code class="docutils literal notranslate"><span class="pre">false</span></code> in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> to drop the plugin; bump
-<code class="docutils literal notranslate"><span class="pre">version</span></code> and <code class="docutils literal notranslate"><span class="pre">sha256</span></code> together to upgrade it.</p>
+<p>Its metrics are scraped by a ServiceMonitor in <code class="docutils literal notranslate"><span class="pre">additions/grafana/</span></code>, and
+certificate expiry alerts come from there (<a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring and alerts</span></a>).</p>
 </section>
 <section id="ingress-nginx">
 <h3>ingress-nginx<a class="headerlink" href="#ingress-nginx" title="Link to this heading">#</a></h3>
-<p>NGINX ingress controller. Runs 2 replicas spread across nodes with a
-PodDisruptionBudget of <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>. Admission webhooks are disabled.
-Resource limits: 100m/256Mi request, 500m/512Mi limit.</p>
+<p>The only ingress controller. Two replicas with a topology spread across
+nodes and <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>, so a reboot or drain keeps one serving. The
+admission webhook is disabled: its hook Jobs delete themselves before ArgoCD
+records them, which left every sync stuck. Requests 100m/256Mi, limits
+500m/512Mi.</p>
+<p>Most Ingresses are rendered by the small <code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> chart, which the
+service templates include as a source with <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">service_name</span></code>,
+<code class="docutils literal notranslate"><span class="pre">service_port</span></code> and <code class="docutils literal notranslate"><span class="pre">oauth2_proxy</span></code>.</p>
+</section>
+<section id="oauth2-proxy">
+<h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
+<p>GitHub login gate for the services with no login of their own: Headlamp,
+Alertmanager, the Minecraft dashboard and scrap. ingress-nginx asks it about
+every request (<code class="docutils literal notranslate"><span class="pre">auth-url</span></code> annotation) and it admits only <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>. Two
+replicas; sessions live in the encrypted cookie on <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code>, so the
+replicas share no state. Requests 10m/64Mi, limits 100m/128Mi.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-secret.yaml</span></code>: SealedSecret with the GitHub OAuth credentials</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">error-templates.yaml</span></code>: the error page shown to an account that is not allowed</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set up OAuth authentication</span></a>.</p>
+</section>
+<section id="cloudflared">
+<h3>cloudflared<a class="headerlink" href="#cloudflared" title="Link to this heading">#</a></h3>
+<p>The outbound Cloudflare Tunnel connector. Two replicas on different nodes
+(required anti-affinity) with <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>; non-root, read-only root
+filesystem. The tunnel, its routes and its DNS records are code in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>; the pod only needs the tunnel token.</p>
+<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/cloudflared/</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">deployment.yaml</span></code>: the Deployment and its PodDisruptionBudget</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networkpolicy.yaml</span></code>: the pod’s NetworkPolicy</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tunnel-secret.yaml</span></code>: SealedSecret with the tunnel token
+(<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code>)</p></li>
+</ul>
+<p>See <a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a> and
+<a class="reference internal" href="../explanations/architecture/networking.html"><span class="doc">Networking and ingress</span></a>.</p>
 </section>
 <section id="coredns-ha">
 <h3>CoreDNS HA<a class="headerlink" href="#coredns-ha" title="Link to this heading">#</a></h3>
-<p>Adds a HorizontalPodAutoscaler fixed at 2 replicas and a PodDisruptionBudget
-to the CoreDNS Deployment that K3s manages. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p>
+<p>K3s owns the CoreDNS Deployment and re-applies it at every server restart, so
+this Application does not replace it. It adds an HPA with <code class="docutils literal notranslate"><span class="pre">minReplicas</span></code> and
+<code class="docutils literal notranslate"><span class="pre">maxReplicas</span></code> both 2, which holds the Deployment at two replicas, and a
+PodDisruptionBudget. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Automatic maintenance</span></a>.</p>
+</section>
+<section id="local-storage-and-nfs-csi">
+<h3>local-storage and nfs-csi<a class="headerlink" href="#local-storage-and-nfs-csi" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">local-storage</span></code> defines the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> class and one static, node-pinned PV
+per entry of <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>: Prometheus and Grafana on
+node04, Jellyfin, scrap’s backup copy and scrap’s frozen copy on nuc2. It also
+marks K3s’s <code class="docutils literal notranslate"><span class="pre">local-path</span></code> class as not the default.</p>
+<p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code> provides the two dynamic classes on the NAS: <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (the
+default; one fixed folder per claim under <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>, archived on
+delete) and <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> (a scratch folder per volume under <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>,
+deleted with the claim).</p>
+<p>See <a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a> and
+<a class="reference internal" href="../how-to/nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>.</p>
 </section>
 <section id="kernel-settings">
 <h3>kernel-settings<a class="headerlink" href="#kernel-settings" title="Link to this heading">#</a></h3>
-<p>DaemonSet that applies system tuning on all nodes:</p>
-<ul class="simple">
-<li><p>Sets <code class="docutils literal notranslate"><span class="pre">rmem_max</span></code> and <code class="docutils literal notranslate"><span class="pre">wmem_max</span></code> to 7500000 (network buffers)</p></li>
-</ul>
-<p>All busybox images pinned to <code class="docutils literal notranslate"><span class="pre">1.38</span></code>.</p>
+<p>A DaemonSet that raises <code class="docutils literal notranslate"><span class="pre">net.core.rmem_max</span></code> and <code class="docutils literal notranslate"><span class="pre">net.core.wmem_max</span></code> to
+7500000 on the nodes it runs on, for network buffers.</p>
 </section>
-<section id="kured">
-<h3>kured<a class="headerlink" href="#kured" title="Link to this heading">#</a></h3>
-<p>DaemonSet that reboots a node when <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> exists, inside
-the nightly reboot window, one node at a time, after draining it. Runs on the
-control plane but not on workstation nodes. Exposes <code class="docutils literal notranslate"><span class="pre">kured_*</span></code> metrics to
-Prometheus. See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Upgrade Model</span></a>.</p>
+<section id="kured-and-system-upgrade-controller">
+<h3>kured and system-upgrade-controller<a class="headerlink" href="#kured-and-system-upgrade-controller" title="Link to this heading">#</a></h3>
+<p>The nightly maintenance pair. kured reboots a node when
+<code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> exists, between 02:30 and 05:00 Europe/London, one
+node at a time, after draining it; it runs on node02 but not on ws03, and
+skips a node that is running a K3s upgrade Job. system-upgrade-controller
+applies K3s patch releases of the <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code> line (v1.34) between 01:00 and
+02:00 through two Plans (<code class="docutils literal notranslate"><span class="pre">additions/k3s-upgrade-plans/</span></code>), which exclude ws03.</p>
+<p>The controller’s manifests are vendored unchanged from its GitHub release in
+<code class="docutils literal notranslate"><span class="pre">additions/system-upgrade-controller/</span></code>, so a sync or rebuild does not depend
+on GitHub downloads. To upgrade it, re-download both files and update the
+version and sha256 sums as the <code class="docutils literal notranslate"><span class="pre">kustomization.yaml</span></code> header there describes.</p>
+<p>See <a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Automatic maintenance</span></a> and <a class="reference internal" href="../how-to/upgrade-k3s.html"><span class="doc">Upgrade K3s</span></a>.</p>
 </section>
-<section id="jellyfin">
-<h3>Jellyfin<a class="headerlink" href="#jellyfin" title="Link to this heading">#</a></h3>
-<p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code>). The upstream
-<a class="reference external" href="https://github.com/jellyfin/jellyfin-helm">jellyfin/jellyfin</a> chart, pinned
-to one node: its data, config and logs are a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV there
-(<code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code>), mounted at a host install’s paths
-(<code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin</span></code>), and the pod requests that node’s Intel iGPU
-(<code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915:</span> <span class="pre">1</span></code>, see <a class="reference internal" href="#intel-gpu-device-plugin">Intel GPU device plugin</a>)
-with the node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> groups in <code class="docutils literal notranslate"><span class="pre">supplementalGroups</span></code>. It runs as
-a fixed uid/gid (<code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code>/<code class="docutils literal notranslate"><span class="pre">gid</span></code>). The media library is a static
-read-only NFS PV, mounted at the path a host install used. No Ingress and no
-Cloudflare route: LAN and Tailscale only, with <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code> (off in a trial,
-<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code>). No PodDisruptionBudget, so kured can drain the node.
-Init containers can seed the volume once from a host install
-(<code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code>), and the <code class="docutils literal notranslate"><span class="pre">backups</span></code> app backs up the database and
-config nightly (<code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code>).</p>
-<p>See <a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>.</p>
+<section id="backups">
+<h3>backups<a class="headerlink" href="#backups" title="Link to this heading">#</a></h3>
+<p>CronJobs that write to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups</span></code> on the NAS through the
+static <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> volume: Grafana’s database daily and weekly (on
+node04), Jellyfin’s database and config daily and weekly (on nuc2), and
+<code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code>, which at 05:30 uploads every backup, age-encrypted, to the
+Google Drive folder <code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code>. scrap’s backups are CronJobs of
+its own chart, and etcd’s is a systemd timer on node02. See
+<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>.</p>
 </section>
-<section id="minecraft-dashboard">
-<h3>Minecraft dashboard<a class="headerlink" href="#minecraft-dashboard" title="Link to this heading">#</a></h3>
-<p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code>). Deployed from the OCI chart published by
-<a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">gilesknap/k3s-minecraft</a>, which
-creates the dashboard Deployment, Service, a namespace-scoped
-ServiceAccount/Role, and three static NFS volumes: the world archive
-(mounted read-only), the writable store, and the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> share (mounted
-read-only, to check world folders and archives). The dashboard itself installs
-one <a class="reference external" href="https://github.com/itzg/minecraft-server-charts">itzg Minecraft</a>
-Helm release per world in the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> namespace, each with a dynamic
-<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC and a NodePort from <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code>, pinned to one node.
-Protected by oauth2-proxy (admin-only, same as Headlamp).</p>
-<p>See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft Dashboard</span></a> for setup.</p>
+<section id="grafana-prometheus-kube-prometheus-stack">
+<h3>Grafana + Prometheus (kube-prometheus-stack)<a class="headerlink" href="#grafana-prometheus-kube-prometheus-stack" title="Link to this heading">#</a></h3>
+<p>Prometheus, Grafana, Alertmanager, the operator, kube-state-metrics and
+node-exporter, with this cluster’s alert rules and the Alertmanager to ntfy
+route. Synced with <code class="docutils literal notranslate"><span class="pre">ServerSideApply=true</span></code> because of the size of its CRDs.
+See <a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring and alerts</span></a>.</p>
+</section>
+<section id="headlamp">
+<h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
+<p>Kubernetes dashboard behind oauth2-proxy. After the GitHub login, paste a
+ServiceAccount token (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code>); the chart binds the <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>
+ServiceAccount to <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>. Requests 50m/128Mi, limits 200m/256Mi.</p>
+<p>The <a class="reference external" href="https://github.com/headlamp-k8s/plugins/tree/main/argocd">Argo CD plugin</a>
+adds a sidebar section listing Applications with sync and health status and
+buttons to sync or refresh. It drives the Kubernetes API, not the ArgoCD API,
+so it needs no ArgoCD credentials. The plugin is not on ArtifactHub, so
+<code class="docutils literal notranslate"><span class="pre">templates/dashboard.yaml</span></code> adds an init container that downloads the release
+tarball, verifies its SHA-256 and unpacks it into an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>. Bump
+<code class="docutils literal notranslate"><span class="pre">headlamp.argocd_plugin.version</span></code> and <code class="docutils literal notranslate"><span class="pre">sha256</span></code> together; set <code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">false</span></code>
+to drop it.</p>
+</section>
+<section id="argocd-monitor">
+<h3>argocd-monitor<a class="headerlink" href="#argocd-monitor" title="Link to this heading">#</a></h3>
+<p>A dashboard of Application status from
+<a class="reference external" href="https://github.com/epics-containers/argocd-monitor">epics-containers/argocd-monitor</a>,
+with links from each workload to its Grafana dashboard. It logs in through
+Dex with its own oauth2-proxy sidecar (client <code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code>, SealedSecret
+<code class="docutils literal notranslate"><span class="pre">argocd-monitor-oauth</span></code>) and talks to <code class="docutils literal notranslate"><span class="pre">argocd-server</span></code> inside the cluster.
+Pinned to amd64 nodes.</p>
+</section>
+<section id="home">
+<h3>home<a class="headerlink" href="#home" title="Link to this heading">#</a></h3>
+<p>nginx serving a static landing page from a ConfigMap, with a card per web UI
+and the LAN and tailnet probes described under Access.</p>
+</section>
+<section id="echo">
+<h3>echo<a class="headerlink" href="#echo" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://github.com/Ealenn/Echo-Server">ealen/echo-server</a>: returns the
+request it received as JSON, which shows the headers that Cloudflare,
+ingress-nginx and oauth2-proxy add. Non-root with a read-only root
+filesystem.</p>
+</section>
+<section id="ntfy">
+<h3>ntfy<a class="headerlink" href="#ntfy" title="Link to this heading">#</a></h3>
+<p>Self-hosted push notifications at <code class="docutils literal notranslate"><span class="pre">ntfy.gkcluster.org</span></code>, locked down:
+<code class="docutils literal notranslate"><span class="pre">auth-default-access:</span> <span class="pre">deny-all</span></code>, no sign-up, no web app, no attachments. Users,
+tokens and access are declarative, from the <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> SealedSecret and the
+chart’s values: write-only senders (<code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>, <code class="docutils literal notranslate"><span class="pre">vps</span></code>
+on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code>) and a read-only <code class="docutils literal notranslate"><span class="pre">phone</span></code> user. It is public through the tunnel
+with a bypass Access application, because the phone app cannot log in to
+Access, and a Cloudflare rate-limiting rule. A NetworkPolicy admits only
+ingress-nginx and the Alertmanager pods. See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push notifications with ntfy</span></a>.</p>
 </section>
 <section id="scrap">
 <h3>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h3>
 <p>Personal knowledge store (<a class="reference external" href="https://github.com/gilesknap/scrap">gilesknap/scrap</a>).
-The Argo CD Application deploys the chart from a git tag into the <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
-namespace in its Litestream mode, so it runs on any node. The database is on
-the pod’s emptyDir, replicated to a static NFS data volume, and the backups
-are on a second static NFS volume. There is also a nightly copy of the newest
-backup to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV, a NetworkPolicy admitting only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>,
-and Claude ingest enabled. The PWA is protected by
-Cloudflare Access plus oauth2-proxy. A separate <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> Ingress (<code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled:</span> <span class="pre">true</span></code>)
-bypasses oauth2-proxy and is protected by a Cloudflare Access service token
-plus scrap’s own bearer token (<code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code>, from <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code>).</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/scrap/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/mcp-ingress.yaml</span></code> — <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only Ingress without oauth2-proxy</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/nfs-volumes.yaml</span></code> — static NFS PVs and PVCs for data and backups</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/backup-copy.yaml</span></code> — the nightly off-NAS backup copy</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/legacy-pvc.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/migrate-job.yaml</span></code> — the pre-Litestream
-claims, kept as a frozen copy, and the one-off move to NFS</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-secret.yaml</span></code> — SealedSecret <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code>
-(<code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code>; sealed per cluster)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/public-namespace.yaml</span></code> — the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace for the
-public pages site</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/scrap-publish-secret.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/scrap-public-publish-secret.yaml</span></code>
-— SealedSecrets <code class="docutils literal notranslate"><span class="pre">scrap-publish</span></code> (the public-pages upload token) in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
-and <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Deploy scrap</span></a> for setup.</p>
+The pod runs on any node: the database is on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, replicated by
+Litestream to a static NFS volume on the NAS. The web UI is behind Cloudflare
+Access and oauth2-proxy; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> has its own Ingress behind a Cloudflare
+service token and scrap’s bearer token; public pages are served from the
+<code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace at <code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code>. See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Run scrap</span></a>.</p>
+</section>
+<section id="jellyfin">
+<h3>Jellyfin<a class="headerlink" href="#jellyfin" title="Link to this heading">#</a></h3>
+<p>The upstream chart, pinned to nuc2 for its config volume (a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV at
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code>) and the Iris Xe (see
+<a class="reference internal" href="#intel-gpu-device-plugin">Intel GPU device plugin</a>). <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code>, so it
+answers on nuc2’s port 8096 on the LAN and the tailnet; no Ingress and no
+Cloudflare route. The library is a read-only NFS mount of <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code>.
+See <a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>.</p>
+</section>
+<section id="minecraft-dashboard">
+<h3>Minecraft dashboard<a class="headerlink" href="#minecraft-dashboard" title="Link to this heading">#</a></h3>
+<p>The OCI chart from
+<a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">gilesknap/k3s-minecraft</a>: an
+admin UI that installs one
+<a class="reference external" href="https://github.com/itzg/minecraft-server-charts">itzg Minecraft</a> Helm release
+per world in its own namespace, each with an <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> claim and a NodePort
+from 30565 to 30584 on nuc2. Players come in through the VPS relay. See
+<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>.</p>
 </section>
 <section id="vps-relay">
 <h3>VPS relay<a class="headerlink" href="#vps-relay" title="Link to this heading">#</a></h3>
-<p>Optional (<code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code>). One Deployment with two containers: a
-Tailscale userspace sidecar that joins the tailnet as an ephemeral node
-tagged <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> and offers SOCKS5 on <code class="docutils literal notranslate"><span class="pre">127.0.0.1:1055</span></code>, and frpc,
-which dials frps on the VPS through it. Every entry in <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>
-becomes one frp proxy per port, so frps publishes those ports on the VPS and
-relays each connection to the same port on the entry’s <code class="docutils literal notranslate"><span class="pre">target</span></code>. All
-connections are outbound from the cluster. Both containers run non-root
-with a read-only root filesystem and no service-account token.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/vps-relay/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/deployment.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">templates/frpc-configmap.yaml</span></code> — the pod
-and its generated <code class="docutils literal notranslate"><span class="pre">frpc.toml</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/vps-relay-secret.yaml</span></code> — SealedSecret for the Tailscale OAuth
-client secret and the frp token (created by you; not shipped)</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> for setup, including the frps runbook for the
-VPS.</p>
-</section>
-<section id="oauth2-proxy">
-<h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
-<p>Lightweight OAuth authentication proxy. Redirects unauthenticated users to GitHub
-for login. Protects services without native OIDC support: Headlamp,
-Alertmanager and the Minecraft dashboard. Integrated with nginx ingress annotations.
-Runs 2 replicas spread across nodes with a PodDisruptionBudget of
-<code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>; sessions live in the encrypted cookie, so replicas share no
-state. Resource limits: 10m/64Mi request, 100m/128Mi limit.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy-secret.yaml</span></code> — SealedSecret for GitHub OAuth credentials</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a> for configuration details.</p>
-</section>
-<section id="ntfy">
-<h3>ntfy<a class="headerlink" href="#ntfy" title="Link to this heading">#</a></h3>
-<p>Push-notification server (<a class="reference external" href="https://ntfy.sh">ntfy</a>), locked down:
-<code class="docutils literal notranslate"><span class="pre">auth-default-access:</span> <span class="pre">deny-all</span></code>, no sign-up, no login, no web app and no
-attachments. Users, tokens and access are declarative: the users and tokens
-come from the <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> SealedSecret, the access list from the chart’s
-values, so no <code class="docutils literal notranslate"><span class="pre">ntfy</span> <span class="pre">user</span> <span class="pre">add</span></code> is ever run. One write-only user per sender
-(<code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>, <code class="docutils literal notranslate"><span class="pre">vps</span></code> on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code>) and a
-read-only <code class="docutils literal notranslate"><span class="pre">phone</span></code> user; no admin user. A daily cap of 500 messages per
-visitor. One replica with its SQLite user database and
-message cache (12h) on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, so it is not pinned to a node. A
-NetworkPolicy admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>. Non-root (10001) with a
-read-only root filesystem; probes on <code class="docutils literal notranslate"><span class="pre">/v1/health</span></code>. Resource limits:
-10m/32Mi request, 500m/256Mi limit. Public through the Cloudflare tunnel
-with a Cloudflare Access <strong>Bypass</strong> application, as the phone app cannot
-log in to Access.</p>
-<p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/ntfy/</span></code></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/deployment.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/service.yaml</span></code>,
-<code class="docutils literal notranslate"><span class="pre">templates/configmap.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">server.yml</span></code>), <code class="docutils literal notranslate"><span class="pre">templates/networkpolicy.yaml</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">templates/ntfy-auth-secret.yaml</span></code> — SealedSecret with the users and
-tokens (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code>)</p></li>
-</ul>
-<p>See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push Notifications with ntfy</span></a> for setup.</p>
+<p>One pod with two containers: a Tailscale userspace sidecar that joins the
+tailnet as an ephemeral node tagged <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>, and frpc, which dials
+frps on the VPS through it. Each entry in <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> publishes its
+ports on the VPS’s public address and relays them to the same ports on its
+<code class="docutils literal notranslate"><span class="pre">target</span></code>; today that is the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward, 30565 to 30584 to nuc2. Every
+connection is outbound from the cluster. Both containers are non-root with a
+read-only root filesystem and no service-account token. See
+<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>.</p>
 </section>
 <section id="nvidia-device-plugin">
 <h3>NVIDIA device plugin<a class="headerlink" href="#nvidia-device-plugin" title="Link to this heading">#</a></h3>
-<p>DaemonSet that detects NVIDIA GPUs and advertises <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> resources to the
-Kubernetes scheduler. Schedules on nodes with label <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>
-(applied by the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role for <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code> hosts). Once running, it
-also sets the <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present</span></code> label and the <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code> allocatable
-resource on the node.</p>
-<p>Requires the NVIDIA container runtime to be configured in k3s’s containerd. The
-<code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role writes a <code class="docutils literal notranslate"><span class="pre">config.toml.tmpl</span></code> that sets the NVIDIA runtime as
-default and survives k3s-agent restarts.</p>
+<p>DaemonSet that advertises ws03’s GPU as <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code>. It schedules on
+nodes labelled <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>, which the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role
+sets for hosts with <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, and tolerates the
+<code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint. A pod that wants the GPU must tolerate that taint too.</p>
+<p>The node needs the NVIDIA container runtime in K3s’s containerd: the
+<code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role writes a <code class="docutils literal notranslate"><span class="pre">config.toml.tmpl</span></code> that makes it the default
+runtime and survives <code class="docutils literal notranslate"><span class="pre">k3s-agent</span></code> restarts.</p>
 </section>
 <section id="intel-gpu-device-plugin">
 <h3>Intel GPU device plugin<a class="headerlink" href="#intel-gpu-device-plugin" title="Link to this heading">#</a></h3>
 <p>DaemonSet from
 <a class="reference external" href="https://github.com/intel/intel-device-plugins-for-kubernetes">intel-device-plugins-for-kubernetes</a>
-that advertises an Intel iGPU (for example Iris Xe) as the <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code>
-resource, so a pod gets <code class="docutils literal notranslate"><span class="pre">/dev/dri</span></code> for VAAPI or Quick Sync through a resource
-request instead of running privileged. Schedules on nodes with label
-<code class="docutils literal notranslate"><span class="pre">intel.feature.node.kubernetes.io/gpu=true</span></code>, applied by the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role
-for <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code> hosts. That is the label Node Feature Discovery would set,
-so NFD can replace the inventory flag later without changing the plugin.</p>
+that advertises nuc2’s Iris Xe as the <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code> resource, so a pod
+gets <code class="docutils literal notranslate"><span class="pre">/dev/dri</span></code> for VAAPI or Quick Sync through a resource request instead of
+running privileged. It schedules on nodes labelled
+<code class="docutils literal notranslate"><span class="pre">intel.feature.node.kubernetes.io/gpu=true</span></code>, which the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role sets
+for hosts with <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>. That is the label Node
+Feature Discovery would set, so NFD could replace the inventory flag later
+without changing the plugin.</p>
 <p>It is the upstream release’s plain DaemonSet, vendored in
-<code class="docutils literal notranslate"><span class="pre">additions/intel-gpu-plugin/upstream/</span></code> so that a sync never fetches from GitHub,
-with a kustomize patch for the node selector and <code class="docutils literal notranslate"><span class="pre">-shared-dev-num</span></code>. It needs
-neither the Intel operator nor cert-manager. <code class="docutils literal notranslate"><span class="pre">-shared-dev-num</span></code> sets how many pods
-may share each GPU; it starts at 1, so raise it before running a second GPU pod.
-Like any DaemonSet pod it is not evicted when kured drains the node, and it has
-no PodDisruptionBudget, so it never blocks a reboot.</p>
+<code class="docutils literal notranslate"><span class="pre">additions/intel-gpu-plugin/upstream/</span></code> so that a sync never fetches from
+GitHub, with a kustomize patch for the node selector, a toleration of the
+<code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint and <code class="docutils literal notranslate"><span class="pre">-shared-dev-num</span></code>. It needs neither the Intel operator
+nor cert-manager. <code class="docutils literal notranslate"><span class="pre">-shared-dev-num</span></code> sets how many pods may share each GPU; it
+is 1, and Jellyfin holds that one, so raise it before running a second GPU
+pod. Like any DaemonSet pod it is not evicted when kured drains the node, and
+it has no PodDisruptionBudget, so it never blocks a reboot.</p>
 <p>The i915 kernel driver ships with Ubuntu, so the node needs no extra packages.</p>
 <p><strong>Requesting the GPU:</strong></p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">resources</span><span class="p">:</span>
@@ -962,56 +1035,26 @@ no PodDisruptionBudget, so it never blocks a reboot.</p>
 </pre></div>
 </div>
 <p>The plugin mounts the node’s <code class="docutils literal notranslate"><span class="pre">/dev/dri/card*</span></code> and <code class="docutils literal notranslate"><span class="pre">/dev/dri/renderD*</span></code> into the
-container with their host ownership, <code class="docutils literal notranslate"><span class="pre">root:render</span></code> mode <code class="docutils literal notranslate"><span class="pre">0660</span></code>. A container that
-runs as root can use them as they are. A non-root container also needs the
-node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> group ID in <code class="docutils literal notranslate"><span class="pre">supplementalGroups</span></code>. Look it up on the node with
-<code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">group</span> <span class="pre">render</span></code>: it differs between distributions and can change across
-an OS release upgrade.</p>
+container. On nuc2 the render node is <code class="docutils literal notranslate"><span class="pre">root:render</span></code>, mode <code class="docutils literal notranslate"><span class="pre">0660</span></code>, so a
+non-root container carries the node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> group ID in
+<code class="docutils literal notranslate"><span class="pre">supplementalGroups</span></code>, as Jellyfin does. Look it up on the node with
+<code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">group</span> <span class="pre">render</span></code>: it is allocated dynamically and can change across an
+OS release upgrade. (In the live Jellyfin pod the device nodes show as owned
+by the pod’s own uid and gid, so the group is a second line of access there.)</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">securityContext</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">supplementalGroups</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">993</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="c1"># the node&#39;s render GID</span>
+<span class="w">  </span><span class="nt">supplementalGroups</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">992</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="c1"># nuc2&#39;s render GID</span>
 </pre></div>
 </div>
-<p><strong>Verifying:</strong> check the node advertises the resource, then run a test pod
-that lists the devices and queries VAAPI with the <code class="docutils literal notranslate"><span class="pre">vainfo</span></code> bundled in the
-Jellyfin image:</p>
+<p><strong>Verifying:</strong> check the node advertises the resource, then query VAAPI from
+the Jellyfin pod, which holds the GPU, with the <code class="docutils literal notranslate"><span class="pre">vainfo</span></code> bundled in its image:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span><span class="s1">&#39;NODE:.metadata.name,I915:.status.allocatable.gpu\.intel\.com/i915&#39;</span>
-kubectl<span class="w"> </span>run<span class="w"> </span>vainfo<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span>--image<span class="o">=</span>jellyfin/jellyfin:10.10.7<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--overrides<span class="o">=</span><span class="s1">&#39;{&quot;spec&quot;:{&quot;containers&quot;:[{&quot;name&quot;:&quot;vainfo&quot;,&quot;image&quot;:&quot;jellyfin/jellyfin:10.10.7&quot;,</span>
-<span class="s1">    &quot;command&quot;:[&quot;sh&quot;,&quot;-c&quot;,&quot;ls -l /dev/dri &amp;&amp; /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128&quot;],</span>
-<span class="s1">    &quot;resources&quot;:{&quot;limits&quot;:{&quot;gpu.intel.com/i915&quot;:&quot;1&quot;}}}]}}&#39;</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>jellyfin<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>deploy/jellyfin<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s1">&#39;ls -l /dev/dri &amp;&amp; /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128&#39;</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">vainfo</span></code> should list the iHD driver and its <code class="docutils literal notranslate"><span class="pre">VAProfile...</span></code> entrypoints. If the
+<p><code class="docutils literal notranslate"><span class="pre">vainfo</span></code> lists the iHD driver and its <code class="docutils literal notranslate"><span class="pre">VAProfile...</span></code> entrypoints. If the
 render node has another number, use the one <code class="docutils literal notranslate"><span class="pre">ls</span></code> printed.</p>
 </section>
-<section id="system-upgrade-controller">
-<h3>system-upgrade-controller<a class="headerlink" href="#system-upgrade-controller" title="Link to this heading">#</a></h3>
-<p>Rancher’s controller plus two Plans (<code class="docutils literal notranslate"><span class="pre">additions/k3s-upgrade-plans/</span></code>) that keep
-the nodes on the newest k3s patch of <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code>, in the nightly upgrade
-window. Workstation nodes are excluded. See <a class="reference internal" href="../how-to/upgrade-k3s.html"><span class="doc">Upgrade K3s</span></a>.</p>
-<p>The controller’s manifests are vendored unchanged from its GitHub release in
-<code class="docutils literal notranslate"><span class="pre">additions/system-upgrade-controller/</span></code>, so a sync or rebuild does not depend
-on GitHub release downloads. To upgrade it, re-download both files and update
-the version and sha256 sums, as the <code class="docutils literal notranslate"><span class="pre">kustomization.yaml</span></code> header there
-describes, and the version in the table above.</p>
-</section>
-<section id="sealed-secrets">
-<h3>Sealed Secrets<a class="headerlink" href="#sealed-secrets" title="Link to this heading">#</a></h3>
-<p>Bitnami Sealed Secrets controller. Installed in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code> namespace. Decrypts
-<code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> resources into regular Kubernetes Secrets.</p>
-</section>
-</section>
-<section id="argocd-itself">
-<h2>ArgoCD itself<a class="headerlink" href="#argocd-itself" title="Link to this heading">#</a></h2>
-<p>ArgoCD is not in the <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code> directory — it is installed
-directly by the Ansible <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role using the OCI Helm chart (v9.4.17). It is the
-foundation that all other services depend on.</p>
-<p>Login via Dex (GitHub). The built-in admin account is disabled. RBAC maps
-emails to <code class="docutils literal notranslate"><span class="pre">role:admin</span></code> or <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code> via <code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> in
-<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>.</p>
-<p>Access: <code class="docutils literal notranslate"><span class="pre">argocd.&lt;domain&gt;</span></code> (via Cloudflare tunnel) or <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span> <span class="pre">svc/argocd-server</span> <span class="pre">-n</span> <span class="pre">argo-cd</span> <span class="pre">8080:80</span></code>.</p>
-<p>See <a class="reference internal" href="../explanations/authentication.html"><span class="doc">Authentication Architecture</span></a> for details on how Dex is shared
-across services.</p>
 </section>
 </section>
 
@@ -1026,20 +1069,20 @@ across services.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="inventory.html"
+       href="../reference.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Inventory Reference</p>
+        <p class="prev-next-title">Reference</p>
       </div>
     </a>
     <a class="right-next"
-       href="cli-tools.html"
+       href="inventory.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">CLI Tools Reference</p>
+        <p class="prev-next-title">Inventory reference</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1062,37 +1105,42 @@ across services.</p>
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start-configurations">Quick-start configurations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#baseline-always-installed">Baseline (always installed)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#monitoring-only-dashboards-and-alerts">Monitoring-only — dashboards and alerts</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-game-servers-from-world-backups">Minecraft — game servers from world backups</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-stack-everything">Full stack — everything</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-catalogue">Service catalogue</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#platform">Platform</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#operations-uis-and-monitoring">Operations UIs and monitoring</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#applications">Applications</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-catalogue">Service catalogue</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-details">Service details</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager">cert-manager</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflared">cloudflared</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#echo">echo</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-prometheus-kube-prometheus-stack">Grafana + Prometheus (kube-prometheus-stack)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp">Headlamp</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coredns-ha">CoreDNS HA</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kured">kured</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jellyfin">Jellyfin</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ntfy">ntfy</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#intel-gpu-device-plugin">Intel GPU device plugin</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-upgrade-controller">system-upgrade-controller</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#access">Access</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#port-forward-fallbacks">Port-forward fallbacks</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-itself">ArgoCD itself</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-details">Service details</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager">cert-manager</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflared">cloudflared</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coredns-ha">CoreDNS HA</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-storage-and-nfs-csi">local-storage and nfs-csi</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kernel-settings">kernel-settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kured-and-system-upgrade-controller">kured and system-upgrade-controller</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#backups">backups</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-prometheus-kube-prometheus-stack">Grafana + Prometheus (kube-prometheus-stack)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp">Headlamp</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-monitor">argocd-monitor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#home">home</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#echo">echo</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ntfy">ntfy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jellyfin">Jellyfin</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-dashboard">Minecraft dashboard</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#vps-relay">VPS relay</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-device-plugin">NVIDIA device plugin</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#intel-gpu-device-plugin">Intel GPU device plugin</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

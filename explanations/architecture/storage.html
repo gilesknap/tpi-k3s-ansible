@@ -1,0 +1,1479 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Storage &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/storage';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Backups and disaster recovery" href="backups.html" />
+    <link rel="prev" title="Security model" href="security.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Storage</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="storage">
+<h1>Storage<a class="headerlink" href="#storage" title="Link to this heading">#</a></h1>
+<p>The cluster has no replicated block storage. A few workloads that need a
+fast local disk (SQLite databases and Prometheus’s time series) each get a
+plain directory on one named node, and everything else lives on the NAS over
+NFS. A workload on a local disk is tied to that node and is down when the
+node is; in exchange there is no storage system to run, no replica traffic
+on 8 GB nodes, and all data survives a full rebuild of the cluster. The
+decision and what it replaced (Longhorn) are recorded in
+<a class="reference internal" href="../decisions/0012-drop-longhorn.html"><span class="doc">ADR 0012</span></a>.</p>
+<p>This page describes where every byte is. Procedures are in the how-tos it
+links to.</p>
+<section id="the-map">
+<h2>The map<a class="headerlink" href="#the-map" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph wl[&quot;Workloads&quot;]
+        graf[&quot;Grafana&quot;]
+        prom[&quot;Prometheus&quot;]
+        jf[&quot;Jellyfin&quot;]
+        scrap[&quot;scrap&quot;]
+        mc[&quot;Minecraft worlds&lt;br/&gt;and dashboard&quot;]
+        bk[&quot;Backup CronJobs&quot;]
+    end
+
+    subgraph n4[&quot;node04 NVMe&quot;]
+        d4[&quot;/var/lib/k8s-data/&lt;br/&gt;grafana, prometheus&quot;]
+    end
+
+    subgraph n2[&quot;nuc2 /home disk&quot;]
+        d2[&quot;/home/k8s-data/&lt;br/&gt;jellyfin, scrap-backup-copy, scrap&quot;]
+    end
+
+    subgraph nas[&quot;The NAS 192.168.1.3&quot;]
+        cs[&quot;/bigdisk/k8s-cluster/&lt;br/&gt;scrap-data, minecraft, backups&quot;]
+        media[&quot;/bigdisk/media&lt;br/&gt;read-only&quot;]
+        arch[&quot;/bigdisk/minecraft-archive&lt;br/&gt;read-only&quot;]
+        dyn[&quot;/k8s-dynamic/stable/&lt;br/&gt;namespace/claim&quot;]
+    end
+
+    graf --&gt; d4
+    prom --&gt; d4
+    jf --&gt; d2
+    jf --&gt; media
+    scrap --&gt; cs
+    scrap -. &quot;nightly copy of a backup&quot; .-&gt; d2
+    mc --&gt; dyn
+    mc --&gt; cs
+    mc --&gt; arch
+    bk --&gt; cs
+    </pre></section>
+<section id="storage-classes">
+<h2>Storage classes<a class="headerlink" href="#storage-classes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Class</p></th>
+<th class="head"><p>Provisioner</p></th>
+<th class="head"><p>Reclaim</p></th>
+<th class="head"><p>What it is for</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>none (<code class="docutils literal notranslate"><span class="pre">kubernetes.io/no-provisioner</span></code>)</p></td>
+<td><p>Retain</p></td>
+<td><p>Static, node-pinned volumes declared by hand in <code class="docutils literal notranslate"><span class="pre">local_storage</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> (default)</p></td>
+<td><p>NFS CSI driver</p></td>
+<td><p>Delete, but the driver archives the folder</p></td>
+<td><p>Any claim that names no class: a fixed folder per claim on the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code></p></td>
+<td><p>NFS CSI driver</p></td>
+<td><p>Delete, data removed</p></td>
+<td><p>Scratch volumes that must start empty; only when named. Nothing uses it today</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local-path</span></code></p></td>
+<td><p>K3s’s bundled provisioner</p></td>
+<td><p>Delete</p></td>
+<td><p>Installed by K3s; kept, with its default flag turned off, and unused</p></td>
+</tr>
+<tr class="row-even"><td><p>(none)</p></td>
+<td><p>n/a</p></td>
+<td><p>Retain</p></td>
+<td><p>Static NFS volumes that point at a fixed NAS directory: scrap’s, Jellyfin’s media, the backups share, the Minecraft dashboard’s</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> is the default so that a claim written without thinking about
+storage gets data that survives a rebuild. <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> has no provisioner at
+all, so a claim can only bind to a volume someone deliberately declared.</p>
+</section>
+<section id="every-volume">
+<h2>Every volume<a class="headerlink" href="#every-volume" title="Link to this heading">#</a></h2>
+<p>From <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code>. Capacities are labels: neither a local directory nor
+an NFS folder enforces them.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Volume</p></th>
+<th class="head"><p>Used by</p></th>
+<th class="head"><p>Class</p></th>
+<th class="head"><p>Where the bytes are</p></th>
+<th class="head"><p>Size</p></th>
+<th class="head"><p>Backed up by</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grafana-local</span></code></p></td>
+<td><p>Grafana</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>node04 <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code></p></td>
+<td><p>30Gi</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> to the NAS, then Drive</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prometheus-local</span></code></p></td>
+<td><p>Prometheus</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>node04 <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code></p></td>
+<td><p>40Gi</p></td>
+<td><p>Nothing, on purpose</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-local</span></code></p></td>
+<td><p>Jellyfin data, config, logs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>nuc2 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code></p></td>
+<td><p>60Gi</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> to the NAS, then Drive</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy-local</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> CronJob</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>nuc2 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap-backup-copy</span></code></p></td>
+<td><p>10Gi</p></td>
+<td><p>It is a backup: the newest scrap run, kept off the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-local</span></code></p></td>
+<td><p>Nothing (frozen copy)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
+<td><p>nuc2 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code></p></td>
+<td><p>5Gi</p></td>
+<td><p>Nothing; see the note under scrap below</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code></p></td>
+<td><p>scrap: files, previews, database replica</p></td>
+<td><p>static NFS</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/scrap-data</span></code></p></td>
+<td><p>5Gi</p></td>
+<td><p>scrap’s own backup CronJobs</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code></p></td>
+<td><p>scrap’s backup runs</p></td>
+<td><p>static NFS</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap</span></code></p></td>
+<td><p>20Gi</p></td>
+<td><p>Copied to nuc2 and to Drive</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-media-nfs</span></code></p></td>
+<td><p>Jellyfin library</p></td>
+<td><p>static NFS, read-only</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code></p></td>
+<td><p>4Ti</p></td>
+<td><p>Not the cluster’s data</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code></p></td>
+<td><p>Backup CronJobs in <code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<td><p>static NFS</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code></p></td>
+<td><p>500Gi</p></td>
+<td><p>The off-site job reads <code class="docutils literal notranslate"><span class="pre">backups/</span></code> from it</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft-minecraft-dashboard-store</span></code></p></td>
+<td><p>Dashboard: backups, snapshots, registry</p></td>
+<td><p>static NFS</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft</span></code></p></td>
+<td><p>1Ti</p></td>
+<td><p>Nightly tarball to Drive</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft-minecraft-dashboard-archive</span></code></p></td>
+<td><p>Dashboard: precious world archive</p></td>
+<td><p>static NFS, read-only</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
+<td><p>1Ti</p></td>
+<td><p>Uploaded to Drive once, and again if it changes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft-minecraft-dashboard-volumes</span></code></p></td>
+<td><p>Dashboard: view of the worlds’ share</p></td>
+<td><p>static NFS, read-only</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code></p></td>
+<td><p>1Ti</p></td>
+<td><p>n/a (a second mount of the worlds below)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pvc-...</span></code> (six today)</p></td>
+<td><p>One per Minecraft world, <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-data</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code></p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/minecraft/&lt;world&gt;-data</span></code></p></td>
+<td><p>10Gi each</p></td>
+<td><p>Dashboard snapshots; nightly tarball to Drive</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>What each backup is, and when it runs, is on the
+<a class="reference internal" href="backups.html"><span class="doc">backups page</span></a>.</p>
+</section>
+<section id="local-disks-local-nvme">
+<h2>Local disks: <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code><a class="headerlink" href="#local-disks-local-nvme" title="Link to this heading">#</a></h2>
+<p>A <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volume is a directory, and four separate things have to agree
+about it.</p>
+<pre  class="mermaid">
+        flowchart TB
+    gv[&quot;group_vars/all.yml&lt;br/&gt;k8s_data_dirs: node, path, owner, mode&quot;]
+    role[&quot;k8s_data_dirs role&lt;br/&gt;(servers play)&quot;]
+    dir[&quot;Directory on the node&lt;br/&gt;/var/lib/k8s-data/grafana on node04&quot;]
+
+    val[&quot;values.yaml&lt;br/&gt;local_storage: node, path, claim&quot;]
+    app[&quot;local-storage app&lt;br/&gt;sync wave -5&quot;]
+    pv[&quot;PersistentVolume grafana-local&lt;br/&gt;nodeAffinity: node04&lt;br/&gt;claimRef: storage-grafana-prometheus-0&quot;]
+
+    pvc[&quot;PersistentVolumeClaim&lt;br/&gt;made by the workload's chart&quot;]
+    pod[&quot;Pod, scheduled on node04&quot;]
+
+    gv --&gt; role --&gt; dir
+    val --&gt; app --&gt; pv
+    pvc -- &quot;binds, by claimRef&quot; --&gt; pv
+    pv -- &quot;local path&quot; --&gt; dir
+    pod --&gt; pvc
+    </pre><ul class="simple">
+<li><p><strong>The directory</strong> is created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role from the
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> list in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, on the entry’s node only,
+with the owner and mode the pod’s <code class="docutils literal notranslate"><span class="pre">securityContext</span></code> expects. It is the
+only thing in the repository that creates these directories.</p></li>
+<li><p><strong>The volume</strong> comes from <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>: the <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> app renders one
+PersistentVolume per entry, with <code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code> for the node and a
+<code class="docutils literal notranslate"><span class="pre">claimRef</span></code> naming the exact claim that will use it.</p></li>
+<li><p><strong>The claim</strong> is created later by the workload’s own chart (Grafana,
+Prometheus) or by a small template beside it (Jellyfin, scrap). Because the
+volume already reserves that claim’s name, the claim binds to it and to
+nothing else.</p></li>
+<li><p><strong>The pod</strong> follows the volume: the class binds
+<code class="docutils literal notranslate"><span class="pre">WaitForFirstConsumer</span></code>, so the scheduler places the pod on the node the
+volume is pinned to.</p></li>
+</ul>
+<p>The <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> app syncs in wave <code class="docutils literal notranslate"><span class="pre">-5</span></code>, ahead of everything else. If a
+chart created its claim first, the claim would have no volume waiting and
+would fall through to the default class, <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>, and Grafana would
+start on an empty NFS folder.</p>
+<p><strong>The SYNC contract.</strong> <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> appear twice, once for Ansible and
+once for Helm, and must match. If they drift the volume points at a
+directory that does not exist and the pod never starts. Both files carry a
+<code class="docutils literal notranslate"><span class="pre">SYNC:</span></code> comment saying so.</p>
+<p><strong>One volume, one workload, one chosen host.</strong> There is no shared pool. A
+new workload that needs a local disk gets its own entry in both lists and an
+explicit node. Current placement:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Workload</p></th>
+<th class="head"><p>Node</p></th>
+<th class="head"><p>Why there</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Prometheus, Grafana</p></td>
+<td><p>node04</p></td>
+<td><p>The 32 GB RK1, with a mostly empty NVMe</p></td>
+</tr>
+<tr class="row-odd"><td><p>Jellyfin</p></td>
+<td><p>nuc2</p></td>
+<td><p>The Intel Iris Xe for transcoding</p></td>
+</tr>
+<tr class="row-even"><td><p>scrap’s backup copy</p></td>
+<td><p>nuc2</p></td>
+<td><p>A disk that is not the NAS</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>These paths are sacred.</strong> <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code> on the RK1s and
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code> on nuc2 sit outside <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code> deliberately.
+<code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> removes K3s and everything under <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code>,
+and leaves these directories alone, so a rebuilt cluster finds Grafana’s
+dashboards and Jellyfin’s database where they were. Only
+<code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> deletes them. On an RK1 the directory is on the
+NVMe that also holds the root filesystem, so a forced re-flash
+(<code class="docutils literal notranslate"><span class="pre">flash_force</span></code>) of node04 wipes it: that is a deliberate, announced act, not
+part of a rebuild. Moving a volume to another node is a runbook:
+<a class="reference internal" href="../../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a>.</p>
+</section>
+<section id="the-nas">
+<h2>The NAS<a class="headerlink" href="#the-nas" title="Link to this heading">#</a></h2>
+<p>The NAS is a QNAP at <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code>. Ansible never touches it: it also holds
+personal data, so its directories are created once by hand
+(<a class="reference internal" href="../../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>) and the cluster is only ever an NFS client.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>/bigdisk/
+  k8s-cluster/              the cluster&#39;s own tree (nfs.cluster_share_path)
+    scrap-data/             scrap: files, preview cache, database replica
+    minecraft/              dashboard store: backups, snapshots, registry
+    backups/
+      grafana/  jellyfin/   daily tarballs, and weekly/ below each
+      scrap/                scrap&#39;s backup runs, and monthly/
+      scrap-curated/        scrap runs kept by hand
+      etcd/                 encrypted etcd bundles and sealing keys
+  media/                    Jellyfin&#39;s library, mounted read-only
+  minecraft-archive/        precious world archive, read-only
+/k8s-dynamic/               NFS CSI share (nfs_csi.share): nfs-rwx volumes
+  stable/                   nfs-stable volumes (nfs_csi.stable_share)
+    minecraft/&lt;world&gt;-data  one folder per claim
+    archived-minecraft/     folders of deleted claims
+</pre></div>
+</div>
+<p>Two of those are protected by where they are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code> is mounted read-only three times over (the volume, its
+access mode and the pod’s mount), so Jellyfin cannot alter the library.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code> is <strong>outside</strong> <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code> on purpose. No
+tool that works on “the cluster’s share” can reach it, it is read-only on
+the NAS and in the mount, and the dashboard only ever reads it.</p></li>
+</ul>
+<section id="nfs-stable-a-folder-that-depends-only-on-the-claim-s-name">
+<h3><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>: a folder that depends only on the claim’s name<a class="headerlink" href="#nfs-stable-a-folder-that-depends-only-on-the-claim-s-name" title="Link to this heading">#</a></h3>
+<p>The NFS CSI driver normally names a volume’s folder after the volume, which
+is a random ID. <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> names it <code class="docutils literal notranslate"><span class="pre">&lt;namespace&gt;/&lt;claim&gt;</span></code> instead, and on
+delete it archives the folder and does not remove it (<code class="docutils literal notranslate"><span class="pre">onDelete:</span> <span class="pre">archive</span></code>).</p>
+<pre  class="mermaid">
+        flowchart TB
+    create[&quot;Claim minecraft/science-lab-data created&quot;]
+    live[&quot;Folder stable/minecraft/science-lab-data&quot;]
+    rebuild[&quot;Cluster rebuilt:&lt;br/&gt;every PV and PVC object gone,&lt;br/&gt;folder untouched&quot;]
+    again[&quot;Claim re-created with the same name&quot;]
+    deleted[&quot;Claim deleted on purpose&quot;]
+    archived[&quot;Folder moved to&lt;br/&gt;stable/archived-minecraft/science-lab-data&quot;]
+    fresh[&quot;A new claim of that name&lt;br/&gt;starts empty&quot;]
+
+    create --&gt; live
+    live --&gt; rebuild --&gt; again
+    again -- &quot;binds to the same folder&quot; --&gt; live
+    live --&gt; deleted --&gt; archived --&gt; fresh
+    </pre><p>That one rule is what carries dynamic volumes across a rebuild. A rebuild
+wipes etcd, so the cluster forgets every volume, but the folders are still
+on the NAS under names that can be worked out again. The Minecraft
+dashboard keeps a registry of its worlds on its store; after a rebuild it
+re-creates each world, the claims come back under the same names, and they
+bind to the old data.</p>
+<p>The other side of the rule: deleting a claim never deletes data, and the
+driver keeps only one archive per name. An old archive has to be cleared on
+the NAS before a claim of the same name is deleted again. The details are in
+<a class="reference internal" href="../../how-to/nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>.</p>
+</section>
+<section id="scrap-a-database-that-is-not-on-nfs">
+<h3>scrap: a database that is not on NFS<a class="headerlink" href="#scrap-a-database-that-is-not-on-nfs" title="Link to this heading">#</a></h3>
+<p>SQLite on NFS is unsafe, and a local volume would pin scrap to one node. So
+scrap does neither (<a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html"><span class="doc">ADR 0013</span></a>):</p>
+<ul class="simple">
+<li><p>the database is on the pod’s <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, on whichever node the pod is on;</p></li>
+<li><p>Litestream replicates it, about a second behind, to
+<code class="docutils literal notranslate"><span class="pre">/data/litestream</span></code> on <code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code>;</p></li>
+<li><p>uploaded files and the preview cache are ordinary files on the same
+volume;</p></li>
+<li><p>every new pod’s init container restores the database from the replica
+before scrap starts, and refuses to start empty if the volume looks wrong.</p></li>
+</ul>
+<p>scrap therefore has no node selector. It restarts on any node after a drain,
+and after a node is fenced. Both of its volumes are static NFS volumes bound
+to fixed NAS directories, with <code class="docutils literal notranslate"><span class="pre">Prune=false,Delete=false</span></code>, so neither a
+rebuild nor an ArgoCD mistake can detach them from their data.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">scrap-local</span></code> (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap</span></code> on nuc2) is scrap’s volume from before
+that change, kept as a frozen copy. Nothing mounts it. Its entries stay in
+<code class="docutils literal notranslate"><span class="pre">local_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> because removing them would prune a
+volume that still has a bound claim.</p>
+</div>
+</section>
+<section id="ephemeral-on-purpose">
+<h3>Ephemeral on purpose<a class="headerlink" href="#ephemeral-on-purpose" title="Link to this heading">#</a></h3>
+<p>Some state is deliberately not kept:</p>
+<ul class="simple">
+<li><p><strong>ntfy</strong> keeps its user database and message cache on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>. The
+users are provisioned from configuration at every start, and the cache
+only serves phones that were offline. Alerts are often about a node going
+down, so the pod must be free to move.</p></li>
+<li><p><strong>Jellyfin’s cache and transcodes</strong> are a 20Gi <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>
+(<code class="docutils literal notranslate"><span class="pre">jellyfin.cache_size</span></code>).</p></li>
+<li><p><strong>Alertmanager</strong> has no volume: silences and notification state do not
+survive a pod restart.</p></li>
+</ul>
+</section>
+</section>
+<section id="what-survives-what">
+<h2>What survives what<a class="headerlink" href="#what-survives-what" title="Link to this heading">#</a></h2>
+<p>“Kept” means the data is there when the workload comes back. A rebuild here
+is <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> without <code class="docutils literal notranslate"><span class="pre">wipe_local_data</span></code>, followed by <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Data</p></th>
+<th class="head"><p>Pod restart</p></th>
+<th class="head"><p>Node reboot</p></th>
+<th class="head"><p>Node lost for good</p></th>
+<th class="head"><p>Cluster rebuild</p></th>
+<th class="head"><p>NAS lost</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grafana (node04)</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; down meanwhile</p></td>
+<td><p>Restore the last daily backup onto another node</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; its backups are on Drive</p></td>
+</tr>
+<tr class="row-odd"><td><p>Prometheus (node04)</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; a gap in the metrics</p></td>
+<td><p>Lost: history starts again</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept</p></td>
+</tr>
+<tr class="row-even"><td><p>Jellyfin config (nuc2)</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; down meanwhile</p></td>
+<td><p>Restore the last daily backup; a library scan rebuilds metadata and subtitles</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; the media library itself is gone</p></td>
+</tr>
+<tr class="row-odd"><td><p>scrap</p></td>
+<td><p>Restored from the replica</p></td>
+<td><p>Restored on another node</p></td>
+<td><p>Fence the node; restored on another node, about a second lost</p></td>
+<td><p>Kept: volumes re-bind</p></td>
+<td><p>Restore the newest backup run from nuc2 or Drive: up to a day lost</p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft worlds</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept; worlds are pinned to nuc2, so down meanwhile</p></td>
+<td><p>Kept on the NAS; worlds need a new node</p></td>
+<td><p>Kept: the dashboard re-creates them</p></td>
+<td><p>Restore the nightly tarball from Drive: up to a day lost</p></td>
+</tr>
+<tr class="row-odd"><td><p>Minecraft store and archive</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept</p></td>
+<td><p>Kept</p></td>
+<td><p>Restore from Drive</p></td>
+</tr>
+<tr class="row-even"><td><p>ntfy cache</p></td>
+<td><p>Lost, by design</p></td>
+<td><p>Lost</p></td>
+<td><p>Lost</p></td>
+<td><p>Lost</p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cluster state (etcd)</p></td>
+<td><p>n/a</p></td>
+<td><p>Kept</p></td>
+<td><p>Restore the nightly bundle onto node03</p></td>
+<td><p>Rebuilt from Git</p></td>
+<td><p>Kept; older bundles are on Drive</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The recovery procedures behind each cell are indexed on the
+<a class="reference internal" href="backups.html"><span class="doc">backups page</span></a>.</p>
+</section>
+<section id="what-this-design-does-not-give">
+<h2>What this design does not give<a class="headerlink" href="#what-this-design-does-not-give" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>No failover for pinned workloads.</strong> If node04 is down there is no
+Grafana or Prometheus; if nuc2 is down there is no Jellyfin and no
+Minecraft. Moving one is manual.</p></li>
+<li><p><strong>No replication of live local data.</strong> Between two nightly backups, a
+dead disk loses up to a day of Grafana or Jellyfin changes.</p></li>
+<li><p><strong>The NAS is a single point</strong> for scrap, the Minecraft worlds and every
+first-level backup. It is one box, not a cluster.</p></li>
+<li><p><strong>No snapshots, no volume UI, no automatic rebalancing</strong> when nodes come
+and go.</p></li>
+<li><p><strong>Capacity is not enforced.</strong> A volume can fill the disk under it.</p></li>
+<li><p><strong>A volume cannot be resized or moved by Kubernetes.</strong> Moving one means
+copying a directory and editing two lists.</p></li>
+</ul>
+<p>For a homelab with one administrator these are the right things to give up:
+what remains is directories and NFS folders that can be read with <code class="docutils literal notranslate"><span class="pre">ls</span></code>, and
+a cluster that can be torn down and rebuilt without losing anything.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="security.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Security model</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="backups.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Backups and disaster recovery</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-map">The map</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#storage-classes">Storage classes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#every-volume">Every volume</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-disks-local-nvme">Local disks: <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nas">The NAS</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nfs-stable-a-folder-that-depends-only-on-the-claim-s-name"><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>: a folder that depends only on the claim’s name</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap-a-database-that-is-not-on-nfs">scrap: a database that is not on NFS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ephemeral-on-purpose">Ephemeral on purpose</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-survives-what">What survives what</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-design-does-not-give">What this design does not give</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/storage.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/storage.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

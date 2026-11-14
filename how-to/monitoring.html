@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Monitoring with Grafana and Prometheus &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Monitoring and alerts &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -47,12 +47,447 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/monitoring';</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Backup and Restore" href="backup-restore.html" />
-    <link rel="prev" title="Add or Remove Services" href="add-remove-services.html" />
+    <link rel="next" title="Add or remove a service" href="add-remove-services.html" />
+    <link rel="prev" title="Expose cluster ports through the VPS relay" href="vps-relay.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +560,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +583,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +699,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -325,43 +760,36 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
-<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
-<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare as Code (OpenTofu)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
-</ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
-<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft Dashboard</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push Notifications with ntfy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
-<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
-</ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
-<ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Monitoring with Grafana and Prometheus</a></li>
-<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
-<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
-<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
-<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
-<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
 </ul>
 </div>
 </nav></div>
@@ -403,9 +831,9 @@
       </a>
     </li>
     
-    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Monitoring with Grafana and Prometheus</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Monitoring and alerts</span></li>
   </ul>
 </nav>
 </div>
@@ -422,32 +850,72 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="monitoring-with-grafana-and-prometheus">
-<h1>Monitoring with Grafana and Prometheus<a class="headerlink" href="#monitoring-with-grafana-and-prometheus" title="Link to this heading">#</a></h1>
-<p>This project deploys the <a class="reference external" href="https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack">kube-prometheus-stack</a>
-Helm chart, which includes Grafana, Prometheus, Alertmanager, and a suite of
-pre-configured dashboards.</p>
-<section id="access-grafana">
-<h2>Access Grafana<a class="headerlink" href="#access-grafana" title="Link to this heading">#</a></h2>
-<section id="via-ingress">
-<h3>Via ingress<a class="headerlink" href="#via-ingress" title="Link to this heading">#</a></h3>
-<p><strong>https://grafana.your-domain.com</strong> — sign in with GitHub (via ArgoCD’s Dex). Emails in
-<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get the Admin role, other users Viewer; the password login form is
-disabled.</p>
-</section>
-<section id="via-port-forward">
-<h3>Via port-forward<a class="headerlink" href="#via-port-forward" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grafana.sh
-<span class="c1"># Or manually:</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>port-forward<span class="w"> </span>sts/grafana-prometheus<span class="w"> </span><span class="m">3000</span>
-<span class="c1"># Open http://localhost:3000</span>
-</pre></div>
+  <section id="monitoring-and-alerts">
+<h1>Monitoring and alerts<a class="headerlink" href="#monitoring-and-alerts" title="Link to this heading">#</a></h1>
+<p>The cluster is monitored by the
+<a class="reference external" href="https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack">kube-prometheus-stack</a>
+chart: Prometheus collects metrics, Grafana shows them, and Alertmanager
+pushes the alerts worth acting on to the owner’s phone through the
+self-hosted ntfy. It is the ArgoCD Application <code class="docutils literal notranslate"><span class="pre">grafana-prometheus</span></code>
+(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code>), in the <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> namespace,
+with this cluster’s own rules and Secrets in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/</span></code>.</p>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph every[&quot;Every node&quot;]
+        ne[&quot;node-exporter&lt;br/&gt;(and textfile metrics)&quot;]
+        kubelet[&quot;kubelet / cAdvisor&quot;]
+    end
+    ksm[&quot;kube-state-metrics&quot;]
+    apps[&quot;ServiceMonitors:&lt;br/&gt;cert-manager, kured, ...&quot;]
+    subgraph node04[&quot;node04 (local-nvme PVs)&quot;]
+        prom[&quot;Prometheus&lt;br/&gt;40Gi, 10 days&quot;]
+        graf[&quot;Grafana&lt;br/&gt;30Gi&quot;]
+    end
+    am[&quot;Alertmanager&quot;]
+    ntfy[&quot;ntfy&lt;br/&gt;topic cluster-alerts&quot;]
+    phone[&quot;Phone&quot;]
+
+    ne --&gt; prom
+    kubelet --&gt; prom
+    ksm --&gt; prom
+    apps --&gt; prom
+    prom --&gt;|&quot;queries&quot;| graf
+    prom --&gt;|&quot;firing alerts&quot;| am
+    am --&gt;|&quot;webhook, in-cluster&quot;| ntfy --&gt; phone
+    </pre><section id="where-to-look">
+<h2>Where to look<a class="headerlink" href="#where-to-look" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>What</p></th>
+<th class="head"><p>URL</p></th>
+<th class="head"><p>Login</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grafana</p></td>
+<td><p><a class="reference external" href="https://grafana.gkcluster.org">https://grafana.gkcluster.org</a></p></td>
+<td><p><strong>Sign in with GitHub (via Dex)</strong>. Emails in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get the Admin role, everyone else Viewer; the password form is disabled</p></td>
+</tr>
+<tr class="row-odd"><td><p>Alertmanager</p></td>
+<td><p><a class="reference external" href="https://alertmanager.gkcluster.org">https://alertmanager.gkcluster.org</a></p></td>
+<td><p>oauth2-proxy (GitHub, <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> only)</p></td>
+</tr>
+<tr class="row-even"><td><p>Prometheus</p></td>
+<td><p>No Ingress</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">port-forward</span> <span class="pre">svc/grafana-prometheus-kube-pr-prometheus</span> <span class="pre">9090</span></code>, then <a class="reference external" href="http://localhost:9090">http://localhost:9090</a></p></td>
+</tr>
+</tbody>
+</table>
 </div>
-</section>
-</section>
-<section id="default-dashboards">
-<h2>Default dashboards<a class="headerlink" href="#default-dashboards" title="Link to this heading">#</a></h2>
-<p>The kube-prometheus-stack includes many dashboards out of the box:</p>
+<p>Both hostnames go through the Cloudflare Tunnel, so Cloudflare Access comes
+first. Grafana is also in the <code class="docutils literal notranslate"><span class="pre">Demo</span></code> Access application, which lets the
+listed viewers in as well as the owner; Alertmanager is owner only.
+<a class="reference internal" href="../tutorials/tour.html"><span class="doc">A tour of the cluster</span></a> walks through both, and
+<a class="reference internal" href="../reference/services.html"><span class="doc">Services reference</span></a> has the port-forward fallbacks for when the edge is
+down.</p>
+<p>Grafana comes with the chart’s dashboards (<strong>Dashboards</strong> in the sidebar). The
+ones used most here:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Dashboard</p></th>
@@ -458,62 +926,203 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="
 <tr class="row-even"><td><p>Kubernetes / Compute Resources / Cluster</p></td>
 <td><p>Cluster-wide CPU, memory, network</p></td>
 </tr>
-<tr class="row-odd"><td><p>Kubernetes / Compute Resources / Namespace</p></td>
-<td><p>Per-namespace resource usage</p></td>
+<tr class="row-odd"><td><p>Kubernetes / Compute Resources / Namespace (Pods)</p></td>
+<td><p>Per-namespace usage</p></td>
 </tr>
 <tr class="row-even"><td><p>Kubernetes / Compute Resources / Pod</p></td>
-<td><p>Per-pod CPU and memory</p></td>
+<td><p>One pod’s CPU and memory</p></td>
 </tr>
 <tr class="row-odd"><td><p>Node Exporter / Nodes</p></td>
-<td><p>Node-level system metrics (CPU, memory, disk, network)</p></td>
+<td><p>A node’s CPU, memory, disk, network</p></td>
 </tr>
 <tr class="row-even"><td><p>CoreDNS</p></td>
 <td><p>DNS query rates and errors</p></td>
 </tr>
-<tr class="row-odd"><td><p>etcd</p></td>
-<td><p>etcd cluster health and performance</p></td>
+</tbody>
+</table>
+</div>
+<section id="from-argocd-monitor">
+<h3>From argocd-monitor<a class="headerlink" href="#from-argocd-monitor" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://argocd-monitor.gkcluster.org">https://argocd-monitor.gkcluster.org</a> links each workload, pod and node on an
+Application’s detail page to the matching Grafana dashboard, with the
+namespace already selected. The <code class="docutils literal notranslate"><span class="pre">grafana</span></code> values in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/argocd-monitor.yaml</span></code> map the in-cluster
+destination to <code class="docutils literal notranslate"><span class="pre">https://grafana.gkcluster.org</span></code>. Explore links are off, because
+Grafana’s Viewer role cannot open Explore. The argocd-monitor
+<a class="reference external" href="https://epics-containers.github.io/argocd-monitor/main/how-to/observability-links.html">observability links guide</a>
+lists the links.</p>
+</section>
+</section>
+<section id="where-it-runs">
+<h2>Where it runs<a class="headerlink" href="#where-it-runs" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Node</p></th>
+<th class="head"><p>Why</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Prometheus (<code class="docutils literal notranslate"><span class="pre">prometheus-grafana-prometheus-kube-pr-prometheus-0</span></code>)</p></td>
+<td><p>node04</p></td>
+<td><p>Its data is the static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV <code class="docutils literal notranslate"><span class="pre">prometheus-local</span></code>, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/prometheus</span></code>, 40Gi</p></td>
+</tr>
+<tr class="row-odd"><td><p>Grafana (<code class="docutils literal notranslate"><span class="pre">grafana-prometheus-0</span></code>)</p></td>
+<td><p>node04</p></td>
+<td><p>Its SQLite database is the PV <code class="docutils literal notranslate"><span class="pre">grafana-local</span></code>, <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code>, 30Gi</p></td>
+</tr>
+<tr class="row-even"><td><p>Alertmanager, the Prometheus operator, kube-state-metrics</p></td>
+<td><p>Any worker but ws03 (nuc2 today)</p></td>
+<td><p>Stateless enough to move. They do not tolerate the <code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint, because ws03 reboots outside the kured window</p></td>
+</tr>
+<tr class="row-odd"><td><p>node-exporter</p></td>
+<td><p>Every node, including node02 and ws03</p></td>
+<td><p>A DaemonSet</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Navigate to <strong>Dashboards</strong> in the Grafana sidebar to browse all available dashboards.</p>
+<p>The two PVs are entries in <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, pre-bound to the claim names the chart
+generates, and their directories on node04 are created by the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>
+role, outside <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code>, so they survive a cluster rebuild. node04 is
+the 32 GB RK1, which is why both are there. While node04 is down or draining,
+Grafana and Prometheus are down and there is a gap in the metrics; nothing
+else can mount their volumes. <a class="reference internal" href="node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a> is the procedure for
+moving one.</p>
+<p>Grafana’s database is backed up to the NAS by the <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code> and
+<code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> CronJobs (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>). Prometheus’s data
+is not backed up: it is ten days of metrics.</p>
 </section>
-<section id="how-prometheus-scrapes-metrics">
-<h2>How Prometheus scrapes metrics<a class="headerlink" href="#how-prometheus-scrapes-metrics" title="Link to this heading">#</a></h2>
-<p>Prometheus discovers scrape targets via <strong>ServiceMonitor</strong> resources. The
-kube-prometheus-stack automatically creates ServiceMonitors for core Kubernetes
-components.</p>
-<p>Additional services can be monitored by creating their own ServiceMonitor — set
-<code class="docutils literal notranslate"><span class="pre">serviceMonitor.enabled:</span> <span class="pre">true</span></code> in the service’s Helm values (where supported) or
-ship a ServiceMonitor manifest alongside the app.</p>
-</section>
-<section id="data-retention">
-<h2>Data retention<a class="headerlink" href="#data-retention" title="Link to this heading">#</a></h2>
-<p>Prometheus stores metrics data on a static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on node04 (40Gi by
-default, configured in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code>). Default
-retention is 10 days (kube-prometheus-stack default).</p>
-<p>To change retention, add to the Prometheus Helm values:</p>
+<section id="retention">
+<h2>Retention<a class="headerlink" href="#retention" title="Link to this heading">#</a></h2>
+<p>Prometheus keeps <strong>10 days</strong>, the chart’s default: <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code> sets no
+<code class="docutils literal notranslate"><span class="pre">retention</span></code> or <code class="docutils literal notranslate"><span class="pre">retentionSize</span></code>. To change it, add to <code class="docutils literal notranslate"><span class="pre">prometheus.prometheusSpec</span></code>
+in the template:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">prometheus</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">prometheusSpec</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30d</span>
-<span class="w">    </span><span class="nt">retentionSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">35GB</span>
+<span class="w">    </span><span class="nt">retentionSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">35GB</span><span class="w">     </span><span class="c1"># below the 40Gi volume</span>
 </pre></div>
 </div>
 </section>
-<section id="alerting">
-<h2>Alerting<a class="headerlink" href="#alerting" title="Link to this heading">#</a></h2>
-<p>Alertmanager is deployed as part of the stack and exposed at
-<strong>https://alertmanager.your-domain.com</strong> behind the shared oauth2-proxy
-(GitHub OAuth, admin emails only). The kube-prometheus-stack ships with a
-suite of default alert rules covering node health, pod restarts, PVC usage,
-certificate expiry, etc.</p>
-<section id="phone-notifications-ntfy">
-<h3>Phone notifications (ntfy)<a class="headerlink" href="#phone-notifications-ntfy" title="Link to this heading">#</a></h3>
-<p>Alertmanager pushes the alerts worth acting on to the owner’s phone through
-the self-hosted ntfy (<a class="reference internal" href="ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>), on the <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> topic. Every
-other alert goes to the <code class="docutils literal notranslate"><span class="pre">null</span></code> receiver: it still shows in Alertmanager and
-Grafana, but nothing is sent. The configuration is the <code class="docutils literal notranslate"><span class="pre">alertmanager.config</span></code>
-block in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code>.</p>
+<section id="how-scraping-is-wired">
+<h2>How scraping is wired<a class="headerlink" href="#how-scraping-is-wired" title="Link to this heading">#</a></h2>
+<p>Prometheus scrapes every 30 seconds. It finds targets through
+<strong>ServiceMonitor</strong> objects, and rules through <strong>PrometheusRule</strong> objects, in
+any namespace, but only those labelled <code class="docutils literal notranslate"><span class="pre">release:</span> <span class="pre">grafana-prometheus</span></code>. An
+object without that label is ignored without an error.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Source</p></th>
+<th class="head"><p>How</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>API server, kubelet and cAdvisor, CoreDNS, kube-state-metrics, node-exporter, and the stack itself</p></td>
+<td><p>The chart’s own ServiceMonitors</p></td>
+</tr>
+<tr class="row-odd"><td><p>cert-manager</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/grafana/cert-manager-servicemonitor.yaml</span></code>. It lives here, not in the cert-manager chart’s values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap</p></td>
+</tr>
+<tr class="row-even"><td><p>kured</p></td>
+<td><p>The kured chart’s ServiceMonitor (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/kured.yaml</span></code>), in the <code class="docutils literal notranslate"><span class="pre">kured</span></code> namespace</p></td>
+</tr>
+<tr class="row-odd"><td><p>Host-side jobs</p></td>
+<td><p>node-exporter’s <strong>textfile collector</strong> reads <code class="docutils literal notranslate"><span class="pre">/var/lib/node_exporter/textfile_collector</span></code> on each node. The etcd backup timer on node02 (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup</span></code>) writes its <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics there</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Three chart defaults are switched off: the scrape targets and rules for
+kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
+inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process, so there are no such pods and the chart’s
+“down” alerts would fire for ever.</p>
+<p>etcd is not scraped. The chart still creates its <code class="docutils literal notranslate"><span class="pre">kube-etcd</span></code> ServiceMonitor
+and <strong>etcd</strong> dashboard, but K3s’s embedded etcd on node02 does not expose
+metrics (the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role sets no <code class="docutils literal notranslate"><span class="pre">etcd-expose-metrics</span></code>), so the Service has no
+endpoints and the dashboard is empty. etcd’s health shows only through the
+API server’s metrics and the etcd backup alerts below.</p>
+<p>To monitor something new, give its chart <code class="docutils literal notranslate"><span class="pre">serviceMonitor.enabled:</span> <span class="pre">true</span></code> (with
+the <code class="docutils literal notranslate"><span class="pre">release:</span> <span class="pre">grafana-prometheus</span></code> label) or add a ServiceMonitor manifest
+beside the app.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Prometheus operator images are pinned to <code class="docutils literal notranslate"><span class="pre">v0.94.2</span></code> in <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>,
+because the newer release the chart defaults to was published without arm64
+images. A chart bump does not override the pin; re-check it on every bump, as
+the comment there says.</p>
+</div>
+</section>
+<section id="alert-rules">
+<h2>Alert rules<a class="headerlink" href="#alert-rules" title="Link to this heading">#</a></h2>
+<p>The chart ships its default rules (node health, pod restarts, volumes filling,
+API server, kubelet and so on). This cluster adds three rule files in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Alerts</p></th>
+<th class="head"><p>Fires when</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd-backup-rules.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupFailed</span></code></p></td>
+<td><p>The last run of node02’s etcd backup job failed (for 10 minutes)</p></td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupStale</span></code></p></td>
+<td><p>The newest successful backup is over 36 hours old (for 30 minutes)</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupNeverSucceeded</span></code></p></td>
+<td><p>No backup has ever succeeded (for 36 hours)</p></td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code></p></td>
+<td><p>The job’s metrics are absent (for 2 hours): the timer or the textfile collector is broken</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code></p></td>
+<td><p>The newest run of the <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob failed</p></td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code></p></td>
+<td><p>No off-site backup has succeeded for over 36 hours</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code></p></td>
+<td><p>The CronJob has existed for over 36 hours without a success</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cert-expiry-rules.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
+<td><p>A certificate expires in under 14 days (warning) or under 7 (critical). cert-manager renews 30 days ahead, so this means renewal is failing</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The off-site rules use kube-state-metrics’ CronJob and Job series, which exist
+only while the CronJob does, so they are silent when <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code>
+is <code class="docutils literal notranslate"><span class="pre">false</span></code>. All of the above are <code class="docutils literal notranslate"><span class="pre">severity:</span> <span class="pre">warning</span></code> except the 7-day
+certificate alert.</p>
+<p>The directory also holds two SealedSecrets: <code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret.yaml</span></code>
+(Grafana’s Dex client secret) and <code class="docutils literal notranslate"><span class="pre">alertmanager-ntfy-secret.yaml</span></code> (the ntfy
+token, below).</p>
+<p>See what is firing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>prometheusrules<span class="w"> </span>-n<span class="w"> </span>monitoring
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>amtool<span class="w"> </span>--alertmanager.url<span class="o">=</span>http://localhost:9093<span class="w"> </span>alert<span class="w"> </span>query
+</pre></div>
+</div>
+</section>
+<section id="phone-notifications-through-ntfy">
+<h2>Phone notifications through ntfy<a class="headerlink" href="#phone-notifications-through-ntfy" title="Link to this heading">#</a></h2>
+<p>Alertmanager pushes selected alerts to the <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> topic of the
+self-hosted ntfy (<a class="reference internal" href="ntfy.html"><span class="doc">Push notifications with ntfy</span></a>). Every other alert goes to the <code class="docutils literal notranslate"><span class="pre">null</span></code>
+receiver: it still shows in Alertmanager and Grafana, but nothing is sent.
+The configuration is the <code class="docutils literal notranslate"><span class="pre">alertmanager.config</span></code> block in <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Alerts</p></th>
@@ -522,22 +1131,25 @@ block in <code class="docutils literal notranslate"><span class="pre">kubernetes
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Any <code class="docutils literal notranslate"><span class="pre">severity=critical</span></code></p></td>
-<td><p>yes, ntfy priority 5 (urgent)</p></td>
+<td><p>Yes, ntfy priority 5 (urgent)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackup*</span></code> (the four etcd backup alerts)</p></td>
-<td><p>yes, priority 3</p></td>
+<td><p>Yes, priority 3</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> (fires after 15 minutes; not for a cordoned node)</p></td>
-<td><p>yes, priority 3</p></td>
+<td><p>Yes, priority 3</p></td>
 </tr>
 <tr class="row-odd"><td><p>Volumes and filesystems filling up: <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeInodesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemSpaceFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemFilesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfFiles</span></code></p></td>
-<td><p>yes, priority 3 (5 for their critical variants)</p></td>
+<td><p>Yes, priority 3 (5 for their critical variants)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code> (under 14 days: warning; under 7: critical)</p></td>
-<td><p>yes</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
+<td><p>Yes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
-<td><p>no (<code class="docutils literal notranslate"><span class="pre">null</span></code>)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code></p></td>
+<td><p><strong>No.</strong> They are warnings and are not in the route’s list, so they reach <code class="docutils literal notranslate"><span class="pre">null</span></code>; look for them in Alertmanager</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
+<td><p>No (<code class="docutils literal notranslate"><span class="pre">null</span></code>)</p></td>
 </tr>
 </tbody>
 </table>
@@ -553,18 +1165,18 @@ notification follows.</p></li>
 <code class="docutils literal notranslate"><span class="pre">alertmanager-cluster</span></code> template
 (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/files/alertmanager-cluster.yml</span></code>): the
 alert name in the title, then each alert’s state, severity, node or
-namespace, summary and description, and a link to the alerts in
-Alertmanager. At most 5 alerts are listed (ntfy messages are limited to
-4 KB); the rest are counted.</p></li>
+namespace, summary and description. Tapping the notification opens
+<a class="reference external" href="https://alertmanager.gkcluster.org">https://alertmanager.gkcluster.org</a>. At most 5 alerts are listed (ntfy
+messages are limited to 4 KB); the rest are counted.</p></li>
 <li><p><strong>Node down:</strong> while a node is <code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code>, its
-<code class="docutils literal notranslate"><span class="pre">KubeNodeUnreachable</span></code> and <code class="docutils literal notranslate"><span class="pre">KubeletInstanceUnreachable</span></code> are inhibited, and
-so are <code class="docutils literal notranslate"><span class="pre">KubePodNotReady</span></code>, <code class="docutils literal notranslate"><span class="pre">KubeDaemonSetRolloutStuck</span></code>,
+<code class="docutils literal notranslate"><span class="pre">KubeNodeUnreachable</span></code> and <code class="docutils literal notranslate"><span class="pre">KubeletInstanceUnreachable</span></code> are inhibited, and so
+are <code class="docutils literal notranslate"><span class="pre">KubePodNotReady</span></code>, <code class="docutils literal notranslate"><span class="pre">KubeDaemonSetRolloutStuck</span></code>,
 <code class="docutils literal notranslate"><span class="pre">KubeDaemonSetMisScheduled</span></code> and <code class="docutils literal notranslate"><span class="pre">TargetDown</span></code> cluster-wide (they carry no
 node label to match on). So a powered-off node is one push, not a dozen
 alerts.</p></li>
 <li><p><strong>Planned outages:</strong> <code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> ignores cordoned nodes, so a node
-drained (which cordons it) before it is powered off pushes nothing. To
-power a node off without draining it, silence the alert first in the
+that was drained (which cordons it) before being powered off pushes nothing.
+To power a node off without draining it, silence the alert first in the
 Alertmanager UI, or with:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
@@ -574,35 +1186,36 @@ Alertmanager UI, or with:</p>
 </div>
 </li>
 </ul>
+<section id="how-the-push-is-authenticated">
+<h3>How the push is authenticated<a class="headerlink" href="#how-the-push-is-authenticated" title="Link to this heading">#</a></h3>
 <p>Alertmanager posts to the ntfy Service inside the cluster
 (<code class="docutils literal notranslate"><span class="pre">http://ntfy.ntfy.svc.cluster.local</span></code>), not through Cloudflare; ntfy’s
 NetworkPolicy admits the Alertmanager pods for this (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/values.yaml</span></code>). It authenticates as the
 ntfy <code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> user, which can only publish to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>, with a
 Bearer token read from the <code class="docutils literal notranslate"><span class="pre">alertmanager-ntfy</span></code> Secret (key <code class="docutils literal notranslate"><span class="pre">token</span></code>). That
-Secret is a copy of the <code class="docutils literal notranslate"><span class="pre">alertmanager-token</span></code> key of <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>, as a pod can
-only mount a Secret from its own namespace; <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> and the rebuild
-(<code class="docutils literal notranslate"><span class="pre">scripts/seal-from-json</span></code>) seal both together, so they stay in step.
-Alertmanager reads the token file on every notification, so it needs no
+Secret is a copy of the <code class="docutils literal notranslate"><span class="pre">alertmanager-token</span></code> key of <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>, because a pod
+can only mount a Secret from its own namespace; <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> and the
+rebuild (<code class="docutils literal notranslate"><span class="pre">scripts/seal-from-json</span></code>) seal both together, so they stay in step.</p>
+<p>Alertmanager reads the token file on every notification, so it needs no
 restart for a rotated token (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span> <span class="pre">--rotate</span> <span class="pre">alertmanager</span></code>). ntfy
-accepts the new token only once its pod is recreated, and until then
-publishes fail, so recreate the ntfy pod as soon as both Secrets have
-synced (see <a class="reference internal" href="ntfy.html"><span class="doc">Push Notifications with ntfy</span></a>).</p>
+accepts the new token only once its pod is recreated, and until then publishes
+fail, so recreate the ntfy pod as soon as both Secrets have synced
+(<a class="reference internal" href="ntfy.html"><span class="doc">Push notifications with ntfy</span></a>).</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Nothing pushes when the cluster, Alertmanager or ntfy itself is down. The
-<code class="docutils literal notranslate"><span class="pre">Watchdog</span></code> alert, which always fires, could feed an external dead-man’s
-switch (such as healthchecks.io) that alerts when it <em>stops</em> arriving; this
-cluster does not use one, so an outage of the cluster, Alertmanager or ntfy
-goes unnoticed until someone looks.</p>
+<code class="docutils literal notranslate"><span class="pre">Watchdog</span></code> alert, which always fires, could feed an external dead-man’s switch
+that alerts when it <em>stops</em> arriving. This cluster does not use one, so such an
+outage goes unnoticed until someone looks.</p>
 </div>
 </section>
 <section id="test-the-notifications">
 <h3>Test the notifications<a class="headerlink" href="#test-the-notifications" title="Link to this heading">#</a></h3>
-<p>To check delivery without waiting for a real problem, fire a short-lived
-test alert with <code class="docutils literal notranslate"><span class="pre">amtool</span></code> inside the Alertmanager pod. It is critical, so it
-is pushed with urgent priority after the 2 minute <code class="docutils literal notranslate"><span class="pre">group_wait</span></code>, and resolves
-(with a “Resolved” push up to 30 minutes later) when it expires:</p>
+<p>Fire a short-lived test alert with <code class="docutils literal notranslate"><span class="pre">amtool</span></code> inside the Alertmanager pod. It is
+critical, so it is pushed with urgent priority after the 2 minute
+<code class="docutils literal notranslate"><span class="pre">group_wait</span></code>, and resolves (with a “Resolved” push up to 30 minutes later)
+when it expires:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>amtool<span class="w"> </span>--alertmanager.url<span class="o">=</span>http://localhost:9093<span class="w"> </span>alert<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
@@ -612,24 +1225,32 @@ is pushed with urgent priority after the 2 minute <code class="docutils literal 
 <span class="w">  </span>--end<span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span>date<span class="w"> </span>-u<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;+5 minutes&#39;</span><span class="w"> </span>+%Y-%m-%dT%H:%M:%SZ<span class="k">)</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-<p>Give the start time explicitly: without it, Alertmanager starts the alert
-at its end time, so it does not fire when you expect.</p>
-<p>To see which receiver a set of labels would reach, without sending
-anything:</p>
+<p>Give the start time explicitly: without it, Alertmanager starts the alert at
+its end time, so it does not fire when expected.</p>
+<p>To see which receiver a set of labels would reach, without sending anything:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>amtool<span class="w"> </span>config<span class="w"> </span>routes<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--config.file<span class="o">=</span>/etc/alertmanager/config_out/alertmanager.env.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="nv">alertname</span><span class="o">=</span>KubeNodeNotReady<span class="w"> </span><span class="nv">severity</span><span class="o">=</span>warning
 </pre></div>
 </div>
-<p>If nothing arrives, check the Alertmanager logs (a rejected publish shows
-the HTTP status) and the ntfy logs:</p>
+<p>It prints <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> or <code class="docutils literal notranslate"><span class="pre">null</span></code>.</p>
+<p>If nothing arrives, check the Alertmanager logs (a rejected publish shows the
+HTTP status) and the ntfy logs:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>alertmanager-grafana-prometheus-kube-pr-alertmanager-0<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-c<span class="w"> </span>alertmanager<span class="w"> </span>--tail<span class="o">=</span><span class="m">30</span>
 kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>ntfy<span class="w"> </span>-l<span class="w"> </span>app.kubernetes.io/name<span class="o">=</span>ntfy<span class="w"> </span>--tail<span class="o">=</span><span class="m">30</span>
 </pre></div>
 </div>
+</section>
+<section id="push-a-new-alert">
+<h3>Push a new alert<a class="headerlink" href="#push-a-new-alert" title="Link to this heading">#</a></h3>
+<p>Add the alert name to the <code class="docutils literal notranslate"><span class="pre">matchers</span></code> regular expression of the second <code class="docutils literal notranslate"><span class="pre">ntfy</span></code>
+route in <code class="docutils literal notranslate"><span class="pre">alertmanager.config</span></code>, or give the rule <code class="docutils literal notranslate"><span class="pre">severity:</span> <span class="pre">critical</span></code>. <code class="docutils literal notranslate"><span class="pre">routes</span></code>,
+<code class="docutils literal notranslate"><span class="pre">receivers</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibit_rules</span></code> are lists, so the template’s values replace the
+chart’s defaults instead of merging with them: keep the <code class="docutils literal notranslate"><span class="pre">Watchdog</span></code> route and
+the inhibit rules when editing.</p>
 </section>
 </section>
 </section>
@@ -645,20 +1266,20 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="add-remove-services.html"
+       href="vps-relay.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Add or Remove Services</p>
+        <p class="prev-next-title">Expose cluster ports through the VPS relay</p>
       </div>
     </a>
     <a class="right-next"
-       href="backup-restore.html"
+       href="add-remove-services.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Backup and Restore</p>
+        <p class="prev-next-title">Add or remove a service</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -681,17 +1302,18 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#access-grafana">Access Grafana</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#via-ingress">Via ingress</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#via-port-forward">Via port-forward</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-look">Where to look</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-argocd-monitor">From argocd-monitor</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#default-dashboards">Default dashboards</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-prometheus-scrapes-metrics">How Prometheus scrapes metrics</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-retention">Data retention</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alerting">Alerting</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#phone-notifications-ntfy">Phone notifications (ntfy)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-it-runs">Where it runs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#retention">Retention</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-scraping-is-wired">How scraping is wired</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alert-rules">Alert rules</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phone-notifications-through-ntfy">Phone notifications through ntfy</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-push-is-authenticated">How the push is authenticated</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#test-the-notifications">Test the notifications</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#push-a-new-alert">Push a new alert</a></li>
 </ul>
 </li>
 </ul>

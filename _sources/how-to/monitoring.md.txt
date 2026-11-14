@@ -1,90 +1,198 @@
-# Monitoring with Grafana and Prometheus
+# Monitoring and alerts
 
-This project deploys the [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
-Helm chart, which includes Grafana, Prometheus, Alertmanager, and a suite of
-pre-configured dashboards.
+The cluster is monitored by the
+[kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
+chart: Prometheus collects metrics, Grafana shows them, and Alertmanager
+pushes the alerts worth acting on to the owner's phone through the
+self-hosted ntfy. It is the ArgoCD Application `grafana-prometheus`
+(`kubernetes-services/templates/grafana.yaml`), in the `monitoring` namespace,
+with this cluster's own rules and Secrets in
+`kubernetes-services/additions/grafana/`.
 
-## Access Grafana
+```mermaid
+flowchart LR
+    subgraph every["Every node"]
+        ne["node-exporter<br/>(and textfile metrics)"]
+        kubelet["kubelet / cAdvisor"]
+    end
+    ksm["kube-state-metrics"]
+    apps["ServiceMonitors:<br/>cert-manager, kured, ..."]
+    subgraph node04["node04 (local-nvme PVs)"]
+        prom["Prometheus<br/>40Gi, 10 days"]
+        graf["Grafana<br/>30Gi"]
+    end
+    am["Alertmanager"]
+    ntfy["ntfy<br/>topic cluster-alerts"]
+    phone["Phone"]
 
-### Via ingress
-
-**https://grafana.your-domain.com** — sign in with GitHub (via ArgoCD's Dex). Emails in
-`admin_emails` get the Admin role, other users Viewer; the password login form is
-disabled.
-
-### Via port-forward
-
-```bash
-grafana.sh
-# Or manually:
-kubectl -n monitoring port-forward sts/grafana-prometheus 3000
-# Open http://localhost:3000
+    ne --> prom
+    kubelet --> prom
+    ksm --> prom
+    apps --> prom
+    prom -->|"queries"| graf
+    prom -->|"firing alerts"| am
+    am -->|"webhook, in-cluster"| ntfy --> phone
 ```
 
-## Default dashboards
+## Where to look
 
-The kube-prometheus-stack includes many dashboards out of the box:
+| What | URL | Login |
+|------|-----|-------|
+| Grafana | <https://grafana.gkcluster.org> | **Sign in with GitHub (via Dex)**. Emails in `admin_emails` get the Admin role, everyone else Viewer; the password form is disabled |
+| Alertmanager | <https://alertmanager.gkcluster.org> | oauth2-proxy (GitHub, `admin_emails` only) |
+| Prometheus | No Ingress | `kubectl -n monitoring port-forward svc/grafana-prometheus-kube-pr-prometheus 9090`, then <http://localhost:9090> |
+
+Both hostnames go through the Cloudflare Tunnel, so Cloudflare Access comes
+first. Grafana is also in the `Demo` Access application, which lets the
+listed viewers in as well as the owner; Alertmanager is owner only.
+{doc}`/tutorials/tour` walks through both, and
+{doc}`/reference/services` has the port-forward fallbacks for when the edge is
+down.
+
+Grafana comes with the chart's dashboards (**Dashboards** in the sidebar). The
+ones used most here:
 
 | Dashboard | What it shows |
 |-----------|---------------|
 | Kubernetes / Compute Resources / Cluster | Cluster-wide CPU, memory, network |
-| Kubernetes / Compute Resources / Namespace | Per-namespace resource usage |
-| Kubernetes / Compute Resources / Pod | Per-pod CPU and memory |
-| Node Exporter / Nodes | Node-level system metrics (CPU, memory, disk, network) |
+| Kubernetes / Compute Resources / Namespace (Pods) | Per-namespace usage |
+| Kubernetes / Compute Resources / Pod | One pod's CPU and memory |
+| Node Exporter / Nodes | A node's CPU, memory, disk, network |
 | CoreDNS | DNS query rates and errors |
-| etcd | etcd cluster health and performance |
 
-Navigate to **Dashboards** in the Grafana sidebar to browse all available dashboards.
+### From argocd-monitor
 
-## How Prometheus scrapes metrics
+<https://argocd-monitor.gkcluster.org> links each workload, pod and node on an
+Application's detail page to the matching Grafana dashboard, with the
+namespace already selected. The `grafana` values in
+`kubernetes-services/templates/argocd-monitor.yaml` map the in-cluster
+destination to `https://grafana.gkcluster.org`. Explore links are off, because
+Grafana's Viewer role cannot open Explore. The argocd-monitor
+[observability links guide](https://epics-containers.github.io/argocd-monitor/main/how-to/observability-links.html)
+lists the links.
 
-Prometheus discovers scrape targets via **ServiceMonitor** resources. The
-kube-prometheus-stack automatically creates ServiceMonitors for core Kubernetes
-components.
+## Where it runs
 
-Additional services can be monitored by creating their own ServiceMonitor — set
-`serviceMonitor.enabled: true` in the service's Helm values (where supported) or
-ship a ServiceMonitor manifest alongside the app.
+| Component | Node | Why |
+|-----------|------|-----|
+| Prometheus (`prometheus-grafana-prometheus-kube-pr-prometheus-0`) | node04 | Its data is the static `local-nvme` PV `prometheus-local`, `/var/lib/k8s-data/prometheus`, 40Gi |
+| Grafana (`grafana-prometheus-0`) | node04 | Its SQLite database is the PV `grafana-local`, `/var/lib/k8s-data/grafana`, 30Gi |
+| Alertmanager, the Prometheus operator, kube-state-metrics | Any worker but ws03 (nuc2 today) | Stateless enough to move. They do not tolerate the `workstation` taint, because ws03 reboots outside the kured window |
+| node-exporter | Every node, including node02 and ws03 | A DaemonSet |
 
-## Data retention
+The two PVs are entries in `local_storage` in
+`kubernetes-services/values.yaml`, pre-bound to the claim names the chart
+generates, and their directories on node04 are created by the `k8s_data_dirs`
+role, outside `/var/lib/rancher`, so they survive a cluster rebuild. node04 is
+the 32 GB RK1, which is why both are there. While node04 is down or draining,
+Grafana and Prometheus are down and there is a gap in the metrics; nothing
+else can mount their volumes. {ref}`move-a-local-nvme-pv` is the procedure for
+moving one.
 
-Prometheus stores metrics data on a static `local-nvme` PV on node04 (40Gi by
-default, configured in `kubernetes-services/templates/grafana.yaml`). Default
-retention is 10 days (kube-prometheus-stack default).
+Grafana's database is backed up to the NAS by the `grafana-daily` and
+`grafana-weekly` CronJobs ({doc}`/how-to/backup-restore`). Prometheus's data
+is not backed up: it is ten days of metrics.
 
-To change retention, add to the Prometheus Helm values:
+## Retention
+
+Prometheus keeps **10 days**, the chart's default: `grafana.yaml` sets no
+`retention` or `retentionSize`. To change it, add to `prometheus.prometheusSpec`
+in the template:
 
 ```yaml
 prometheus:
   prometheusSpec:
     retention: 30d
-    retentionSize: 35GB
+    retentionSize: 35GB     # below the 40Gi volume
 ```
 
-## Alerting
+## How scraping is wired
 
-Alertmanager is deployed as part of the stack and exposed at
-**https://alertmanager.your-domain.com** behind the shared oauth2-proxy
-(GitHub OAuth, admin emails only). The kube-prometheus-stack ships with a
-suite of default alert rules covering node health, pod restarts, PVC usage,
-certificate expiry, etc.
+Prometheus scrapes every 30 seconds. It finds targets through
+**ServiceMonitor** objects, and rules through **PrometheusRule** objects, in
+any namespace, but only those labelled `release: grafana-prometheus`. An
+object without that label is ignored without an error.
 
-### Phone notifications (ntfy)
+| Source | How |
+|--------|-----|
+| API server, kubelet and cAdvisor, CoreDNS, kube-state-metrics, node-exporter, and the stack itself | The chart's own ServiceMonitors |
+| cert-manager | `additions/grafana/cert-manager-servicemonitor.yaml`. It lives here, not in the cert-manager chart's values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap |
+| kured | The kured chart's ServiceMonitor (`kubernetes-services/templates/kured.yaml`), in the `kured` namespace |
+| Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd backup timer on node02 (`roles/etcd_backup`) writes its `k3s_etcd_backup_*` metrics there |
 
-Alertmanager pushes the alerts worth acting on to the owner's phone through
-the self-hosted ntfy ({doc}`ntfy`), on the `cluster-alerts` topic. Every
-other alert goes to the `null` receiver: it still shows in Alertmanager and
-Grafana, but nothing is sent. The configuration is the `alertmanager.config`
-block in `kubernetes-services/templates/grafana.yaml`.
+Three chart defaults are switched off: the scrape targets and rules for
+kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
+inside the `k3s` server process, so there are no such pods and the chart's
+"down" alerts would fire for ever.
+
+etcd is not scraped. The chart still creates its `kube-etcd` ServiceMonitor
+and **etcd** dashboard, but K3s's embedded etcd on node02 does not expose
+metrics (the `k3s` role sets no `etcd-expose-metrics`), so the Service has no
+endpoints and the dashboard is empty. etcd's health shows only through the
+API server's metrics and the etcd backup alerts below.
+
+To monitor something new, give its chart `serviceMonitor.enabled: true` (with
+the `release: grafana-prometheus` label) or add a ServiceMonitor manifest
+beside the app.
+
+:::{note}
+The Prometheus operator images are pinned to `v0.94.2` in `grafana.yaml`,
+because the newer release the chart defaults to was published without arm64
+images. A chart bump does not override the pin; re-check it on every bump, as
+the comment there says.
+:::
+
+## Alert rules
+
+The chart ships its default rules (node health, pod restarts, volumes filling,
+API server, kubelet and so on). This cluster adds three rule files in
+`kubernetes-services/additions/grafana/`:
+
+| File | Alerts | Fires when |
+|------|--------|-----------|
+| `etcd-backup-rules.yaml` | `K3sEtcdBackupFailed` | The last run of node02's etcd backup job failed (for 10 minutes) |
+| | `K3sEtcdBackupStale` | The newest successful backup is over 36 hours old (for 30 minutes) |
+| | `K3sEtcdBackupNeverSucceeded` | No backup has ever succeeded (for 36 hours) |
+| | `K3sEtcdBackupMetricsMissing` | The job's metrics are absent (for 2 hours): the timer or the textfile collector is broken |
+| `offsite-backup-rules.yaml` | `OffsiteBackupFailed` | The newest run of the `offsite-backup` CronJob failed |
+| | `OffsiteBackupStale` | No off-site backup has succeeded for over 36 hours |
+| | `OffsiteBackupNeverSucceeded` | The CronJob has existed for over 36 hours without a success |
+| `cert-expiry-rules.yaml` | `CertManagerCertificateExpiringSoon` | A certificate expires in under 14 days (warning) or under 7 (critical). cert-manager renews 30 days ahead, so this means renewal is failing |
+
+The off-site rules use kube-state-metrics' CronJob and Job series, which exist
+only while the CronJob does, so they are silent when `offsite_backup.enabled`
+is `false`. All of the above are `severity: warning` except the 7-day
+certificate alert.
+
+The directory also holds two SealedSecrets: `grafana-oauth-secret.yaml`
+(Grafana's Dex client secret) and `alertmanager-ntfy-secret.yaml` (the ntfy
+token, below).
+
+See what is firing:
+
+```bash
+kubectl get prometheusrules -n monitoring
+kubectl exec -n monitoring \
+  alertmanager-grafana-prometheus-kube-pr-alertmanager-0 -c alertmanager -- \
+  amtool --alertmanager.url=http://localhost:9093 alert query
+```
+
+## Phone notifications through ntfy
+
+Alertmanager pushes selected alerts to the `cluster-alerts` topic of the
+self-hosted ntfy ({doc}`/how-to/ntfy`). Every other alert goes to the `null`
+receiver: it still shows in Alertmanager and Grafana, but nothing is sent.
+The configuration is the `alertmanager.config` block in `grafana.yaml`.
 
 | Alerts | Pushed |
 |--------|--------|
-| Any `severity=critical` | yes, ntfy priority 5 (urgent) |
-| `K3sEtcdBackup*` (the four etcd backup alerts) | yes, priority 3 |
-| `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | yes, priority 3 |
-| Volumes and filesystems filling up: `KubePersistentVolumeFillingUp`, `KubePersistentVolumeInodesFillingUp`, `NodeFilesystemSpaceFillingUp`, `NodeFilesystemAlmostOutOfSpace`, `NodeFilesystemFilesFillingUp`, `NodeFilesystemAlmostOutOfFiles` | yes, priority 3 (5 for their critical variants) |
-| `CertManagerCertificateExpiringSoon` (under 14 days: warning; under 7: critical) | yes |
-| `Watchdog`, `InfoInhibitor` and everything else | no (`null`) |
+| Any `severity=critical` | Yes, ntfy priority 5 (urgent) |
+| `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
+| `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |
+| Volumes and filesystems filling up: `KubePersistentVolumeFillingUp`, `KubePersistentVolumeInodesFillingUp`, `NodeFilesystemSpaceFillingUp`, `NodeFilesystemAlmostOutOfSpace`, `NodeFilesystemFilesFillingUp`, `NodeFilesystemAlmostOutOfFiles` | Yes, priority 3 (5 for their critical variants) |
+| `CertManagerCertificateExpiringSoon` | Yes |
+| `OffsiteBackup*` | **No.** They are warnings and are not in the route's list, so they reach `null`; look for them in Alertmanager |
+| `Watchdog`, `InfoInhibitor` and everything else | No (`null`) |
 
 - **Grouping:** one notification per alert name (`group_by: [alertname]`),
   sent 2 minutes after the first alert of a group fires (`group_wait`), with
@@ -96,18 +204,18 @@ block in `kubernetes-services/templates/grafana.yaml`.
   `alertmanager-cluster` template
   (`kubernetes-services/additions/ntfy/files/alertmanager-cluster.yml`): the
   alert name in the title, then each alert's state, severity, node or
-  namespace, summary and description, and a link to the alerts in
-  Alertmanager. At most 5 alerts are listed (ntfy messages are limited to
-  4 KB); the rest are counted.
+  namespace, summary and description. Tapping the notification opens
+  <https://alertmanager.gkcluster.org>. At most 5 alerts are listed (ntfy
+  messages are limited to 4 KB); the rest are counted.
 - **Node down:** while a node is `KubeNodeNotReady`, its
-  `KubeNodeUnreachable` and `KubeletInstanceUnreachable` are inhibited, and
-  so are `KubePodNotReady`, `KubeDaemonSetRolloutStuck`,
+  `KubeNodeUnreachable` and `KubeletInstanceUnreachable` are inhibited, and so
+  are `KubePodNotReady`, `KubeDaemonSetRolloutStuck`,
   `KubeDaemonSetMisScheduled` and `TargetDown` cluster-wide (they carry no
   node label to match on). So a powered-off node is one push, not a dozen
   alerts.
 - **Planned outages:** `KubeNodeNotReady` ignores cordoned nodes, so a node
-  drained (which cordons it) before it is powered off pushes nothing. To
-  power a node off without draining it, silence the alert first in the
+  that was drained (which cordons it) before being powered off pushes nothing.
+  To power a node off without draining it, silence the alert first in the
   Alertmanager UI, or with:
 
   ```bash
@@ -117,35 +225,37 @@ block in `kubernetes-services/templates/grafana.yaml`.
     node=<node> --duration=2h --comment="planned outage"
   ```
 
+### How the push is authenticated
+
 Alertmanager posts to the ntfy Service inside the cluster
 (`http://ntfy.ntfy.svc.cluster.local`), not through Cloudflare; ntfy's
 NetworkPolicy admits the Alertmanager pods for this (`allowed_pods` in
 `kubernetes-services/additions/ntfy/values.yaml`). It authenticates as the
 ntfy `alertmanager` user, which can only publish to `cluster-alerts`, with a
 Bearer token read from the `alertmanager-ntfy` Secret (key `token`). That
-Secret is a copy of the `alertmanager-token` key of `ntfy-auth`, as a pod can
-only mount a Secret from its own namespace; `just seal-ntfy` and the rebuild
-(`scripts/seal-from-json`) seal both together, so they stay in step.
+Secret is a copy of the `alertmanager-token` key of `ntfy-auth`, because a pod
+can only mount a Secret from its own namespace; `just seal-ntfy` and the
+rebuild (`scripts/seal-from-json`) seal both together, so they stay in step.
+
 Alertmanager reads the token file on every notification, so it needs no
 restart for a rotated token (`just seal-ntfy --rotate alertmanager`). ntfy
-accepts the new token only once its pod is recreated, and until then
-publishes fail, so recreate the ntfy pod as soon as both Secrets have
-synced (see {doc}`ntfy`).
+accepts the new token only once its pod is recreated, and until then publishes
+fail, so recreate the ntfy pod as soon as both Secrets have synced
+({doc}`/how-to/ntfy`).
 
 :::{note}
 Nothing pushes when the cluster, Alertmanager or ntfy itself is down. The
-`Watchdog` alert, which always fires, could feed an external dead-man's
-switch (such as healthchecks.io) that alerts when it *stops* arriving; this
-cluster does not use one, so an outage of the cluster, Alertmanager or ntfy
-goes unnoticed until someone looks.
+`Watchdog` alert, which always fires, could feed an external dead-man's switch
+that alerts when it *stops* arriving. This cluster does not use one, so such an
+outage goes unnoticed until someone looks.
 :::
 
 ### Test the notifications
 
-To check delivery without waiting for a real problem, fire a short-lived
-test alert with `amtool` inside the Alertmanager pod. It is critical, so it
-is pushed with urgent priority after the 2 minute `group_wait`, and resolves
-(with a "Resolved" push up to 30 minutes later) when it expires:
+Fire a short-lived test alert with `amtool` inside the Alertmanager pod. It is
+critical, so it is pushed with urgent priority after the 2 minute
+`group_wait`, and resolves (with a "Resolved" push up to 30 minutes later)
+when it expires:
 
 ```bash
 kubectl exec -n monitoring \
@@ -157,11 +267,10 @@ kubectl exec -n monitoring \
   --end="$(date -u -d '+5 minutes' +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
-Give the start time explicitly: without it, Alertmanager starts the alert
-at its end time, so it does not fire when you expect.
+Give the start time explicitly: without it, Alertmanager starts the alert at
+its end time, so it does not fire when expected.
 
-To see which receiver a set of labels would reach, without sending
-anything:
+To see which receiver a set of labels would reach, without sending anything:
 
 ```bash
 kubectl exec -n monitoring \
@@ -170,8 +279,10 @@ kubectl exec -n monitoring \
   alertname=KubeNodeNotReady severity=warning
 ```
 
-If nothing arrives, check the Alertmanager logs (a rejected publish shows
-the HTTP status) and the ntfy logs:
+It prints `ntfy` or `null`.
+
+If nothing arrives, check the Alertmanager logs (a rejected publish shows the
+HTTP status) and the ntfy logs:
 
 ```bash
 kubectl logs -n monitoring \
@@ -179,3 +290,11 @@ kubectl logs -n monitoring \
   -c alertmanager --tail=30
 kubectl logs -n ntfy -l app.kubernetes.io/name=ntfy --tail=30
 ```
+
+### Push a new alert
+
+Add the alert name to the `matchers` regular expression of the second `ntfy`
+route in `alertmanager.config`, or give the rule `severity: critical`. `routes`,
+`receivers` and `inhibit_rules` are lists, so the template's values replace the
+chart's defaults instead of merging with them: keep the `Watchdog` route and
+the inhibit rules when editing.

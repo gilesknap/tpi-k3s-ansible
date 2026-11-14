@@ -1,73 +1,81 @@
-# Set Up the Cluster NFS Tree on the NAS
+# Set up the cluster's directories on the NAS
 
-This is a **one-time manual runbook** you run by hand on the NAS (a QNAP).
-Ansible has no access to the NAS and this is by design: the NAS hosts
-unrelated personal data (JellyFin libraries, Minecraft, Public) alongside
-the cluster's NFS shares, and we don't want an ansible playbook anywhere
-near it.
+The NAS is a QNAP at 192.168.1.3. Everything the cluster keeps on it lives
+in a handful of directories, and creating them is the one part of the
+system done by hand: Ansible has no access to the NAS, and none is wanted.
+The NAS also holds unrelated personal data (the media library and other
+shares), and a playbook that can create and delete directories there
+is one typo away from that data. So this page is a runbook to run on the
+NAS itself, once per directory, and the cluster only ever mounts what
+exists.
 
-## Why this doesn't create a new NFS export
+It has been run for every directory below; it is needed again only for a
+new workload or a replaced NAS. The concepts (which workload uses which
+kind of volume, and why) are in {doc}`/explanations/architecture/storage`.
 
-On a stock Debian/Ubuntu NFS server, the clean pattern would be to add a
-drop-in file under `/etc/exports.d/` and reload exports. **QTS (the QNAP
-OS) does not work this way** — `/etc/exports` is auto-regenerated from the
-QNAP web UI's share configuration, there is no `/etc/exports.d/`, and
-hand-editing `/etc/exports` is dangerous because the UI overwrites it.
+## What the cluster mounts
 
-The good news is we don't need a new export at all. Your QNAP already
-exports `/share/CACHEDEV1_DATA/bigdisk` with read-write access to the
-cluster subnet.
+The cluster mounts directories in two NFS exports of the NAS:
 
-So this runbook **just creates a new subdirectory inside the existing
-`bigdisk` export** — `bigdisk/k8s-cluster/`. No
-export changes, no `/etc/exports` edits, no QNAP UI configuration. The
-exact client-side vs server-side path mapping is covered under
-[Two paths, same directory](#two-paths-same-directory) below.
+| Client-side path | Set by | Mounted by | Owner, mode |
+|------------------|--------|------------|-------------|
+| `/bigdisk/k8s-cluster/` | `nfs.cluster_share_path` | the `k8s-cluster-nfs` PV (claimed in the `backups` namespace); node02's etcd backup, at `/mnt/k8s-cluster` | `0755` |
+| `/bigdisk/k8s-cluster/backups/grafana/`, `jellyfin/` (each with `weekly/`) | `additions/backups` | the Grafana and Jellyfin backup CronJobs | `0777` |
+| `/bigdisk/k8s-cluster/backups/etcd/` (with `pre-upgrade/`) | `etcd_backup_dest_subdir` | node02's `k3s-etcd-backup` job, as root, so squashed to `65534` | `0777` |
+| `/bigdisk/k8s-cluster/scrap-data/` | `additions/scrap` (`storage.data_dir`) | the `scrap-data-nfs` PV | `10001:10001`, `0750` |
+| `/bigdisk/k8s-cluster/backups/scrap/` | `additions/scrap` (`storage.backups_dir`) | the `scrap-backups-nfs` PV | `10001:10001`, `0750` |
+| `/bigdisk/k8s-cluster/backups/scrap-curated/` | `offsite_backup.backups.run_dirs` | the off-site backup, read-only (scrap backup runs kept by hand) | `10001:10001` |
+| `/bigdisk/k8s-cluster/minecraft/` | `minecraft.store_subdir` | the Minecraft dashboard's store PV | `1000:1000`, `0755` |
+| `/bigdisk/minecraft-archive/` | `minecraft.archive_path` | the dashboard's archive PV, read-only | no write bit at all |
+| `/bigdisk/media/` | `jellyfin.media.nfs_path` | the `jellyfin-media-nfs` PV, read-only | as it was: the library predates the cluster |
+| `/k8s-dynamic/` | `nfs_csi.share` | the `nfs-rwx` storage class | the share's own |
+| `/k8s-dynamic/stable/` | `nfs_csi.stable_share` | the `nfs-stable` storage class (default); the dashboard and the off-site backup, read-only | same as `/k8s-dynamic/` |
 
-## What we're creating
+All the variables are in `kubernetes-services/values.yaml`, except
+`etcd_backup_dest_subdir` (`roles/etcd_backup/defaults/main.yml`). The
+off-site backup ({ref}`offsite-backup`) reads `backups/`, the Minecraft
+store, `/k8s-dynamic/stable` and the archive, all read-only.
 
-A single directory tree `bigdisk/k8s-cluster/` that contains **everything**
-the cluster reads or writes over NFS:
+The export squashes root (to `65534`) but not other users, so a pod's
+writes arrive with its own uid. That is why each directory is owned by the
+uid of the workload that writes it, and why the backup directories with
+mixed writers (root-squashed Alpine jobs, Jellyfin's uid `122`) are `0777`.
 
-- `backups/<app>/` and `backups/<app>/weekly/` — daily and weekly
-  CronJob backup output (empty on first setup)
-- `backups/etcd/` — the control plane's nightly age-encrypted etcd backup
-  ({ref}`etcd-offsite-backup`), written by root on the control plane and
-  so arriving as the root-squashed uid
-- `scrap-data/` and `backups/scrap/` — scrap's data volume (files and the
-  database's Litestream replica) and its backups (see
-  {ref}`scrap-nas-directories` below)
-- `minecraft/` — optional; the Minecraft dashboard's writable store (see
-  {ref}`minecraft-nas-directories` below)
+The media library is the one directory here that the cluster did not
+create and never writes: Jellyfin mounts it read-only three times over (the
+PV, its access mode and the pod's mount).
 
-The optional Minecraft world **archive** is the one cluster-visible path
-that deliberately lives *outside* this tree — see
-{ref}`minecraft-nas-directories`.
+## Why no new NFS export
+
+On a stock Debian or Ubuntu NFS server the clean pattern is a drop-in under
+`/etc/exports.d/`. QTS, the QNAP's OS, does not work that way:
+`/etc/exports` is regenerated from the web UI's share configuration, there
+is no `/etc/exports.d/`, and a hand edit is overwritten. So nothing here
+touches the exports. The NAS already exports `bigdisk` read-write to
+192.168.1.0/24, and the cluster's tree is a subdirectory of it.
 
 ### Two paths, same directory
 
-Be aware of the two paths you'll see in this runbook — they are the same
-physical directory, just viewed from different sides:
+| Path | Who uses it |
+|------|-------------|
+| `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster` | commands run on the QNAP |
+| `/bigdisk/k8s-cluster` | NFS clients: the PVs and node02's mount |
 
-| Path                                        | Who uses it                         |
-|---------------------------------------------|-------------------------------------|
-| `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster` | You, running commands on the QNAP   |
-| `/bigdisk/k8s-cluster`                      | The Kubernetes NFS PV (client-side) |
-
-The client-side path `/bigdisk/...` works because the QNAP exports a
-separate NFSv4-pseudo entry `/share/NFSv=4/bigdisk` with `nohide` and
-its own `fsid`, which makes `bigdisk` a first-class path for NFSv4
-clients.
+The client-side path works because the QNAP exports an NFSv4 pseudo entry,
+`/share/NFSv=4/bigdisk`, with `nohide` and its own `fsid`, which makes
+`bigdisk` a first-class path for NFSv4 clients. `k8s-dynamic` is a separate
+QNAP shared folder, exported the same way.
 
 ## Prerequisites
 
-- You can SSH to the QNAP as `admin` (or another account with shell
-  access and rights to write under `/share/CACHEDEV1_DATA`).
-- The QNAP is reachable at `192.168.1.3` from the cluster subnet.
+- SSH to the QNAP as `admin` (or another account with a shell and the
+  right to write under `/share/CACHEDEV1_DATA`).
+- The QNAP is reachable at 192.168.1.3 from 192.168.1.0/24.
 
-## One-time setup
+## The cluster tree and the backup directories
 
-Run this once on the QNAP. It creates the directory tree.
+Run this once on the QNAP. It creates `k8s-cluster/` and the backup
+directories of Grafana, Jellyfin and etcd.
 
 ```bash
 # SSH to the QNAP as admin, then:
@@ -99,8 +107,13 @@ chmod -R 0777 "$ROOT/backups"/*
 ls -la "$ROOT" "$ROOT/backups"
 ```
 
-From the cluster devcontainer, confirm the new path is visible over NFS
-before moving on:
+The `chmod -R 0777 "$ROOT/backups"/*` is for the first setup only, while
+`backups/` holds just these three directories. Run again later, it would
+also open up `backups/scrap/`, whose runs are private to scrap's uid: on an
+existing tree, `chmod` the one new directory instead.
+
+From the devcontainer, confirm the new path is visible over NFS before
+moving on:
 
 ```bash
 # Spin a throwaway pod that mounts /bigdisk and lists k8s-cluster.
@@ -122,14 +135,14 @@ kubectl run nas-check --rm -it --restart=Never \
 }'
 ```
 
-You should see the `backups` subtree.
+The listing shows the `backups` subtree.
 
 ## Rollback
 
 :::{warning}
 Only use this straight after first-time setup, while the tree is still empty.
-Once the cluster is running, this tree holds your backups and other workload
-data, and removing it destroys them.
+Once the cluster is running, this tree holds every backup, scrap's live
+data and the Minecraft store, and removing it destroys them.
 :::
 
 This runbook only adds a new directory, so rollback is to remove it once no
@@ -139,36 +152,37 @@ pods are consuming the tree. On the QNAP:
 rm -rf /share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 ```
 
-## What this runbook explicitly DOES NOT do
+## What this runbook does not do
 
 - Read or write `/etc/exports` (QNAP-managed — editing breaks the UI).
 - Create or modify any QNAP share or NFS export.
 - Restart any NFS service.
 - Touch any path outside `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/`
-  (the optional Minecraft archive and the dynamic volume share's `stable/`
-  folder below are separate, deliberate steps).
+  (the Minecraft archive and the dynamic volume share's `stable/` folder
+  below are separate, deliberate steps).
 
 ## Adding new cluster-owned subfolders later
 
-Just `mkdir` under `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/` by hand.
-No repo change needed for directory additions, and no export changes
-ever — everything the cluster writes lives inside a single subtree of
-the existing `bigdisk` export.
+`mkdir` it under `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/` by hand, and
+give it the owner of the workload that will write to it. A directory needs
+no repo change and no export change: everything the cluster writes on
+`bigdisk` is inside this one subtree.
 
 (nfs-csi-nas-share)=
 ## Dynamic volume share (NFS CSI)
 
 The NFS CSI driver's storage classes provision volumes in a share of their
-own, `nfs_csi.share` (default `/k8s-dynamic`), not in `k8s-cluster/`. On a
-QNAP it is a separate shared folder exported over NFS to the cluster subnet,
-for example `/share/CACHEDEV1_DATA/k8s-dynamic` on the NAS. The driver
-creates one folder per volume in it.
+own, `nfs_csi.share` (`/k8s-dynamic`), not in `k8s-cluster/`. It is a
+separate QNAP shared folder, `/share/CACHEDEV1_DATA/k8s-dynamic` on the NAS,
+exported over NFS to 192.168.1.0/24. The driver creates one folder per
+volume in it.
 
-The `nfs-stable` class, the default ({doc}`nfs-stable-paths`),
-has its own share root inside it, `nfs_csi.stable_share` (default
-`/k8s-dynamic/stable`). Create it once, before Argo CD syncs the class,
-with the same owner and mode as the share root, since the driver creates the
-same kind of folders in both. Give each cluster its own.
+The `nfs-stable` class, the default ({doc}`/how-to/nfs-stable-paths`),
+has its own share root inside it, `nfs_csi.stable_share`
+(`/k8s-dynamic/stable`). It must exist before ArgoCD syncs the class, with
+the same owner and mode as the share root, since the driver creates the
+same kind of folders in both. A second cluster would need a `stable/` of
+its own.
 
 ```bash
 # SSH to the QNAP as admin, then:
@@ -187,7 +201,7 @@ it holds the live world data, and the archives of deleted worlds.
 (scrap-nas-directories)=
 ## scrap directories
 
-scrap's two static NFS volumes ({doc}`scrap`) mount these directories, so they
+scrap's two static NFS volumes ({doc}`/how-to/scrap`) mount these directories, so they
 must exist before scrap is deployed. They must be owned by the uid/gid scrap
 runs as (`10001`): the export squashes root, and NFS volumes ignore a pod's
 `fsGroup`.
@@ -212,12 +226,21 @@ Never delete or empty them while scrap is deployed: the replica in
 `scrap-data` beside existing backups makes scrap refuse to start, rather than
 start empty.)
 
-(minecraft-nas-directories)=
-## Minecraft directories (optional)
+Backup runs kept by hand, outside scrap's own retention, go in a sibling
+directory, `backups/scrap-curated/`, with the same owner. The off-site
+backup uploads its runs like the others ({ref}`offsite-backup`):
 
-Only needed if you enable the Minecraft dashboard ({doc}`minecraft`). It uses
-two static NFS volumes on the existing `bigdisk` export (and a third, read-only,
-on the dynamic volume share: {ref}`nfs-csi-nas-share`):
+```bash
+mkdir -p "$ROOT/backups/scrap-curated"
+chown 10001:10001 "$ROOT/backups/scrap-curated"
+```
+
+(minecraft-nas-directories)=
+## Minecraft directories
+
+The Minecraft dashboard ({doc}`/how-to/minecraft`) uses two static NFS
+volumes on the `bigdisk` export (and a third, read-only, on the dynamic
+volume share: {ref}`nfs-csi-nas-share`):
 
 | Client-side path | Purpose | Access |
 |------------------|---------|--------|
@@ -225,14 +248,14 @@ on the dynamic volume share: {ref}`nfs-csi-nas-share`):
 | `/bigdisk/k8s-cluster/minecraft/` | `backups/` (promoted), `snapshots/<world>/` (rolling), `dashboard/` (state) | Read-write, owned by uid/gid `1000` |
 
 The archive sits **outside** `k8s-cluster/` on purpose: nothing that targets
-the cluster-owned subtree — backup tooling, a future cleanup script, a
-mistyped `rsync --delete` — can ever reach it. Moving a promoted backup into
+the cluster-owned subtree (backup tooling, a future cleanup script, a
+mistyped `rsync --delete`) can ever reach it. Moving a promoted backup into
 the archive is always a deliberate manual step on the NAS.
 
 Live world data does not live here: each world gets a dynamically
 provisioned `nfs-stable` volume from the NFS CSI driver, in
-`<nfs_csi.stable_share>/minecraft/<world>-data`. Create that share root
-first ({ref}`nfs-csi-nas-share`).
+`/k8s-dynamic/stable/minecraft/<world>-data`. That share root comes first
+({ref}`nfs-csi-nas-share`).
 
 ```bash
 # SSH to the QNAP as admin, then:
@@ -247,14 +270,14 @@ mkdir -p "$BIGDISK/k8s-cluster/minecraft/backups" \
 chown -R 1000:1000 "$BIGDISK/k8s-cluster/minecraft"
 chmod -R 0755 "$BIGDISK/k8s-cluster/minecraft"
 
-# 2. Archive directory — outside k8s-cluster/. Populate it now (see below)
+# 2. Archive directory, outside k8s-cluster/. Populate it now (see below)
 #    before locking it.
 mkdir -p "$BIGDISK/minecraft-archive"
 ```
 
 Populate the archive with the `ingest-archive.sh` script from the
 [k3s-minecraft](https://github.com/gilesknap/k3s-minecraft) repository, as
-described in {doc}`minecraft`:
+described in {doc}`/how-to/minecraft`:
 
 ```bash
 scripts/ingest-archive.sh "$BIGDISK/minecraft-archive" <drive-zips...>

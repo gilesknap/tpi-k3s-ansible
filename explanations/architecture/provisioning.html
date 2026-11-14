@@ -1,0 +1,1247 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Provisioning with Ansible &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/provisioning';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="GitOps delivery with ArgoCD" href="gitops.html" />
+    <link rel="prev" title="Hardware and nodes" href="hardware.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Provisioning with Ansible</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="provisioning-with-ansible">
+<h1>Provisioning with Ansible<a class="headerlink" href="#provisioning-with-ansible" title="Link to this heading">#</a></h1>
+<p>Ansible owns everything below Kubernetes and the first step above it: the
+operating system on each node, K3s, and the ArgoCD installation with its
+root Application. From there ArgoCD takes over
+(<a class="reference internal" href="gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a>). This page is the summary;
+<a class="reference internal" href="../ansible-roles.html"><span class="doc">Ansible roles in detail</span></a> documents each role task by task.</p>
+<p>The controller is the devcontainer on the owner’s workstation. One playbook,
+<code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>, builds the whole cluster and is safe to re-run at any time:
+every role checks the current state and changes only what differs.</p>
+<section id="the-play-pipeline">
+<h2>The play pipeline<a class="headerlink" href="#the-play-pipeline" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    T[&quot;tools&lt;br/&gt;kubectl, helm, kubeseal, argocd on the controller&lt;br/&gt;&lt;i&gt;tag: tools&lt;/i&gt;&quot;]
+    F[&quot;flash&lt;br/&gt;install RK1s through the BMC, only with do_flash&lt;br/&gt;&lt;i&gt;tag: flash&lt;/i&gt;&quot;]
+    KH[&quot;known_hosts&lt;br/&gt;record every node's SSH host key&lt;br/&gt;&lt;i&gt;tag: known_hosts&lt;/i&gt;&quot;]
+    subgraph SERVERS[&quot;tag: servers&quot;]
+        MF[&quot;move_fs&lt;br/&gt;Ubuntu onto the RK1's NVMe&quot;]
+        RO[&quot;rk1_os&lt;br/&gt;convert a vendor-image RK1, one at a time&quot;]
+        UP[&quot;update_packages, k8s_data_dirs&lt;br/&gt;dist-upgrade, unattended-upgrades, local PV directories&quot;]
+        NR[&quot;node_reboot&lt;br/&gt;only with reboot_now, one node at a time&quot;]
+        MF --&gt; RO --&gt; UP --&gt; NR
+    end
+    subgraph K3S[&quot;tag: k3s&quot;]
+        K[&quot;k3s&lt;br/&gt;server on node02, agents elsewhere&quot;]
+        EB[&quot;etcd_backup&lt;br/&gt;nightly encrypted snapshot timer on node02&quot;]
+        K --&gt; EB
+    end
+    C[&quot;cluster&lt;br/&gt;taints, ArgoCD, root Application&lt;br/&gt;&lt;i&gt;tag: cluster&lt;/i&gt;&quot;]
+    CK[&quot;Claude's SSH key on the ansible account&lt;br/&gt;&lt;i&gt;tag: claude_key&lt;/i&gt;&quot;]
+
+    T --&gt; F --&gt; KH --&gt; MF
+    NR --&gt; K
+    EB --&gt; C --&gt; CK
+    </pre><p>Each play has a tag, so one stage can be run alone:
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> is by far the most used.
+<code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> and <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> have their own tags inside
+their stage. <a class="reference internal" href="../../reference/playbook-tags.html"><span class="doc">Playbook tags reference</span></a> lists them all with the extra
+variables each accepts.</p>
+</section>
+<section id="installing-an-rk1">
+<h2>Installing an RK1<a class="headerlink" href="#installing-an-rk1" title="Link to this heading">#</a></h2>
+<p>An RK1 is installed from bare metal with no hands on the hardware. The
+difficulty is the boot loader: the RK1 has no SPI flash, so U-Boot must sit
+in the raw area at the start of the eMMC, exactly where Ubuntu’s own image
+puts its first partition, and the BMC can only write the eMMC. The install
+therefore goes through a throwaway staging system.</p>
+<pre  class="mermaid">
+        sequenceDiagram
+    participant C as Controller
+    participant B as BMC (turingpi)
+    participant E as RK1 eMMC
+    participant N as RK1 NVMe
+
+    C-&gt;&gt;C: Build staging image: U-Boot at LBA 64,&lt;br/&gt;Ubuntu's partitions moved to 16 MiB
+    C-&gt;&gt;B: Copy the image (checksum pinned)
+    B-&gt;&gt;E: tpi flash
+    B-&gt;&gt;E: Write the cloud-init seed (disk mode)
+    B-&gt;&gt;N: At the U-Boot prompt over UART:&lt;br/&gt;read the NVMe's first sectors
+    Note over B,N: Partition table found: stop,&lt;br/&gt;unless flash_force (then zero the first 1 MiB)
+    E-&gt;&gt;E: Boot the staging Ubuntu (U-Boot, EFI, GRUB)
+    C-&gt;&gt;E: move_fs over SSH
+    E-&gt;&gt;N: Write Ubuntu's image, read it back,&lt;br/&gt;compare with the pinned sha256
+    E-&gt;&gt;N: Seed cloud-init, copy the SSH host keys
+    E-&gt;&gt;E: wipefs: clear the eMMC's partition table
+    E-&gt;&gt;N: Reboot: U-Boot finds no system on the eMMC&lt;br/&gt;and boots the NVMe
+    </pre><p>The <code class="docutils literal notranslate"><span class="pre">flash</span></code> role does the first half on the BMC and <code class="docutils literal notranslate"><span class="pre">move_fs</span></code> the second on
+the node. The result is an eMMC that holds only U-Boot and an NVMe that
+holds Ubuntu’s preinstalled server image exactly as Ubuntu ships it, with
+the generic kernel, updated by <code class="docutils literal notranslate"><span class="pre">apt</span></code> like any other machine. Both artifacts
+(Ubuntu’s image and Armbian’s build of mainline U-Boot) are pinned by URL
+and sha256 in <code class="docutils literal notranslate"><span class="pre">roles/flash/vars/main.yml</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> play that follows converts an RK1 installed from the older
+vendor image to the same stock Ubuntu and generic kernel in place, keeping
+its partition layout. node03 and node04 were converted this way; node02 was
+installed by the flow above. On every run the role skips node02 as a
+standard install and re-checks node03 and node04, changing nothing. It
+stays in the playbook because its kernel hooks and GRUB settings are what
+those two nodes boot with (<a class="reference internal" href="../ansible-roles.html"><span class="doc">Ansible roles in detail</span></a>).</p>
+<section id="safety-rules">
+<h3>Safety rules<a class="headerlink" href="#safety-rules" title="Link to this heading">#</a></h3>
+<p>A flash destroys data, so the roles are built to refuse rather than guess.</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">do_flash</span></code> and <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> are different.</strong> <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code>
+flashes only nodes that do not answer SSH. <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">flash_force=true</span></code> also
+re-flashes nodes that are running. Without either, the <code class="docutils literal notranslate"><span class="pre">flash</span></code> play does
+nothing.</p></li>
+<li><p><strong>An NVMe with a partition table is refused.</strong> A node that does not
+answer SSH may only be unreachable, not empty. With plain <code class="docutils literal notranslate"><span class="pre">do_flash</span></code> the
+role flashes the eMMC but writes nothing to such an NVMe: it powers the
+node off and stops, asking for <code class="docutils literal notranslate"><span class="pre">flash_force</span></code>.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">flash_force</span></code> on an RK1 is a fresh install.</strong> It wipes the NVMe,
+including the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data under <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code>. node04 holds
+Prometheus’s and Grafana’s volumes, so that is a decision for the owner
+(<a class="reference internal" href="../../how-to/reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a>).</p></li>
+<li><p><strong>Only the U-Boot image writes the first 16 MiB of the eMMC.</strong> The
+staging image’s partition table sets its first usable block to 16 MiB,
+so no partitioning tool can place anything over U-Boot. The only other
+writes to the eMMC touch the partition table: cloud-init growing the
+staging root, and the <code class="docutils literal notranslate"><span class="pre">wipefs</span></code> that clears the table at the end.</p></li>
+</ul>
+</section>
+</section>
+<section id="the-nucs-and-ws03">
+<h2>The NUCs and ws03<a class="headerlink" href="#the-nucs-and-ws03" title="Link to this heading">#</a></h2>
+<p>These are installed by hand with Ubuntu, then brought under Ansible’s
+control by <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code>, which creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account with the
+controller’s public key and passwordless sudo:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_add_nodes.yml<span class="w"> </span>--limit<span class="w"> </span>nuc1<span class="w"> </span>-e<span class="w"> </span><span class="nv">ansible_user</span><span class="o">=</span>&lt;login&gt;<span class="w"> </span>-K
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>nuc1<span class="w"> </span>--tags<span class="w"> </span>known_hosts,servers,k3s
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
+</pre></div>
+</div>
+<p>The node then goes through the same <code class="docutils literal notranslate"><span class="pre">servers</span></code> and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> plays as the RK1s
+(the RK1-only roles skip it), and the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag re-applies the taints. The <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> Claude command walks
+through the whole procedure, including the settings elsewhere that depend
+on the list of nodes (<a class="reference internal" href="../../how-to/node-operations.html"><span class="doc">Node operations</span></a>).</p>
+</section>
+<section id="k3s-as-deployed">
+<h2>K3s as deployed<a class="headerlink" href="#k3s-as-deployed" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>One server, embedded etcd.</strong> node02 runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span></code> with
+<code class="docutils literal notranslate"><span class="pre">cluster-init:</span> <span class="pre">true</span></code>; the other five run agents. There is no second
+server: resilience comes from the nightly etcd backup and the warm
+standby (<a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>).</p></li>
+<li><p><strong>Traefik is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">disable:</span> <span class="pre">[traefik]</span></code>). ingress-nginx, delivered
+by ArgoCD, is the ingress controller.</p></li>
+<li><p><strong>A stable API name.</strong> <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> (<code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, a record on the
+router) is in the server certificate (<code class="docutils literal notranslate"><span class="pre">tls-san</span></code>), is what agents join
+(<code class="docutils literal notranslate"><span class="pre">https://k3s.lan:6443</span></code>), and is the server in the exported kubeconfig.
+The role checks on every node that the name resolves only to the control
+plane before it changes anything.</p></li>
+<li><p><strong>One minor line.</strong> The server installs the newest patch of <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code>
+(read from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, so Ansible and the
+in-cluster upgrade Plans share one setting). An agent installs the
+version the server runs, so it is never ahead. The role refuses to
+downgrade a minor.</p></li>
+<li><p><strong>Labels and taints at registration.</strong> A workstation agent registers with
+<code class="docutils literal notranslate"><span class="pre">--node-label=node-role=workstation</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--node-taint=workstation=true:NoSchedule</span></code>, and a GPU node with its GPU
+label, so no pod lands on ws03 in the moments after it joins.</p></li>
+<li><p><strong>Multi-homed nodes.</strong> <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> in the inventory
+become <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> and <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code> (nuc2).</p></li>
+<li><p><strong>Control plane taints.</strong> The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role taints <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>
+<code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code>, and moves
+the soft taint when the standby changes.</p></li>
+<li><p><strong>AppArmor.</strong> A corrected containerd profile is installed before K3s
+starts (<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">apparmor</span></code> runs it alone).</p></li>
+</ul>
+</section>
+<section id="the-cluster-role-bootstrapping-gitops">
+<h2>The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role: bootstrapping GitOps<a class="headerlink" href="#the-cluster-role-bootstrapping-gitops" title="Link to this heading">#</a></h2>
+<p>The last stage runs on the controller against the Kubernetes API, in an
+order that matters:</p>
+<ol class="arabic simple">
+<li><p>Taint the control plane and the standby.</p></li>
+<li><p>Install the ArgoCD Helm chart into <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>, then upgrade it with the
+full configuration: Dex with the GitHub connector, RBAC from
+<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, the local admin account disabled.</p></li>
+<li><p>Create the AppProject <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> (the allow-list of chart sources) and
+ArgoCD’s own Ingress.</p></li>
+<li><p>Create the <code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code> Application on its own and wait for the
+controller. It must be running before anything applies a
+<code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code>.</p></li>
+<li><p>Only on a rebuild (<code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code>): generate every secret, seal
+it with the new cluster’s key, commit and push.</p></li>
+<li><p>Create the root Application <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code>. ArgoCD now deploys
+everything else.</p></li>
+<li><p>Wait for ingress-nginx, then write the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that
+resolves <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> to the ingress controller inside the
+cluster, so ArgoCD’s sign-in does not loop out through Cloudflare.</p></li>
+<li><p>Create the Prometheus admission webhook’s TLS secret.</p></li>
+</ol>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph ANSIBLE[&quot;Ansible owns&quot;]
+        A1[&quot;OS, packages,&lt;br/&gt;local PV directories&quot;]
+        A2[&quot;K3s, taints,&lt;br/&gt;etcd backup timer&quot;]
+        A3[&quot;ArgoCD release,&lt;br/&gt;AppProject,&lt;br/&gt;root Application&quot;]
+        A1 --&gt; A2 --&gt; A3
+    end
+    subgraph ARGO[&quot;ArgoCD owns&quot;]
+        G1[&quot;24 child Applications&lt;br/&gt;from kubernetes-services/&quot;]
+        G2[&quot;Every workload,&lt;br/&gt;Secret, Ingress and volume&quot;]
+        G1 --&gt; G2
+    end
+    A3 ==&gt;|&quot;hand-over&quot;| G1
+    GIT[&quot;Git, branch repo_branch&quot;] --&gt; G1
+    </pre><p>After the hand-over, Ansible is needed again only to change something on
+its side of the line: a node, K3s itself, ArgoCD’s own configuration, or
+the branch the cluster tracks.</p>
+</section>
+<section id="tearing-down-pb-decommission-yml">
+<h2>Tearing down: <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code><a class="headerlink" href="#tearing-down-pb-decommission-yml" title="Link to this heading">#</a></h2>
+<p>The decommission playbook removes K3s from every node so that <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>
+can build a fresh cluster. It is written around what it must not destroy:</p>
+<ul class="simple">
+<li><p>It stops the etcd backup timer first, so no backup of a half-removed
+cluster replaces a good one on the NAS.</p></li>
+<li><p>It then deletes the ArgoCD Applications with an orphan cascade, before
+it touches any workload, or ArgoCD would re-create workloads as they are
+removed.</p></li>
+<li><p>It scales scrap down gracefully, so Litestream makes its final sync to
+the NAS.</p></li>
+<li><p>It never deletes a namespace that holds <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> claims, because
+deleting such a claim archives its folder on the NAS.</p></li>
+<li><p>It uninstalls agents before the server, and checks nothing is still
+mounted under <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code> or <code class="docutils literal notranslate"><span class="pre">/var/lib/kubelet</span></code> before removing
+them, so a delete can never follow a mount into a volume.</p></li>
+<li><p>It <strong>preserves</strong> <code class="docutils literal notranslate"><span class="pre">/home/k8s-data</span></code> (nuc2) and <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> (RK1s).
+The rebuilt cluster binds the same static volumes and the applications
+come back with their data. Only <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">wipe_local_data=true</span></code> removes them.</p></li>
+</ul>
+<p>The NAS is never touched. <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> drives decommission and
+rebuild end to end and is the test for any change that affects this path.</p>
+</section>
+<section id="configuration-three-files">
+<h2>Configuration: three files<a class="headerlink" href="#configuration-three-files" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Holds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+<td><p>The inventory: the BMC, each node’s slot, type and <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>, and the per-node flags (<code class="docutils literal notranslate"><span class="pre">workstation</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>, <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+<td><p>Ansible’s settings: <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>, <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code>, <code class="docutils literal notranslate"><span class="pre">repo_remote</span></code>, <code class="docutils literal notranslate"><span class="pre">repo_branch</span></code>, <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>, the backup’s age public key</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+<td><p>What ArgoCD deploys: the <code class="docutils literal notranslate"><span class="pre">enable_*</span></code> toggles, versions, NAS paths, schedules, <code class="docutils literal notranslate"><span class="pre">local_storage</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The first two are read by Ansible and the third by Helm, so a few values
+exist in two places, with a comment at each end naming the other:</p>
+<ul class="simple">
+<li><p><strong>Local volume directories.</strong> Each <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry (Ansible creates
+the directory) must match the <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> of its <code class="docutils literal notranslate"><span class="pre">local_storage</span></code>
+entry (ArgoCD creates the PersistentVolume). If they drift, the volume
+points at a directory that does not exist and its claim stays Pending.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>.</strong> Ansible renders the list into ArgoCD’s RBAC; Helm
+renders it into Grafana’s role mapping.</p></li>
+</ul>
+<p>Two smaller pairs are marked the same way (<code class="docutils literal notranslate"><span class="pre">SYNC:</span></code>, like the local volume
+directories): the age public key
+(<code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code> and <code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code>, compared
+by a pre-commit hook and by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>) and Jellyfin’s uid and gid.
+<code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code> avoids the problem altogether: Ansible reads it out of
+<code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>.</p>
+<p><a class="reference internal" href="../../reference/inventory.html"><span class="doc">Inventory reference</span></a> and <a class="reference internal" href="../../reference/variables.html"><span class="doc">Variables reference</span></a> describe every
+setting.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="hardware.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Hardware and nodes</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="gitops.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">GitOps delivery with ArgoCD</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-play-pipeline">The play pipeline</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-an-rk1">Installing an RK1</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#safety-rules">Safety rules</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nucs-and-ws03">The NUCs and ws03</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-as-deployed">K3s as deployed</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cluster-role-bootstrapping-gitops">The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role: bootstrapping GitOps</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tearing-down-pb-decommission-yml">Tearing down: <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-three-files">Configuration: three files</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/provisioning.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/provisioning.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

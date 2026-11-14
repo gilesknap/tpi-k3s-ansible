@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>K3s Cluster Commissioning &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>gkcluster K3s homelab &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -124,7 +124,7 @@
     <img src="_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -147,7 +147,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -261,7 +261,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -347,31 +347,16 @@
                   
   <p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/"><img alt="Documentation" src="https://img.shields.io/badge/docs-online-blue" /></a>
 <a class="reference external" href="https://github.com/gilesknap/tpi-k3s-ansible/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-green" /></a></p>
-<section id="k3s-cluster-commissioning">
-<h1>K3s Cluster Commissioning<a class="headerlink" href="#k3s-cluster-commissioning" title="Link to this heading">#</a></h1>
-<p>An <strong>Infrastructure-as-Code</strong> Ansible project that commissions a
-<a class="reference external" href="https://k3s.io/">K3s</a> Kubernetes cluster on
-<a class="reference external" href="https://turingpi.com/">Turing Pi</a> v2.5 boards (RK1 / CM4 compute modules)
-and arbitrary additional Linux servers — fully idempotent and repeatable.</p>
-<p>All cluster customisation lives in <strong>three files</strong>
-(<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>),
-so you can fork the repo, edit those files, and have your own cluster running
-in minutes.</p>
-<section id="architecture-at-a-glance">
-<h2>Architecture at a glance<a class="headerlink" href="#architecture-at-a-glance" title="Link to this heading">#</a></h2>
-<p>The cluster is GitOps-first: Ansible bootstraps K3s and ArgoCD, then
-ArgoCD syncs everything else from <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> in this repo.
-Stateful data lives on <strong>static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs</strong> — one per workload,
-pinned to a specific node — with <strong>daily and weekly CronJob backups to
-NFS</strong> on a NAS. This keeps operations simple (no replicated CSI driver)
-while still surviving cluster rebuilds and giving off-cluster
-point-in-time restore. See the
-<a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/_static/architecture.html"><strong>Interactive Architecture Showcase</strong></a>
-for a visual tour, the <a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html">architecture explanation</a>
-for the layered model, and the
-<a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/reference/services.html">services reference</a>
-for quick-start configurations (monitoring, Minecraft, full
-stack) to help you pick which services to run.</p>
+<section id="gkcluster-k3s-homelab">
+<h1>gkcluster K3s homelab<a class="headerlink" href="#gkcluster-k3s-homelab" title="Link to this heading">#</a></h1>
+<p>This repository is one real cluster: the six-node <a class="reference external" href="https://k3s.io/">K3s</a>
+homelab behind <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, and the manual its owner operates it by.
+<a class="reference external" href="https://docs.ansible.com/">Ansible</a> provisions the machines,
+<a class="reference external" href="https://argo-cd.readthedocs.io/">ArgoCD</a> delivers everything that runs on
+them from this repository, and <a class="reference external" href="https://claude.com/claude-code">Claude Code</a>
+does much of the day-to-day work from a sandbox. It is published as a worked
+example of a cluster run that way. It is not a turnkey template: the node
+names, addresses, NAS paths and domain in it are this site’s.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head text-center"><p>Source</p></th>
@@ -385,80 +370,130 @@ stack) to help you pick which services to run.</p>
 </tbody>
 </table>
 </div>
-</section>
-<section id="features">
-<h2>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h2>
-<section id="infrastructure">
-<h3>Infrastructure<a class="headerlink" href="#infrastructure" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p><strong>Automated flashing</strong> of Turing Pi compute modules with stock Ubuntu (26.04 on RK1, 24.04 on CM4)</p></li>
-<li><p><strong>Optional NVMe migration</strong> — move the root filesystem to fast storage</p></li>
-<li><p><strong>K3s cluster</strong> with one control-plane node and multiple workers</p></li>
-<li><p><strong>Works with any Ubuntu server</strong> — Turing Pi hardware is optional</p></li>
-<li><p><strong>Kernel tuning</strong> — DaemonSet for network buffer sizes</p></li>
-</ul>
-</section>
-<section id="gitops-deployment">
-<h3>GitOps &amp; Deployment<a class="headerlink" href="#gitops-deployment" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p><strong>GitOps via ArgoCD</strong> — all services deployed and managed declaratively</p></li>
-<li><p><strong>Fork-friendly</strong> — two-file configuration for easy customisation</p></li>
-<li><p><strong>Sealed Secrets</strong> — encrypt secrets safely in Git</p></li>
-<li><p><strong>Reusable ingress sub-chart</strong> — shared template with OAuth, SSL redirect,
-SSL passthrough, and basic-auth toggles</p></li>
-</ul>
-</section>
-<section id="networking-security">
-<h3>Networking &amp; Security<a class="headerlink" href="#networking-security" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p><strong>Ingress + TLS</strong> — NGINX ingress with Let’s Encrypt certificates
-(DNS-01 via Cloudflare)</p></li>
-<li><p><strong>OIDC authentication</strong> — ArgoCD Dex with GitHub connector provides native
-OIDC for ArgoCD and Grafana; oauth2-proxy covers Headlamp,
-Alertmanager and the Minecraft dashboard</p></li>
-<li><p><strong>Cloudflare Tunnel + Access</strong> — optional secure public access via
-cloudflared with email-based access control</p></li>
-</ul>
-</section>
-<section id="services">
-<h3>Services<a class="headerlink" href="#services" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p><strong>Monitoring</strong> — Prometheus + Grafana stack</p></li>
-<li><p><strong>Persistent storage</strong> — static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs per host, with daily/weekly NFS backup CronJobs to a NAS</p></li>
-<li><p><strong>Kubernetes dashboard</strong> — Headlamp with RBAC</p></li>
-<li><p><strong>Echo test service</strong> — for verifying ingress, TLS, and headers</p></li>
-<li><p><strong>Minecraft dashboard</strong> <em>(optional)</em> — admin UI that launches Minecraft
-servers from world backups, with snapshots and a read-only NAS archive</p></li>
-<li><p><strong>VPS relay</strong> <em>(optional)</em> — publishes chosen TCP/UDP ports on a VPS’s
-public IP via frp over Tailscale, for homes behind CGNAT; the VPS never
-connects into the home network</p></li>
-<li><p><strong>GPU support</strong> — NVIDIA GPU nodes, with an automatic device plugin for
-GPU scheduling</p></li>
-</ul>
-</section>
-<section id="developer-experience">
-<h3>Developer Experience<a class="headerlink" href="#developer-experience" title="Link to this heading">#</a></h3>
-<ul class="simple">
-<li><p><strong>Devcontainer</strong> — complete execution environment with zero host dependencies</p></li>
-<li><p><strong>Claude Code integration</strong> — AI-assisted workflow with safe autonomy guardrails</p></li>
-</ul>
-</section>
-</section>
-<section id="quick-start">
-<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
-<ol class="arabic simple">
-<li><p>Install <a class="reference external" href="https://podman.io/">Podman</a> and VS Code</p></li>
-<li><p>Fork this repo, clone it, and reopen in the devcontainer</p></li>
-<li><p>Edit <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>
-to match your environment</p></li>
-<li><p>Run:</p></li>
-</ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">do_flash</span><span class="o">=</span><span class="nb">true</span>
-</pre></div>
+<section id="the-cluster-at-a-glance">
+<h2>The cluster at a glance<a class="headerlink" href="#the-cluster-at-a-glance" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node</p></th>
+<th class="head"><p>Hardware</p></th>
+<th class="head"><p>CPU / RAM</p></th>
+<th class="head"><p>Role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
+<td><p>Turing RK1 (arm64) on a <a class="reference external" href="https://turingpi.com/">Turing Pi</a> 2.5</p></td>
+<td><p>8 / 8 GB</p></td>
+<td><p>Control plane and etcd; runs no workloads</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
+<td><p>Turing RK1 (arm64)</p></td>
+<td><p>8 / 8 GB</p></td>
+<td><p>Worker, kept light as the warm-standby control plane</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p>Turing RK1 (arm64)</p></td>
+<td><p>8 / 32 GB</p></td>
+<td><p>Worker; holds the Prometheus and Grafana volumes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p>Intel NUC (amd64)</p></td>
+<td><p>12 / 32 GB</p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p>Intel NUC (amd64), Iris Xe graphics</p></td>
+<td><p>8 / 64 GB</p></td>
+<td><p>Worker; holds Jellyfin and every Minecraft world</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p>Desktop workstation (amd64), NVIDIA GPU</p></td>
+<td><p>16 / 32 GB</p></td>
+<td><p>The owner’s desktop: tainted so only pods that tolerate it land there, and never rebooted by automation</p></td>
+</tr>
+</tbody>
+</table>
 </div>
+<p>Around the nodes:</p>
+<ul class="simple">
+<li><p><strong>The NAS.</strong> A QNAP that serves application data and backups over NFS. It
+is set up by hand and Ansible has no access to it, so no playbook can
+delete what is on it.</p></li>
+<li><p><strong>Cloudflare.</strong> DNS, a Cloudflare Tunnel that carries every web hostname,
+and Cloudflare Access as a login wall in front of all but the two that are
+public on purpose. It is managed as OpenTofu code in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>, and
+nothing listens on the home’s public address.</p></li>
+<li><p><strong>A VPS relay.</strong> Publishes the Minecraft game ports, which a Cloudflare
+Tunnel cannot carry. The cluster dials out to it over the tailnet; the VPS
+never connects into the home network.</p></li>
+</ul>
+</section>
+<section id="what-runs-on-it">
+<h2>What runs on it<a class="headerlink" href="#what-runs-on-it" title="Link to this heading">#</a></h2>
+<p><strong>Platform.</strong> ingress-nginx, cert-manager (one Let’s Encrypt wildcard
+certificate, by DNS-01), Sealed Secrets, oauth2-proxy and ArgoCD’s Dex for
+GitHub sign-in, cloudflared, the NFS CSI driver with static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code>
+volumes beside it, and device plugins for the Intel and NVIDIA GPUs.</p>
+<p><strong>Applications.</strong></p>
+<ul class="simple">
+<li><p><strong>scrap</strong>: a personal knowledge store with an MCP endpoint. Its SQLite
+database is replicated to the NAS by Litestream, so the pod can start on
+any node.</p></li>
+<li><p><strong>Jellyfin</strong>: media server on nuc2 with hardware transcoding, reached over
+the LAN and the tailnet.</p></li>
+<li><p><strong>Minecraft dashboard</strong>: an admin UI that launches game worlds from
+backups; players connect through the VPS relay.</p></li>
+<li><p><strong>ntfy</strong>: self-hosted push notifications; Alertmanager’s alerts arrive on
+the owner’s phone through it.</p></li>
+<li><p><strong>Monitoring</strong>: Prometheus, Grafana and Alertmanager, plus Headlamp and
+argocd-monitor for looking at the cluster itself.</p></li>
+</ul>
+</section>
+<section id="how-it-is-run">
+<h2>How it is run<a class="headerlink" href="#how-it-is-run" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>GitOps.</strong> Ansible installs the OS, K3s and ArgoCD, then hands over. Every
+later change is a commit: ArgoCD syncs <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code> from this
+repository, and nothing is applied to the cluster by hand.</p></li>
+<li><p><strong>Self-patching.</strong> Nodes install Ubuntu updates, take K3s patch releases
+and reboot overnight, one at a time. Renovate opens the pull requests for
+chart and image updates.</p></li>
+<li><p><strong>Backups.</strong> Application data and the control plane’s etcd are backed up
+nightly to the NAS, then uploaded to Google Drive, encrypted with
+<a class="reference external" href="https://github.com/FiloSottile/age">age</a> to a key that is kept offline.</p></li>
+<li><p><strong>Claude Code in a sandbox.</strong> Claude writes the changes, runs the
+playbooks and opens the pull requests from inside a jail on the owner’s
+workstation: its own SSH key, a network filter that allows only the
+cluster hosts and the NAS, and hard rules in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>.</p></li>
+</ul>
+</section>
+<section id="where-to-start-reading">
+<h2>Where to start reading<a class="headerlink" href="#where-to-start-reading" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/explanations/architecture.html">Architecture overview</a>:
+the whole cluster on one page, with diagrams, and a page for each layer.</p></li>
+<li><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/tutorials/tour.html">A tour of the cluster</a>:
+a twenty-minute read-only walk round the running system.</p></li>
+<li><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/tutorials/build-the-cluster.html">Build the cluster from bare metal</a>:
+every step from powered-off hardware to the running cluster.</p></li>
+<li><p><a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/explanations/claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a>:
+the part most likely to carry over to another project.</p></li>
+</ul>
+</section>
+<section id="borrowing-from-this-repo">
+<h2>Borrowing from this repo<a class="headerlink" href="#borrowing-from-this-repo" title="Link to this heading">#</a></h2>
+<p>Nothing here is meant to be forked and run as it stands. The roles, charts
+and scripts are written for these machines, and every <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> can
+only be decrypted by this cluster. The ideas travel better than the files:
+the split between Ansible and ArgoCD, the static volumes with backups to a
+NAS, Cloudflare as code, and the guardrails around Claude Code. The build
+tutorial ends with a list of
+<a class="reference external" href="https://gilesknap.github.io/tpi-k3s-ansible/tutorials/build-the-cluster.html#adapting-this-to-other-hardware">what is specific to this site</a>
+for anyone lifting a piece of it.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>Explore the <a class="reference download internal" download="" href="_downloads/115a2b2aaac128ae8a878d6cbffcd451/architecture.html"><span class="xref download myst">Interactive Architecture Showcase</span></a> — a visual guide to every layer of the cluster, from hardware to applications.</p>
+<p>New here? Start with the <a class="reference internal" href="explanations/architecture.html"><span class="doc">architecture overview</span></a>:
+the whole cluster on one page, with diagrams, and links to a page for each layer.</p>
 </div>
 </section>
 <section id="documentation">
@@ -473,14 +508,15 @@ to match your environment</p></li>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="tutorials.html#why-the-cluster-is-built-this-way">Why the cluster is built this way</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/tour.html">A tour of the cluster</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials/build-the-cluster.html">Build the cluster from bare metal</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div class="sd-card-footer docutils">
-<p class="sd-card-text">Tutorials for installation and typical usage. New users start here.</p>
+<p class="sd-card-text">Tour the running cluster, or build it from bare metal.</p>
 </div>
 </div>
 </div>
@@ -491,40 +527,33 @@ to match your environment</p></li>
 <svg version="4.0.0.63c5cb3" width="2.0em" height="2.0em" class="sd-material-icon sd-material-icon-directions" viewBox="0 0 24 24" aria-hidden="true"><g><rect fill="none" height="24" width="24"></rect></g><g><path d="m21.41 10.59-7.99-8c-.78-.78-2.05-.78-2.83 0l-8.01 8c-.78.78-.78 2.05 0 2.83l8.01 8c.78.78 2.05.78 2.83 0l7.99-8c.79-.79.79-2.05 0-2.83zM13.5 14.5V12H10v3H8v-4c0-.55.45-1 1-1h4.5V7.5L17 11l-3.5 3.5z"></path></g></svg></div>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="how-to.html">How-To Guides</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="how-to/fork-this-repo.html">Fork This Repo</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/bootstrap-cluster.html">Bootstrap the Cluster</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/accessing-services.html">Accessing Services</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-as-code.html">Manage Cloudflare as Code (OpenTofu)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/oauth-setup.html">Set Up OAuth Authentication</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/jellyfin.html">Run Jellyfin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/minecraft.html">Run the Minecraft Dashboard</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/ntfy.html">Push Notifications with ntfy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/scrap.html">Deploy scrap</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/add-remove-services.html">Add or Remove Services</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/monitoring.html">Monitoring with Grafana and Prometheus</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/backup-restore.html">Backup and Restore</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/recover-control-plane.html">Recover the Control Plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how-to.html">How-to guides</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/node-operations.html">Node Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/scrap.html">Run scrap</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/add-remove-services.html">Add or remove a service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/node-operations.html">Node operations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/upgrade-k3s.html">Upgrade K3s</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/reflash-rebuild.html">Re-flash and Rebuild</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/nfs-stable-paths.html">Stable NFS Volumes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/work-in-branches.html">Work in Branches and Forks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/claude-code.html">Using Claude Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/nfs-stable-paths.html">Stable NFS volumes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/claude-code.html">Set up and run Claude Code</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div class="sd-card-footer docutils">
-<p class="sd-card-text">Practical step-by-step guides for the more experienced user.</p>
+<p class="sd-card-text">Runbooks for operating it.</p>
 </div>
 </div>
 </div>
@@ -536,25 +565,18 @@ to match your environment</p></li>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="explanations.html">Explanations</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="explanations/architecture.html">Architecture</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/gitops-flow.html">GitOps Flow</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/kubernetes-services.html">Kubernetes Services Structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/ansible-roles.html">Ansible Roles in Detail</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/upgrade-model.html">Upgrade Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/networking.html">Networking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/authentication.html">Authentication Architecture</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/network-policies.html">Network Policies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/security.html">Security Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/security-hardening.html">Security Hardening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explanations/architecture.html">Architecture overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explanations/upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explanations/ansible-roles.html">Ansible roles in detail</a></li>
 <li class="toctree-l2"><a class="reference internal" href="explanations/claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="explanations/decisions.html">Decision Records</a></li>
+<li class="toctree-l2"><a class="reference internal" href="explanations/decisions.html">Decision records</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div class="sd-card-footer docutils">
-<p class="sd-card-text">Explanations of how it works and why it works that way.</p>
+<p class="sd-card-text">Architecture, with diagrams, and the reasons behind it.</p>
 </div>
 </div>
 </div>
@@ -566,20 +588,19 @@ to match your environment</p></li>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="reference/variables.html">Variables Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/playbook-tags.html">Playbook Tags Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/inventory.html">Inventory Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/services.html">Services Reference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/cli-tools.html">CLI Tools Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/services.html">Services reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/inventory.html">Inventory reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/variables.html">Variables reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/playbook-tags.html">Playbook tags reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/cli-tools.html">Commands and tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="reference/troubleshooting.html">Troubleshooting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="reference/production-checklist.html">Production Readiness Checklist</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div class="sd-card-footer docutils">
-<p class="sd-card-text">Technical reference: variables, tags, services, inventory format.</p>
+<p class="sd-card-text">Services, inventory, variables, commands.</p>
 </div>
 </div>
 </div>

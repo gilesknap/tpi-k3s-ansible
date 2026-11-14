@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Tutorials &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Tutorials &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -51,8 +51,8 @@
     <link rel="icon" href="_static/logo.svg"/>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="AI-Guided Setup" href="tutorials/ai-guided-setup.html" />
-    <link rel="prev" title="K3s Cluster Commissioning" href="index.html" />
+    <link rel="next" title="A tour of the cluster" href="tutorials/tour.html" />
+    <link rel="prev" title="gkcluster K3s homelab" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -125,7 +125,7 @@
     <img src="_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +148,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +264,7 @@
 
 <li class="nav-item ">
   <a class="nav-link nav-internal" href="how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -326,10 +326,8 @@
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
   <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="tutorials/ai-guided-setup.html">AI-Guided Setup</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/getting-started-tpi.html">Getting Started with Turing Pi</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/getting-started-generic.html">Getting Started without Turing Pi</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials/common-setup.html">Common Setup Steps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/tour.html">A tour of the cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/build-the-cluster.html">Build the cluster from bare metal</a></li>
 </ul>
 </div>
 </nav></div>
@@ -389,56 +387,17 @@
                   
   <section id="tutorials">
 <h1>Tutorials<a class="headerlink" href="#tutorials" title="Link to this heading">#</a></h1>
-<p>Step-by-step guides that walk you through setting up a K3s cluster from scratch.</p>
-<section id="why-the-cluster-is-built-this-way">
-<h2>Why the cluster is built this way<a class="headerlink" href="#why-the-cluster-is-built-this-way" title="Link to this heading">#</a></h2>
-<p>Before you start installing, two design choices shape everything the
-tutorials ask you to do. Neither is the only way to run K3s at home —
-they are the choices this repo made, and knowing <em>why</em> will save you
-from fighting the defaults later.</p>
-<p><strong>Static local-nvme PVs, one per stateful workload.</strong> Each stateful
-service (Grafana, Prometheus, …) gets a
-hand-declared <code class="docutils literal notranslate"><span class="pre">PersistentVolume</span></code> backed by a plain directory on a
-specific node — e.g. <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/grafana</span></code> on <code class="docutils literal notranslate"><span class="pre">node04</span></code>. The PV
-is pre-bound to its PVC via <code class="docutils literal notranslate"><span class="pre">claimRef</span></code> and pinned to its node via
-<code class="docutils literal notranslate"><span class="pre">nodeAffinity</span></code>, so the pod <em>must</em> land there and the data <em>must</em>
-survive a rebuild. No CSI driver, no replicas, no block-storage
-cluster. The trade-off is explicit: you accept that losing a
-worker’s disk loses that workload until the disk is restored, in
-exchange for far simpler operations, lower RAM/CPU overhead on small
-nodes, and data that transparently survives
-<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span></code>. The full rationale is in
-<a class="reference internal" href="explanations/decisions/0012-drop-longhorn.html"><span class="doc">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</span></a>.</p>
-<p><strong>Backups live on NFS, not in the cluster.</strong> Point-in-time backups of
-every stateful service are written by <code class="docutils literal notranslate"><span class="pre">CronJob</span></code>s to a single NFS tree
-on a NAS. That NAS is set up <strong>once, by hand</strong>, via
-<a class="reference internal" href="how-to/nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> — Ansible has no access to it, by design,
-because the NAS hosts mixed personal data. So the stateful-data
-strategy has two halves: local PVs give you rebuild survival, and
-NFS CronJobs give you off-cluster point-in-time restore.</p>
-<p><strong>Pod-to-node pinning is deliberate.</strong> Because each stateful PV is
-tied to one node, the corresponding Deployment/StatefulSet must also
-land on that node. The existing pinning — <code class="docutils literal notranslate"><span class="pre">prometheus→node04</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana→node04</span></code>,
-<code class="docutils literal notranslate"><span class="pre">jellyfin→nuc2</span></code> and scrap’s backup copy→<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (example nodes) — is
-not an accident, and new RWO <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> workloads need to pick
-their own host. This is called out in <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> as a hard rule.</p>
-<p>With that mental model in place, pick your install path:</p>
-<ul class="simple">
-<li><p><strong><a class="reference internal" href="tutorials/ai-guided-setup.html"><span class="doc">AI-Guided Setup</span></a></strong> — let Claude Code run the whole setup
-interactively. Fastest path if you have Claude Code installed.</p></li>
-<li><p><strong><a class="reference internal" href="tutorials/getting-started-tpi.html"><span class="doc">Getting Started with Turing Pi</span></a></strong> — manual walkthrough for Turing Pi
-v2.5 boards (flashes the compute modules from the BMC).</p></li>
-<li><p><strong><a class="reference internal" href="tutorials/getting-started-generic.html"><span class="doc">Getting Started without Turing Pi</span></a></strong> — manual walkthrough for any
-modern Linux servers already running an OS.</p></li>
-</ul>
-<p>Each tutorial covers fork-and-clone, inventory, config, and running the
-playbook. For the full list of every file a fork needs to touch, see
-<a class="reference internal" href="how-to/fork-this-repo.html"><span class="doc">Fork This Repo</span></a> — it is the canonical reference for
-personalising the repo and is linked from each tutorial at the relevant
-steps.</p>
+<p>Two walks through the cluster, start to finish. The tour looks round the
+running cluster without changing anything; the build tutorial is the one
+end-to-end path from powered-off hardware to that running state. Both are
+written for gkcluster.org as it is: the owner follows them as they stand, and
+a visitor reads them to see what such a cluster involves.</p>
 <div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/tour.html">A tour of the cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/build-the-cluster.html">Build the cluster from bare metal</a></li>
+</ul>
 </div>
-</section>
 </section>
 
 
@@ -457,15 +416,15 @@ steps.</p>
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">K3s Cluster Commissioning</p>
+        <p class="prev-next-title">gkcluster K3s homelab</p>
       </div>
     </a>
     <a class="right-next"
-       href="tutorials/ai-guided-setup.html"
+       href="tutorials/tour.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">AI-Guided Setup</p>
+        <p class="prev-next-title">A tour of the cluster</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -479,18 +438,6 @@ steps.</p>
                 <dialog id="pst-secondary-sidebar-modal"></dialog>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
-
-  <div class="sidebar-secondary-item">
-<div
-    id="pst-page-navigation-heading-2"
-    class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> On this page
-  </div>
-  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-cluster-is-built-this-way">Why the cluster is built this way</a></li>
-</ul>
-  </nav></div>
 
   <div class="sidebar-secondary-item">
 

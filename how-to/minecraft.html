@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Run the Minecraft Dashboard &#8212; K3s Cluster Commissioning  documentation</title>
+    <title>Run the Minecraft dashboard &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -47,11 +47,446 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=fc97db16"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/minecraft';</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Push Notifications with ntfy" href="ntfy.html" />
+    <link rel="next" title="Run scrap" href="scrap.html" />
     <link rel="prev" title="Run Jellyfin" href="jellyfin.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -125,7 +560,7 @@
     <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
   
   
-    <p class="title logo__title">K3s Cluster Commissioning</p>
+    <p class="title logo__title">gkcluster K3s homelab</p>
   
 </a></div>
     
@@ -148,7 +583,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -264,7 +699,7 @@
 
 <li class="nav-item current active">
   <a class="nav-link nav-internal" href="../how-to.html">
-    How-To Guides
+    How-to guides
   </a>
 </li>
 
@@ -325,43 +760,36 @@
 <nav class="bd-docs-nav bd-links"
      aria-label="Section Navigation">
   <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
-  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Setup</span></p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="fork-this-repo.html">Fork This Repo</a></li>
-<li class="toctree-l1"><a class="reference internal" href="bootstrap-cluster.html">Bootstrap the Cluster</a></li>
-<li class="toctree-l1"><a class="reference internal" href="accessing-services.html">Accessing Services</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-tunnel.html">Set Up DNS, TLS &amp; Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-ssh-tunnel.html">Set Up a Cloudflare SSH Tunnel for Remote Cluster Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-web-tunnel.html">Expose Web Services via Cloudflare Tunnel</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare as Code (OpenTofu)</a></li>
-<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set Up OAuth Authentication</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set Up the Cluster NFS Tree on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Optional Features</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Run the Minecraft Dashboard</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push Notifications with ntfy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="scrap.html">Deploy scrap</a></li>
-<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose Cluster Ports Through a VPS Relay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or Remove Services</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations &amp; Maintenance</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring with Grafana and Prometheus</a></li>
-<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and Restore</a></li>
-<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the Control Plane</a></li>
-<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and Rebuild</a></li>
-<li class="toctree-l1"><a class="reference internal" href="alternative-storage.html">Use an Alternative Storage Provider</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS Volumes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Workflow</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Work in Branches and Forks</a></li>
-<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Using Claude Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
 </ul>
 </div>
 </nav></div>
@@ -403,9 +831,9 @@
       </a>
     </li>
     
-    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-To Guides</a></li>
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Run the Minecraft Dashboard</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Run the Minecraft dashboard</span></li>
   </ul>
 </nav>
 </div>
@@ -423,28 +851,50 @@
                 <article class="bd-article">
                   
   <section id="run-the-minecraft-dashboard">
-<h1>Run the Minecraft Dashboard<a class="headerlink" href="#run-the-minecraft-dashboard" title="Link to this heading">#</a></h1>
-<p>The Minecraft dashboard is an admin-only web UI at <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code> that
-launches Minecraft Java servers from world backups, monitors them, stops and
-starts them while keeping their data, and saves their state back as
-snapshots and backups. Players connect with an ordinary Minecraft client to
-<code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;:&lt;port&gt;</span></code>.</p>
+<h1>Run the Minecraft dashboard<a class="headerlink" href="#run-the-minecraft-dashboard" title="Link to this heading">#</a></h1>
+<p>The Minecraft dashboard at <a class="reference external" href="https://minecraft.gkcluster.org">https://minecraft.gkcluster.org</a> is an admin-only
+web UI that launches Minecraft Java servers from world backups, monitors them,
+stops and starts them while keeping their data, and saves their state back as
+snapshots and backups. Players never see it: they point an ordinary Minecraft
+client at <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code>.</p>
 <p>The dashboard application and its Helm chart live in a separate repository,
 <a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">gilesknap/k3s-minecraft</a>, and are
 published as the OCI chart <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code>.
-This repository only provides the cluster wiring:</p>
+This repository provides the cluster wiring:</p>
 <ul class="simple">
-<li><p>An ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/minecraft.yaml</span></code>),
-toggled by <code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code> and configured from the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> block in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>.</p></li>
-<li><p>An ingress for <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code>, gated by oauth2-proxy (admin emails
-only, the same as Headlamp).</p></li>
-<li><p>A way for players to reach the game ports: a <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward on the
-<a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>.</p></li>
+<li><p>the ArgoCD Application <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/minecraft.yaml</span></code>,
+switched on by <code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code> and configured from the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> block
+in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>;</p></li>
+<li><p>an Ingress for <code class="docutils literal notranslate"><span class="pre">minecraft.gkcluster.org</span></code> behind oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
+only, like Headlamp);</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward on the <a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>, which
+is how players reach the game ports;</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> tunnel route and the <code class="docutils literal notranslate"><span class="pre">mc</span></code> DNS record in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>.</p></li>
 </ul>
 <section id="how-it-fits-together">
 <h2>How it fits together<a class="headerlink" href="#how-it-fits-together" title="Link to this heading">#</a></h2>
-<div class="pst-scrollable-table-container"><table class="table">
+<pre  class="mermaid">
+        flowchart LR
+    admin[&quot;Admin browser&quot;]
+    player[&quot;Minecraft client&quot;]
+    tool[&quot;RCON tool on the LAN&lt;br/&gt;(mciwb on nuc2 or ws03)&quot;]
+    cf[&quot;Cloudflare Tunnel&lt;br/&gt;and Access&quot;]
+    vps[&quot;VPS: frps&lt;br/&gt;mc.gkcluster.org&quot;]
+    relay[&quot;vps-relay pod&lt;br/&gt;(frpc, over the tailnet)&quot;]
+    nginx[&quot;ingress-nginx&lt;br/&gt;and oauth2-proxy&quot;]
+    dash[&quot;minecraft-dashboard&quot;]
+    subgraph nuc2[&quot;nuc2 (192.168.1.92)&quot;]
+        worlds[&quot;World pods&lt;br/&gt;game NodePorts 30565-30584&lt;br/&gt;RCON NodePorts 30600-30619&quot;]
+    end
+    nas[&quot;The NAS: archive, store,&lt;br/&gt;one folder per world&quot;]
+
+    admin --&gt;|&quot;minecraft.gkcluster.org&quot;| cf --&gt; nginx --&gt; dash
+    dash --&gt;|&quot;helm, RCON&quot;| worlds
+    player --&gt;|&quot;mc.gkcluster.org:port&quot;| vps --&gt; relay --&gt;|&quot;192.168.1.92:port&quot;| worlds
+    tool --&gt;|&quot;RCON NodePort&quot;| worlds
+    dash --- nas
+    worlds --- nas
+    </pre><div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Piece</p></th>
 <th class="head"><p>Where</p></th>
@@ -454,82 +904,133 @@ only, the same as Headlamp).</p></li>
 <tbody>
 <tr class="row-even"><td><p>Dashboard Deployment, Service, ServiceAccount, namespace-scoped Role</p></td>
 <td><p>OCI chart, namespace <code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
-<td><p>The dashboard runs <code class="docutils literal notranslate"><span class="pre">helm</span></code> against the itzg Minecraft chart inside its own namespace only</p></td>
+<td><p>The dashboard runs <code class="docutils literal notranslate"><span class="pre">helm</span></code> against the <a class="reference external" href="https://github.com/itzg/minecraft-server-charts">itzg Minecraft chart</a> inside its own namespace only. It is not pinned to a node</p></td>
 </tr>
-<tr class="row-odd"><td><p>Archive of precious world backups</p></td>
-<td><p>NAS <code class="docutils literal notranslate"><span class="pre">&lt;archive_path&gt;</span></code> (default <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code>)</p></td>
-<td><p>Read-only twice over: <code class="docutils literal notranslate"><span class="pre">a-w</span></code> on the NAS <strong>and</strong> a read-only mount</p></td>
+<tr class="row-odd"><td><p>World servers</p></td>
+<td><p>One Helm release, Deployment and Service pair per world, made by the dashboard at runtime, not by ArgoCD</p></td>
+<td><p>All pinned to nuc2 (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code>), the node the relay forwards to</p></td>
 </tr>
-<tr class="row-even"><td><p>Store: promoted backups, rolling snapshots, dashboard state</p></td>
-<td><p>NAS <code class="docutils literal notranslate"><span class="pre">&lt;nfs.cluster_share_path&gt;/minecraft</span></code></p></td>
+<tr class="row-even"><td><p>Archive of precious world backups</p></td>
+<td><p>The NAS, <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
+<td><p>Read-only twice over: <code class="docutils literal notranslate"><span class="pre">a-w</span></code> on the NAS <strong>and</strong> a read-only mount. Outside <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> on purpose, so no cluster-wide tooling targets it</p></td>
+</tr>
+<tr class="row-odd"><td><p>Store: promoted backups, rolling snapshots, dashboard state</p></td>
+<td><p>The NAS, <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft</span></code></p></td>
 <td><p>Written by the dashboard as uid/gid 1000</p></td>
 </tr>
-<tr class="row-odd"><td><p>Live world data</p></td>
-<td><p>One dynamic <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> PVC per world, in <code class="docutils literal notranslate"><span class="pre">&lt;nfs_csi.stable_share&gt;/minecraft/&lt;world&gt;-data</span></code> on the NAS</p></td>
-<td><p>Created by the dashboard; archived when the world is deleted (after a snapshot)</p></td>
+<tr class="row-even"><td><p>Live world data</p></td>
+<td><p>One dynamic <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> claim per world (<code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-data</span></code>, 10Gi), at <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/minecraft/&lt;world&gt;-data</span></code> on the NAS</p></td>
+<td><p>The folder is named after the claim, so it survives a cluster rebuild; archived when the world is deleted</p></td>
 </tr>
-<tr class="row-even"><td><p>World registry</p></td>
-<td><p>NAS <code class="docutils literal notranslate"><span class="pre">&lt;nfs.cluster_share_path&gt;/minecraft/dashboard/registry/</span></code></p></td>
-<td><p>The dashboard’s copy of each world, to re-create it after a rebuild</p></td>
+<tr class="row-odd"><td><p>World registry</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft/dashboard/registry/</span></code></p></td>
+<td><p>The dashboard’s record of each world, used to re-create it after a rebuild</p></td>
 </tr>
-<tr class="row-odd"><td><p>Game ports</p></td>
-<td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> on the pinned node</p></td>
+<tr class="row-even"><td><p>Game ports</p></td>
+<td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30565</span></code>–<code class="docutils literal notranslate"><span class="pre">30584</span></code> on nuc2</p></td>
 <td><p>20 slots; one per world for the world’s lifetime</p></td>
 </tr>
-<tr class="row-even"><td><p>RCON ports</p></td>
-<td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code> on the pinned node</p></td>
+<tr class="row-odd"><td><p>RCON ports</p></td>
+<td><p>NodePorts <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code> on nuc2</p></td>
 <td><p>LAN only (NetworkPolicy); one per world, for build tools</p></td>
 </tr>
-<tr class="row-odd"><td><p>Game hostname <code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code></p></td>
-<td><p>Cloudflare <strong>DNS-only</strong> A record</p></td>
-<td><p>The VPS’s static IP (relay)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org</span></code></p></td>
+<td><p>Cloudflare <strong>DNS-only</strong> A record to the VPS</p></td>
+<td><p>Not a tunnel route: see below</p></td>
 </tr>
-<tr class="row-even"><td><p>Dashboard hostname <code class="docutils literal notranslate"><span class="pre">minecraft.&lt;domain&gt;</span></code></p></td>
-<td><p>Cloudflare tunnel route</p></td>
-<td><p>Cloudflare Access + oauth2-proxy</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.gkcluster.org</span></code></p></td>
+<td><p>Cloudflare Tunnel route</p></td>
+<td><p>Cloudflare Access, then oauth2-proxy</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>The game hostname is <strong>not</strong> a tunnel route. Cloudflare’s tunnel and proxy only
-carry HTTP(S); Minecraft speaks its own TCP protocol, so players reach the
-cluster through the VPS relay, via a grey-cloud DNS
-record that points straight at the VPS.</p>
+<p>The game hostname is <strong>not</strong> a tunnel route. The Cloudflare Tunnel and proxy
+carry only HTTP(S), and Minecraft speaks its own TCP protocol. So <code class="docutils literal notranslate"><span class="pre">mc</span></code> is a
+grey-cloud record that points straight at the VPS, and the VPS relays each
+connection over the tailnet to nuc2.</p>
 </div>
+<p>Game servers see every player as coming from the relay. Whitelists and ops are
+by name and work normally; IP bans do not.</p>
+<p>The dashboard does no authentication itself; it logs the
+<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> header that oauth2-proxy sets, per action. Its Ingress
+therefore has <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> hard-wired in the template, not tied to
+<code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code>: without the proxy the Ingress fails closed.</p>
 </section>
-<section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<ul>
-<li><p>A NAS reachable over NFS, already set up as in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a>.</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> storage class (<code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code>), and its
-share root created on the NAS (<a class="reference internal" href="nas-setup.html#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>) — world data is
-provisioned from it, and the dashboard mounts the share read-only.</p></li>
-<li><p>oauth2-proxy working (<a class="reference internal" href="oauth-setup.html"><span class="doc">Set Up OAuth Authentication</span></a>) and the Cloudflare web tunnel set
-up (<a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a>).</p></li>
-<li><p>The <a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>.</p></li>
-<li><p>The dashboard chart version you pin in <code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code> must be
-published. Check before enabling:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>pull<span class="w"> </span>oci://ghcr.io/gilesknap/charts/minecraft-dashboard<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.5.2
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> block of <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_minecraft</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">minecraft</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">chart_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.5.2&quot;</span><span class="w">          </span><span class="c1"># the only version pin: the image follows the chart</span>
+<span class="w">  </span><span class="nt">image</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/gilesknap/k3s-minecraft</span>
+<span class="w">  </span><span class="nt">archive_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/minecraft-archive</span>
+<span class="w">  </span><span class="nt">store_subdir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span><span class="w">         </span><span class="c1"># under nfs.cluster_share_path</span>
+<span class="w">  </span><span class="nt">dns_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mc</span><span class="w">                    </span><span class="c1"># players use mc.gkcluster.org</span>
+<span class="w">  </span><span class="nt">worlds</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nuc2</span><span class="w">                    </span><span class="c1"># every world runs here</span>
+<span class="w">    </span><span class="nt">port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565</span>
+<span class="w">    </span><span class="nt">port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30584</span>
+<span class="w">    </span><span class="nt">rcon_port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30600</span>
+<span class="w">    </span><span class="nt">rcon_port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30619</span>
+<span class="w">    </span><span class="nt">rcon_allowed_cidrs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span><span class="w">     </span><span class="c1"># see &quot;Direct RCON&quot; below</span>
 </pre></div>
 </div>
-</li>
-</ul>
+<p>The chart also takes its NFS server from <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, the worlds’ storage
+class from <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code> (<code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>), and the share it
+mounts read-only from <code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>. The template
+turns on <code class="docutils literal notranslate"><span class="pre">worlds.restore</span></code> and the chart’s NetworkPolicy.</p>
+<p>Three things outside this block must agree with it:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Setting</p></th>
+<th class="head"><p>Must match</p></th>
+<th class="head"><p>Where</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">worlds.port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">port_max</span></code></p></td>
+<td><p>the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> entry in <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> (<code class="docutils literal notranslate"><span class="pre">ports:</span> <span class="pre">30565-30584</span></code>), and the ports opened on the VPS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>; <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> on the VPS (<a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">worlds.node</span></code></p></td>
+<td><p>the forward’s <code class="docutils literal notranslate"><span class="pre">target</span></code> (<code class="docutils literal notranslate"><span class="pre">192.168.1.92</span></code>, nuc2’s LAN address)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">values.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts</span></code></p></td>
+<td><p>an entry in the AppProject’s <code class="docutils literal notranslate"><span class="pre">sourceRepos</span></code>, bare, with no <code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>, applied with <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="bump-the-dashboard">
+<h3>Bump the dashboard<a class="headerlink" href="#bump-the-dashboard" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code> is the only pin. Check that the version is published
+before pushing, because a missing tag leaves the Application in an error
+state:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>helm<span class="w"> </span>pull<span class="w"> </span>oci://ghcr.io/gilesknap/charts/minecraft-dashboard<span class="w"> </span>--version<span class="w"> </span>&lt;version&gt;
+</pre></div>
+</div>
 </section>
-<section id="step-1-create-the-nas-directories">
-<h2>Step 1: Create the NAS directories<a class="headerlink" href="#step-1-create-the-nas-directories" title="Link to this heading">#</a></h2>
-<p>Follow <a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories (optional)</span></a> in <a class="reference internal" href="nas-setup.html"><span class="doc">Set Up the Cluster NFS Tree on the NAS</span></a> to create the read-only archive directory and the writable store tree.</p>
 </section>
-<section id="step-2-ingest-the-world-archive">
-<h2>Step 2: Ingest the world archive<a class="headerlink" href="#step-2-ingest-the-world-archive" title="Link to this heading">#</a></h2>
+<section id="the-nas-directories">
+<h2>The NAS directories<a class="headerlink" href="#the-nas-directories" title="Link to this heading">#</a></h2>
+<p>The archive directory and the store tree are created by hand on the NAS,
+which Ansible never manages: <a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>. World data needs
+the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> share root: <a class="reference internal" href="nas-setup.html#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>.</p>
+<section id="ingest-the-world-archive">
+<h3>Ingest the world archive<a class="headerlink" href="#ingest-the-world-archive" title="Link to this heading">#</a></h3>
 <p>World backups downloaded from Google Drive arrive as a set of split wrapper
 zips (<code class="docutils literal notranslate"><span class="pre">minecraft-k8s-backup-*-NNN.zip</span></code>), each holding one inner zip per world.
-The <code class="docutils literal notranslate"><span class="pre">scripts/ingest-archive.sh</span></code> script in the k3s-minecraft repository
-extracts the inner zips <strong>flat, keeping their original filenames</strong>, checks
-each one (<code class="docutils literal notranslate"><span class="pre">unzip</span> <span class="pre">-t</span></code> plus a <code class="docutils literal notranslate"><span class="pre">world/level.dat</span></code> entry), and is idempotent — re-run
-it later to add more files.</p>
-<p>Run it on the NAS, or on any Linux host with the NAS share mounted read-write:</p>
+<code class="docutils literal notranslate"><span class="pre">scripts/ingest-archive.sh</span></code> in the k3s-minecraft repository extracts the inner
+zips <strong>flat, keeping their original filenames</strong>, checks each one (<code class="docutils literal notranslate"><span class="pre">unzip</span> <span class="pre">-t</span></code>
+plus a <code class="docutils literal notranslate"><span class="pre">world/level.dat</span></code> entry), and is idempotent, so re-run it later to add
+more files.</p>
+<p>Run it on the NAS, or on a host with the NAS share mounted read-write:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/gilesknap/k3s-minecraft.git
 <span class="nb">cd</span><span class="w"> </span>k3s-minecraft
 
@@ -538,217 +1039,204 @@ scripts/ingest-archive.sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/m
 <span class="w">  </span>~/Downloads/minecraft-k8s-backup-*.zip
 </pre></div>
 </div>
-<p>Ingest <strong>every</strong> version of every world — older copies can hold builds that
+<p>Ingest <strong>every</strong> version of every world: older copies can hold builds that
 were lost from newer ones. Never rename the files; the dashboard parses the
 world name and date from them.</p>
 <p>Then lock the archive so nothing can modify it, on the NAS:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/minecraft-archive
 </pre></div>
 </div>
-<p>To add more files later, temporarily restore write access to the directory
-(<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code>), re-run the ingest script, and lock it again with
-<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">-R</span> <span class="pre">a-w</span></code>.</p>
+<p>To add files later, restore write access to the directory (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code>),
+re-run the ingest script, and lock it again.</p>
 </section>
-<section id="step-3-make-the-game-ports-reachable">
-<h2>Step 3: Make the game ports reachable<a class="headerlink" href="#step-3-make-the-game-ports-reachable" title="Link to this heading">#</a></h2>
-<p>All worlds are pinned to one node (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code>, for example
-<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>) and listen on NodePorts in <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">port_max</span></code>.
-Players reach that node through the VPS relay.</p>
-<p>Set up the relay as in <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> and give it a <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward
-covering the whole port range, targeting the pinned node’s LAN IP (give the
-node a static DHCP lease):</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">vps_relay</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">forwards</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span>
-<span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp</span>
-<span class="w">      </span><span class="nt">ports</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565-30584</span><span class="w">          </span><span class="c1"># = minecraft.worlds.port_min-port_max</span>
-<span class="w">      </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w">        </span><span class="c1"># LAN IP of minecraft.worlds.node</span>
-</pre></div>
-</div>
-<p>Run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> on the VPS with the same range (see
-<a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>, Step 3), and point
-<code class="docutils literal notranslate"><span class="pre">mc.&lt;domain&gt;</span></code> at the VPS’s public IP (DNS only); the VPS address
-is static. Servers see every player as coming from the
-relay; whitelists and ops are by name and work normally, but IP bans do not.</p>
-<p>If you change <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code>/<code class="docutils literal notranslate"><span class="pre">port_max</span></code>, change the forward to
-match and re-run <code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> on the VPS.</p>
+</section>
+<section id="cloudflare">
+<h2>Cloudflare<a class="headerlink" href="#cloudflare" title="Link to this heading">#</a></h2>
+<p>Both names are code in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>):</p>
+<ul class="simple">
+<li><p><strong>The dashboard.</strong> <code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;minecraft&quot;</span> <span class="pre">}</span></code> in <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code> creates the tunnel route to ingress-nginx and the
+proxied CNAME. The <code class="docutils literal notranslate"><span class="pre">clusterapps</span></code> Access application (<code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code>,
+owner only) already covers the hostname, so there is nothing to add in
+<code class="docutils literal notranslate"><span class="pre">access.tf</span></code>.</p></li>
+<li><p><strong>The game hostname.</strong> <code class="docutils literal notranslate"><span class="pre">mc</span></code> is an A record in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (in the
+gitignored <code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code>; <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars.example</span></code> shows
+the shape) whose content is the VPS’s public address, not proxied. It must
+never become a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry.</p></li>
+</ul>
+<p>Apply a change to either with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code>, then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>
+(<a class="reference internal" href="cloudflare-as-code.html#cf-add-service"><span class="std std-ref">publish or remove a hostname</span></a>).</p>
+</section>
 <section id="direct-rcon-for-build-tools-lan-only">
-<h3>Direct RCON for build tools (LAN only)<a class="headerlink" href="#direct-rcon-for-build-tools-lan-only" title="Link to this heading">#</a></h3>
-<p>Each world also gets an <strong>RCON NodePort</strong> from
-<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code>–<code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code> (default <code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code>),
-shown on the world’s page with a <strong>Reveal</strong> button for the password. Use it
-for tools such as <a class="reference external" href="https://github.com/gilesknap/mciwb">mciwb</a> that send many
-RCON commands. Worlds that were already running when the dashboard was
-upgraded keep an in-cluster-only RCON Service until they are next started
-(or have their settings saved while running); restart one to give it a port.</p>
+<h2>Direct RCON for build tools (LAN only)<a class="headerlink" href="#direct-rcon-for-build-tools-lan-only" title="Link to this heading">#</a></h2>
+<p>Each world also gets an <strong>RCON NodePort</strong> from <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code>
+to <code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code> (<code class="docutils literal notranslate"><span class="pre">30600</span></code>–<code class="docutils literal notranslate"><span class="pre">30619</span></code>), shown on the world’s page with a
+<strong>Reveal</strong> button for the password. It is for tools such as
+<a class="reference external" href="https://github.com/gilesknap/mciwb">mciwb</a> that send many RCON commands.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mciwb.imports</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iwb</span>
 
-<span class="c1"># on the world node itself (fastest: ~0.04 ms per command)</span>
+<span class="c1"># on nuc2 itself (fastest: about 0.04 ms per command)</span>
 <span class="n">world</span> <span class="o">=</span> <span class="n">Iwb</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">30600</span><span class="p">,</span> <span class="n">passwd</span><span class="o">=</span><span class="s2">&quot;&lt;password from the world page&gt;&quot;</span><span class="p">)</span>
-<span class="c1"># or from another LAN host: server=&quot;&lt;world node LAN IP&gt;&quot;</span>
+<span class="c1"># or from another LAN host: server=&quot;192.168.1.92&quot;</span>
 </pre></div>
 </div>
-<p>The dashboard chart’s NetworkPolicy only lets the dashboard, the world’s own
-node and <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code> reach RCON. RCON is plain text:
-<strong>never add the RCON range to <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>.</strong>
-<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> also works but is about 1000x slower (~44 ms per
-command), too slow for building.</p>
-</section>
-</section>
-<section id="step-4-add-the-dashboard-tunnel-route">
-<h2>Step 4: Add the dashboard tunnel route<a class="headerlink" href="#step-4-add-the-dashboard-tunnel-route" title="Link to this heading">#</a></h2>
-<p>With Cloudflare managed as code (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare as Code (OpenTofu)</span></a>), add
-<code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;minecraft&quot;</span> <span class="pre">}</span></code> to <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code> and an
-<code class="docutils literal notranslate"><span class="pre">mc</span></code> A record (the VPS IP, not proxied) to <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> in
-<code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code>, then run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p>
-<p>Otherwise, add a route for the dashboard in the Cloudflare dashboard exactly as
-for the other web services in <a class="reference internal" href="cloudflare-web-tunnel.html"><span class="doc">Expose Web Services via Cloudflare Tunnel</span></a> (Part 2):</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Subdomain</p></th>
-<th class="head"><p>Domain</p></th>
-<th class="head"><p>URL</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">example.com</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>Delete any existing <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> A record first so Cloudflare can create the
-tunnel CNAME. A wildcard Cloudflare Access application already covers the new
-hostname; no Access change is needed. Do <strong>not</strong> add a route for <code class="docutils literal notranslate"><span class="pre">mc</span></code>.</p>
-</section>
-<section id="step-5-enable-the-dashboard">
-<h2>Step 5: Enable the dashboard<a class="headerlink" href="#step-5-enable-the-dashboard" title="Link to this heading">#</a></h2>
-<p>Edit <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">enable_minecraft</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="nt">minecraft</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">chart_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.5.2&quot;</span><span class="w">          </span><span class="c1"># must be published (see Prerequisites)</span>
-<span class="w">  </span><span class="nt">image</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/gilesknap/k3s-minecraft</span>
-<span class="w">  </span><span class="nt">archive_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/minecraft-archive</span>
-<span class="w">  </span><span class="nt">store_subdir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minecraft</span><span class="w">         </span><span class="c1"># under nfs.cluster_share_path</span>
-<span class="w">  </span><span class="nt">dns_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mc</span><span class="w">                    </span><span class="c1"># players use mc.&lt;cluster_domain&gt;</span>
-<span class="w">  </span><span class="nt">worlds</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nuc2</span><span class="w">                    </span><span class="c1"># the node game traffic is sent to</span>
-<span class="w">    </span><span class="nt">port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30565</span>
-<span class="w">    </span><span class="nt">port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30584</span>
-<span class="w">    </span><span class="nt">rcon_port_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30600</span>
-<span class="w">    </span><span class="nt">rcon_port_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30619</span>
-<span class="w">    </span><span class="nt">rcon_allowed_cidrs</span><span class="p">:</span><span class="w">           </span><span class="c1"># who may reach RCON besides the dashboard</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.0/24</span><span class="w">      </span><span class="c1"># your LAN...</span>
-<span class="w">        </span><span class="nt">except</span><span class="p">:</span><span class="w">                   </span><span class="c1"># ...minus the other cluster nodes</span>
-<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.81/32</span>
+<p><code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> also works but is about 1000 times slower (about 44 ms
+per command), too slow for building.</p>
+<p>RCON is plain text, so two rules keep it on the LAN:</p>
+<ul class="simple">
+<li><p><strong>Never add the RCON range to <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>.</strong></p></li>
+<li><p>The chart’s NetworkPolicy <code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code> admits the game port
+(25565) from anywhere, but RCON (25575) only from the dashboard pod, the
+world’s own node, and <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">rcon_allowed_cidrs</span></code> is the LAN minus the cluster nodes, plus nuc2’s second
+LAN:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rcon_allowed_cidrs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.0/24</span>
+<span class="w">    </span><span class="nt">except</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.81/32</span><span class="w">   </span><span class="c1"># node01</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.82/32</span><span class="w">   </span><span class="c1"># node02</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.83/32</span><span class="w">   </span><span class="c1"># node03</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.84/32</span><span class="w">   </span><span class="c1"># node04</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.91/32</span><span class="w">   </span><span class="c1"># nuc1</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.0.0/24</span><span class="w">  </span><span class="c1"># nuc2&#39;s second LAN</span>
 </pre></div>
 </div>
-<p>The chart also takes its NFS server from <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, the world storage
-class from <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code>, and the share it mounts read-only
-from <code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>.</p>
-<p>The ArgoCD AppProject must allow the chart registry. <code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code>
-lists <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts</span></code> (bare, with no <code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix); apply the
-project change with:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
-</pre></div>
+<p>NodePort clients keep their own address (<code class="docutils literal notranslate"><span class="pre">externalTrafficPolicy:</span> <span class="pre">Local</span></code>), but
+a pod on another cluster node arrives as that node’s address. Excepting the
+node addresses therefore stops every other workload in the cluster from
+reaching RCON. Two nodes are left allowed on purpose, so RCON clients can run
+on the hosts themselves: nuc2 (the world node) and ws03, whose
+<code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint keeps workload pods off it.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>A new node must be added to the <code class="docutils literal notranslate"><span class="pre">except</span></code> list</strong> when it joins the cluster
+(the <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> command covers it). Until then, any pod scheduled on it can
+reach every world’s RCON port.</p>
 </div>
-<p>Commit and push. ArgoCD creates the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> Application and namespace.</p>
 </section>
-<section id="step-6-first-test-with-a-disposable-world">
-<h2>Step 6: First test with a disposable world<a class="headerlink" href="#step-6-first-test-with-a-disposable-world" title="Link to this heading">#</a></h2>
-<p>Prove the whole path with a world you do not care about before touching a
-precious one.</p>
-<ol class="arabic">
-<li><p><strong>ArgoCD</strong> — the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> Application is Synced and Healthy:</p>
+<section id="day-to-day-checks">
+<h2>Day-to-day checks<a class="headerlink" href="#day-to-day-checks" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>application<span class="w"> </span>minecraft<span class="w"> </span>-n<span class="w"> </span>argo-cd
-kubectl<span class="w"> </span>get<span class="w"> </span>pods,pvc<span class="w"> </span>-n<span class="w"> </span>minecraft
+kubectl<span class="w"> </span>get<span class="w"> </span>pods,svc,pvc<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>-o<span class="w"> </span>wide
 </pre></div>
 </div>
-</li>
-<li><p><strong>Archive is read-only</strong> — writes through the archive mount must fail:</p>
+<ul>
+<li><p>Every world pod is on nuc2. A stopped world is a Deployment scaled to 0;
+its claim and its Services stay.</p></li>
+<li><p>Each world has a <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;</span></code> NodePort Service (game) and a <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-rcon</span></code>
+Service. A world that has not been started since RCON NodePorts were
+introduced still has a ClusterIP <code class="docutils literal notranslate"><span class="pre">-rcon</span></code> Service; start it, or save its
+settings while it runs, to give it a port.</p></li>
+<li><p>The archive is read-only; a write through its mount must fail:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>deploy/minecraft-dashboard<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>touch<span class="w"> </span>/archive/should-fail<span class="w">    </span><span class="c1"># expect &quot;Read-only file system&quot;</span>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Game hostname</strong> — <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.example.com</span></code> prints the VPS’s public
-IP and <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a> Step 7 passes. In the Cloudflare dashboard the <code class="docutils literal notranslate"><span class="pre">mc</span></code> record shows <strong>DNS only</strong>.</p></li>
-<li><p><strong>Dashboard login</strong> — open <code class="docutils literal notranslate"><span class="pre">https://minecraft.example.com</span></code>. You should pass
-Cloudflare Access, then the GitHub login via oauth2-proxy. A non-admin
-GitHub account must be refused.</p></li>
-<li><p><strong>Launch</strong> a disposable, non-precious world from the archive list. Watch it
-go seeding → starting → running, and note its port.</p></li>
-<li><p><strong>Connect</strong> from a real Minecraft Java client to <code class="docutils literal notranslate"><span class="pre">mc.example.com:&lt;port&gt;</span></code>,
-from outside your LAN (for example over a phone hotspot) to prove the
-relay and DNS. The player must be on the world’s whitelist.</p></li>
-<li><p><strong>Stop</strong> the world, then <strong>start</strong> it again — the world data survives.</p></li>
+</ul>
+<section id="prove-the-whole-path-with-a-disposable-world">
+<h3>Prove the whole path with a disposable world<a class="headerlink" href="#prove-the-whole-path-with-a-disposable-world" title="Link to this heading">#</a></h3>
+<p>After a change to the relay, the ports or the chart, test with a world that
+does not matter before touching a precious one:</p>
+<ol class="arabic simple">
+<li><p>Open <a class="reference external" href="https://minecraft.gkcluster.org">https://minecraft.gkcluster.org</a>: Cloudflare Access first, then the
+GitHub login through oauth2-proxy. A GitHub account outside <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
+is refused.</p></li>
+<li><p><strong>Launch</strong> a disposable world from the archive list. It goes seeding,
+starting, running; note its port.</p></li>
+<li><p><strong>Connect</strong> a Minecraft Java client to <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code> from
+outside the LAN (a phone hotspot will do), which proves DNS and the relay.
+The player must be on the world’s whitelist.</p></li>
+<li><p><strong>Stop</strong> the world and <strong>start</strong> it again: the world data survives.</p></li>
 <li><p><strong>Snapshot</strong> it, change something in game, then <strong>restore</strong> the snapshot.</p></li>
-<li><p><strong>Delete</strong> the world. A final snapshot is taken first and the port is freed.</p></li>
+<li><p><strong>Delete</strong> the world. A final snapshot is taken first and the port is
+freed.</p></li>
 </ol>
-<p>Only after all of that works, try a modded (Forge) world, and only then a
-precious one.</p>
+<p>Then try a modded (Forge) world, and only then a precious one.</p>
+</section>
 </section>
 <section id="cluster-rebuilds">
 <h2>Cluster rebuilds<a class="headerlink" href="#cluster-rebuilds" title="Link to this heading">#</a></h2>
-<p>A rebuild wipes the dashboard’s world records and Helm releases with etcd,
-but not the world data on the NAS. The dashboard keeps a copy of each world
-in its registry on the store, and re-creates every world it does not find
-(<code class="docutils literal notranslate"><span class="pre">worlds.restore</span></code>, on in this repo’s chart values). Each world comes back
-with the same name, game and RCON ports, settings, whitelist and admins, and
-running or stopped as it was. Its <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-data</span></code> PVC binds to the world’s
-folder on the NAS. The world page says “restored after the cluster lost it”
-until the next start or stop.</p>
+<p>A rebuild wipes the dashboard’s world records and Helm releases with etcd, but
+not the world data on the NAS. The dashboard keeps a copy of each world in its
+registry on the store and re-creates every world it does not find
+(<code class="docutils literal notranslate"><span class="pre">worlds.restore:</span> <span class="pre">true</span></code> in the template). Each world comes back with the same
+name, game and RCON ports, settings, whitelist and admins, and running or
+stopped as it was. Its <code class="docutils literal notranslate"><span class="pre">&lt;world&gt;-data</span></code> claim binds to the world’s folder on the
+NAS, because <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> folders are named after the claim
+(<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>). The world page says “restored after the
+cluster lost it” until the next start or stop.</p>
 <p>Each world gets a new RCON password: reveal it again on the world page for
 RCON clients.</p>
-<p>This needs the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> class (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes</span></a>), which keeps
-each world’s data in a folder named after its PVC. Worlds created before it
-are on <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> and must be moved once first; that page has the per-world
-steps. A world not moved is skipped on restore, and its data stays in its old
-folder.</p>
-<p>The stable share and the store belong to one cluster. Give each cluster its
-own, or each restores the other’s worlds.</p>
+<p>The stable share and the store belong to this one cluster. A second cluster
+pointed at them would restore this cluster’s worlds.</p>
 <p>Deleting a world archives its volume as <code class="docutils literal notranslate"><span class="pre">archived-minecraft/&lt;world&gt;-data</span></code> in
-the stable share. The dashboard mounts that share read-only and refuses a new
-world of the same name until the archive is removed or renamed on the NAS,
-because a second archive of one name would fail.</p>
+the stable share. The dashboard mounts that share read-only (the
+<code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-volumes</span></code> claim) and refuses a new world of the same name
+until the archive is removed or renamed on the NAS, because a second archive
+of one name would fail.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Every world here is on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>. They were created on <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> and moved
+with <code class="docutils literal notranslate"><span class="pre">scripts/nfs-stable-paths</span></code>, which stays in the repository;
+<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a> describes it. A world still on <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> would
+be skipped on restore.</p>
+</div>
+</section>
+<section id="backups">
+<h2>Backups<a class="headerlink" href="#backups" title="Link to this heading">#</a></h2>
+<p>The dashboard’s own snapshots and promoted backups are on the store. The
+nightly off-site job (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>) uploads a tarball of the store and
+of the worlds’ folders (live and archived) to Google Drive, keeps seven, and
+uploads the archive once.</p>
 </section>
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <section id="the-minecraft-app-shows-invalidspecerror-or-a-403-404">
 <h3>The <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> app shows <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> or a 403/404<a class="headerlink" href="#the-minecraft-app-shows-invalidspecerror-or-a-403-404" title="Link to this heading">#</a></h3>
-<p>Either the AppProject does not list <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts</span></code> (run
-<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">cluster</span></code>), the repoURL has an <code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix, or the chart version
-is not published. See the ArgoCD notes in <code class="docutils literal notranslate"><span class="pre">.claude/skills/argocd/SKILL.md</span></code>.</p>
+<p>One of three things: the AppProject does not list <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts</span></code>
+(run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>), the <code class="docutils literal notranslate"><span class="pre">repoURL</span></code> has an
+<code class="docutils literal notranslate"><span class="pre">oci://</span></code> prefix, or the chart version is not published. The <code class="docutils literal notranslate"><span class="pre">/argocd</span></code> skill
+(<code class="docutils literal notranslate"><span class="pre">.claude/skills/argocd/SKILL.md</span></code>) has the details, including how to clear
+ArgoCD’s cached error.</p>
 </section>
 <section id="players-cannot-connect">
 <h3>Players cannot connect<a class="headerlink" href="#players-cannot-connect" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Check <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.&lt;domain&gt;</span></code> returns the VPS’s public IP.</p></li>
-<li><p>Check frpc logged <code class="docutils literal notranslate"><span class="pre">start</span> <span class="pre">proxy</span> <span class="pre">success</span></code> for the world’s
-port, and see the troubleshooting in <a class="reference internal" href="vps-relay.html"><span class="doc">Expose Cluster Ports Through a VPS Relay</span></a>.</p></li>
-<li><p>From the LAN, try <code class="docutils literal notranslate"><span class="pre">&lt;node-ip&gt;:&lt;port&gt;</span></code> directly to separate a cluster
-problem from a relay/DNS problem.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">+short</span> <span class="pre">mc.gkcluster.org</span></code> returns the VPS’s public address.</p></li>
+<li><p>frpc logged <code class="docutils literal notranslate"><span class="pre">start</span> <span class="pre">proxy</span> <span class="pre">success</span></code> for the world’s port
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">logs</span> <span class="pre">-n</span> <span class="pre">vps-relay</span> <span class="pre">deploy/vps-relay</span> <span class="pre">-c</span> <span class="pre">frpc</span></code>); see the
+troubleshooting in <a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>.</p></li>
+<li><p>From the LAN, try <code class="docutils literal notranslate"><span class="pre">192.168.1.92:&lt;port&gt;</span></code> directly, to separate a cluster
+problem from a relay or DNS problem.</p></li>
+<li><p>nuc2 is the only node that can run worlds. While it is down or draining,
+every world is down.</p></li>
 </ul>
+</section>
+<section id="an-rcon-tool-is-refused">
+<h3>An RCON tool is refused<a class="headerlink" href="#an-rcon-tool-is-refused" title="Link to this heading">#</a></h3>
+<p>Check where it runs. From a pod, or from a host that is a cluster node other
+than nuc2 and ws03, the NetworkPolicy drops it by design.</p>
 </section>
 </section>
 <section id="removing-the-dashboard">
 <h2>Removing the dashboard<a class="headerlink" href="#removing-the-dashboard" title="Link to this heading">#</a></h2>
-<p>First <strong>delete every world from the dashboard</strong> — each delete takes a final
-snapshot. Worlds are Helm releases and PVCs created by the dashboard at
-runtime, not by ArgoCD, so ArgoCD will not clean them up. Deleting a world
-PVC by hand leaves the world without a volume. On <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> it moves the
-data to the archive folder on the NAS (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS Volumes</span></a>). On
-<code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code>, where worlds made before <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> stay until they are moved,
-it deletes the data (<code class="docutils literal notranslate"><span class="pre">reclaimPolicy:</span> <span class="pre">Delete</span></code>).</p>
-<p>Then set <code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">false</span></code> and push. ArgoCD prunes the dashboard
-and its ingress. The NAS archive and store directories are
-static NFS volumes and are never deleted by the cluster. Remove the <code class="docutils literal notranslate"><span class="pre">mc</span></code> DNS
-record and the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> tunnel route (from <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> and
-<code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>, then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>; or in the dashboard if you do not
-manage Cloudflare as code), and remove the
-<code class="docutils literal notranslate"><span class="pre">minecraft</span></code> entry from <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code> and its ports on the VPS.</p>
+<p>First <strong>delete every world from the dashboard</strong>; each delete takes a final
+snapshot. Worlds are Helm releases and claims created by the dashboard at
+runtime, not by ArgoCD, so ArgoCD does not clean them up. Deleting a world’s
+claim by hand leaves the world without a volume, and moves its data to the
+archive folder on the NAS (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>).</p>
+<p>Then:</p>
+<ol class="arabic simple">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">false</span></code> and push. ArgoCD prunes the dashboard and its
+Ingress. The archive and the store are static NFS volumes and are never
+deleted by the cluster.</p></li>
+<li><p>Remove <code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;minecraft&quot;</span> <span class="pre">}</span></code> from <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> and <code class="docutils literal notranslate"><span class="pre">mc</span></code> from
+<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code>, then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p></li>
+<li><p>Remove the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> entry from <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>, and close its ports
+on the VPS (<a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>).</p></li>
+</ol>
 </section>
 </section>
 
@@ -772,11 +1260,11 @@ manage Cloudflare as code), and remove the
       </div>
     </a>
     <a class="right-next"
-       href="ntfy.html"
+       href="scrap.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Push Notifications with ntfy</p>
+        <p class="prev-next-title">Run scrap</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -800,20 +1288,26 @@ manage Cloudflare as code), and remove the
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-fits-together">How it fits together</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-create-the-nas-directories">Step 1: Create the NAS directories</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-ingest-the-world-archive">Step 2: Ingest the world archive</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-3-make-the-game-ports-reachable">Step 3: Make the game ports reachable</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-rcon-for-build-tools-lan-only">Direct RCON for build tools (LAN only)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bump-the-dashboard">Bump the dashboard</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-4-add-the-dashboard-tunnel-route">Step 4: Add the dashboard tunnel route</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-5-enable-the-dashboard">Step 5: Enable the dashboard</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-6-first-test-with-a-disposable-world">Step 6: First test with a disposable world</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nas-directories">The NAS directories</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingest-the-world-archive">Ingest the world archive</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflare">Cloudflare</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-rcon-for-build-tools-lan-only">Direct RCON for build tools (LAN only)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day-checks">Day-to-day checks</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prove-the-whole-path-with-a-disposable-world">Prove the whole path with a disposable world</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-rebuilds">Cluster rebuilds</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#backups">Backups</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-minecraft-app-shows-invalidspecerror-or-a-403-404">The <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> app shows <code class="docutils literal notranslate"><span class="pre">InvalidSpecError</span></code> or a 403/404</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#players-cannot-connect">Players cannot connect</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#an-rcon-tool-is-refused">An RCON tool is refused</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#removing-the-dashboard">Removing the dashboard</a></li>

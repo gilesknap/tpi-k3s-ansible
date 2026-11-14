@@ -1,0 +1,916 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>A tour of the cluster &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/tour';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Build the cluster from bare metal" href="build-the-cluster.html" />
+    <link rel="prev" title="Tutorials" href="../tutorials.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">A tour of the cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build-the-cluster.html">Build the cluster from bare metal</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../tutorials.html" class="nav-link">Tutorials</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">A tour of the cluster</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="a-tour-of-the-cluster">
+<h1>A tour of the cluster<a class="headerlink" href="#a-tour-of-the-cluster" title="Link to this heading">#</a></h1>
+<p>A guided walk round the running cluster that takes about twenty minutes. It
+is for the owner coming back after a break and for a visitor who wants to
+see what is there. Nothing on this page changes the cluster: every command
+reads, and the one that creates something (a Headlamp login token) makes a
+short-lived credential, not a resource.</p>
+<p>A visitor without access can still follow along: the commands and their
+output are shown, and each stop links to the page that explains it.</p>
+<section id="open-the-devcontainer">
+<h2>1. Open the devcontainer<a class="headerlink" href="#open-the-devcontainer" title="Link to this heading">#</a></h2>
+<p>Everything is run from the repo’s devcontainer, which carries Ansible,
+<code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd</span></code>, <code class="docutils literal notranslate"><span class="pre">tofu</span></code> and <code class="docutils literal notranslate"><span class="pre">just</span></code>. On the
+workstation, with the ansible key loaded in <code class="docutils literal notranslate"><span class="pre">ssh-agent</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>tpi-k3s-ansible
+code<span class="w"> </span>.<span class="w">          </span><span class="c1"># then &quot;Reopen in Container&quot;</span>
+</pre></div>
+</div>
+<p>The container build runs <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">tools</span></code>, which
+installs the cluster tools into <code class="docutils literal notranslate"><span class="pre">/root/bin</span></code> and fetches the kubeconfig. The
+kubeconfig points at <code class="docutils literal notranslate"><span class="pre">https://k3s.lan:6443</span></code>, a name the router resolves to
+the control plane (node02 today), so <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> works straight away.
+<a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Set up and run Claude Code</span></a> covers the container in more detail.</p>
+</section>
+<section id="one-screen-health-check">
+<h2>2. One-screen health check<a class="headerlink" href="#one-screen-health-check" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>status
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">scripts/status</span></code> prints four things: the nodes, the ArgoCD applications,
+any pod that is not <code class="docutils literal notranslate"><span class="pre">Running</span></code> or <code class="docutils literal notranslate"><span class="pre">Completed</span></code>, and any certificate that is
+not ready. On a healthy cluster only the first two sections appear:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>=== Nodes ===
+NAME     STATUS   ROLES                AGE     VERSION
+node02   Ready    control-plane,etcd   6d13h   v1.34.13+k3s1
+node03   Ready    &lt;none&gt;               213d    v1.34.13+k3s1
+...
+=== ArgoCD Apps ===
+all-cluster-services   Synced   Healthy
+argocd-monitor         Synced   Healthy
+...
+</pre></div>
+</div>
+<p>This is the command to run first whenever something feels wrong.</p>
+</section>
+<section id="meet-the-nodes">
+<h2>3. Meet the nodes<a class="headerlink" href="#meet-the-nodes" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>wide
+</pre></div>
+</div>
+<p>Six nodes, all on Ubuntu 26.04 and the same K3s patch release (the
+<code class="docutils literal notranslate"><span class="pre">v1.34</span></code> line set by <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node</p></th>
+<th class="head"><p>Address</p></th>
+<th class="head"><p>What it is</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
+<td><p>192.168.1.82</p></td>
+<td><p>Turing RK1, arm64, 8 GB</p></td>
+<td><p>The control plane and etcd. Tainted <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code>, so no workloads</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
+<td><p>192.168.1.83</p></td>
+<td><p>Turing RK1, arm64, 8 GB</p></td>
+<td><p>Warm-standby control plane, tainted <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code> so it stays light</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p>192.168.1.84</p></td>
+<td><p>Turing RK1, arm64, 32 GB</p></td>
+<td><p>Worker. Holds the Prometheus and Grafana <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volumes</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p>192.168.1.91</p></td>
+<td><p>NUC, amd64, 12 CPUs, 32 GB</p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p>192.168.1.92</p></td>
+<td><p>NUC, amd64, 8 CPUs, 64 GB, Intel Iris Xe</p></td>
+<td><p>Worker. Holds Jellyfin, every Minecraft world and scrap’s backup copy</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p>192.168.1.10</p></td>
+<td><p>Workstation, amd64, NVIDIA GPU</p></td>
+<td><p>Tainted <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code>: GPU and monitoring pods only, and never rebooted by automation</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The three RK1s sit on one Turing Pi board whose BMC is <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>
+(192.168.1.80). The board’s remaining slot (slot 1) holds <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a CM4 that
+is still listed in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> but is not a member of the cluster.</p>
+<p>To see the taints that shape scheduling:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span><span class="s1">&#39;NODE:.metadata.name,TAINTS:.spec.taints[*].key&#39;</span>
+</pre></div>
+</div>
+<p>More in <a class="reference internal" href="../explanations/architecture/hardware.html"><span class="doc">Hardware and nodes</span></a>.</p>
+</section>
+<section id="see-what-argocd-delivers">
+<h2>4. See what ArgoCD delivers<a class="headerlink" href="#see-what-argocd-delivers" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>applications<span class="w"> </span>-n<span class="w"> </span>argo-cd
+</pre></div>
+</div>
+<p>There are 25 applications. <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> is the root: it renders
+the Helm chart in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code>, whose templates are the other 24.
+Roughly, they fall into four groups:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Group</p></th>
+<th class="head"><p>Applications</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Platform</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ingress</span></code>, <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code>, <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>, <code class="docutils literal notranslate"><span class="pre">coredns</span></code>, <code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>, <code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Storage and backups</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local-storage</span></code>, <code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code>, <code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Maintenance and devices</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code>, <code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code>, <code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Things to look at and use</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">home</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-prometheus</span></code>, <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code>, <code class="docutils literal notranslate"><span class="pre">echo</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code>, <code class="docutils literal notranslate"><span class="pre">minecraft</span></code>, <code class="docutils literal notranslate"><span class="pre">ntfy</span></code>, <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Every one should be <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and <code class="docutils literal notranslate"><span class="pre">Healthy</span></code>. ArgoCD itself is not in the
+list: Ansible installs it, and it then delivers everything else. More in
+<a class="reference internal" href="../explanations/architecture/gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a>.</p>
+</section>
+<section id="the-front-door-home-gkcluster-org">
+<h2>5. The front door: home.gkcluster.org<a class="headerlink" href="#the-front-door-home-gkcluster-org" title="Link to this heading">#</a></h2>
+<p>Open <a class="reference external" href="https://home.gkcluster.org">https://home.gkcluster.org</a>. The request goes to Cloudflare, which
+asks for a login first (Cloudflare Access: the owner’s GitHub login), then
+down the Cloudflare Tunnel to ingress-nginx in the cluster. Invited viewers
+are let through Cloudflare Access only to ArgoCD, Grafana and ArgoCD
+Monitor, not to the home page.</p>
+<p>The home page is a static page of cards. The badge on a card says which
+in-cluster login comes after Cloudflare’s:</p>
+<ul class="simple">
+<li><p><strong>SSO</strong>: the service signs in through Dex (GitHub), running inside
+ArgoCD. One GitHub login covers ArgoCD, Grafana and argocd-monitor.</p></li>
+<li><p><strong>OAuth</strong>: the service sits behind the shared oauth2-proxy, which only
+lets the addresses in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> through.</p></li>
+<li><p>no badge: no in-cluster login.</p></li>
+</ul>
+<p>Work through the cards one at a time.</p>
+<section id="argocd">
+<h3>ArgoCD<a class="headerlink" href="#argocd" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://argocd.gkcluster.org">https://argocd.gkcluster.org</a>. Click the single sign-on button (<strong>Log in
+via Dex</strong>), which hands over to GitHub; the built-in admin account is
+disabled. The owner gets the admin role, anyone else who
+got past Cloudflare Access is read-only. Open <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code> to see
+the tree of child applications, then any child to see its resources and
+sync history.</p>
+</section>
+<section id="argocd-monitor">
+<h3>ArgoCD Monitor<a class="headerlink" href="#argocd-monitor" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://argocd-monitor.gkcluster.org">https://argocd-monitor.gkcluster.org</a>. A dashboard of application health
+over time, signed in through Dex with the same role as in ArgoCD. An
+application’s detail page links each workload, pod and node to the matching
+Grafana dashboard with the namespace already selected.</p>
+</section>
+<section id="grafana">
+<h3>Grafana<a class="headerlink" href="#grafana" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://grafana.gkcluster.org">https://grafana.gkcluster.org</a>. Click <strong>Sign in with GitHub (via Dex)</strong>;
+the password form is turned off. Addresses in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are Grafana
+admins and everyone else is a viewer. The kube-prometheus-stack dashboards
+are preloaded: start with <em>Kubernetes / Compute Resources / Cluster</em> and
+<em>Node Exporter / Nodes</em>. See <a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring and alerts</span></a>.</p>
+</section>
+<section id="headlamp">
+<h3>Headlamp<a class="headerlink" href="#headlamp" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://headlamp.gkcluster.org">https://headlamp.gkcluster.org</a>. After the oauth2-proxy gate, Headlamp
+asks for a ServiceAccount token. Print one in the devcontainer and paste it
+in:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>headlamp-token
+</pre></div>
+</div>
+<p>The token lasts 100 days. Headlamp shows pods, logs and every Kubernetes
+object, and its Argo CD plugin adds a sidebar section listing the
+applications.</p>
+</section>
+<section id="alertmanager">
+<h3>Alertmanager<a class="headerlink" href="#alertmanager" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://alertmanager.gkcluster.org">https://alertmanager.gkcluster.org</a>, behind oauth2-proxy. It lists the
+alerts that are firing and the silences in force. Alerts are pushed to the
+owner’s phone through ntfy.</p>
+</section>
+<section id="scrap">
+<h3>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://scrap.gkcluster.org">https://scrap.gkcluster.org</a>, behind oauth2-proxy. scrap is the owner’s
+personal knowledge store; Claude sessions reach it at <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> with a bearer
+token rather than a browser login. See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Run scrap</span></a>.</p>
+</section>
+<section id="pages">
+<h3>Pages<a class="headerlink" href="#pages" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://pages.gkcluster.org">https://pages.gkcluster.org</a>. Pages published from scrap. This one is
+public on purpose: no Cloudflare Access and no login, and Cloudflare caches
+it.</p>
+</section>
+<section id="ntfy">
+<h3>ntfy<a class="headerlink" href="#ntfy" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://ntfy.gkcluster.org">https://ntfy.gkcluster.org</a>. The push notification service. It is also
+open at the edge, because the phone app cannot do a Cloudflare login, so
+ntfy’s own access tokens are the gate. See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push notifications with ntfy</span></a>.</p>
+</section>
+<section id="minecraft">
+<h3>Minecraft<a class="headerlink" href="#minecraft" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://minecraft.gkcluster.org">https://minecraft.gkcluster.org</a>, behind oauth2-proxy. The dashboard
+starts, stops, snapshots and restores Minecraft worlds, all of which run on
+nuc2. Players never see this page: they connect a Minecraft client to
+<code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code>, which is the VPS relay, with the port shown
+against each world. See <a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a> and
+<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>.</p>
+</section>
+<section id="the-network-row">
+<h3>The Network row<a class="headerlink" href="#the-network-row" title="Link to this heading">#</a></h3>
+<p>The second group of cards, headed <strong>Network</strong>, links to things outside the
+cluster. Two of them
+(the OpenWrt router at 192.168.1.1, and Jellyfin) are greyed out until the
+page finds that the browser is on the LAN or on the tailnet. It finds out
+by fetching <code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet.gkcluster.org</span></code>, two
+DNS-only names that point at a LAN address and a tailnet address of a
+worker: whichever answers, the browser can reach that network.</p>
+</section>
+</section>
+<section id="two-services-that-are-not-on-the-home-page">
+<h2>6. Two services that are not on the home page<a class="headerlink" href="#two-services-that-are-not-on-the-home-page" title="Link to this heading">#</a></h2>
+<section id="jellyfin">
+<h3>Jellyfin<a class="headerlink" href="#jellyfin" title="Link to this heading">#</a></h3>
+<p>Jellyfin has no ingress and no Cloudflare route. Its pod runs on nuc2’s own
+network, so it answers on port 8096 of every nuc2 interface:</p>
+<ul class="simple">
+<li><p>on the LAN: <a class="reference external" href="http://192.168.1.92:8096">http://192.168.1.92:8096</a></p></li>
+<li><p>away from home: the same port on nuc2’s tailnet address (the Jellyfin
+card on the home page links to it)</p></li>
+</ul>
+<p>Jellyfin has its own user accounts. See <a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>.</p>
+</section>
+<section id="echo">
+<h3>echo<a class="headerlink" href="#echo" title="Link to this heading">#</a></h3>
+<p><a class="reference external" href="https://echo.gkcluster.org">https://echo.gkcluster.org</a> returns the request it received as JSON:
+method, path, headers. It is the quickest proof that Cloudflare, the
+tunnel, ingress-nginx and a pod all work, and it shows the headers that
+Cloudflare and ingress-nginx add on the way in.</p>
+</section>
+</section>
+<section id="when-the-front-door-is-shut">
+<h2>7. When the front door is shut<a class="headerlink" href="#when-the-front-door-is-shut" title="Link to this heading">#</a></h2>
+<p>If the tunnel, Cloudflare or ingress-nginx is down, <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> still works
+from the devcontainer, and the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role has left three port-forward
+scripts in <code class="docutils literal notranslate"><span class="pre">/root/bin</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Script</p></th>
+<th class="head"><p>What it forwards</p></th>
+<th class="head"><p>Open</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dashboard.sh</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">svc/headlamp</span></code> in <code class="docutils literal notranslate"><span class="pre">headlamp</span></code>, and prints a 24 hour token</p></td>
+<td><p><a class="reference external" href="http://localhost:4466">http://localhost:4466</a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">grafana.sh</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sts/grafana-prometheus</span></code> in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:3000">http://localhost:3000</a></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argo.sh</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">svc/argocd-server</span></code> in <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code></p></td>
+<td><p><a class="reference external" href="http://localhost:8080">http://localhost:8080</a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Each one starts <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code> in the background. The devcontainer
+shares the workstation’s network, so the address opens in the
+workstation’s browser.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>A Dex login does not complete over a localhost port-forward. ArgoCD and
+Grafana both send the browser to <code class="docutils literal notranslate"><span class="pre">https://argocd.gkcluster.org/api/dex/...</span></code>
+to sign in and expect to be called back at their public hostname, and both
+have their password login turned off. So <code class="docutils literal notranslate"><span class="pre">argo.sh</span></code> and <code class="docutils literal notranslate"><span class="pre">grafana.sh</span></code> show
+the login page but cannot get past it while the public route is down.</p>
+</div>
+<p>What does work without the front door:</p>
+<ul class="simple">
+<li><p><strong>Headlamp</strong> through <code class="docutils literal notranslate"><span class="pre">dashboard.sh</span></code>: the port-forward skips oauth2-proxy
+and the token is the only login, so this is the full web UI.</p></li>
+<li><p><strong>ArgoCD without its UI</strong>: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">applications</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">describe</span> <span class="pre">application</span> <span class="pre">&lt;name&gt;</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code> for the sync error.</p></li>
+<li><p><strong>Everything else</strong> through <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span></code>, <code class="docutils literal notranslate"><span class="pre">describe</span></code> and <code class="docutils literal notranslate"><span class="pre">logs</span></code>.</p></li>
+</ul>
+<p><a class="reference internal" href="../reference/troubleshooting.html"><span class="doc">Troubleshooting</span></a> takes it from there.</p>
+</section>
+<section id="where-it-lives-in-the-repo">
+<h2>8. Where it lives in the repo<a class="headerlink" href="#where-it-lives-in-the-repo" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>To change</p></th>
+<th class="head"><p>Edit</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Which machines are nodes, and their per-node flags</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>The control plane, the standby, the API name, the domain, the branch ArgoCD tracks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>How a node is installed and joined</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">roles/</span></code> (<code class="docutils literal notranslate"><span class="pre">flash</span></code>, <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">update_packages</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s</span></code>, …) run by <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Service switches, chart versions, the NAS paths, maintenance windows</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>One service’s ArgoCD application</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/&lt;service&gt;.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>A service’s own manifests, SealedSecrets and alert rules</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/&lt;service&gt;/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>ArgoCD itself, its Dex login and RBAC</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code> and <code class="docutils literal notranslate"><span class="pre">argo-cd/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Which chart repositories ArgoCD may pull from</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argo-cd/argo-project.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Where a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volume lives</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, together</p></td>
+</tr>
+<tr class="row-odd"><td><p>Public hostnames, DNS, Cloudflare Access, rate limits</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code> (<code class="docutils literal notranslate"><span class="pre">locals.tf</span></code> holds the list of hostnames)</p></td>
+</tr>
+<tr class="row-even"><td><p>The cards on the home page</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/home/templates/manifests.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Backup jobs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/</span></code> and <code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>The day-to-day commands</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">justfile</span></code> and <code class="docutils literal notranslate"><span class="pre">scripts/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>What Claude Code knows and must not do</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/commands/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="where-to-go-next">
+<h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
+<p>To understand how it fits together, read the architecture pages, starting
+at <a class="reference internal" href="../explanations/architecture.html"><span class="doc">Architecture overview</span></a>:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../explanations/architecture/hardware.html"><span class="doc">Hardware and nodes</span></a> and
+<a class="reference internal" href="../explanations/architecture/provisioning.html"><span class="doc">Provisioning with Ansible</span></a>: the machines and how
+Ansible installs them</p></li>
+<li><p><a class="reference internal" href="../explanations/architecture/gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a>: how a commit becomes a running
+pod</p></li>
+<li><p><a class="reference internal" href="../explanations/architecture/networking.html"><span class="doc">Networking and ingress</span></a> and
+<a class="reference internal" href="../explanations/architecture/authentication.html"><span class="doc">Authentication</span></a>: the path a request took
+in step 5, and the three logins on it</p></li>
+<li><p><a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a> and
+<a class="reference internal" href="../explanations/architecture/backups.html"><span class="doc">Backups and disaster recovery</span></a>: where data lives and how it
+is protected</p></li>
+<li><p><a class="reference internal" href="../explanations/architecture/claude-code.html"><span class="doc">Claude Code integration</span></a>: how Claude Code is fenced
+in and what it is given</p></li>
+</ul>
+<p>To do something:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>: make a change and ship it</p></li>
+<li><p><a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or remove a service</span></a>: add a service</p></li>
+<li><p><a class="reference internal" href="../how-to/node-operations.html"><span class="doc">Node operations</span></a>: drain, reboot, fence or add a node</p></li>
+<li><p><a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>: check the backups and restore from one</p></li>
+<li><p><a class="reference internal" href="build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>: build the whole thing from bare
+metal</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../tutorials.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Tutorials</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="build-the-cluster.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Build the cluster from bare metal</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#open-the-devcontainer">1. Open the devcontainer</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-screen-health-check">2. One-screen health check</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#meet-the-nodes">3. Meet the nodes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-what-argocd-delivers">4. See what ArgoCD delivers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-front-door-home-gkcluster-org">5. The front door: home.gkcluster.org</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd">ArgoCD</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-monitor">ArgoCD Monitor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana">Grafana</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#headlamp">Headlamp</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#alertmanager">Alertmanager</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap">scrap</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pages">Pages</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ntfy">ntfy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft">Minecraft</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-network-row">The Network row</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-services-that-are-not-on-the-home-page">6. Two services that are not on the home page</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jellyfin">Jellyfin</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#echo">echo</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-the-front-door-is-shut">7. When the front door is shut</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-it-lives-in-the-repo">8. Where it lives in the repo</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-go-next">Where to go next</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/tutorials/tour.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/tutorials/tour.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

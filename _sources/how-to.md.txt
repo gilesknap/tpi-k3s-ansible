@@ -1,52 +1,46 @@
-# How-To Guides
+# How-to guides
 
-Task-oriented recipes for common operations and configuration changes.
+Runbooks for operating the cluster: one task per page, with the real
+commands, hostnames and paths.
 
 ```{toctree}
 :maxdepth: 1
-:caption: Setup
+:caption: Edge, auth and secrets
 
-how-to/fork-this-repo
-how-to/bootstrap-cluster
-how-to/accessing-services
-how-to/cloudflare-tunnel
-how-to/cloudflare-ssh-tunnel
-how-to/cloudflare-web-tunnel
 how-to/cloudflare-as-code
 how-to/oauth-setup
+how-to/manage-sealed-secrets
 how-to/nas-setup
 ```
 
 ```{toctree}
 :maxdepth: 1
-:caption: Optional Features
+:caption: Services
 
 how-to/jellyfin
 how-to/minecraft
-how-to/ntfy
 how-to/scrap
+how-to/ntfy
 how-to/vps-relay
+how-to/monitoring
 how-to/add-remove-services
 ```
 
 ```{toctree}
 :maxdepth: 1
-:caption: Operations & Maintenance
+:caption: Operations
 
-how-to/monitoring
 how-to/backup-restore
 how-to/recover-control-plane
-how-to/manage-sealed-secrets
 how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild
-how-to/alternative-storage
 how-to/nfs-stable-paths
 ```
 
 ```{toctree}
 :maxdepth: 1
-:caption: Developer Workflow
+:caption: Development
 
 how-to/work-in-branches
 how-to/claude-code

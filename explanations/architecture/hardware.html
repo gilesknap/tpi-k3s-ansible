@@ -1,0 +1,1281 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Hardware and nodes &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/hardware';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Provisioning with Ansible" href="provisioning.html" />
+    <link rel="prev" title="Architecture overview" href="../architecture.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Hardware and nodes</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="hardware-and-nodes">
+<h1>Hardware and nodes<a class="headerlink" href="#hardware-and-nodes" title="Link to this heading">#</a></h1>
+<p>The cluster is six machines of three kinds: three ARM compute modules in one
+Turing Pi board, two Intel NUCs, and the owner’s GPU workstation. All run
+Ubuntu 26.04 and the same K3s release. This page says what each one is, what
+is pinned to it, and why.</p>
+<section id="the-nodes">
+<h2>The nodes<a class="headerlink" href="#the-nodes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node</p></th>
+<th class="head"><p>IP</p></th>
+<th class="head"><p>Hardware</p></th>
+<th class="head"><p>Arch</p></th>
+<th class="head"><p>CPU / RAM</p></th>
+<th class="head"><p>Role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
+<td><p>192.168.1.82</p></td>
+<td><p>Turing RK1, slot 2</p></td>
+<td><p>arm64</p></td>
+<td><p>8 / 8 GB</p></td>
+<td><p>Control plane and etcd</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
+<td><p>192.168.1.83</p></td>
+<td><p>Turing RK1, slot 3</p></td>
+<td><p>arm64</p></td>
+<td><p>8 / 8 GB</p></td>
+<td><p>Worker, warm-standby control plane</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p>192.168.1.84</p></td>
+<td><p>Turing RK1, slot 4</p></td>
+<td><p>arm64</p></td>
+<td><p>8 / 32 GB</p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p>192.168.1.91</p></td>
+<td><p>Intel NUC</p></td>
+<td><p>amd64</p></td>
+<td><p>12 / 32 GB</p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p>192.168.1.92</p></td>
+<td><p>Intel NUC, Iris Xe graphics, two NICs</p></td>
+<td><p>amd64</p></td>
+<td><p>8 / 64 GB</p></td>
+<td><p>Worker</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p>192.168.1.10</p></td>
+<td><p>Desktop workstation, NVIDIA GPU</p></td>
+<td><p>amd64</p></td>
+<td><p>16 / 32 GB</p></td>
+<td><p>Workstation worker</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Taints, the labels this repository sets, and what is tied to each node:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node</p></th>
+<th class="head"><p>Taint</p></th>
+<th class="head"><p>Labels and devices</p></th>
+<th class="head"><p>Pinned here</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/master:NoSchedule</span></code></p></td>
+<td><p></p></td>
+<td><p>etcd, and the nightly etcd backup timer</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/standby-control-plane:PreferNoSchedule</span></code></p></td>
+<td><p></p></td>
+<td><p>Nothing: it is kept light on purpose</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node04</span></code></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>The Prometheus and Grafana <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volumes (<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/*</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>Nothing</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">intel.feature.node.kubernetes.io/gpu=true</span></code>, one <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code></p></td>
+<td><p>Jellyfin and its volume, every Minecraft world pod, scrap’s backup copy and its frozen pre-Litestream copy (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node-role=workstation</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu.present=true</span></code>, one <code class="docutils literal notranslate"><span class="pre">nvidia.com/gpu</span></code></p></td>
+<td><p>The NVIDIA device plugin</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The inventory (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>) is where these properties come from:
+<code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code>,
+<code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> are host variables that the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role turns
+into agent flags, labels and taints. The control plane and its standby are
+named by <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. See <a class="reference internal" href="../../reference/inventory.html"><span class="doc">Inventory reference</span></a>.</p>
+</section>
+<section id="physical-layout">
+<h2>Physical layout<a class="headerlink" href="#physical-layout" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    ROUTER[&quot;OpenWrt router&lt;br/&gt;192.168.1.1&lt;br/&gt;serves k3s.lan&quot;]
+
+    subgraph TPI[&quot;Turing Pi 2.5 board&quot;]
+        BMC[&quot;BMC turingpi&lt;br/&gt;192.168.1.80&quot;]
+        N2[&quot;Slot 2: node02&lt;br/&gt;RK1 8 GB&quot;]
+        N3[&quot;Slot 3: node03&lt;br/&gt;RK1 8 GB&quot;]
+        N4[&quot;Slot 4: node04&lt;br/&gt;RK1 32 GB&quot;]
+    end
+
+    NUC1[&quot;nuc1&lt;br/&gt;.91&quot;]
+    NUC2[&quot;nuc2&lt;br/&gt;.92 on enp3s0&quot;]
+    WS03[&quot;ws03&lt;br/&gt;.10, NVIDIA GPU&quot;]
+    NAS[&quot;The NAS, QNAP&lt;br/&gt;192.168.1.3&quot;]
+    LAN2[&quot;Second LAN&lt;br/&gt;192.168.0.0/24&quot;]
+    VPS[&quot;VPS, frps&lt;br/&gt;public IP&quot;]
+
+    ROUTER --- BMC
+    ROUTER --- N2 &amp; N3 &amp; N4
+    ROUTER --- NUC1 &amp; NUC2 &amp; WS03 &amp; NAS
+    NUC2 --- LAN2
+    BMC -. &quot;tpi: power, flash, UART&quot; .-&gt; N2 &amp; N3 &amp; N4
+    ROUTER -. &quot;frp tunnel, dialled out by the&lt;br/&gt;vps-relay pod over the tailnet&quot; .-&gt; VPS
+    </pre><section id="the-turing-pi-and-its-bmc">
+<h3>The Turing Pi and its BMC<a class="headerlink" href="#the-turing-pi-and-its-bmc" title="Link to this heading">#</a></h3>
+<p>The Turing Pi 2.5 is a mini-ITX carrier with four module slots, an Ethernet
+switch and a baseboard management controller. The BMC is the inventory host
+<code class="docutils literal notranslate"><span class="pre">turingpi</span></code> (192.168.1.80), reached over SSH as <code class="docutils literal notranslate"><span class="pre">root</span></code>. Its <code class="docutils literal notranslate"><span class="pre">tpi</span></code> command
+powers a slot on and off, writes an image to a module’s eMMC (<code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code>),
+exposes the eMMC as a disk (<code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">advanced</span> <span class="pre">msd</span></code>) and gives a serial console
+(<code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">uart</span></code>). That is everything Ansible needs to install a node that has no
+operating system, so re-installing an RK1 never needs hands on the hardware.
+OS images are staged on the BMC’s SD card (<code class="docutils literal notranslate"><span class="pre">tpi_images_path</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/mnt/sdcard/images</span></code>).</p>
+</section>
+<section id="the-rk1s">
+<h3>The RK1s<a class="headerlink" href="#the-rk1s" title="Link to this heading">#</a></h3>
+<p>Each Turing RK1 is an eight-core RK3588 module with an NVMe drive. An RK1
+has no SPI flash, so its boot loader lives on the eMMC:</p>
+<ul class="simple">
+<li><p><strong>eMMC</strong>: U-Boot, in the raw area from LBA 64. Nothing boots from the
+eMMC’s partitions.</p></li>
+<li><p><strong>NVMe</strong> (<code class="docutils literal notranslate"><span class="pre">root_dev:</span> <span class="pre">/dev/nvme0n1</span></code> in the inventory): stock Ubuntu 26.04
+with the generic kernel, booted by U-Boot through EFI and GRUB.</p></li>
+</ul>
+<p>All three run the same Ubuntu and kernel, but they got there by two routes
+and their disks differ. node02 was installed by the current <code class="docutils literal notranslate"><span class="pre">flash</span></code> and
+<code class="docutils literal notranslate"><span class="pre">move_fs</span></code> roles: its eMMC holds mainline U-Boot and no partition table, and
+its NVMe is Ubuntu’s preinstalled server image as shipped (root on p1, the
+EFI system partition on p15). node03 and node04 were installed from the
+older vendor image and converted in place by the <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> role: root is on
+NVMe p2, the EFI system partition is p1, and the eMMC still carries the
+vendor image’s unused partition table. A re-flash would bring either to
+node02’s layout.</p>
+<p><a class="reference internal" href="provisioning.html"><span class="doc">Provisioning with Ansible</span></a> describes how a node gets
+into that state. Two hard rules follow from the layout. Nothing but the
+U-Boot image itself may write the first 16 MiB of an RK1’s eMMC, because a
+damaged U-Boot leaves the module unbootable. And nothing but the
+<code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role may touch <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> on an RK1: it holds the
+<code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volumes (<a class="reference internal" href="storage.html"><span class="doc">Storage</span></a>), and a
+re-flash with <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> wipes the NVMe and that data with it.</p>
+<p>node04 has 32 GB of memory where the other two have 8 GB, which is why
+Prometheus and Grafana are pinned to it.</p>
+</section>
+<section id="node01">
+<h3>node01<a class="headerlink" href="#node01" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">node01</span></code> (a Raspberry Pi CM4 in slot 1, 192.168.1.81) is still listed in
+<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and in the sandbox’s <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> list, but it is not a member of
+the live cluster. It was the control plane before that role moved to
+node02.</p>
+</section>
+<section id="the-nucs">
+<h3>The NUCs<a class="headerlink" href="#the-nucs" title="Link to this heading">#</a></h3>
+<p><strong>nuc1</strong> is a plain amd64 worker with a single NIC. Nothing is pinned to it,
+which makes it the spare capacity that drained pods move to.</p>
+<p><strong>nuc2</strong> has the most memory and carries the node-bound workloads. It is
+multi-homed: <code class="docutils literal notranslate"><span class="pre">enp3s0</span></code> is on the cluster LAN and a second interface is on
+192.168.0.0/24. K3s must use the cluster LAN address, so
+the inventory sets <code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface:</span> <span class="pre">enp3s0</span></code>,
+which become <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> and <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code> on its agent. Its Iris Xe
+iGPU is advertised by the Intel GPU device plugin as <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code>
+and used by Jellyfin for hardware transcoding. Jellyfin runs on the host
+network there, so it listens on both LANs and on the tailnet interface. The
+VPS relay forwards the Minecraft game ports to nuc2’s LAN address, which is
+why every world is pinned to it (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code>).</p>
+</section>
+<section id="ws03">
+<h3>ws03<a class="headerlink" href="#ws03" title="Link to this heading">#</a></h3>
+<p>ws03 is the owner’s desktop, with an NVIDIA GPU, that also runs a K3s
+agent. A desktop is rebooted and updated when its user chooses, so it
+carries <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> and only pods that tolerate the taint
+run there: the NVIDIA device plugin, node-exporter and the NFS CSI node
+plugin. The <code class="docutils literal notranslate"><span class="pre">update_packages</span></code> role installs the NVIDIA driver and container
+toolkit and makes the NVIDIA runtime containerd’s default on it. kured does
+not run on it, the K3s upgrade Plans exclude it, and no playbook reboots
+it. The reasoning is in ADR 0005
+(<a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html"><span class="doc">5. Taint Workstation Nodes</span></a>).</p>
+</section>
+</section>
+<section id="where-things-run">
+<h2>Where things run<a class="headerlink" href="#where-things-run" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    subgraph CP[&quot;node02: NoSchedule&quot;]
+        ETCD[&quot;K3s server and etcd&quot;]
+    end
+    subgraph SB[&quot;node03: PreferNoSchedule&quot;]
+        SPARE[&quot;Lightly loaded,&lt;br/&gt;ready for an etcd restore&quot;]
+    end
+    subgraph W4[&quot;node04&quot;]
+        MON[&quot;Prometheus and Grafana&lt;br/&gt;local-nvme volumes&quot;]
+    end
+    subgraph W1[&quot;nuc1&quot;]
+        FREE[&quot;General workloads&quot;]
+    end
+    subgraph W2[&quot;nuc2&quot;]
+        JF[&quot;Jellyfin, Iris Xe&quot;]
+        MC[&quot;Minecraft worlds&quot;]
+        SC[&quot;scrap's backup copy&lt;br/&gt;and frozen copy&quot;]
+    end
+    subgraph WS[&quot;ws03: workstation NoSchedule&quot;]
+        NV[&quot;NVIDIA device plugin&quot;]
+    end
+
+    HA[&quot;Two replicas each, never on one node:&lt;br/&gt;ingress-nginx, oauth2-proxy, cloudflared, CoreDNS&quot;]
+    HA -.-&gt; SB &amp; W4 &amp; W1 &amp; W2
+    </pre><p>The scheduling rules behind the picture:</p>
+<ul class="simple">
+<li><p><strong>Control plane: <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code>.</strong> node02 has 8 GB and runs the API server
+and etcd, so ordinary workloads are kept off it. Only DaemonSets and the
+few controllers that tolerate the taint run there.</p></li>
+<li><p><strong>Warm standby: <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code>.</strong> node03 is where the etcd bundle
+would be restored if node02 died
+(<a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>). The soft taint keeps it mostly
+empty without making it unusable when other nodes are full or drained.</p></li>
+<li><p><strong>Workstation: <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code></strong>, as above.</p></li>
+<li><p><strong>GPU labels.</strong> The NVIDIA and Intel device plugins are DaemonSets
+selected by the node labels in the table, so each runs only where its
+GPU is.</p></li>
+<li><p><strong>Node-pinned volumes.</strong> Every <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PersistentVolume names its
+node in <code class="docutils literal notranslate"><span class="pre">spec.nodeAffinity</span></code>, so a pod that claims one can only run there.
+A new workload of this kind gets its own volume and an explicit node
+choice, never a shared pool.</p></li>
+<li><p><strong>Shared services run twice.</strong> ingress-nginx and oauth2-proxy spread
+their two replicas with a <code class="docutils literal notranslate"><span class="pre">topologySpreadConstraints</span></code> rule on hostname,
+cloudflared uses a required pod anti-affinity, and CoreDNS is held at two
+by a fixed HorizontalPodAutoscaler. A node reboot or drain therefore
+always leaves one of each serving. They can land on any untainted worker
+or the standby.</p></li>
+<li><p><strong>Everything else floats.</strong> scrap, ntfy, ArgoCD, cert-manager and the
+rest keep their data on the NAS (or have none), so they run wherever
+there is room and move when a node is drained.</p></li>
+</ul>
+</section>
+<section id="off-cluster-kit">
+<h2>Off-cluster kit<a class="headerlink" href="#off-cluster-kit" title="Link to this heading">#</a></h2>
+<p><strong>The NAS</strong> (QNAP, 192.168.1.3) exports <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code> (holding
+<code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code>, <code class="docutils literal notranslate"><span class="pre">media/</span></code> and <code class="docutils literal notranslate"><span class="pre">minecraft-archive/</span></code>) and <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>
+(holding <code class="docutils literal notranslate"><span class="pre">stable/</span></code>) over NFS. It stores application data, the media library
+and every backup. Ansible never manages it
+(<a class="reference internal" href="../../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>).</p>
+<p><strong>The router</strong> (OpenWrt, 192.168.1.1) resolves the <code class="docutils literal notranslate"><span class="pre">.lan</span></code> node names and
+serves <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, the name of the Kubernetes API, which currently points at
+node02. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> repoints it when the control plane moves.</p>
+<p><strong>The VPS</strong> runs frps and publishes the Minecraft game ports as
+<code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org</span></code>. It is reached only over the tailnet and never connects
+into the home network: the <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> pod dials out to it
+(<a class="reference internal" href="../../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>).</p>
+<p><strong>The owner’s workstation</strong> runs the devcontainer that is the Ansible
+controller, with <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code> and OpenTofu, and Claude
+Code inside its sandbox
+(<a class="reference internal" href="claude-code.html"><span class="doc">Claude Code integration</span></a>).</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../architecture.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Architecture overview</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="provisioning.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Provisioning with Ansible</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nodes">The nodes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#physical-layout">Physical layout</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-turing-pi-and-its-bmc">The Turing Pi and its BMC</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rk1s">The RK1s</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#node01">node01</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nucs">The NUCs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ws03">ws03</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-things-run">Where things run</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#off-cluster-kit">Off-cluster kit</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/hardware.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/hardware.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

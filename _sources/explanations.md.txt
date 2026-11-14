@@ -1,28 +1,26 @@
 # Explanations
 
-Background knowledge covering architecture, design decisions, and how the
-system works.
+How the cluster is put together and why. The architecture overview shows the
+whole cluster on one page and leads to nine pages that take one subject each,
+with diagrams: hardware, provisioning, GitOps delivery, networking,
+authentication, security, storage, backups and the Claude Code integration.
+The pages after it explain how the cluster keeps itself patched, what each
+Ansible role does, what was learned running it with Claude Code, and the
+decisions that have a longer history.
 
 ```{toctree}
 :maxdepth: 1
 :caption: Architecture
 
 explanations/architecture
-explanations/gitops-flow
-explanations/kubernetes-services
-explanations/ansible-roles
-explanations/upgrade-model
 ```
 
 ```{toctree}
 :maxdepth: 1
-:caption: Networking & Security
+:caption: How it runs
 
-explanations/networking
-explanations/authentication
-explanations/network-policies
-explanations/security
-explanations/security-hardening
+explanations/upgrade-model
+explanations/ansible-roles
 ```
 
 ```{toctree}

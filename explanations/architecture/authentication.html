@@ -1,0 +1,1451 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Authentication &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/architecture/authentication';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Security model" href="security.html" />
+    <link rel="prev" title="Networking and ingress" href="networking.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="networking.html">Networking and ingress</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../architecture.html" class="nav-link">Architecture overview</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Authentication</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="authentication">
+<h1>Authentication<a class="headerlink" href="#authentication" title="Link to this heading">#</a></h1>
+<p>Every web service on the cluster is published through Cloudflare, and a
+request passes up to three checks before it gets a response: Cloudflare
+Access at the edge, a GitHub login at the ingress, and a role inside the
+application. This page says which service uses which, and why there are two
+different login mechanisms. How a request physically reaches ingress-nginx is
+on the <a class="reference internal" href="networking.html"><span class="doc">networking page</span></a>.</p>
+<section id="three-layers">
+<h2>Three layers<a class="headerlink" href="#three-layers" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    subgraph L1[&quot;Layer 1: Cloudflare Access&quot;]
+        CF[&quot;Access application&lt;br/&gt;Owner, Viewers, bypass or service token&quot;]
+    end
+
+    subgraph L2[&quot;Layer 2: login at the ingress&quot;]
+        DEX[&quot;Dex OIDC&lt;br/&gt;inside ArgoCD&quot;]
+        OAP[&quot;oauth2-proxy&lt;br/&gt;admin_emails only&quot;]
+    end
+
+    subgraph L3[&quot;Layer 3: role in the application&quot;]
+        RBAC[&quot;admin or read-only&quot;]
+    end
+
+    CF --&gt; DEX
+    CF --&gt; OAP
+    DEX --&gt; RBAC
+    OAP --&gt; RBAC
+    </pre><p><strong>Layer 1, Cloudflare Access,</strong> decides who reaches the cluster at all. It
+runs at Cloudflare’s edge, before anything is sent down the tunnel.</p>
+<p><strong>Layer 2</strong> proves identity again inside the cluster, with GitHub as the
+identity source both times. Services that speak OIDC use Dex, the provider
+built into ArgoCD. Services with no login of their own sit behind
+oauth2-proxy, which ingress-nginx consults on every request.</p>
+<p><strong>Layer 3</strong> maps the email address from layer 2 to a role. The addresses in
+<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are administrators; anyone else who got this far is read-only.</p>
+<p>The layers overlap on purpose. Access is the one that matters from the
+internet, but ingress-nginx also answers on the LAN, where Access is not in
+the path, so layer 2 has to stand on its own.</p>
+</section>
+<section id="layer-1-cloudflare-access">
+<h2>Layer 1: Cloudflare Access<a class="headerlink" href="#layer-1-cloudflare-access" title="Link to this heading">#</a></h2>
+<p>The Access configuration is code, in <code class="docutils literal notranslate"><span class="pre">cloudflare/access.tf</span></code>. There are four
+reusable policies:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Policy</p></th>
+<th class="head"><p>Lets in</p></th>
+<th class="head"><p>Session</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Owner</p></td>
+<td><p>The addresses in <code class="docutils literal notranslate"><span class="pre">owner_emails</span></code>, and only through the GitHub login method</p></td>
+<td><p>24 h</p></td>
+</tr>
+<tr class="row-odd"><td><p>Viewers</p></td>
+<td><p>The addresses in <code class="docutils literal notranslate"><span class="pre">viewer_emails</span></code> and the domains in <code class="docutils literal notranslate"><span class="pre">viewer_email_domains</span></code>, by any login method (one-time PIN or GitHub)</p></td>
+<td><p>6 h</p></td>
+</tr>
+<tr class="row-even"><td><p>bypass</p></td>
+<td><p>Everyone</p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-odd"><td><p>scrap-mcp-policy</p></td>
+<td><p>Requests carrying the <code class="docutils literal notranslate"><span class="pre">mcp-access</span></code> service token</p></td>
+<td><p>n/a</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>and five applications that use them:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Application</p></th>
+<th class="head"><p>Covers</p></th>
+<th class="head"><p>Policies</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">clusterapps</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code></p></td>
+<td><p>Owner</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Demo</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
+<td><p>Viewers, then Owner</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code></p></td>
+<td><p>bypass</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ntfy.gkcluster.org</span></code></p></td>
+<td><p>bypass</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap.gkcluster.org/mcp</span></code></p></td>
+<td><p>scrap-mcp-policy</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Cloudflare applies the most specific application to a request. So the
+wildcard makes everything owner-only by default, and each exception is a
+visible, named application: three read-only dashboards that invited viewers
+may see, two hostnames that are public on purpose, and one path for a
+non-browser client.</p>
+<p><strong>The guard.</strong> <code class="docutils literal notranslate"><span class="pre">cloudflare/access_guard.tf</span></code> turns that default into a rule
+the plan enforces. Every <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entry, and every proxied
+<code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> entry, must be covered by an application whose policies
+all ask for an identity or a service token; an application that lets anyone
+in may only target a hostname marked <code class="docutils literal notranslate"><span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span></code> in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>. A breach of either half fails <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">plan</span></code> before
+anything reaches Cloudflare. Publishing a hostname with nothing in front of
+it therefore takes two deliberate edits, not one omission. See
+<a class="reference internal" href="../../how-to/cloudflare-as-code.html#cf-access-bypass"><span class="std std-ref">public and service-token services</span></a>.</p>
+<p>The login methods themselves (one-time PIN and GitHub) are set up once in
+the Zero Trust dashboard: Cloudflare never returns an OAuth client secret,
+so code could not keep them in step. The <code class="docutils literal notranslate"><span class="pre">mcp-access</span></code> service token is also
+created in the dashboard, because its secret is shown once and belongs with
+the client, not in state.</p>
+</section>
+<section id="layer-2-dex">
+<h2>Layer 2: Dex<a class="headerlink" href="#layer-2-dex" title="Link to this heading">#</a></h2>
+<p>ArgoCD ships with <a class="reference external" href="https://dexidp.io/">Dex</a>. Rather than run a separate
+identity provider, every OIDC-capable service shares it. Dex has one
+connector, to a GitHub OAuth app whose callback is
+<code class="docutils literal notranslate"><span class="pre">https://argocd.gkcluster.org/api/dex/callback</span></code>, and three static clients,
+declared in the <code class="docutils literal notranslate"><span class="pre">dex.config</span></code> block of <code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>:</p>
+<pre  class="mermaid">
+        flowchart LR
+    GH[&quot;GitHub OAuth app&quot;]
+
+    subgraph Dex[&quot;Dex, inside ArgoCD&quot;]
+        CON[&quot;GitHub connector&quot;]
+        CON --&gt; C1[&quot;argo-cd&quot;]
+        CON --&gt; C2[&quot;argocd-monitor&quot;]
+        CON --&gt; C3[&quot;grafana&quot;]
+    end
+
+    GH --&gt; CON
+
+    C1 --&gt; ArgoCD
+    C2 --&gt; M[&quot;argocd-monitor&quot;]
+    C3 --&gt; Grafana
+    </pre><p>The <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> client’s secret is derived from ArgoCD’s own server key
+(<code class="docutils literal notranslate"><span class="pre">scripts/derive-argocd-client-secret</span></code>); the other two come from the
+<code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> SealedSecret. Dex accepts any GitHub account: it is
+Access, in front, that decides who gets as far as the login button.</p>
+<p>Dex is used because a full identity provider such as Keycloak or Authentik
+wants around 2 GB of memory, which is a quarter of an 8 GB RK1. Dex adds one
+small pod to an ArgoCD that is already running.</p>
+<section id="argocd-native-login">
+<h3>ArgoCD: native login<a class="headerlink" href="#argocd-native-login" title="Link to this heading">#</a></h3>
+<p>The built-in <code class="docutils literal notranslate"><span class="pre">admin</span></code> account is disabled (<code class="docutils literal notranslate"><span class="pre">admin.enabled:</span> <span class="pre">&quot;false&quot;</span></code>); the only
+way in is GitHub through Dex.</p>
+<pre  class="mermaid">
+        sequenceDiagram
+    actor User
+    participant ArgoCD
+    participant Dex
+    participant GitHub
+
+    User-&gt;&gt;ArgoCD: Visit argocd.gkcluster.org
+    ArgoCD-&gt;&gt;Dex: Redirect to /api/dex/auth
+    Dex-&gt;&gt;GitHub: Redirect to GitHub OAuth
+    GitHub-&gt;&gt;Dex: Auth code and user info
+    Dex-&gt;&gt;ArgoCD: ID token with the email claim
+    ArgoCD-&gt;&gt;ArgoCD: Map email to role:admin or role:readonly
+    ArgoCD-&gt;&gt;User: Logged in
+    </pre><p>The RBAC lives in <code class="docutils literal notranslate"><span class="pre">configs.rbac</span></code> in the same task file. <code class="docutils literal notranslate"><span class="pre">scopes</span></code> is
+<code class="docutils literal notranslate"><span class="pre">[email]</span></code>, each address in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> gets <code class="docutils literal notranslate"><span class="pre">g,</span> <span class="pre">&lt;email&gt;,</span> <span class="pre">role:admin</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">policy.default</span></code> is <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code>, with log reading added.</p>
+</section>
+<section id="argocd-monitor-a-second-client-of-the-same-dex">
+<h3>argocd-monitor: a second client of the same Dex<a class="headerlink" href="#argocd-monitor-a-second-client-of-the-same-dex" title="Link to this heading">#</a></h3>
+<p>argocd-monitor is a dashboard over the ArgoCD API. Its chart runs its own
+oauth2-proxy as a sidecar (not the cluster-wide one), configured as the
+<code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code> Dex client.</p>
+<pre  class="mermaid">
+        sequenceDiagram
+    actor User
+    participant Sidecar as oauth2-proxy sidecar
+    participant Dex
+    participant GitHub
+    participant API as ArgoCD API
+
+    User-&gt;&gt;Sidecar: Visit argocd-monitor.gkcluster.org
+    Sidecar-&gt;&gt;Dex: Auth request as client argocd-monitor
+    Dex-&gt;&gt;GitHub: Redirect to GitHub OAuth
+    GitHub-&gt;&gt;Dex: Auth code and user info
+    Dex-&gt;&gt;Sidecar: ID token, audience argocd-monitor
+    Sidecar-&gt;&gt;API: Forward the request with the token
+    API-&gt;&gt;API: Audience is in allowedAudiences
+    API-&gt;&gt;User: Dashboard data, under the user's ArgoCD role
+    </pre><p>ArgoCD accepts the token because its <code class="docutils literal notranslate"><span class="pre">oidc.config</span></code> lists both <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> and
+<code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code> under <code class="docutils literal notranslate"><span class="pre">allowedAudiences</span></code>, and the <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code> client names
+<code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code> as a trusted peer. The dashboard therefore shows exactly
+what the user’s own ArgoCD role allows.</p>
+</section>
+<section id="grafana-generic-oauth">
+<h3>Grafana: generic OAuth<a class="headerlink" href="#grafana-generic-oauth" title="Link to this heading">#</a></h3>
+<p>Grafana uses its <code class="docutils literal notranslate"><span class="pre">auth.generic_oauth</span></code> provider against the same Dex
+endpoints. The login form is disabled, so the only button is “GitHub (via
+Dex)”. A <code class="docutils literal notranslate"><span class="pre">role_attribute_path</span></code> expression built from <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> gives
+those addresses <code class="docutils literal notranslate"><span class="pre">Admin</span></code> and everyone else <code class="docutils literal notranslate"><span class="pre">Viewer</span></code>.</p>
+</section>
+</section>
+<section id="layer-2-oauth2-proxy">
+<h2>Layer 2: oauth2-proxy<a class="headerlink" href="#layer-2-oauth2-proxy" title="Link to this heading">#</a></h2>
+<p>Headlamp, Alertmanager, the Minecraft dashboard and scrap have no usable
+login of their own. They share one cluster-wide oauth2-proxy (two replicas,
+sessions in an encrypted cookie on <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code>), which talks to GitHub
+directly, not through Dex, and admits only the addresses in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>.</p>
+<pre  class="mermaid">
+        sequenceDiagram
+    actor User
+    participant NGINX as ingress-nginx
+    participant OAP as oauth2-proxy
+    participant GitHub
+    participant Svc as Backend service
+
+    User-&gt;&gt;NGINX: Visit alertmanager.gkcluster.org
+    NGINX-&gt;&gt;OAP: Auth subrequest
+    OAP--&gt;&gt;NGINX: 401, not signed in
+    NGINX-&gt;&gt;User: Redirect to oauth2.gkcluster.org
+    User-&gt;&gt;OAP: /oauth2/start
+    OAP-&gt;&gt;GitHub: Redirect to GitHub OAuth
+    GitHub-&gt;&gt;OAP: Auth code and user info
+    OAP-&gt;&gt;OAP: Check the email against admin_emails
+    OAP-&gt;&gt;User: Set the session cookie
+    User-&gt;&gt;NGINX: Retry the original request
+    NGINX-&gt;&gt;OAP: Auth subrequest
+    OAP--&gt;&gt;NGINX: 202 and X-Auth-Request-Email
+    NGINX-&gt;&gt;Svc: Forward the request
+    Svc-&gt;&gt;User: Response
+    </pre><p>The shared Ingress chart (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code>) adds the
+<code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations when a service sets
+<code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>. Headlamp follows the <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> switch; the
+Minecraft dashboard and scrap have it hard-wired on, so that without the
+proxy they fail closed.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><code class="docutils literal notranslate"><span class="pre">auth-url</span></code> uses the Service’s cluster address,
+<code class="docutils literal notranslate"><span class="pre">http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth</span></code>, not
+<code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code>. The public name resolves to Cloudflare, over an IPv6
+address the pods cannot reach, and the subrequest would fail with
+intermittent 500 errors.</p>
+</div>
+<p>Three services add something on top:</p>
+<ul class="simple">
+<li><p><strong>Headlamp</strong> then asks for a Kubernetes token. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code> mints
+one for the <code class="docutils literal notranslate"><span class="pre">headlamp</span></code> ServiceAccount, which is bound to <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>.</p></li>
+<li><p><strong>The Minecraft dashboard</strong> does no authentication itself, but logs
+<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> with every action.</p></li>
+<li><p><strong>scrap</strong> has a second Ingress for <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> only, without the oauth2-proxy
+annotations, because an MCP client cannot do a browser login. That path is
+protected by the Access service token at the edge and by scrap’s own
+bearer token. A NetworkPolicy admits only ingress-nginx to the scrap pod,
+so nothing else in the cluster can forge the identity headers.</p></li>
+</ul>
+</section>
+<section id="who-can-reach-what">
+<h2>Who can reach what<a class="headerlink" href="#who-can-reach-what" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Endpoint</p></th>
+<th class="head"><p>Layer 1: Access</p></th>
+<th class="head"><p>Layer 2: login</p></th>
+<th class="head"><p>Layer 3: role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">argocd</span></code></p></td>
+<td><p>Viewers or Owner</p></td>
+<td><p>Dex (GitHub)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">role:admin</span></code> for <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, else <code class="docutils literal notranslate"><span class="pre">role:readonly</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argocd-monitor</span></code></p></td>
+<td><p>Viewers or Owner</p></td>
+<td><p>Dex, through its own sidecar</p></td>
+<td><p>The user’s ArgoCD role</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code></p></td>
+<td><p>Viewers or Owner</p></td>
+<td><p>Dex (GitHub)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Admin</span></code> for <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, else <code class="docutils literal notranslate"><span class="pre">Viewer</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">headlamp</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>Pasted ServiceAccount token: <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">alertmanager</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code> (dashboard)</p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>None; actions logged by email</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>None; scrap has no login</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code> <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
+<td><p>Service token</p></td>
+<td><p>scrap’s bearer token</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
+<td><p>Bypass: public</p></td>
+<td><p>None</p></td>
+<td><p>Static files only</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<td><p>Bypass: public</p></td>
+<td><p>ntfy’s own access tokens</p></td>
+<td><p>Per-user topic permissions; anonymous is denied</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>None</p></td>
+<td><p>Static landing page</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>None</p></td>
+<td><p>Test service</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>It is the login</p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-odd"><td><p>Jellyfin</p></td>
+<td><p>Not on Cloudflare: LAN and tailnet only</p></td>
+<td><p>Jellyfin’s own users</p></td>
+<td><p>Jellyfin’s own</p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft game ports</p></td>
+<td><p>Not on Cloudflare: VPS relay</p></td>
+<td><p>Minecraft account (online mode)</p></td>
+<td><p>The world’s whitelist and ops</p></td>
+</tr>
+<tr class="row-odd"><td><p>Kubernetes API (<code class="docutils literal notranslate"><span class="pre">k3s.lan:6443</span></code>)</p></td>
+<td><p>Not on Cloudflare: LAN and tailnet</p></td>
+<td><p>Client certificate in the kubeconfig</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>SSH to nodes</p></td>
+<td><p>Not on Cloudflare: LAN and tailnet</p></td>
+<td><p>Key, as the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account</p></td>
+<td><p>Passwordless sudo</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="the-whole-picture">
+<h2>The whole picture<a class="headerlink" href="#the-whole-picture" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart TB
+    Internet((&quot;Internet and LAN&quot;))
+
+    subgraph Cloudflare[&quot;Cloudflare edge&quot;]
+        CFA[&quot;Access:&lt;br/&gt;Owner, Viewers&quot;]
+        BYP[&quot;Access bypass&lt;br/&gt;or service token&quot;]
+    end
+
+    subgraph Cluster[&quot;K3s cluster&quot;]
+        NGINX[&quot;ingress-nginx&quot;]
+        DexSvc[&quot;Dex clients:&lt;br/&gt;ArgoCD, argocd-monitor, Grafana&quot;]
+        ProxySvc[&quot;oauth2-proxy gated:&lt;br/&gt;Headlamp, Alertmanager,&lt;br/&gt;Minecraft dashboard, scrap&quot;]
+        Plain[&quot;No login: home, echo&quot;]
+        Own[&quot;Own gate: ntfy tokens,&lt;br/&gt;scrap /mcp bearer, pages public&quot;]
+        DexPod[&quot;Dex&quot;]
+        OAP[&quot;oauth2-proxy&quot;]
+    end
+
+    GH[&quot;GitHub OAuth&quot;]
+
+    Internet --&gt; CFA --&gt; NGINX
+    Internet --&gt; BYP --&gt; NGINX
+    NGINX --&gt; DexSvc
+    NGINX --&gt; ProxySvc
+    NGINX --&gt; Plain
+    NGINX --&gt; Own
+
+    DexSvc &lt;-.-&gt; DexPod
+    ProxySvc &lt;-.-&gt; OAP
+    DexPod &lt;-.-&gt; GH
+    OAP &lt;-.-&gt; GH
+    </pre><p>Solid lines are requests; dashed lines are login redirects.</p>
+</section>
+<section id="managing-access">
+<h2>Managing access<a class="headerlink" href="#managing-access" title="Link to this heading">#</a></h2>
+<ul>
+<li><p><strong>Owner and viewers</strong> live at Cloudflare: <code class="docutils literal notranslate"><span class="pre">owner_emails</span></code>, <code class="docutils literal notranslate"><span class="pre">viewer_emails</span></code>
+and <code class="docutils literal notranslate"><span class="pre">viewer_email_domains</span></code> in the gitignored <code class="docutils literal notranslate"><span class="pre">cloudflare/live.auto.tfvars</span></code>,
+applied with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>
+(<a class="reference internal" href="../../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>). There is no viewer list in the
+cluster: a viewer is simply someone Access lets through who is not an
+administrator.</p></li>
+<li><p><strong>Administrators</strong> are <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, which exists in two files because
+Helm and Ansible each render part of the configuration:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Rendered into</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+<td><p>oauth2-proxy’s allowed-emails file; Grafana’s <code class="docutils literal notranslate"><span class="pre">role_attribute_path</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+<td><p>ArgoCD’s RBAC policy (<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/argocd.yml</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Change both, push, then run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> for the ArgoCD half; ArgoCD
+syncs the other.</p>
+</li>
+</ul>
+<p>The OAuth client secrets and cookie secrets are SealedSecrets
+(<code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret</span></code>, <code class="docutils literal notranslate"><span class="pre">argocd-monitor-oauth-secret</span></code>,
+<code class="docutils literal notranslate"><span class="pre">oauth2-proxy-credentials</span></code>). The full list, and how to rotate one, is in
+<a class="reference internal" href="../../how-to/manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>; first-time setup of the GitHub OAuth
+apps is in <a class="reference internal" href="../../how-to/oauth-setup.html"><span class="doc">Set up OAuth authentication</span></a>. A pod reads these values at start, so
+a reseal needs a restart of the pods that use it.</p>
+</section>
+<section id="why-it-is-built-this-way">
+<h2>Why it is built this way<a class="headerlink" href="#why-it-is-built-this-way" title="Link to this heading">#</a></h2>
+<p><strong>Why two login paths.</strong> Dex issues real OIDC tokens with an email claim, so
+ArgoCD and Grafana can tell an administrator from a viewer. oauth2-proxy can
+only say yes or no. Each is used where it fits: Dex for the applications
+that have roles, oauth2-proxy for the ones that do not.</p>
+<p><strong>Why oauth2-proxy is administrators only.</strong> Alertmanager, Headlamp, the
+Minecraft dashboard and scrap have no notion of a read-only user. Letting a
+viewer through the proxy would give them everything, so the proxy’s list is
+<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> and nothing else.</p>
+<p><strong>Why Dex lives inside ArgoCD.</strong> It saves a deployment and reuses the GitHub
+connector ArgoCD needs anyway. The cost is that Dex’s configuration is part
+of the ArgoCD Helm values that Ansible applies, so changing a client means a
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">cluster</span></code> run and not a Git push alone.</p>
+<p><strong>Why Access and GitHub both.</strong> Access keeps the whole internet away from
+the login pages, and its policies are the only place viewers are listed.
+The in-cluster login is what still holds when a request arrives without
+passing Cloudflare, from the LAN.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="networking.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Networking and ingress</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="security.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Security model</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#three-layers">Three layers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layer-1-cloudflare-access">Layer 1: Cloudflare Access</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layer-2-dex">Layer 2: Dex</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-native-login">ArgoCD: native login</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#argocd-monitor-a-second-client-of-the-same-dex">argocd-monitor: a second client of the same Dex</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grafana-generic-oauth">Grafana: generic OAuth</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layer-2-oauth2-proxy">Layer 2: oauth2-proxy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#who-can-reach-what">Who can reach what</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-whole-picture">The whole picture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#managing-access">Managing access</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-it-is-built-this-way">Why it is built this way</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/architecture/authentication.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/architecture/authentication.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
