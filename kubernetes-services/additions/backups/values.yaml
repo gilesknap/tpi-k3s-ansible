@@ -23,3 +23,44 @@ jellyfin:
   uid: 122
   gid: 124
   image: docker.io/keinos/sqlite3:3.54.1
+# The off-site copy to Google Drive (templates/cronjob-offsite.yaml),
+# rendered only when enabled. In the cluster these come from offsite_backup
+# in kubernetes-services/values.yaml (see the comments there), with the
+# Minecraft paths filled in from its minecraft and nfs_csi blocks.
+offsite_backup:
+  enabled: false
+  schedule: "30 5 * * *"
+  time_zone: Europe/London
+  drive_root: home-cluster-offsite
+  age_recipient: age13c5tkz4n35adg7vy73c4lk2tj5av2t8sgwy8u60uwx3ue5n5j95sly0x20
+  secret_name: offsite-backup-rclone
+  image: docker.io/rclone/rclone:1.75.2
+  age:
+    version: 1.3.2
+    sha256:
+      amd64: cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+      arm64: 6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4
+  deadline_hours: 6
+  backups:
+    uid: 65534
+    run_dirs: [scrap, scrap/monthly, scrap-curated]
+    exclude:
+      - etcd/LATEST
+      - etcd/sealed-secrets-keys.yaml.age
+      - etcd/sealed-secrets-keys.yaml.age.sha256
+    prune_days: 180
+    keep_min: 4
+  minecraft:
+    enabled: true
+    uid: 1000
+    gid: 1000
+    store_subdir: minecraft
+    worlds_server: 192.168.1.3
+    worlds_path: /k8s-dynamic/stable
+    # Folders of the worlds' share in the nightly tarball: the live worlds
+    # (the minecraft namespace's volumes) and the deleted worlds the
+    # dashboard archived. The first must not be empty.
+    world_dirs: [minecraft, archived-minecraft]
+    archive_path: /bigdisk/minecraft-archive
+    keep: 7
+    min_size_percent: 50

@@ -192,5 +192,20 @@ else
     echo "Skipping: ntfy-auth (not in JSON)"
 fi
 
+# 11. offsite-backup-rclone (backups) — optional, only if present in JSON.
+# rclone.conf is several lines, so it goes in by file, not --from-literal.
+if has_secret offsite-backup-rclone backups; then
+    echo "Sealing: offsite-backup-rclone..."
+    v_rclone_conf=$(get_key offsite-backup-rclone backups rclone.conf) || exit 1
+    printf '%s\n' "$v_rclone_conf" |
+        kubectl create secret generic offsite-backup-rclone --namespace=backups \
+            --from-file=rclone.conf=/dev/stdin \
+            --dry-run=client -o yaml | seal_to "$BASE/backups/templates/offsite-backup-rclone-secret.yaml"
+    unset v_rclone_conf
+    echo "  -> $BASE/backups/templates/offsite-backup-rclone-secret.yaml"
+else
+    echo "Skipping: offsite-backup-rclone (not in JSON)"
+fi
+
 echo ""
 echo "All secrets sealed."

@@ -1,0 +1,88 @@
+# Alerts for the nightly off-site copy to Google Drive (the offsite-backup
+# CronJob in additions/backups; docs/how-to/backup-restore.md). They use
+# kube-state-metrics' CronJob and Job series, which exist only while the
+# CronJob does, so nothing fires while offsite_backup.enabled is false.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: offsite-backup
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  groups:
+    - name: offsite-backup
+      rules:
+        # The newest finished Job of the CronJob failed (started after the
+        # last success). A failed Job is kept until a newer one fails or for
+        # a day (ttlSecondsAfterFinished), so this resolves after a day even
+        # if nothing has succeeded since; OffsiteBackupStale then covers it.
+        - alert: OffsiteBackupFailed
+          expr: >-
+            label_replace(
+              max by (namespace, owner_name) (
+                kube_job_status_start_time{namespace="backups"}
+                * on (namespace, job_name) group_left (owner_name)
+                  kube_job_owner{owner_kind="CronJob", owner_name="offsite-backup"}
+                * on (namespace, job_name) group_left ()
+                  (kube_job_failed{condition="true"} == 1)
+              ),
+              "cronjob", "$1", "owner_name", "(.*)"
+            )
+            > on (namespace, cronjob) group_left ()
+            (
+              max by (namespace, cronjob) (
+                kube_cronjob_status_last_successful_time{namespace="backups", cronjob="offsite-backup"}
+              )
+              or
+              max by (namespace, cronjob) (
+                kube_cronjob_info{namespace="backups", cronjob="offsite-backup"}
+              ) * 0
+            )
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The off-site backup to Google Drive failed.
+            description: >-
+              The newest run of the offsite-backup CronJob failed (its
+              retry too). Read its logs:
+              `kubectl -n backups logs job/<job> -c backups` and `-c minecraft`
+              (`kubectl -n backups get jobs` lists them). A run that fails
+              only on its Minecraft size check uploaded the tarball but
+              stopped pruning; see docs/how-to/backup-restore.md.
+        - alert: OffsiteBackupStale
+          expr: >-
+            time()
+            - kube_cronjob_status_last_successful_time{namespace="backups", cronjob="offsite-backup"}
+            > 36 * 3600
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: No off-site backup has succeeded for over 36 hours.
+            description: >-
+              The offsite-backup CronJob last succeeded
+              {{ $value | humanizeDuration }} ago.
+        # kube_cronjob_status_last_successful_time is absent until the
+        # first success.
+        - alert: OffsiteBackupNeverSucceeded
+          expr: >-
+            (
+              time()
+              - kube_cronjob_created{namespace="backups", cronjob="offsite-backup"}
+              > 36 * 3600
+            )
+            unless on (namespace, cronjob)
+              kube_cronjob_status_last_successful_time
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: The off-site backup has never succeeded.
+            description: >-
+              The offsite-backup CronJob has existed for over 36 hours
+              without a successful run. Check that its SealedSecret
+              (offsite-backup-rclone) decrypted
+              (`kubectl -n backups get sealedsecret,secret`) and read the
+              logs of its Jobs.

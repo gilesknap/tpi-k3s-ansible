@@ -85,6 +85,83 @@ admin_emails:
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
+# Off-site copy of the cluster's backups to Google Drive (additions/backups,
+# templates/cronjob-offsite.yaml; docs/how-to/backup-restore.md, "Off-site
+# copy to Google Drive"). A nightly CronJob in the `backups` namespace uploads,
+# with rclone, every backup under <nfs.cluster_share_path>/backups not yet on
+# Drive, plus a nightly tarball of the Minecraft store and worlds and, once,
+# the Minecraft archive. Every file is age-encrypted to age_recipient first,
+# and the job only ever adds files: a deletion on the NAS is never mirrored.
+# Set enabled to true AFTER sealing rclone's Drive credentials with
+# `just seal-rclone-drive <client_secret.json>` and committing
+# additions/backups/templates/offsite-backup-rclone-secret.yaml. Its alerts
+# (additions/grafana/offsite-backup-rules.yaml) fire only while it is enabled.
+offsite_backup:
+  enabled: false
+  # 05:30 Europe/London: after the other nightly backups (etcd 23:15,
+  # jellyfin 01:45, grafana 02:45, scrap 03:30) and the kured window.
+  schedule: "30 5 * * *"
+  time_zone: Europe/London
+  # Folder in the Drive's root. With the drive.file scope rclone sees only
+  # what it made, so a folder of this name made by hand is a different one.
+  drive_root: home-cluster-offsite
+  # age public key every file is encrypted to: one key for every backup.
+  # SYNC: etcd_backup_age_recipient in group_vars/all.yml.
+  age_recipient: age13c5tkz4n35adg7vy73c4lk2tj5av2t8sgwy8u60uwx3ue5n5j95sly0x20
+  # Each pinned to a release at least two weeks old when chosen; keep that
+  # rule when bumping. The rclone image is Alpine with busybox (sh, tar).
+  # age is not in it: an init container fetches the release tarball for the
+  # node's architecture and checks it against these sha256s, so bump
+  # `version` and both checksums together
+  # (https://github.com/FiloSottile/age/releases).
+  image: docker.io/rclone/rclone:1.75.2
+  age:
+    version: 1.3.2
+    sha256:
+      amd64: cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+      arm64: 6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4
+  # A run is stopped after this long; the next run carries on where it
+  # stopped. Only the first upload (several GB) should come near it.
+  deadline_hours: 6
+  backups:
+    # Runs as the NAS's squashed-root owner (nobody), which owns the
+    # mode-0600 etcd bundles and sealed-secrets key exports.
+    uid: 65534
+    # Folders (under backups/) whose subfolders are backup runs, each
+    # uploaded as one tarball once it has a COMPLETE marker (scrap's runs),
+    # or as <run>.incomplete.tar.age once the run folder (its mtime) is two
+    # days old without one.
+    run_dirs: [scrap, scrap/monthly, scrap-curated]
+    # Files rewritten in place each night; their dated copies are uploaded.
+    exclude:
+      - etcd/LATEST
+      - etcd/sealed-secrets-keys.yaml.age
+      - etcd/sealed-secrets-keys.yaml.age.sha256
+    # Delete a file this job made on Drive only when its source is gone
+    # from the NAS and it was uploaded over prune_days ago, and never the
+    # keep_min newest of its series (one folder's files that differ only
+    # in date or time). 0 never deletes.
+    prune_days: 180
+    keep_min: 4
+  # Only with enable_minecraft. Store and archive paths come from the
+  # minecraft block, the worlds' share from nfs_csi.
+  minecraft:
+    enabled: true
+    # The owner of the worlds' files (level.dat is mode 0600).
+    uid: 1000
+    gid: 1000
+    # The worlds' share root; empty means nfs_csi.stable_share. The nightly
+    # tarball takes its minecraft/ folder (the live worlds) and
+    # archived-minecraft/ (deleted worlds).
+    worlds_path: ""
+    # Nightly tarballs kept on Drive.
+    keep: 7
+    # A nightly tarball under this percentage of the largest one on Drive
+    # fails the run and stops pruning, so a wiped source cannot push the
+    # good copies out.
+    min_size_percent: 50
+    # Upload minecraft.archive_path (once, and again only if it changes).
+    archive: true
 # Dynamically provisioned RWX volumes from the NFS CSI driver, in two classes.
 # Workload charts retain durable PVCs across Helm/Argo removal.
 nfs_csi:

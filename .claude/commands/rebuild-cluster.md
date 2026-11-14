@@ -163,6 +163,9 @@ the rebuild keeps them:
   each is kept; any not set is generated, with a warning naming the user
   (never the value). Only if the user asks to rotate
   one, remove its line from `.env`.
+- `OFFSITE_BACKUP_RCLONE_CONF_B64` (the off-site backup's `rclone.conf`,
+  base64): its Google Drive token came from a browser consent, so it is
+  resealed as exported into `offsite-backup-rclone`; skipped if unset.
 
 scrap's secrets are sealed only when `SCRAP_ANTHROPIC_API_KEY` is set.
 

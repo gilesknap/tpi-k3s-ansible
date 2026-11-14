@@ -76,4 +76,5 @@ Use this checklist when setting up a new cluster or auditing an existing one.
 
 - [ ] CronJob backup targets verified with at least 7 days of retention on NAS
 - [ ] Sealed-secrets key exported and stored securely
+- [ ] Off-site copy enabled ({ref}`offsite-backup`) and a file from Drive decrypted with your age key
 - [ ] Disaster recovery procedure documented and tested

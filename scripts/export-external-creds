@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Export external credentials (GitHub OAuth, Cloudflare, VPS relay,
-# scrap) from the running cluster into a .env file at the repo
-# root (gitignored). scrap's MCP and publish tokens and ntfy's access tokens
+# scrap, the off-site backup's Google Drive token) from the running cluster
+# into a .env file at the repo root (gitignored). The off-site backup's
+# rclone.conf is exported base64-encoded, as one line. scrap's MCP and publish tokens and ntfy's access tokens
 # are not external, but they are exported too so that a rebuild keeps them:
 # every MCP client holds a copy of SCRAP_MCP_TOKEN, and each ntfy client
 # (the phone app, the VPS) holds a copy of its token.
@@ -9,6 +10,19 @@ set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
 # Optional secret: returns empty if the secret/key doesn't exist.
 get_key_opt() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" 2>/dev/null | base64 -d 2>/dev/null || true; }
+# The off-site backup's rclone.conf, base64 as the Secret holds it: empty
+# only if the Secret does not exist; any other kubectl error stops here,
+# before .env is written.
+if ! rclone_conf_b64=$(kubectl get secret offsite-backup-rclone -n backups \
+    -o jsonpath='{.data.rclone\.conf}' 2>&1); then
+    if [[ $rclone_conf_b64 == *NotFound* ]]; then
+        rclone_conf_b64=
+    else
+        echo "$rclone_conf_b64" >&2
+        echo "ERROR: could not read the offsite-backup-rclone Secret" >&2
+        exit 1
+    fi
+fi
 # ntfy: one NTFY_<USER>_TOKEN per user in SENDERS (scripts/lib/ntfy_auth.py).
 # Ask the helper first, so a failure stops before .env is written.
 ntfy_users=$(python3 "$(dirname "$0")/lib/ntfy_auth.py" users)
@@ -24,6 +38,7 @@ VPS_RELAY_FRP_TOKEN=$(get_key_opt vps-relay-credentials vps-relay frp-token)
 SCRAP_ANTHROPIC_API_KEY=$(get_key_opt scrap-secrets scrap ANTHROPIC_API_KEY)
 SCRAP_MCP_TOKEN=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN)
 SCRAP_PUBLISH_TOKEN=$(get_key_opt scrap-publish scrap token)
+OFFSITE_BACKUP_RCLONE_CONF_B64=$rclone_conf_b64
 EOF
 for user in $ntfy_users; do
     var="NTFY_$(printf %s "$user" | tr '[:lower:]' '[:upper:]')_TOKEN"
