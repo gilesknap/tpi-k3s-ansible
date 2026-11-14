@@ -487,6 +487,7 @@ Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
 | `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once the run folder is two days old (its modification time) |
 | `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`/bigdisk/k8s-cluster/minecraft`: its backups, snapshots and state), and from `/k8s-dynamic/stable` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
 | `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`/bigdisk/minecraft-archive`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
+| `minecraft/archive/CURRENT.age` | the name of the archive copy that matched the NAS on the last successful check, and that check's time (UTC) | every night the archive check succeeds; a failed upload leaves the previous one |
 
 A backup is uploaded when no file of its name is on Drive yet, so each goes
 up once. Skipped: dotfiles, files written in the last 10 minutes, and
@@ -773,15 +774,14 @@ installing the cluster.
 - **Minecraft.** The newest `minecraft/nightly/minecraft-<time>.tar.age`
   holds `store/` (the contents of `/bigdisk/k8s-cluster/minecraft`) and
   `stable/minecraft/` and `stable/archived-minecraft/` (the folders of
-  those names in `/k8s-dynamic/stable`). The newest
+  those names in `/k8s-dynamic/stable`). Each
   `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` holds
-  `archive/` (the contents of `/bigdisk/minecraft-archive`). There is one
-  for each state the archive has had, and a state that comes back is not
-  uploaded again, so the last upload is the current archive unless the
-  archive was changed back to an earlier state (files removed again, or
-  restored to an earlier size). If it may have been, list the candidates
-  (`age -d -i <key> <file> | tar -tv`) and take the one whose files and
-  sizes are the archive you had. Unpack each into its place. The store and the worlds must be owned by `1000:1000`.
+  `archive/` (the contents of `/bigdisk/minecraft-archive`) in one of the
+  states it has had. A state that comes back is not uploaded again, so the
+  newest upload is not always the current one: read
+  `minecraft/archive/CURRENT.age` (`age -d -i <key> CURRENT.age`), which
+  names the copy that matched on the last successful nightly check and when
+  that was, and restore that copy. Unpack each into its place. The store and the worlds must be owned by `1000:1000`.
   Make the archive read-only again with `chmod -R a-w`
   ({ref}`minecraft-nas-directories`). The dashboard re-creates the
   worlds from the registry in its store once, at its start: if it is

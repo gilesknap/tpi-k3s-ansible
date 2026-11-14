@@ -963,6 +963,10 @@ after the other nightly backups. It uses <a class="reference external" href="htt
 <td><p>the world archive (<code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code>)</p></td>
 <td><p>once; again only if its files change (the fingerprint hashes their names and sizes)</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft/archive/CURRENT.age</span></code></p></td>
+<td><p>the name of the archive copy that matched the NAS on the last successful check, and that check’s time (UTC)</p></td>
+<td><p>every night the archive check succeeds; a failed upload leaves the previous one</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1245,15 +1249,14 @@ Pages written since that run are lost.</p></li>
 <li><p><strong>Minecraft.</strong> The newest <code class="docutils literal notranslate"><span class="pre">minecraft/nightly/minecraft-&lt;time&gt;.tar.age</span></code>
 holds <code class="docutils literal notranslate"><span class="pre">store/</span></code> (the contents of <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft</span></code>) and
 <code class="docutils literal notranslate"><span class="pre">stable/minecraft/</span></code> and <code class="docutils literal notranslate"><span class="pre">stable/archived-minecraft/</span></code> (the folders of
-those names in <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>). The newest
+those names in <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>). Each
 <code class="docutils literal notranslate"><span class="pre">minecraft/archive/minecraft-archive-&lt;fingerprint&gt;.tar.age</span></code> holds
-<code class="docutils literal notranslate"><span class="pre">archive/</span></code> (the contents of <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code>). There is one
-for each state the archive has had, and a state that comes back is not
-uploaded again, so the last upload is the current archive unless the
-archive was changed back to an earlier state (files removed again, or
-restored to an earlier size). If it may have been, list the candidates
-(<code class="docutils literal notranslate"><span class="pre">age</span> <span class="pre">-d</span> <span class="pre">-i</span> <span class="pre">&lt;key&gt;</span> <span class="pre">&lt;file&gt;</span> <span class="pre">|</span> <span class="pre">tar</span> <span class="pre">-tv</span></code>) and take the one whose files and
-sizes are the archive you had. Unpack each into its place. The store and the worlds must be owned by <code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>.
+<code class="docutils literal notranslate"><span class="pre">archive/</span></code> (the contents of <code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code>) in one of the
+states it has had. A state that comes back is not uploaded again, so the
+newest upload is not always the current one: read
+<code class="docutils literal notranslate"><span class="pre">minecraft/archive/CURRENT.age</span></code> (<code class="docutils literal notranslate"><span class="pre">age</span> <span class="pre">-d</span> <span class="pre">-i</span> <span class="pre">&lt;key&gt;</span> <span class="pre">CURRENT.age</span></code>), which
+names the copy that matched on the last successful nightly check and when
+that was, and restore that copy. Unpack each into its place. The store and the worlds must be owned by <code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>.
 Make the archive read-only again with <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">-R</span> <span class="pre">a-w</span></code>
 (<a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>). The dashboard re-creates the
 worlds from the registry in its store once, at its start: if it is
