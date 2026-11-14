@@ -127,6 +127,11 @@ offsite_backup:
     # Runs as the NAS's squashed-root owner (nobody), which owns the
     # mode-0600 etcd bundles and sealed-secrets key exports.
     uid: 65534
+    # Extra groups for the pod, so `backups` can read scrap's backup runs
+    # (files 0660, owned 10001:10001). 10001 is scrap's uid/gid, hard-coded
+    # in additions/scrap/templates (backup-copy.yaml, migrate-job.yaml) and
+    # in scrap's image. The minecraft container gains it too: harmless.
+    supplemental_groups: [10001]
     # Folders (under backups/) whose subfolders are backup runs, each
     # uploaded as one tarball once it has a COMPLETE marker (scrap's runs),
     # or as <run>.incomplete.tar.age once the run folder (its mtime) is two
