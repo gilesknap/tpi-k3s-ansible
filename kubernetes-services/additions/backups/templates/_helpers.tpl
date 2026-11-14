@@ -1,4 +1,4 @@
-{{- /* Shared by both containers of the offsite-backup CronJob. */}}
+{{- /* Shared by the containers of the offsite-backup CronJob. */}}
 {{- define "offsite-backup.env" -}}
 - name: DRIVE_ROOT
   value: {{ printf "drive:%s" .Values.offsite_backup.drive_root | quote }}

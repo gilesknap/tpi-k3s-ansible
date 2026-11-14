@@ -486,10 +486,11 @@ changed under it (an autosave), the tarball is retried, up to 3 times.
     folder whose names differ only in their date or time (all of one node's
     etcd bundles, say); a `.sha256` sidecar counts with its bundle. So the
     newest copies of each backup always stay, however old. `0` turns
-    pruning off. A run with any error (an unreadable folder, a failed
-    upload, a failed listing) prunes nothing, and an empty `backups/` (a
-    missing mount, or a wiped NAS) stops the run before it uploads or prunes
-    anything.
+    pruning off. The `scrap` and `backups` containers prune their own parts
+    of `backups/` (the `run_dirs`, and the rest) separately: a container
+    with any error (an unreadable folder, a failed upload, a failed listing)
+    prunes nothing, and an empty `backups/` (a missing mount, or a wiped
+    NAS) stops it before it uploads or prunes anything.
   - `minecraft/nightly/`: all but the newest `keep`, and only after a good
     upload. A tarball under `min_size_percent` (50) of the largest copy on
     Drive, or a listing that fails, fails the run and stops the pruning, so
@@ -506,14 +507,22 @@ changed under it (an autosave), the tarball is retried, up to 3 times.
 
 An init container makes the Drive folders first, one at a time: Drive
 allows two folders of one name, so two containers making the same missing
-folder at once could split the backups between them. Then two containers
+folder at once could split the backups between them. Then three containers
 run side by side, because the NAS squashes root and no one user can read
-everything: `backups` runs as `nobody` (65534), which owns the root-written
-etcd bundles, with scrap's group (10001, from
-`offsite_backup.backups.supplemental_groups`) added so it can read scrap's
-group-readable backup runs, and `minecraft` as uid 1000, which owns the worlds. Either
-failing fails the Job, which is retried once; a retry uploads only the
-backups still missing, and skips the Minecraft nightly if one from the same
+everything:
+
+- `backups` runs as `nobody` (65534), which owns the root-written etcd
+  bundles, and uploads everything under `backups/` but the `run_dirs`;
+- `scrap` runs as scrap's uid and gid (`offsite_backup.scrap.uid` / `gid`,
+  10001), which own the files of its backup runs (many mode 0600, readable
+  by no group), and uploads only the `run_dirs`;
+- `minecraft` runs as uid 1000, which owns the worlds.
+
+`backups` and `scrap` share `backups/` on Drive but each lists, cleans up and
+prunes only its own part of it (the `run_dirs` folders, or the rest), so
+neither takes the other's files for orphans. Any container failing fails the
+Job, which is retried once; a retry uploads only the backups still missing,
+and skips the Minecraft nightly if one from the same
 UTC day is already on Drive. The first run uploads several GB and may take hours; a run
 stopped by `deadline_hours` is carried on by the next one.
 

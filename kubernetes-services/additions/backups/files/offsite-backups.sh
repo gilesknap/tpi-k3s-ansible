@@ -1,15 +1,23 @@
 #!/bin/sh
 # shellcheck shell=busybox
 # Off-site copy of the NAS backups tree (backups/ of the cluster share) to
-# DRIVE_ROOT/backups. Each backup that is not on Drive yet, compared by
-# name, goes up age-encrypted:
+# DRIVE_ROOT/backups, in one of two scopes (the first argument), each run by
+# its own container as the uid that can read it:
 #
-#   - a run directory (a subdirectory of one of RUN_DIRS, e.g. scrap's
-#     dated runs) as one tarball: <dir>.tar.age once it has a COMPLETE
-#     marker, or <dir>.incomplete.tar.age if it has none once the folder's
-#     mtime is two days old;
-#   - every other file as <path>.age, or as it is if it already ends .age
-#     (the etcd bundles and sealed-secrets key exports).
+#   runs    the subtrees of RUN_DIRS (scrap's backup runs, whose files are
+#           scrap's, many mode 0600): each run directory (a subdirectory of
+#           one of RUN_DIRS) as one tarball, <dir>.tar.age once it has a
+#           COMPLETE marker, or <dir>.incomplete.tar.age if it has none once
+#           the folder's mtime is two days old; and any other file in those
+#           subtrees as below;
+#   others  everything else: every file as <path>.age, or as it is if it
+#           already ends .age (the etcd bundles and sealed-secrets key
+#           exports). It does not look inside RUN_DIRS at all.
+#
+# A backup goes up only if it is not on Drive yet, compared by name. Each
+# scope reads, cleans up and prunes only its own part of DRIVE_ROOT/backups
+# (the RUN_DIRS subtrees, or the rest), so the two never touch each other's
+# files.
 #
 # Dotfiles, files written in the last 10 minutes and EXCLUDE (paths of
 # files rewritten in place, such as etcd/LATEST) are skipped. A file
@@ -29,6 +37,12 @@ set -f # no globbing of the space-separated lists
 
 # shellcheck source-path=SCRIPTDIR source=offsite-lib.sh
 . "$(dirname "$0")/offsite-lib.sh"
+
+scope=${1:-}
+case $scope in
+    runs | others) ;;
+    *) log "ERROR: usage: $0 runs|others" >&2; exit 2 ;;
+esac
 setup
 
 dest=$DRIVE_ROOT/backups
@@ -59,6 +73,42 @@ in_run() {
     return 1
 }
 
+# The RUN_DIRS not inside another of them: the subtrees that are the runs
+# scope's, on the NAS and on Drive.
+roots=
+for _r in $RUN_DIRS; do
+    _top=1
+    for _q in $RUN_DIRS; do
+        case $_r in "$_q"/*) _top= ;; esac
+    done
+    if [ -n "$_top" ]; then roots="$roots $_r"; fi
+done
+if [ "$scope" = runs ] && [ -z "$roots" ]; then
+    log "ERROR: no RUN_DIRS" >&2
+    exit 1
+fi
+
+# This scope's files under SRC (relative to it), to stdout.
+local_files() {
+    if [ "$scope" = runs ]; then
+        set --
+        for _r in $roots; do
+            if [ -d "$_r" ]; then set -- "$@" "$_r"; fi
+        done
+        [ $# -gt 0 ] || return 0
+        find "$@" -type f -mmin +10
+    elif [ -z "$roots" ]; then
+        find . -type f -mmin +10
+    else
+        set --
+        for _r in $roots; do
+            set -- "$@" -o -path "./$_r"
+        done
+        shift # the first -o
+        find . \( "$@" \) -prune -o -type f -mmin +10 -print
+    fi
+}
+
 excluded() {
     for _p in $EXCLUDE; do
         [ "$1" = "$_p" ] && return 0
@@ -75,13 +125,32 @@ if [ -z "$(ls -A .)" ]; then
     exit 1
 fi
 
-# The folder exists: the init container made it.
-remove_partials "$dest"
-rclone lsf -R --files-only "$dest" >"$remote"
-log "$(wc -l <"$remote") files already in $dest"
+# rclone filters for this scope's part of $dest, as the positional
+# parameters: each listing and deletion below passes them.
+set --
+for _r in $roots; do
+    if [ "$scope" = runs ]; then
+        set -- "$@" --filter "+ /$_r/**"
+    else
+        set -- "$@" --filter "- /$_r/**"
+    fi
+done
+if [ "$scope" = runs ]; then set -- "$@" --filter "- **"; fi
+
+# The folders exist: the init container made them (the runs scope's too).
+if [ "$scope" = runs ]; then
+    for _r in $roots; do
+        remove_partials "$dest/$_r"
+    done
+else
+    remove_partials "$dest" "$@"
+fi
+rclone lsf -R --files-only "$@" "$dest" >"$remote"
+log "$(wc -l <"$remote") files of the $scope scope already in $dest"
 
 # Run directories, each as one tarball. An unreadable one is an error
 # (so nothing is pruned), and the rest carry on.
+if [ "$scope" != runs ]; then RUN_DIRS=; fi
 for parent in $RUN_DIRS; do
     [ -d "$parent" ] || continue
     if ! find "$parent" -mindepth 1 -maxdepth 1 -type d 2>"$WORK/runs.err" | sort >"$WORK/runs"; then
@@ -115,7 +184,7 @@ for parent in $RUN_DIRS; do
 done
 
 # Every other file. find reports unreadable directories but carries on.
-find . -type f -mmin +10 2>"$WORK/find.err" | sed 's|^\./||' | sort >"$WORK/local" || true
+local_files 2>"$WORK/find.err" | sed 's|^\./||' | sort >"$WORK/local" || true
 if [ -s "$WORK/find.err" ]; then
     fail "could not read all of $SRC: $(head -n 3 "$WORK/find.err")"
 fi
@@ -149,7 +218,8 @@ done 3<"$WORK/local"
 
 log "uploaded $uploaded, already on Drive $present, errors $failures"
 
-# Pruning. Each line of the listing becomes
+# Pruning, of this scope's files (the filters are prune's arguments). Each
+# line of the listing becomes
 #   series|name time|upload time|instance|file time|source on NAS (1/0)|path
 # where the instance is the path without a .sha256(.age) sidecar suffix
 # (a bundle and its sidecar are one instance, timed by the newer upload),
@@ -161,7 +231,7 @@ log "uploaded $uploaded, already on Drive $present, errors $failures"
 prune() {
     cutoff=$(($(date +%s) - PRUNE_DAYS * 86400))
     if ! rclone lsf -R --files-only --format tp --separator '|' --time-format unix \
-        "$dest" >"$WORK/remote-times"; then
+        "$@" "$dest" >"$WORK/remote-times"; then
         fail "could not list $dest: not pruning"
         return
     fi
@@ -217,7 +287,7 @@ prune() {
 }
 
 if [ "$PRUNE_DAYS" -gt 0 ] && [ "$failures" -eq 0 ]; then
-    prune
+    prune "$@"
 elif [ "$PRUNE_DAYS" -gt 0 ]; then
     log "not pruning: this run had errors"
 fi
