@@ -30,6 +30,31 @@ spec:
             uid: {{ .Values.jellyfin.uid }}
             gid: {{ .Values.jellyfin.gid }}
             image: {{ .Values.jellyfin.seed.sqlite_image | quote }}
+          {{- with .Values.offsite_backup }}
+          offsite_backup:
+            enabled: {{ .enabled }}
+            schedule: {{ .schedule | quote }}
+            time_zone: {{ .time_zone | quote }}
+            drive_root: {{ .drive_root | quote }}
+            age_recipient: {{ .age_recipient | quote }}
+            image: {{ .image | quote }}
+            age:
+{{ toYaml .age | indent 14 }}
+            deadline_hours: {{ .deadline_hours }}
+            backups:
+{{ toYaml .backups | indent 14 }}
+            minecraft:
+              enabled: {{ and $.Values.enable_minecraft .minecraft.enabled }}
+              uid: {{ .minecraft.uid }}
+              gid: {{ .minecraft.gid }}
+              store_subdir: {{ $.Values.minecraft.store_subdir | quote }}
+              worlds_server: {{ $.Values.nfs_csi.server | quote }}
+              worlds_path: {{ .minecraft.worlds_path | default $.Values.nfs_csi.stable_share | quote }}
+              worlds_subdir: minecraft
+              archive_path: {{ ternary $.Values.minecraft.archive_path "" .minecraft.archive | quote }}
+              keep: {{ .minecraft.keep }}
+              min_size_percent: {{ .minecraft.min_size_percent }}
+          {{- end }}
   syncPolicy:
     automated:
       prune: true
