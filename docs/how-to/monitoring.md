@@ -188,10 +188,11 @@ The configuration is the `alertmanager.config` block in `grafana.yaml`.
 |--------|--------|
 | Any `severity=critical` | Yes, ntfy priority 5 (urgent) |
 | `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
+| `OffsiteBackup*` (the three off-site backup alerts) | Yes, priority 3 |
 | `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |
 | Volumes and filesystems filling up: `KubePersistentVolumeFillingUp`, `KubePersistentVolumeInodesFillingUp`, `NodeFilesystemSpaceFillingUp`, `NodeFilesystemAlmostOutOfSpace`, `NodeFilesystemFilesFillingUp`, `NodeFilesystemAlmostOutOfFiles` | Yes, priority 3 (5 for their critical variants) |
 | `CertManagerCertificateExpiringSoon` | Yes |
-| `OffsiteBackup*` | **No.** They are warnings and are not in the route's list, so they reach `null`; look for them in Alertmanager |
+| `KubeJobFailed`, which is how a failed `grafana-*`, `jellyfin-*` or `scrap-backup*` CronJob shows | No (`null`): a warning not in the list |
 | `Watchdog`, `InfoInhibitor` and everything else | No (`null`) |
 
 - **Grouping:** one notification per alert name (`group_by: [alertname]`),

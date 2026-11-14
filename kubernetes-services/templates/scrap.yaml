@@ -54,10 +54,17 @@ spec:
           litestream:
             enabled: true
 
-          # Nightly `scrap backup --from-replica` to a static NFS PV.
+          # Nightly `scrap backup --from-replica` to a static NFS PV. 00:30
+          # (monthly: 00:40 on the 1st) Europe/London: clear of the k3s
+          # upgrade (01:00) and kured (02:30) windows, which drain nodes,
+          # and before scrap-backup-copy (00:50) and offsite-backup (05:30).
           backup:
             enabled: true
+            schedule: "30 0 * * *"
             timeZone: Europe/London
+            monthly:
+              schedule: "40 0 1 * *"
+              timeZone: Europe/London
             persistence:
               existingClaim: scrap-backups-nfs
           # gc and the Claude passes run in the pod's jobs container, where an

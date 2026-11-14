@@ -35,7 +35,7 @@ flowchart TB
     nginx --> pub
     scrap -->|"pushes public pages"| pub
     scrap --- nas
-    nas -->|"05:00 copy"| nuc2
+    nas -->|"00:50 copy"| nuc2
 ```
 
 The ArgoCD Application `kubernetes-services/templates/scrap.yaml` has three
@@ -139,8 +139,8 @@ on the NAS lets the pod start anywhere.
 | The database | An `emptyDir` on the pod's node, at `/db/scrap.db` |
 | Its replica, about a second behind | `/data/litestream` on `scrap-data-nfs` (`/bigdisk/k8s-cluster/scrap-data` on the NAS) |
 | Files and the preview cache | `/data` on `scrap-data-nfs` |
-| Backups: `scrap-backup` daily at 03:30 Europe/London (keeps 7), `scrap-backup-monthly` at 03:50 UTC on the 1st (keeps 12; it sets no `timeZone`) | `scrap-backups-nfs` (`/bigdisk/k8s-cluster/backups/scrap`) |
-| The newest complete backup run, copied by `scrap-backup-copy` at 05:00 (keeps 3) | The `scrap-backup-copy` claim: a `local-nvme` PV on nuc2, `/home/k8s-data/scrap-backup-copy` |
+| Backups: `scrap-backup` daily at 00:30 Europe/London (keeps 7), `scrap-backup-monthly` at 00:40 Europe/London on the 1st (keeps 12) | `scrap-backups-nfs` (`/bigdisk/k8s-cluster/backups/scrap`) |
+| The newest complete backup run, copied by `scrap-backup-copy` at 00:50 Europe/London (keeps 3) | The `scrap-backup-copy` claim: a `local-nvme` PV on nuc2, `/home/k8s-data/scrap-backup-copy` |
 
 Both NFS volumes are static PVs at fixed directories
 ({ref}`scrap-nas-directories`), so a cluster rebuild binds the same data
