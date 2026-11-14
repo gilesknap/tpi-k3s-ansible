@@ -20,6 +20,9 @@ What is **not** in Git and needs separate backup:
 | Default dynamic NFS volumes (`nfs-stable`), incl. Minecraft worlds | NFS NAS, `<nfs_csi.stable_share>/<namespace>/<pvc>` | survive a rebuild in place; no cluster backup (Minecraft: dashboard snapshots) |
 | Scratch dynamic NFS volumes (`nfs-rwx`) | NFS NAS, `<nfs_csi.share>/<namespace>/<pvc>-<pv>` | not re-bound after a rebuild; the folders stay on the NAS |
 
+Everything above that reaches the NAS also goes off site: a nightly job
+copies it, age-encrypted, to Google Drive ({ref}`offsite-backup`).
+
 ## Stateful app data: CronJob-to-NFS backups
 
 The `backups` ArgoCD Application (`kubernetes-services/templates/backups.yaml`)
@@ -416,6 +419,157 @@ sudo k3s server --cluster-reset \
 sudo systemctl start k3s
 ```
 
+(offsite-backup)=
+## Off-site copy to Google Drive
+
+Every backup above ends up on the NAS, so a lost NAS would take them all.
+The `offsite-backup` CronJob (`additions/backups/templates/cronjob-offsite.yaml`,
+values in `offsite_backup` in `kubernetes-services/values.yaml`) copies them
+to a folder in a personal Google Drive each night, at 05:30 Europe/London,
+after the other nightly backups. It uses [rclone](https://rclone.org/).
+
+### What goes up
+
+Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
+
+| On Drive | From | When |
+|----------|------|------|
+| `backups/<path>.age` | each file under `backups/` on the NAS, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`; files that already end `.age` (the etcd bundles and sealed-secrets key exports) go up as they are | once, the first night it is there |
+| `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's dated runs) as one tarball | once it has its `COMPLETE` marker, or has not changed for two days |
+| `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`<nfs.cluster_share_path>/<minecraft.store_subdir>`) and the worlds' volumes (`<nfs_csi.stable_share>/minecraft`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
+| `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`minecraft.archive_path`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
+
+A backup is uploaded when no file of its name is on Drive yet, so each goes
+up once. Skipped: dotfiles, files written in the last 10 minutes, and
+`offsite_backup.backups.exclude`, the files rewritten in place each night
+(`etcd/LATEST` and the undated `sealed-secrets-keys.yaml.age`, whose dated
+copies are uploaded). Media and photos are not backed up.
+
+The worlds are copied while they run. A world whose server was mid-write
+can need the copy from the night before, or one of the dashboard's own
+backups (in the store, so in the same tarball).
+
+### How it is kept safe
+
+- **Encrypted before it leaves.** Every file is encrypted with
+  [age](https://github.com/FiloSottile/age) to `offsite_backup.age_recipient`,
+  the same public key as the etcd backup (`etcd_backup_age_recipient`; one
+  key opens every backup). The cluster holds only the public key. Files are
+  streamed through `age` into `rclone rcat`, so nothing decrypted is staged
+  anywhere.
+- **Least privilege.** rclone's token has the `drive.file` scope: it sees
+  and changes only the files it created, nothing else in the Drive.
+- **Add only.** The job never mirrors a deletion: a backup deleted on the
+  NAS, by its own retention or by a wiped or encrypted NAS, stays on Drive.
+  The only deletions are its own pruning, of files it made:
+  - `backups/`: files older than `offsite_backup.backups.prune_days` (180)
+    days, except the `keep_min` (4) newest in each folder, whatever their
+    age. They go to the Drive's trash. `0` turns pruning off. A run with any
+    error prunes nothing, and an empty `backups/` (a missing mount, or a
+    wiped NAS) stops the run before it uploads or prunes anything.
+  - `minecraft/nightly/`: all but the newest `keep`, and only after a good
+    upload. A tarball under `min_size_percent` (50) of the largest copy on
+    Drive fails the run and stops the pruning, so a wiped or half-mounted
+    source cannot push the good copies out. After deleting a lot of worlds
+    on purpose, delete the larger copies on Drive by hand, or the job keeps
+    failing.
+  - `minecraft/archive/` is never pruned.
+- **Partial uploads never count.** Each encrypted stream goes to a
+  `.partial-` name and is renamed only once the whole pipeline has
+  succeeded, so a cut-off upload is never taken for a complete one and is
+  retried the next night.
+
+Two containers run side by side, because the NAS squashes root and no one
+user can read everything: `backups` runs as `nobody` (65534), which owns the
+root-written etcd bundles, and `minecraft` as uid 1000, which owns the
+worlds. Either failing fails the Job, which is retried once; a retry uploads
+only what is still missing. The first run uploads several GB and may take
+hours; a run stopped by `deadline_hours` is carried on by the next one.
+
+### Alerts
+
+`kubernetes-services/additions/grafana/offsite-backup-rules.yaml` alerts
+from kube-state-metrics' CronJob and Job series, so nothing fires while the
+CronJob is disabled:
+
+- `OffsiteBackupFailed`: the newest run failed.
+- `OffsiteBackupStale`: no successful run for 36 hours.
+- `OffsiteBackupNeverSucceeded`: the CronJob has existed for 36 hours
+  without a successful run (for example, its SealedSecret did not decrypt).
+
+### Set it up
+
+You need a Google account with space for the backups, and an age key pair
+(the etcd backup's: {ref}`etcd-offsite-backup`).
+
+1. **Create an OAuth client** in the [Google Cloud console](https://console.cloud.google.com/):
+   1. Create a project (any name, e.g. `home-cluster-backup`) and enable
+      the **Google Drive API** in it.
+   2. Under **Google Auth Platform**, configure the consent screen as
+      **External**, add your address as a test user, and then **publish
+      the app to production**. A consent screen left in *Testing* issues
+      refresh tokens that expire after 7 days. An unverified app is fine
+      for your own account: Google warns once, and you continue.
+   3. Under **Clients**, create a client of type **Desktop app** and
+      download its JSON (`client_secret_<...>.json`). Keep it outside the
+      repository.
+2. **Seal rclone's credentials.** In the devcontainer (it has rclone, and
+   forwards port 53682 for the OAuth redirect):
+
+   ```bash
+   just seal-rclone-drive ~/Downloads/client_secret_<...>.json
+   ```
+
+   Open the link it prints, sign in, and allow access. Google redirects to
+   `http://127.0.0.1:53682/`, where `rclone authorize` is waiting. The
+   script builds `rclone.conf` (a `[drive]` remote with the `drive.file`
+   scope) in memory and pipes it through `kubeseal` into
+   `kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml`.
+   Nothing secret is printed or written to disk.
+3. **Turn it on.** Commit the sealed file and set
+   `offsite_backup.enabled: true` in `kubernetes-services/values.yaml`. Check
+   `offsite_backup.age_recipient` is your age public key. Open a PR and
+   merge it.
+4. **Run it once now**, rather than waiting for the night:
+
+   ```bash
+   just offsite-backup-now
+   ```
+
+   Then look in your Drive for the `home-cluster-offsite` folder, and prove
+   you can decrypt a file from it (see below).
+
+rclone refreshes its access token itself; the refresh token in the Secret
+does not change. Re-run step 2 (and commit) if Google revokes it, for
+example after a password change, or if you rotate the client secret.
+**After a cluster rebuild** the old SealedSecret no longer decrypts (a
+rebuild makes a new sealing key), so re-run step 2 then too.
+
+### Restore from Drive
+
+Download what you need, either from the Drive web page (a folder downloads
+as a zip) or with rclone, on any machine with your rclone config (the
+sealed one, or a fresh `rclone config` with a `drive.file` remote: a new
+token from the same OAuth client sees the same files):
+
+```bash
+rclone lsf -R drive:home-cluster-offsite/backups/grafana
+rclone copy drive:home-cluster-offsite/backups/grafana/<file>.tar.gz.age .
+```
+
+Then decrypt with the private key, and verify or unpack:
+
+```bash
+age -d -i ~/k3s-etcd-backup.agekey <file>.tar.gz.age > <file>.tar.gz
+age -d -i ~/k3s-etcd-backup.agekey <run>.tar.age | tar -x      # a scrap run
+age -d -i ~/k3s-etcd-backup.agekey minecraft-<time>.tar.age | tar -t | head
+```
+
+The etcd bundles and sealed-secrets key exports are as they were on the NAS
+(`.tar.age`, `.yaml.age`): restore them as in the sections above. Put a
+decrypted backup back where the restore recipes above expect it (on the
+NAS, under `backups/<app>/`), or restore from it directly.
+
 ## Disaster recovery
 
 If only the control plane is lost, restore it from the nightly etcd backup
@@ -431,10 +585,13 @@ To rebuild a cluster from scratch:
    ({ref}`sealed-secrets-key-backup`). A planned rebuild reseals instead;
    re-export your offline key copy afterwards.
 5. Re-create the `admin-auth` secrets (see {doc}`bootstrap-cluster`).
+   Re-seal the off-site backup's Drive credentials if it is enabled
+   ({ref}`offsite-backup`): a rebuilt cluster has a new sealing key.
 6. ArgoCD auto-syncs all services from Git.
 7. If `wipe_local_data=true` was used on decommission, restore stateful
    data from the latest NFS backup under `/bigdisk/k8s-cluster/backups/`
-   using the restore recipes above. Otherwise, local PV data is still
+   using the restore recipes above (or, if the NAS was lost too, from the
+   off-site copy: {ref}`offsite-backup`). Otherwise, local PV data is still
    intact from before the rebuild and re-binds automatically. scrap's
    static NFS volumes re-bind too, and its pod restores the database from
    the replica.

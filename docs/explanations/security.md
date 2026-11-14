@@ -60,6 +60,7 @@ Current SealedSecrets:
 - `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml` — Alertmanager's ntfy token
 - `kubernetes-services/additions/scrap/templates/scrap-secret.yaml` — scrap's Claude API key + `/mcp` bearer token
 - `kubernetes-services/additions/scrap/templates/scrap-publish-secret.yaml`, `scrap-public-publish-secret.yaml` — scrap's public-pages upload token
+- `kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml` — rclone's Google Drive client and `drive.file` token (optional off-site backup)
 
 {doc}`/how-to/manage-sealed-secrets` has the full table.
 

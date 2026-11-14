@@ -124,6 +124,23 @@ ansible-playbook pb_all.yml \
 | `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
+| `offsite_backup.enabled` | `false` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). Set `true` only after sealing its credentials (`just seal-rclone-drive`) |
+| `offsite_backup.schedule` / `time_zone` | `30 5 * * *` / `Europe/London` | When it runs: after the other nightly backups |
+| `offsite_backup.drive_root` | `home-cluster-offsite` | Folder in the Drive's root that everything goes into |
+| `offsite_backup.age_recipient` | *(age public key)* | age public key every file is encrypted to; keep it the same as `etcd_backup_age_recipient` |
+| `offsite_backup.image` | `docker.io/rclone/rclone:1.75.2` | rclone image (Alpine, busybox) both containers run |
+| `offsite_backup.age.version` / `sha256.amd64` / `sha256.arm64` | `1.3.2` / *(checksums)* | age release an init container fetches, checked against these checksums; bump all three together |
+| `offsite_backup.deadline_hours` | `6` | A run is stopped after this long; the next carries on |
+| `offsite_backup.backups.uid` | `65534` | User the `backups` container runs as: the NAS's squashed-root owner of the etcd bundles |
+| `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly, scrap-curated]` | Folders under `backups/` whose subfolders are runs, each uploaded as one tarball once complete |
+| `offsite_backup.backups.exclude` | `etcd/LATEST`, `etcd/sealed-secrets-keys.yaml.age{,.sha256}` | Paths under `backups/` rewritten in place, never uploaded |
+| `offsite_backup.backups.prune_days` / `keep_min` | `180` / `4` | Delete the job's files on Drive older than this many days (`0`: never), keeping the `keep_min` newest in each folder |
+| `offsite_backup.minecraft.enabled` | `true` | Also upload the Minecraft store, worlds and archive (only with `enable_minecraft`) |
+| `offsite_backup.minecraft.uid` / `gid` | `1000` / `1000` | User the `minecraft` container runs as: the owner of the worlds' files |
+| `offsite_backup.minecraft.worlds_path` | `""` (`nfs_csi.stable_share`) | Share whose `minecraft/` folder holds the worlds' volumes |
+| `offsite_backup.minecraft.keep` | `7` | Nightly Minecraft tarballs kept on Drive |
+| `offsite_backup.minecraft.min_size_percent` | `50` | A nightly tarball smaller than this percentage of the largest on Drive fails the run and stops pruning |
+| `offsite_backup.minecraft.archive` | `true` | Upload `minecraft.archive_path` (once, and again only if it changes) |
 | `enable_minecraft` | `true` | Deploy the Minecraft dashboard ({doc}`/how-to/minecraft`) |
 | `minecraft.chart_version` | `0.5.2` | Version of the `ghcr.io/gilesknap/charts/minecraft-dashboard` OCI chart (image tag follows the chart's appVersion) |
 | `minecraft.archive_path` | `/bigdisk/minecraft-archive` | Read-only NFS path of the world archive on `nfs.server` (outside the cluster share) |
@@ -141,8 +158,8 @@ ansible-playbook pb_all.yml \
 The root Application passes `repo_branch` in from Ansible, so the copy in values.yaml is
 only a default; switch branches with `just switch-branch <branch>`.
 
-The `nfs.*` values feed the static backup, Minecraft and scrap volumes and Jellyfin's
-media, and the `etcd_backup`
+The `nfs.*` values feed the static backup, Minecraft and scrap volumes, Jellyfin's
+media and the off-site backup's mounts, and the `etcd_backup`
 role reads them from `values.yaml` for its NAS mount. The `nfs_csi.*` values configure
 the dynamic NFS StorageClasses separately.
 

@@ -570,6 +570,12 @@ Tell the user:
   sealed-secrets keys is now stale: re-export it as in
   `docs/how-to/backup-restore.md` ("Keep an offline copy"). The nightly
   NAS copy updates itself.
+- If `offsite_backup.enabled` is true, its SealedSecret
+  (`offsite-backup-rclone`) was sealed with the old key and the rebuild
+  could not reseal it (its token comes from a browser consent): they must
+  run `just seal-rclone-drive <client_secret.json>` and commit the result,
+  or `OffsiteBackupNeverSucceeded` fires
+  (`docs/how-to/backup-restore.md`, "Off-site copy to Google Drive").
 - Once they have verified the rebuild, delete `.env` (`rm .env` at the
   repo root): it holds the external credentials in plaintext and exists
   only for the rebuild. The recovery copy of those credentials is the
