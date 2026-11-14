@@ -51,3 +51,24 @@ RUN set -eu; \
     dpkg -i "/tmp/${deb}"; \
     rm "/tmp/${deb}"; \
     rclone version
+
+# age and age-keygen, for encrypting and decrypting the off-site backups and
+# key exports. Pinned and checked against the release tarball's sha256.
+# SYNC: offsite_backup.age in kubernetes-services/values.yaml.
+ARG AGE_RELEASE=1.3.2
+ARG AGE_SHA256_AMD64=cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+ARG AGE_SHA256_ARM64=6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4
+RUN set -eu; \
+    arch=$(dpkg --print-architecture); \
+    case "$arch" in \
+        amd64) sha=$AGE_SHA256_AMD64 ;; \
+        arm64) sha=$AGE_SHA256_ARM64 ;; \
+        *) echo "no age checksum for $arch" >&2; exit 1 ;; \
+    esac; \
+    tgz="age-v${AGE_RELEASE}-linux-${arch}.tar.gz"; \
+    curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_RELEASE}/${tgz}" -o "/tmp/${tgz}"; \
+    echo "${sha}  /tmp/${tgz}" | sha256sum -c -; \
+    tar -xzf "/tmp/${tgz}" --no-same-owner --strip-components=1 -C /usr/local/bin age/age age/age-keygen; \
+    rm "/tmp/${tgz}"; \
+    age --version; \
+    age-keygen --version
