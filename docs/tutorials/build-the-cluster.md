@@ -201,6 +201,20 @@ session. Keep a copy of `.env` somewhere safe and off the cluster: after a
 real disaster it is the quick way back, and without it each value has to be
 fetched again from where it was issued.
 
+The tunnel's token is the one value that cannot be looked up: Cloudflare
+does not show it again, and the only copies are the old cluster's Secret
+and the OpenTofu state. With the state to hand, add it to `.env` without
+printing it:
+
+```bash
+(umask 077; printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' \
+  "$(scripts/cf-tofu output -raw tunnel_token)" >> .env)
+```
+
+With no tunnel at all (a new Cloudflare account), create it first:
+{ref}`build the edge from nothing <build-edge-from-nothing>`, below, comes
+before the playbook in that case.
+
 ## Run the playbook
 
 The build commits the newly sealed secrets and pushes them, and nothing is
@@ -310,20 +324,30 @@ just cf-init      # once per checkout: provider and encrypted local state
 just cf-plan      # expect "No changes"
 ```
 
-Building the edge from nothing is the same commands plus an apply:
+(build-edge-from-nothing)=
+Building the edge from nothing is the same commands plus an apply, and it
+is done before the playbook runs, not after: the playbook needs the
+tunnel's token, and the tunnel does not exist until the apply has created
+it.
 
 ```bash
 just cf-init
-just cf-plan
-just cf-apply             # asks for the edit token and for confirmation
-just cf-seal-tunnel-token # seals the new tunnel's token for cloudflared
+just cf-plan      # everything shows as "to add"
+just cf-apply     # asks for the edit token and for confirmation
 ```
 
-`cf-seal-tunnel-token` reads the token from the encrypted state, writes
-`kubernetes-services/additions/cloudflared/tunnel-secret.yaml` without ever
-printing the token, and updates `.env` if it is there. Commit and push the
-file and ArgoCD delivers it. {doc}`/how-to/cloudflare-as-code` has the
-tokens, the state passphrase and `live.auto.tfvars`.
+Then put the new token in `.env` with the command under
+[Collect the credentials](#collect-the-credentials), and the playbook seals
+it with every other secret. {doc}`/how-to/cloudflare-as-code` has the
+tokens, the state passphrase, `live.auto.tfvars` and the things a new
+account needs before the first plan.
+
+Once the cluster is up, a later change of token is sealed by
+`just cf-seal-tunnel-token`. It reads the token from the encrypted state,
+writes `kubernetes-services/additions/cloudflared/tunnel-secret.yaml`
+without ever printing the token, and updates the `CLOUDFLARE_TUNNEL_TOKEN`
+line in `.env` if there is one. It needs the running cluster's Sealed
+Secrets controller, so it cannot stand in for the step above.
 
 ## Verify
 

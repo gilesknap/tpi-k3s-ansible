@@ -621,6 +621,9 @@ If node02 is dead, restore the control plane onto node03, the warm standby:
 
 **Symptom:** K3s logs show `mvcc: database space exceeded`.
 
+etcd has reached its quota (2 GiB, the default: the `k3s` role does not set
+one), raised a `NOSPACE` alarm and refuses writes.
+
 **Fix:** Take a snapshot, then restart K3s:
 
 ```bash
@@ -629,7 +632,18 @@ sudo k3s etcd-snapshot save --name manual-backup
 sudo systemctl restart k3s
 ```
 
-K3s's embedded etcd auto-compacts, but a restart forces immediate compaction.
+The API server compacts old revisions every five minutes, but that does not
+shrink the file. When K3s starts it defragments the database, which does, and
+then clears the alarm, so no `etcdctl` (the nodes have none) is needed. Check
+the result:
+
+```bash
+sudo journalctl -u k3s | grep 'after defragment'
+```
+
+The database is normally tens of MB. If it is still near the quota after the
+restart, the space is live data, not fragmentation: look for an object kind
+with a runaway count (Events, Jobs, ReplicaSets) and delete those.
 
 ### The nightly etcd backup alert fires
 

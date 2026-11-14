@@ -294,9 +294,10 @@ state cannot be read**; the encrypted state file itself is safe to copy
 to a backup location such as the NAS.
 
 If the state is lost, nothing at Cloudflare is affected: recreate it by
-filling `import_ids` again and running a plan and apply, which imports
-the objects afresh. That apply also sets a new tunnel secret, so finish
-with {ref}`the rotation steps <cf-rotate-tunnel-token>`.
+filling `import_ids` again and running the first plan and apply
+([step 4](#4-first-init-and-plan)), which imports the objects afresh.
+That apply also sets a new tunnel secret, so it needs the edit token and
+ends with the token rotation steps.
 
 Local state suits a single operator. Sharing it, or planning in CI,
 would mean adding an S3-compatible backend to `cloudflare/versions.tf`
@@ -337,23 +338,32 @@ just cf-init
 just cf-plan
 ```
 
-The first plan after filling `import_ids` must show only imports:
+The first plan after filling `import_ids` shows the imports and the
+tunnel's secret, nothing else:
 
 ```
-Plan: N to import, 0 to add, 0 to change, 0 to destroy.
+Plan: N to import, 1 to add, 1 to change, 0 to destroy.
 ```
 
-Any `to add`, `to change` or `to destroy` means the code does not match
-the live configuration: fix the code (or the values in
-`live.auto.tfvars`) until it shows none. Then record the imports in
-state:
+The one `to add` is `random_bytes.tunnel_secret`: the secret exists only
+in the state, so nothing can import it and a state that starts empty
+gets a new one. The one `to change` is
+`cloudflare_zero_trust_tunnel_cloudflared.cluster`, updated in place
+with that secret. Any other `to add` or `to change`, or any
+`to destroy`, means the code does not match the live configuration: fix
+the code (or the values in `live.auto.tfvars`) until those two are all
+that is left. Then apply:
 
 ```bash
 just cf-apply
 ```
 
-That apply only writes state (imports make no changes at Cloudflare), so
-the read-only plan token is enough for it: give that at the prompt.
+The imports only write state, but the new secret is a change at
+Cloudflare, so this apply needs the edit token. It also rotates the
+tunnel token: `cloudflared` keeps the connections it has, but cannot
+make new ones until it has the new token, so carry on straight away
+with {ref}`the rotation steps <cf-rotate-tunnel-token>`, from
+`just cf-seal-tunnel-token` (step 4) onwards.
 From then on `just cf-plan` prints `No changes. Your infrastructure
 matches the configuration.` and the import blocks are no-ops.
 
@@ -372,7 +382,10 @@ account, or a visitor's own), the order is:
 4. `just cf-init`, then `just cf-plan`: everything shows as `to add`.
 5. `just cf-apply` with the edit token.
 6. `just cf-seal-tunnel-token`, commit the SealedSecret and merge:
-   `cloudflared` then connects with the new tunnel's token.
+   `cloudflared` then connects with the new tunnel's token. This step
+   needs a running cluster to seal against. When the cluster is still to
+   be built, put the token in `.env` instead and the build seals it
+   ({doc}`/tutorials/build-the-cluster`).
 
 A rebuild of the *cluster* is not this case. The account, the tunnel and
 its token are unchanged, and the rebuild reseals the same token from

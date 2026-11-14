@@ -358,9 +358,19 @@ recovers without a restart.
 
 Re-seal `vps-relay-credentials` as in Step 4 and push. The pod reads the
 Secret only when it starts, so the new values take effect at its next
-restart. After rotating the frp token, update `/etc/frp/frps.env` on the VPS
-to match (or delete it and re-run `scripts/vps-relay-setup`, which generates a
-new token to seal).
+restart.
+
+The frp token is in two places, and frps reads `/etc/frp/frps.env` only when
+it starts. To rotate it, do one of these on the VPS first:
+
+- edit `FRP_AUTH_TOKEN` in `/etc/frp/frps.env`, then
+  `sudo systemctl restart frps`; or
+- delete `/etc/frp/frps.env` and re-run `scripts/vps-relay-setup` with the
+  current forwards. It generates a new token, prints it and restarts frps.
+
+Then seal the same token, push, and restart the pod
+(`kubectl rollout restart deploy/vps-relay -n vps-relay`). Between the two
+restarts frpc logs `token in login doesn't match` and the forwards are down.
 
 ### The public port is closed
 

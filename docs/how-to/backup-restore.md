@@ -384,10 +384,17 @@ This is done; it is repeated only for a new key pair or a new NAS.
 1. On a machine outside the cluster, create the key pair. `age-keygen -o
    ~/k3s-etcd-backup.agekey` prints the public key (`age1...`). Keep the key
    file offline, in two places; without it no backup can be decrypted.
-2. Set the public key in `group_vars/all.yml`:
+2. Set the public key in both places that hold it, in one commit:
+   `group_vars/all.yml` for this backup, and `kubernetes-services/values.yaml`
+   for the off-site copy ({ref}`offsite-backup`). `just check` and a
+   pre-commit hook (`scripts/check-age-recipient`) fail if the two differ.
 
    ```yaml
+   # group_vars/all.yml
    etcd_backup_age_recipient: age1...
+   # kubernetes-services/values.yaml
+   offsite_backup:
+     age_recipient: age1...
    ```
 
 3. Create `backups/etcd/` on the NAS ({doc}`/how-to/nas-setup`). On an existing
@@ -407,6 +414,15 @@ This is done; it is repeated only for a new key pair or a new NAS.
 
 5. Prove that a bundle decrypts: copy it to the machine with the key and run
    `age -d -i ~/k3s-etcd-backup.agekey <bundle> | tar -t`.
+
+When a new key pair replaces an old one, keep the old private key. Nothing
+is re-encrypted: every bundle and export already on the NAS, and every file
+already on Drive, opens only with the key it was made with, and Drive keeps
+the newest copies of each backup and the Minecraft archive indefinitely.
+Step 4 switches the etcd backup to the new key; the off-site job follows
+once ArgoCD has synced the merged `values.yaml`. Then make a new offline copy
+of the sealed-secrets keys, encrypted to the new key
+({ref}`sealed-secrets-key-backup`).
 
 #### Alerts and manual checks
 
@@ -691,7 +707,9 @@ cluster is {doc}`/how-to/reflash-rebuild`):
 
 1. If the NAS was lost too, run the NAS setup again
    ({doc}`/how-to/nas-setup`), so that `/bigdisk/k8s-cluster` and
-   `/k8s-dynamic/stable` exist. Otherwise leave the NAS alone.
+   `/k8s-dynamic/stable` exist, and put its data back from Drive before
+   going on ({ref}`restore-after-nas-loss`): the setup makes empty
+   directories. Otherwise leave the NAS alone.
 2. Check the inventory and variables (`hosts.yml`, `group_vars/all.yml`).
 3. Flash and provision the nodes and install the cluster:
    `ansible-playbook pb_all.yml -e do_flash=true`. `do_flash` refuses to
@@ -707,19 +725,59 @@ cluster is {doc}`/how-to/reflash-rebuild`):
    decrypt its SealedSecret, and a planned rebuild reseals it from `.env`
    ({ref}`offsite-backup`).
 6. ArgoCD auto-syncs all services from Git.
-7. If `wipe_local_data=true` was used on decommission, restore stateful
-   data from the latest NFS backup under `/bigdisk/k8s-cluster/backups/`
-   using the restore recipes above (or, if the NAS was lost too, from the
-   off-site copy: {ref}`offsite-backup`). Otherwise, local PV data is still
-   intact from before the rebuild and re-binds automatically. scrap's
-   static NFS volumes re-bind too, and its pod restores the database from
-   the replica.
+7. Restore the data of each `local-nvme` PV that was wiped, from the
+   latest backup under `/bigdisk/k8s-cluster/backups/` on the NAS, using
+   the restore recipes above. A PV is wiped by `wipe_local_data=true` on
+   decommission (every node), by `flash_force` on its RK1 (node04: Grafana
+   and Prometheus), and by a replaced disk (on nuc2: Jellyfin and scrap's
+   off-NAS copy). So after a `flash_force` of node04, restore
+   Grafana even though `wipe_local_data` was not used; Prometheus has no
+   backup and starts empty. A PV that was not wiped still holds its data
+   and re-binds automatically. scrap's static NFS volumes re-bind too, and
+   its pod restores the database from the replica.
 
-The services are back within minutes of the playbook finishing; only data
-on a wiped local PV needs an explicit restore.
+The services are back within minutes of the playbook finishing. Data needs
+an explicit restore in two cases only: a wiped local PV (step 7) and a lost
+NAS (step 1).
 
-Minecraft worlds need no restore: their `nfs-stable` folders on the NAS
-depend only on the PVC's namespace and name, so the dashboard re-creates its
+(restore-after-nas-loss)=
+### After losing the NAS
+
+The nodes' `local-nvme` data is untouched, so Grafana, Jellyfin and
+Prometheus lose nothing, and their next backups refill `backups/`. What was
+only on the NAS does not come back by itself: scrap's live data, and the
+Minecraft store, worlds and archive. Once the NAS setup has made the
+directories, put these back from Drive ({ref}`offsite-backup`: download and
+decrypt as in "Restore from Drive"). In a full rebuild, do it before
+installing the cluster.
+
+- **scrap.** Unpack the newest run (`backups/scrap/<run>.tar.age` on Drive)
+  into `/bigdisk/k8s-cluster/backups/scrap/`, owned by `10001:10001`, then
+  follow "Restore scrap" above. The run on nuc2 (the `scrap-backup-copy`
+  claim) needs no download and is normally the same run as the newest on
+  Drive: if nuc2 survived, restore from it instead. Until the restore, scrap refuses
+  to start on an empty `scrap-data` beside existing backups, rather than
+  start empty. Pages written since that run are lost.
+- **Minecraft.** The newest `minecraft/nightly/minecraft-<time>.tar.age`
+  holds `store/` (the contents of `/bigdisk/k8s-cluster/minecraft`) and
+  `stable/minecraft/` and `stable/archived-minecraft/` (the folders of
+  those names in `/k8s-dynamic/stable`). The one
+  `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` holds
+  `archive/` (the contents of `/bigdisk/minecraft-archive`). Unpack each
+  into its place, owned by `1000:1000`, and make the archive read-only
+  again ({ref}`minecraft-nas-directories`). The dashboard re-creates the
+  worlds from the registry in its store once, at its start: if it is
+  already running, restart it afterwards
+  (`kubectl -n minecraft rollout restart deploy/minecraft-dashboard`).
+  Changes in the worlds since that tarball are lost.
+- **The other backups.** Nothing else needs to go back: the etcd bundles,
+  sealed-secrets key exports and the Grafana and Jellyfin tarballs stay on
+  Drive, and the nightly jobs write new ones to the NAS.
+
+### Minecraft worlds after a rebuild
+
+With the NAS intact, Minecraft worlds need no restore: their `nfs-stable`
+folders on the NAS depend only on the PVC's namespace and name, so the dashboard re-creates its
 worlds with their ports and settings, and their PVCs bind to their old data.
 Every world is on `nfs-stable` ({doc}`/how-to/nfs-stable-paths`). Any other
 claim on `nfs-stable`, the default class, also comes back with its data. `nfs-rwx` volumes come back empty, in new
