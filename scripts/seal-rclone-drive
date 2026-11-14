@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Seal rclone's Google Drive credentials for the off-site backup into
+# kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml
+# (Secret offsite-backup-rclone, namespace backups, key rclone.conf).
+#
+# Usage: scripts/seal-rclone-drive <client_secret_*.json>
+#
+# The JSON is the OAuth client of type "Desktop app" downloaded from the
+# Google Cloud console (keys installed.client_id and installed.client_secret).
+# rclone asks Google for a token with the drive.file scope: rclone sees and
+# changes only the files it creates. Open the link it prints and allow access;
+# Google then redirects the browser to http://127.0.0.1:53682/, where rclone
+# is listening (inside a devcontainer, port 53682 must be forwarded: see
+# .devcontainer/devcontainer.json).
+#
+# Nothing secret is printed or written to disk: the token goes from rclone
+# into a shell variable, and the rclone.conf built from it is piped through
+# kubectl into kubeseal. See docs/how-to/backup-restore.md
+# ("Off-site copy to Google Drive").
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+. scripts/lib/seal.sh
+
+dest=kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml
+
+if [[ $# -ne 1 || ! -r $1 ]]; then
+    echo "Usage: $0 <client_secret_*.json>" >&2
+    exit 1
+fi
+for tool in rclone jq kubectl kubeseal; do
+    command -v "$tool" >/dev/null || { echo "ERROR: $tool is not installed" >&2; exit 1; }
+done
+
+if ! client_id=$(jq -er '.installed.client_id' "$1") ||
+    ! client_secret=$(jq -er '.installed.client_secret' "$1"); then
+    echo "ERROR: $1 has no installed.client_id and installed.client_secret;" >&2
+    echo "  download the JSON of a 'Desktop app' OAuth client" >&2
+    exit 1
+fi
+
+# The client ID and secret reach rclone through its environment, not its
+# command line, where any process could read them. RCLONE_CONFIG=/dev/null:
+# rclone neither reads nor writes a config file. rclone's own messages,
+# including the link to open, go to stderr; stdout carries only the token.
+echo "Starting rclone: open the link it prints and allow access." >&2
+if ! out=$(RCLONE_CONFIG=/dev/null \
+    RCLONE_DRIVE_CLIENT_ID=$client_id \
+    RCLONE_DRIVE_CLIENT_SECRET=$client_secret \
+    RCLONE_DRIVE_SCOPE=drive.file \
+    rclone authorize drive --auth-no-open-browser); then
+    echo "ERROR: rclone authorize failed" >&2
+    exit 1
+fi
+# stdout is "Paste the following into your remote machine --->", the token
+# JSON, then "<---End paste".
+token=$(printf '%s\n' "$out" | sed -n '/--->$/,/^<---End paste/{/--->$/d;/^<---End paste/d;p;}')
+unset out
+if ! printf '%s' "$token" | jq -e '(.refresh_token | type) == "string"
+        and (.refresh_token | length) > 0' >/dev/null 2>&1; then
+    echo "ERROR: rclone did not return a token with a refresh token" >&2
+    exit 1
+fi
+# The token must be one line in rclone.conf.
+token=$(printf '%s' "$token" | jq -c .)
+
+echo "Sealing: offsite-backup-rclone..."
+printf '[drive]\ntype = drive\nclient_id = %s\nclient_secret = %s\nscope = drive.file\ntoken = %s\n' \
+    "$client_id" "$client_secret" "$token" |
+    kubectl create secret generic offsite-backup-rclone --namespace=backups \
+        --from-file=rclone.conf=/dev/stdin \
+        --dry-run=client -o yaml | seal_to "$dest"
+unset token client_secret
+echo "  -> $dest"
+
+echo ""
+echo "Next: commit $dest and set offsite_backup.enabled: true in"
+echo "kubernetes-services/values.yaml, then open a PR and merge it."
+echo "To test before the night's run, once ArgoCD has synced:"
+echo "  kubectl -n backups create job --from=cronjob/offsite-backup offsite-now"

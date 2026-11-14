@@ -105,6 +105,18 @@ seal-argocd-dex target:
 seal-ntfy *args:
     scripts/seal-ntfy {{ args }}
 
+# Seal rclone's Google Drive token for the off-site backup (prints nothing secret)
+seal-rclone-drive client_secret_json:
+    scripts/seal-rclone-drive "{{ client_secret_json }}"
+
+# Run the off-site backup to Google Drive now and follow its logs
+offsite-backup-now:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    job=offsite-now-$(date +%s)
+    kubectl -n backups create job --from=cronjob/offsite-backup "$job"
+    kubectl -n backups logs -f "job/$job" --all-containers --prefix --pod-running-timeout=5m
+
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
