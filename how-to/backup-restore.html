@@ -473,6 +473,9 @@ for all configuration</strong>. ArgoCD can fully reconstruct the cluster state f
 </tbody>
 </table>
 </div>
+<p>The backups on the NAS, and the Minecraft data, also go off site: a nightly
+job copies them, age-encrypted, to Google Drive. Not everything in the table
+does; <a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a> lists what does and does not.</p>
 </section>
 <section id="stateful-app-data-cronjob-to-nfs-backups">
 <h2>Stateful app data: CronJob-to-NFS backups<a class="headerlink" href="#stateful-app-data-cronjob-to-nfs-backups" title="Link to this heading">#</a></h2>
@@ -861,6 +864,239 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w
 </div>
 </section>
 </section>
+<section id="off-site-copy-to-google-drive">
+<span id="offsite-backup"></span><h2>Off-site copy to Google Drive<a class="headerlink" href="#off-site-copy-to-google-drive" title="Link to this heading">#</a></h2>
+<p>Every backup above ends up on the NAS, so a lost NAS would take them all.
+The <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">additions/backups/templates/cronjob-offsite.yaml</span></code>,
+values in <code class="docutils literal notranslate"><span class="pre">offsite_backup</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>) copies them
+to a folder in a personal Google Drive each night, at 05:30 Europe/London,
+after the other nightly backups. It uses <a class="reference external" href="https://rclone.org/">rclone</a>.</p>
+<section id="what-goes-up-and-what-does-not">
+<h3>What goes up, and what does not<a class="headerlink" href="#what-goes-up-and-what-does-not" title="Link to this heading">#</a></h3>
+<p>Into the folder <code class="docutils literal notranslate"><span class="pre">offsite_backup.drive_root</span></code> (default <code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code>):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>On Drive</p></th>
+<th class="head"><p>From</p></th>
+<th class="head"><p>When</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;path&gt;.age</span></code></p></td>
+<td><p>each file under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS (the Grafana and Jellyfin tarballs, e.g. <code class="docutils literal notranslate"><span class="pre">backups/grafana/&lt;date&gt;_&lt;HHMM&gt;.tar.gz.age</span></code>); files that already end <code class="docutils literal notranslate"><span class="pre">.age</span></code> (the etcd bundles, <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code> snapshots and dated sealed-secrets key exports) go up as they are</p></td>
+<td><p>once, the first night it is there</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;run&gt;.tar.age</span></code></p></td>
+<td><p>each run directory of <code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code> (scrap’s daily, monthly and curated runs) as one tarball</p></td>
+<td><p>once it has its <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;run&gt;.incomplete.tar.age</span></code></p></td>
+<td><p>a run directory with no <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker</p></td>
+<td><p>once the run folder is two days old (its modification time)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft/nightly/minecraft-&lt;UTC</span> <span class="pre">time&gt;.tar.age</span></code></p></td>
+<td><p>the Minecraft dashboard’s store (<code class="docutils literal notranslate"><span class="pre">&lt;nfs.cluster_share_path&gt;/&lt;minecraft.store_subdir&gt;</span></code>: its backups, snapshots and state), and from <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code> the live worlds’ volumes (<code class="docutils literal notranslate"><span class="pre">minecraft/</span></code>) and the deleted worlds (<code class="docutils literal notranslate"><span class="pre">archived-minecraft/</span></code>)</p></td>
+<td><p>every night; the newest <code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code> (7) are kept</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft/archive/minecraft-archive-&lt;fingerprint&gt;.tar.age</span></code></p></td>
+<td><p>the world archive (<code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code>)</p></td>
+<td><p>once; again only if its files change (the fingerprint hashes their names and sizes)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A backup is uploaded when no file of its name is on Drive yet, so each goes
+up once. Skipped: dotfiles, files written in the last 10 minutes, and
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.exclude</span></code>, the files rewritten in place each night
+(<code class="docutils literal notranslate"><span class="pre">etcd/LATEST</span></code> and the undated <code class="docutils literal notranslate"><span class="pre">sealed-secrets-keys.yaml.age</span></code>, whose dated
+copies are uploaded).</p>
+<p><strong>Not</strong> copied off site:</p>
+<ul class="simple">
+<li><p>the live scrap data volume (<code class="docutils literal notranslate"><span class="pre">scrap-data</span></code>, with the database’s Litestream
+replica): only scrap’s backup runs are, so up to a day of pages can be lost
+with the NAS;</p></li>
+<li><p>every other <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volume (other namespaces’ dynamic
+NFS claims);</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs themselves (only the Grafana and Jellyfin backups made
+from them); Prometheus is not backed up at all;</p></li>
+<li><p>the Cloudflare OpenTofu state and its passphrase, and the admin passwords;</p></li>
+<li><p>media, photos and anything else on the NAS outside the paths above.</p></li>
+</ul>
+<p>The worlds are copied while they run. A world whose server was mid-write
+can need the copy from the night before, or one of the dashboard’s own
+backups (in the store, so in the same tarball). If tar fails because a file
+changed under it (an autosave), the tarball is retried, up to 3 times.</p>
+</section>
+<section id="how-it-is-kept-safe">
+<h3>How it is kept safe<a class="headerlink" href="#how-it-is-kept-safe" title="Link to this heading">#</a></h3>
+<ul>
+<li><p><strong>Encrypted before it leaves.</strong> Every file is encrypted with
+<a class="reference external" href="https://github.com/FiloSottile/age">age</a> to <code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code>,
+the same public key as the etcd backup (<code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>; one
+key opens every backup, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> fails if the two differ). The
+cluster holds only the public key. Files are streamed through <code class="docutils literal notranslate"><span class="pre">age</span></code> into
+<code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">rcat</span></code>, so nothing decrypted is staged anywhere.</p></li>
+<li><p><strong>Least privilege.</strong> rclone’s token has the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> scope: it sees
+and changes only the files it created, nothing else in the Drive. That
+includes deleting them: someone who takes over the cluster cannot read
+the off-site copy, but could delete it.</p></li>
+<li><p><strong>Add only.</strong> The job never mirrors a deletion: a backup deleted on the
+NAS, by its own retention or by a wiped or encrypted NAS, stays on Drive.
+The only deletions are its own pruning, of files it made:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">backups/</span></code>: a file is deleted only when <strong>all</strong> of these hold: its
+source is no longer on the NAS; it was uploaded over
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.prune_days</span></code> (180) days ago; and it is not among
+the <code class="docutils literal notranslate"><span class="pre">keep_min</span></code> (4) newest of its series. A series is the files of one
+folder whose names differ only in their date or time (all of one node’s
+etcd bundles, say); a <code class="docutils literal notranslate"><span class="pre">.sha256</span></code> sidecar counts with its bundle. So the
+newest copies of each backup always stay, however old. <code class="docutils literal notranslate"><span class="pre">0</span></code> turns
+pruning off. A run with any error (an unreadable folder, a failed
+upload, a failed listing) prunes nothing, and an empty <code class="docutils literal notranslate"><span class="pre">backups/</span></code> (a
+missing mount, or a wiped NAS) stops the run before it uploads or prunes
+anything.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minecraft/nightly/</span></code>: all but the newest <code class="docutils literal notranslate"><span class="pre">keep</span></code>, and only after a good
+upload. A tarball under <code class="docutils literal notranslate"><span class="pre">min_size_percent</span></code> (50) of the largest copy on
+Drive, or a listing that fails, fails the run and stops the pruning, so
+a wiped or half-mounted source cannot push the good copies out. After
+deleting a lot of worlds on purpose, delete the larger copies on Drive
+by hand, or the job keeps failing.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">minecraft/archive/</span></code> is never pruned.</p></li>
+</ul>
+<p>Pruned files are deleted outright, not moved to the Drive’s trash, where
+they would still count against the quota.</p>
+</li>
+<li><p><strong>Partial uploads never count.</strong> Each stream goes to a <code class="docutils literal notranslate"><span class="pre">.partial-</span></code> name
+and is renamed only once the whole pipeline has succeeded, so a cut-off
+upload is never taken for a complete one and is retried the next night.</p></li>
+</ul>
+<p>An init container makes the Drive folders first, one at a time: Drive
+allows two folders of one name, so two containers making the same missing
+folder at once could split the backups between them. Then two containers
+run side by side, because the NAS squashes root and no one user can read
+everything: <code class="docutils literal notranslate"><span class="pre">backups</span></code> runs as <code class="docutils literal notranslate"><span class="pre">nobody</span></code> (65534), which owns the root-written
+etcd bundles, and <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> as uid 1000, which owns the worlds. Either
+failing fails the Job, which is retried once; a retry uploads only the
+backups still missing, and skips the Minecraft nightly if one from the same
+UTC day is already on Drive. The first run uploads several GB and may take hours; a run
+stopped by <code class="docutils literal notranslate"><span class="pre">deadline_hours</span></code> is carried on by the next one.</p>
+</section>
+<section id="space-on-drive">
+<h3>Space on Drive<a class="headerlink" href="#space-on-drive" title="Link to this heading">#</a></h3>
+<p>In the steady state the folder holds:</p>
+<ul class="simple">
+<li><p>every backup now on the NAS, plus each one deleted from the NAS in the
+last <code class="docutils literal notranslate"><span class="pre">prune_days</span></code>: about <code class="docutils literal notranslate"><span class="pre">prune_days</span></code> times the NAS’s new backups per day;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">keep</span></code> nightly Minecraft tarballs, each about the size of the store and
+the worlds;</p></li>
+<li><p>one archive tarball (more if the archive changes).</p></li>
+</ul>
+<p>For example, with about 240 MB of new backups a day (etcd 50 MB, Jellyfin
+70 MB, scrap 120 MB), a 3.6 GB Minecraft tarball and a 5.8 GB archive, the
+defaults come to about 43 + 25 + 6 = 75 GB. A free 15 GB Google account
+needs less: lower <code class="docutils literal notranslate"><span class="pre">prune_days</span></code> (30 gives about 7 GB of backups) and
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code> (2 gives about 7 GB).</p>
+</section>
+<section id="alerts">
+<h3>Alerts<a class="headerlink" href="#alerts" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/offsite-backup-rules.yaml</span></code> alerts
+from kube-state-metrics’ CronJob and Job series, so nothing fires while the
+CronJob is disabled:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code>: the newest run failed. A finished Job is deleted
+after a day (<code class="docutils literal notranslate"><span class="pre">ttlSecondsAfterFinished</span></code>), and only the last failed one is
+kept, so this and the stock <code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code> clear after a day;
+<code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code> then fires if the job keeps failing.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code>: no successful run for 36 hours.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code>: the CronJob has existed for 36 hours
+without a successful run (for example, its SealedSecret did not decrypt).</p></li>
+</ul>
+</section>
+<section id="set-it-up">
+<h3>Set it up<a class="headerlink" href="#set-it-up" title="Link to this heading">#</a></h3>
+<p>You need a Google account with space for the backups (see above), and an
+age key pair (the etcd backup’s: <a class="reference internal" href="#etcd-offsite-backup"><span class="std std-ref">Nightly encrypted off-node backup</span></a>).</p>
+<ol class="arabic">
+<li><p><strong>Create an OAuth client</strong> in the <a class="reference external" href="https://console.cloud.google.com/">Google Cloud console</a>:</p>
+<ol class="arabic simple">
+<li><p>Create a project (any name, e.g. <code class="docutils literal notranslate"><span class="pre">home-cluster-backup</span></code>) and enable
+the <strong>Google Drive API</strong> in it.</p></li>
+<li><p>Under <strong>Google Auth Platform</strong>, configure the consent screen as
+<strong>External</strong>, add your address as a test user, and then <strong>publish
+the app to production</strong>. A consent screen left in <em>Testing</em> issues
+refresh tokens that expire after 7 days. An unverified app is fine
+for your own account: Google warns once, and you continue.</p></li>
+<li><p>Under <strong>Clients</strong>, create a client of type <strong>Desktop app</strong> and
+download its JSON (<code class="docutils literal notranslate"><span class="pre">client_secret_&lt;...&gt;.json</span></code>). Keep it outside the
+repository.</p></li>
+</ol>
+</li>
+<li><p><strong>Seal rclone’s credentials.</strong> In the devcontainer (it has rclone):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>seal-rclone-drive<span class="w"> </span>~/Downloads/client_secret_&lt;...&gt;.json
+</pre></div>
+</div>
+<p>Open the link it prints, sign in, and allow access. Google then sends
+the browser to <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:53682/</span></code>, where <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">authorize</span></code> is
+waiting. That address is the browser’s own machine, so this works as it
+stands only when the browser runs on the host of the devcontainer (which
+uses the host’s network). With the browser on another machine, first
+forward the port from that machine to the host:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>-L<span class="w"> </span><span class="m">53682</span>:127.0.0.1:53682<span class="w"> </span>&lt;devcontainer<span class="w"> </span>host&gt;
+</pre></div>
+</div>
+<p>and keep that session open while you allow access. The token still goes
+only to the script. The script builds <code class="docutils literal notranslate"><span class="pre">rclone.conf</span></code> (a <code class="docutils literal notranslate"><span class="pre">[drive]</span></code> remote
+with the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> scope) in memory and pipes it through <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>
+into
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/templates/offsite-backup-rclone-secret.yaml</span></code>.
+Nothing secret is printed or written to disk.</p>
+</li>
+<li><p><strong>Turn it on.</strong> Commit the sealed file and set
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. Check
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code> is your age public key. Open a PR and
+merge it.</p></li>
+<li><p><strong>Run it once now</strong>, rather than waiting for the night (it refuses while
+a run is going):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>offsite-backup-now
+</pre></div>
+</div>
+<p>Then look in your Drive for the <code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code> folder, and prove
+you can decrypt a file from it (see below).</p>
+</li>
+</ol>
+<p>rclone refreshes its access token itself; the refresh token in the Secret
+does not change. Re-run step 2 (and commit) if Google revokes it, for
+example after a password change, or if you rotate the client secret.</p>
+<p>A rebuild needs no new consent. A planned rebuild exports the sealed
+<code class="docutils literal notranslate"><span class="pre">rclone.conf</span></code> with the other external credentials
+(<code class="docutils literal notranslate"><span class="pre">OFFSITE_BACKUP_RCLONE_CONF_B64</span></code> in <code class="docutils literal notranslate"><span class="pre">.env</span></code>, from
+<code class="docutils literal notranslate"><span class="pre">scripts/export-external-creds</span></code>) and reseals it against the new key with
+the rest (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>). After a cluster that died, restoring
+the old sealing keys (<a class="reference internal" href="#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>) makes the
+SealedSecret in Git decrypt as it is.</p>
+</section>
+<section id="restore-from-drive">
+<h3>Restore from Drive<a class="headerlink" href="#restore-from-drive" title="Link to this heading">#</a></h3>
+<p>Download what you need, either from the Drive web page (a folder downloads
+as a zip) or with rclone, on any machine with your rclone config (the
+sealed one, or a fresh <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">config</span></code> with a <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> remote: a new
+token from the same OAuth client sees the same files):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>lsf<span class="w"> </span>-R<span class="w"> </span>drive:home-cluster-offsite/backups/grafana
+rclone<span class="w"> </span>copy<span class="w"> </span>drive:home-cluster-offsite/backups/grafana/&lt;file&gt;.tar.gz.age<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Then decrypt with the private key, and verify or unpack:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>&lt;file&gt;.tar.gz.age<span class="w"> </span>&gt;<span class="w"> </span>&lt;file&gt;.tar.gz
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>&lt;run&gt;.tar.age<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>-x<span class="w">      </span><span class="c1"># a scrap run</span>
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>minecraft-&lt;time&gt;.tar.age<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>-t<span class="w"> </span><span class="p">|</span><span class="w"> </span>head
+</pre></div>
+</div>
+<p>The etcd bundles and sealed-secrets key exports are as they were on the NAS
+(<code class="docutils literal notranslate"><span class="pre">.tar.age</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml.age</span></code>): restore them as in the sections above. Put a
+decrypted backup back where the restore recipes above expect it (on the
+NAS, under <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/</span></code>), or restore from it directly.</p>
+</section>
+</section>
 <section id="disaster-recovery">
 <h2>Disaster recovery<a class="headerlink" href="#disaster-recovery" title="Link to this heading">#</a></h2>
 <p>If only the control plane is lost, restore it from the nightly etcd backup
@@ -874,11 +1110,15 @@ cluster-owned <code class="docutils literal notranslate"><span class="pre">/bigd
 <li><p>Restore the sealed-secrets keys if the old cluster died
 (<a class="reference internal" href="#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>). A planned rebuild reseals instead;
 re-export your offline key copy afterwards.</p></li>
-<li><p>Re-create the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (see <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>).</p></li>
+<li><p>Re-create the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secrets (see <a class="reference internal" href="bootstrap-cluster.html"><span class="doc">Bootstrap the Cluster</span></a>).
+The off-site backup’s Drive credentials need nothing: the restored keys
+decrypt its SealedSecret, and a planned rebuild reseals it from <code class="docutils literal notranslate"><span class="pre">.env</span></code>
+(<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>).</p></li>
 <li><p>ArgoCD auto-syncs all services from Git.</p></li>
 <li><p>If <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> was used on decommission, restore stateful
 data from the latest NFS backup under <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/</span></code>
-using the restore recipes above. Otherwise, local PV data is still
+using the restore recipes above (or, if the NAS was lost too, from the
+off-site copy: <a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). Otherwise, local PV data is still
 intact from before the rebuild and re-binds automatically. scrap’s
 static NFS volumes re-bind too, and its pod restores the database from
 the replica.</p></li>
@@ -968,6 +1208,15 @@ folders.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#take-or-list-snapshots-by-hand">Take or list snapshots by hand</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore">Restore</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#off-site-copy-to-google-drive">Off-site copy to Google Drive</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-goes-up-and-what-does-not">What goes up, and what does not</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-is-kept-safe">How it is kept safe</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#space-on-drive">Space on Drive</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#alerts">Alerts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-it-up">Set it up</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-drive">Restore from Drive</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a></li>

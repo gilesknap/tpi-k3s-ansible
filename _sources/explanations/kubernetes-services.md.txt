@@ -182,7 +182,9 @@ Two special services implement the cluster's stateful-data strategy:
   mounts the shared PVC with a workload-specific `subPath` so it only
   sees `backups/<app>/{,weekly}/`. The NFS share itself is created
   manually on the NAS via {doc}`../how-to/nas-setup` — Ansible has no
-  access to the NAS.
+  access to the NAS. When `offsite_backup.enabled` is set, it also runs the
+  nightly `offsite-backup` CronJob, which copies the NAS backups,
+  age-encrypted, to Google Drive ({ref}`offsite-backup`).
 
 Together these give you per-rebuild data survival (local PVs) **plus**
 off-cluster point-in-time backups (NFS CronJobs), without the

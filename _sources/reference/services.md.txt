@@ -99,7 +99,7 @@ hardware and want the full experience out of the box.
 | Service | Chart / Source | Version | Namespace | Ingress URL | Auth | Purpose |
 |---------|---------------|---------|-----------|-------------|------|---------|
 | argocd-monitor | `ghcr.io/epics-containers/charts/argocd-monitor` (OCI) | 1.2.0 | `argocd-monitor` | `argocd-monitor.<domain>` | Dex (OIDC) | Dashboard of ArgoCD application status |
-| backups | Local chart | — | `backups` | — | — | Grafana and Jellyfin backup CronJobs to the NAS |
+| backups | Local chart | — | `backups` | — | — | Grafana and Jellyfin backup CronJobs to the NAS, and the optional off-site copy to Google Drive |
 | cert-manager | `jetstack/cert-manager` | v1.21.3 | `cert-manager` | — | — | TLS certificate management |
 | cloudflared | Plain manifests | 2026.10.7 | `cloudflared` | — | — | Cloudflare tunnel connector |
 | CoreDNS HA | Plain manifests | — | `kube-system` | — | — | Holds K3s's bundled CoreDNS at 2 replicas |

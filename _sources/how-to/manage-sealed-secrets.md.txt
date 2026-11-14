@@ -42,6 +42,7 @@ These secrets are created during the setup guides:
 | `scrap-secrets` | `scrap` | Claude API key + `/mcp` bearer token for scrap (see {doc}`scrap`) | additions/scrap/templates/scrap-secret.yaml |
 | `ntfy-auth` | `ntfy` | ntfy users (bcrypt hashes) and access tokens (see {doc}`ntfy`) | additions/ntfy/templates/ntfy-auth-secret.yaml |
 | `alertmanager-ntfy` | `monitoring` | Alertmanager's copy of the ntfy `alertmanager` token, sealed with `ntfy-auth` (see {doc}`monitoring`) | additions/grafana/alertmanager-ntfy-secret.yaml |
+| `offsite-backup-rclone` | `backups` | rclone's Google Drive OAuth client and token for the off-site backup, sealed by `just seal-rclone-drive` (optional — see {ref}`offsite-backup`) | additions/backups/templates/offsite-backup-rclone-secret.yaml |
 | `scrap-publish` | `scrap`, `scrap-public` | scrap's public-pages upload token, the same in both namespaces | additions/scrap/templates/scrap-publish-secret.yaml, additions/scrap/templates/scrap-public-publish-secret.yaml |
 
 ## Prerequisites
@@ -202,6 +203,12 @@ client), and `SCRAP_PUBLISH_TOKEN`. scrap's secrets are sealed only when
 same way, since the phone app and the VPS hold copies; any left unset is
 generated. To rotate one on a live cluster, use
 `just seal-ntfy --rotate <user>` (see {doc}`ntfy`).
+
+The off-site backup's `offsite-backup-rclone` is kept the same way: its
+token came from a browser consent, so `scripts/export-external-creds`
+exports the whole `rclone.conf`, base64-encoded, as
+`OFFSITE_BACKUP_RCLONE_CONF_B64`, and the rebuild reseals it as it is
+(skipped if unset). No new consent is needed ({ref}`offsite-backup`).
 
 A planned rebuild does not need the old sealing keys: it reads the
 plaintext values from the old cluster and reseals them. It does make a new
