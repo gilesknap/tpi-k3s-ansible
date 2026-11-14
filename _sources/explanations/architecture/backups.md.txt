@@ -61,11 +61,11 @@ flowchart LR
 
 | Data | Lives on | Backed up by | When | To | Kept | Encrypted | Restore |
 |------|----------|--------------|------|----|------|-----------|---------|
-| Grafana database and provisioning | node04, `local-nvme` | `grafana-daily`, `grafana-weekly` CronJobs (`backups`): `sqlite3 .backup`, tarred | 02:45 UTC daily; 03:45 UTC Sundays | NAS `backups/grafana/`, `weekly/` | 7 days; 28 days | On Drive only | {doc}`/how-to/backup-restore` |
+| Grafana database and provisioning | node04, `local-nvme` | `grafana-daily`, `grafana-weekly` CronJobs (`backups`): `sqlite3 .backup`, tarred | 00:35 daily; 00:40 Sundays | NAS `backups/grafana/`, `weekly/` | 7 days; 28 days | On Drive only | {doc}`/how-to/backup-restore` |
 | Jellyfin database, config, plugins, library definitions | nuc2, `local-nvme` | `jellyfin-daily`, `jellyfin-weekly` CronJobs (`backups`) | 01:45 daily; 01:50 Sundays | NAS `backups/jellyfin/`, `weekly/` | 7 days; 28 days | On Drive only | {doc}`/how-to/jellyfin` |
 | scrap database | The pod's `emptyDir` | Litestream replica | Continuous, about a second behind | NAS `scrap-data/litestream` | n/a | No | Automatic at pod start |
-| scrap database and files | NAS `scrap-data` | `scrap-backup` and `scrap-backup-monthly` CronJobs (`scrap`) | 03:30 daily; 03:50 UTC on the 1st | NAS `backups/scrap/`, `monthly/` | 7 runs; 12 runs | On Drive only | {doc}`/how-to/backup-restore` |
-| scrap's newest backup run | NAS `backups/scrap/` | `scrap-backup-copy` CronJob | 05:00 daily | nuc2 `/home/k8s-data/scrap-backup-copy` | 3 runs | No | {doc}`/how-to/backup-restore` |
+| scrap database and files | NAS `scrap-data` | `scrap-backup` and `scrap-backup-monthly` CronJobs (`scrap`) | 00:30 daily; 00:40 on the 1st | NAS `backups/scrap/`, `monthly/` | 7 runs; 12 runs | On Drive only | {doc}`/how-to/backup-restore` |
+| scrap's newest backup run | NAS `backups/scrap/` | `scrap-backup-copy` CronJob | 00:50 daily | nuc2 `/home/k8s-data/scrap-backup-copy` | 3 runs | No | {doc}`/how-to/backup-restore` |
 | Prometheus metrics | node04, `local-nvme` | Nothing | n/a | n/a | n/a | n/a | None: history starts again |
 | Minecraft worlds | NAS `k8s-dynamic/stable/minecraft/` | The dashboard's snapshots and promoted backups, on demand | When the owner takes one | NAS `k8s-cluster/minecraft/` | The dashboard's own rules | No | {doc}`/how-to/minecraft` |
 | Minecraft store, live worlds, deleted worlds | The NAS | `offsite-backup` (`minecraft` container): one tarball | 05:30 daily | Drive `minecraft/nightly/` | 7 tarballs | Yes | {ref}`offsite-backup` |
@@ -78,9 +78,8 @@ flowchart LR
 | `admin-auth` (Grafana's built-in admin password) | A Secret in `monitoring` | Not backed up | n/a | Password manager | n/a | n/a | `just set-admin-password` |
 | The age private key | Offline | The owner, in two places | n/a | n/a | n/a | n/a | Without it no encrypted backup can be read |
 
-Times are Europe/London unless marked UTC. The CronJobs marked UTC set no
-time zone, so they follow the control plane's clock, which is UTC; in summer
-they run an hour later by local time.
+Times are Europe/London. Every CronJob sets that time zone, so none follows
+the control plane's clock (UTC).
 
 Three things in that table deserve a reason:
 
@@ -132,9 +131,9 @@ library.
 
 ## One night
 
-Every job is timed around the nodes' own maintenance: backups of the
-cluster's state first, then patching, then reboots, then the copies that
-depend on everything else having finished.
+Every job is timed around the nodes' own maintenance: the etcd backup before
+anything changes, the backups to the NAS in the gap before the windows that
+drain nodes, and the off-site copy after the last of them.
 
 ```mermaid
 flowchart LR
@@ -149,43 +148,43 @@ flowchart LR
     end
 
     subgraph tonas["Backups to the NAS"]
+        scrap["00:30<br/>scrap-backup"]
+        graf["00:35<br/>grafana-daily"]
         jf["01:45<br/>jellyfin-daily"]
-        graf["02:45 UTC<br/>grafana-daily"]
-        scrap["03:30<br/>scrap-backup"]
     end
 
     subgraph offnas["Off the NAS"]
-        copy["05:00<br/>scrap-backup-copy"]
+        copy["00:50<br/>scrap-backup-copy"]
         off["05:30<br/>offsite-backup"]
     end
 
-    etcd --> apt --> k3s --> kured
-    etcd --> jf --> graf --> scrap
-    kured --> copy
-    scrap --> copy --> off
+    etcd --> apt --> scrap --> graf --> copy --> k3s --> kured --> off
+    k3s --- jf
 ```
 
-Arrows give the order in time, not a dependency between jobs. The backups to
-the NAS run alongside the maintenance windows, not after them.
+Arrows give the order in time, not a dependency between jobs.
+`jellyfin-daily` runs inside the K3s upgrade window.
 
 | Time | What | Where it is set |
 |------|------|-----------------|
 | 23:15 | etcd, token and sealing keys to the NAS, encrypted | `etcd_backup_on_calendar` (`roles/etcd_backup/defaults`) |
 | 00:00, up to 30 min later | unattended-upgrades installs packages | `roles/update_packages/defaults` |
+| 00:30 | `scrap-backup` (1st of the month, 00:40: `scrap-backup-monthly`) | the scrap chart; schedule and time zone in `templates/scrap.yaml` |
+| 00:35 | `grafana-daily` (Sundays 00:40: `grafana-weekly`) | `additions/backups/templates/` |
+| 00:50 | `scrap-backup-copy` to nuc2 | `additions/scrap/values.yaml` |
 | 01:00 to 02:00 | system-upgrade-controller starts K3s patch upgrades; a pre-upgrade etcd snapshot comes first | `k3s.upgrade_window` |
 | 01:45 | `jellyfin-daily` (Sundays 01:50: `jellyfin-weekly`) | `additions/backups/templates/cronjob-jellyfin.yaml` |
 | 02:30 to 05:00 | kured drains and reboots nodes that need it, one at a time; never ws03 | `kured` |
-| 02:45 UTC | `grafana-daily` (Sundays 03:45 UTC: `grafana-weekly`) | `additions/backups/templates/` |
-| 03:30 | `scrap-backup` (1st of the month, 03:50 UTC: `scrap-backup-monthly`) | the scrap chart; time zone in `templates/scrap.yaml` |
-| 05:00 | `scrap-backup-copy` to nuc2 | `additions/scrap/values.yaml` |
 | 05:30 | `offsite-backup` to Drive | `offsite_backup.schedule` |
 
 The order is the design. The etcd backup runs before anything changes the
 nodes, so there is always a snapshot from before the night's patching. The
 off-site job runs last so that it carries that night's backups, not the
-previous night's. The Grafana and scrap jobs do fall inside the reboot
-window; a job interrupted by a reboot is retried, and a missed scrap backup
-is caught by the next step, below.
+previous night's. The scrap and Grafana jobs, and scrap's copy to nuc2, run
+between 00:30 and 01:00, after unattended-upgrades (which never drains or
+reboots) and before the two windows that do. `jellyfin-daily` stays at 01:45,
+after Jellyfin's own 01:00 tasks: a K3s patch round that drains nuc2 then
+delays it, and a job interrupted that way is retried.
 
 ## Knowing when a backup failed
 
@@ -196,8 +195,8 @@ is caught by the next step, below.
   pushes these to the phone through ntfy.
 - **Off-site:** `OffsiteBackupFailed`, `OffsiteBackupStale` and
   `OffsiteBackupNeverSucceeded` (`offsite-backup-rules.yaml`) fire from
-  kube-state-metrics. They are warnings that are not on the push list, so
-  they show in Alertmanager and Grafana but do not reach the phone.
+  kube-state-metrics. They are warnings on the push list, so like the etcd
+  alerts they reach the phone through ntfy.
 - **The CronJobs to the NAS** are covered by kube-prometheus-stack's stock
   `KubeJobFailed`, also shown but not pushed.
 - **scrap** has a cross-check: `scrap-backup-copy` fails if the newest

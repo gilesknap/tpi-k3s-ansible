@@ -489,21 +489,21 @@ does; <a class="reference internal" href="#offsite-backup"><span class="std std-
 <td><p>etcd bundle and sealed-secrets keys</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup.timer</span></code> on node02</p></td>
 </tr>
-<tr class="row-odd"><td><p>01:45 Europe/London (weekly: Sunday 01:50)</p></td>
-<td><p>Jellyfin</p></td>
-<td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on nuc2</p></td>
-</tr>
-<tr class="row-even"><td><p>02:45 UTC (weekly: Sunday 03:45 UTC)</p></td>
-<td><p>Grafana</p></td>
-<td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on node04</p></td>
-</tr>
-<tr class="row-odd"><td><p>03:30 Europe/London (monthly: the 1st, 03:50 UTC)</p></td>
+<tr class="row-odd"><td><p>00:30 Europe/London (monthly: the 1st, 00:40)</p></td>
 <td><p>scrap</p></td>
 <td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> in <code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>05:00 Europe/London</p></td>
+<tr class="row-even"><td><p>00:35 Europe/London (weekly: Sunday 00:40)</p></td>
+<td><p>Grafana</p></td>
+<td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on node04</p></td>
+</tr>
+<tr class="row-odd"><td><p>00:50 Europe/London</p></td>
 <td><p>scrap’s newest run, copied off the NAS</p></td>
 <td><p>CronJob <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, on nuc2</p></td>
+</tr>
+<tr class="row-even"><td><p>01:45 Europe/London (weekly: Sunday 01:50)</p></td>
+<td><p>Jellyfin</p></td>
+<td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on nuc2</p></td>
 </tr>
 <tr class="row-odd"><td><p>05:30 Europe/London</p></td>
 <td><p>the backups on the NAS and the Minecraft data, to Google Drive</p></td>
@@ -512,10 +512,10 @@ does; <a class="reference internal" href="#offsite-backup"><span class="std std-
 </tbody>
 </table>
 </div>
-<p>The Grafana and <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> CronJobs set no <code class="docutils literal notranslate"><span class="pre">timeZone</span></code>, so they
-run in the time zone of the K3s server on node02, which is UTC: an hour
-later by the clock in summer. List them all with
-<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cronjobs</span> <span class="pre">-A</span></code>.</p>
+<p>Every CronJob sets <code class="docutils literal notranslate"><span class="pre">timeZone:</span> <span class="pre">Europe/London</span></code>. The jobs before 01:00 run
+clear of the two maintenance windows that drain nodes (K3s upgrades from
+01:00, kured from 02:30; <a class="reference internal" href="../explanations/architecture/backups.html"><span class="doc">Backups and disaster recovery</span></a>). List
+them all with <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cronjobs</span> <span class="pre">-A</span></code>.</p>
 </section>
 <section id="grafana-and-jellyfin-cronjob-to-nfs-backups">
 <h2>Grafana and Jellyfin: CronJob-to-NFS backups<a class="headerlink" href="#grafana-and-jellyfin-cronjob-to-nfs-backups" title="Link to this heading">#</a></h2>
@@ -625,14 +625,14 @@ itself. Check <code class="docutils literal notranslate"><span class="pre">kubec
 <p>scrap’s chart makes its own backups (see <a class="reference internal" href="scrap.html"><span class="doc">Run scrap</span></a>), each taken
 from the database’s Litestream replica (<code class="docutils literal notranslate"><span class="pre">scrap</span> <span class="pre">backup</span> <span class="pre">--from-replica</span></code>):</p>
 <ul class="simple">
-<li><p><strong>Daily:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> runs at 03:30 Europe/London and keeps 7 runs.</p></li>
-<li><p><strong>Monthly:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> runs at 03:50 UTC on the 1st and keeps 12
-runs in <code class="docutils literal notranslate"><span class="pre">monthly/</span></code>.</p></li>
-<li><p><strong>Format:</strong> each run is a directory named like <code class="docutils literal notranslate"><span class="pre">20261019T033000Z</span></code>, with the
-database, the files and a <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker.</p></li>
+<li><p><strong>Daily:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> runs at 00:30 Europe/London and keeps 7 runs.</p></li>
+<li><p><strong>Monthly:</strong> <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> runs at 00:40 Europe/London on the 1st
+and keeps 12 runs in <code class="docutils literal notranslate"><span class="pre">monthly/</span></code>.</p></li>
+<li><p><strong>Format:</strong> each run is a directory named by its start time in UTC, like
+<code class="docutils literal notranslate"><span class="pre">20261119T003000Z</span></code>, with the database, the files and a <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker.</p></li>
 <li><p><strong>Location:</strong> the <code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> volume, at
 <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap</span></code> on the NAS.</p></li>
-<li><p><strong>Off-NAS copy:</strong> at 05:00 <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> copies the newest complete
+<li><p><strong>Off-NAS copy:</strong> at 00:50 <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> copies the newest complete
 run to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV on nuc2 (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap-backup-copy</span></code>),
 keeping 3. It fails if that run is over 26 hours
 old, so a stalled backup shows as a failed Job.</p></li>
@@ -1084,6 +1084,8 @@ kept, so this and the stock <code class="docutils literal notranslate"><span cla
 <li><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code>: the CronJob has existed for 36 hours
 without a successful run (for example, its SealedSecret did not decrypt).</p></li>
 </ul>
+<p>All three are pushed to the phone through ntfy, like the etcd backup
+alerts (<a class="reference internal" href="monitoring.html"><span class="doc">Monitoring and alerts</span></a>).</p>
 </section>
 <section id="set-it-up">
 <h3>Set it up<a class="headerlink" href="#set-it-up" title="Link to this heading">#</a></h3>

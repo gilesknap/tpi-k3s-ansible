@@ -34,16 +34,16 @@ does; {ref}`offsite-backup` lists what does and does not.
 | When | What | Runs as |
 |------|------|---------|
 | 23:15 Europe/London | etcd bundle and sealed-secrets keys | `k3s-etcd-backup.timer` on node02 |
+| 00:30 Europe/London (monthly: the 1st, 00:40) | scrap | CronJobs `scrap-backup`, `scrap-backup-monthly` in `scrap` |
+| 00:35 Europe/London (weekly: Sunday 00:40) | Grafana | CronJobs `grafana-daily`, `grafana-weekly` in `backups`, on node04 |
+| 00:50 Europe/London | scrap's newest run, copied off the NAS | CronJob `scrap-backup-copy` in `scrap`, on nuc2 |
 | 01:45 Europe/London (weekly: Sunday 01:50) | Jellyfin | CronJobs `jellyfin-daily`, `jellyfin-weekly` in `backups`, on nuc2 |
-| 02:45 UTC (weekly: Sunday 03:45 UTC) | Grafana | CronJobs `grafana-daily`, `grafana-weekly` in `backups`, on node04 |
-| 03:30 Europe/London (monthly: the 1st, 03:50 UTC) | scrap | CronJobs `scrap-backup`, `scrap-backup-monthly` in `scrap` |
-| 05:00 Europe/London | scrap's newest run, copied off the NAS | CronJob `scrap-backup-copy` in `scrap`, on nuc2 |
 | 05:30 Europe/London | the backups on the NAS and the Minecraft data, to Google Drive | CronJob `offsite-backup` in `backups` |
 
-The Grafana and `scrap-backup-monthly` CronJobs set no `timeZone`, so they
-run in the time zone of the K3s server on node02, which is UTC: an hour
-later by the clock in summer. List them all with
-`kubectl get cronjobs -A`.
+Every CronJob sets `timeZone: Europe/London`. The jobs before 01:00 run
+clear of the two maintenance windows that drain nodes (K3s upgrades from
+01:00, kured from 02:30; {doc}`/explanations/architecture/backups`). List
+them all with `kubectl get cronjobs -A`.
 
 ## Grafana and Jellyfin: CronJob-to-NFS backups
 
@@ -145,14 +145,14 @@ Jellyfin's restore is on its own page: {doc}`/how-to/jellyfin`.
 scrap's chart makes its own backups (see {doc}`/how-to/scrap`), each taken
 from the database's Litestream replica (`scrap backup --from-replica`):
 
-- **Daily:** `scrap-backup` runs at 03:30 Europe/London and keeps 7 runs.
-- **Monthly:** `scrap-backup-monthly` runs at 03:50 UTC on the 1st and keeps 12
-  runs in `monthly/`.
-- **Format:** each run is a directory named like `20261019T033000Z`, with the
-  database, the files and a `COMPLETE` marker.
+- **Daily:** `scrap-backup` runs at 00:30 Europe/London and keeps 7 runs.
+- **Monthly:** `scrap-backup-monthly` runs at 00:40 Europe/London on the 1st
+  and keeps 12 runs in `monthly/`.
+- **Format:** each run is a directory named by its start time in UTC, like
+  `20261119T003000Z`, with the database, the files and a `COMPLETE` marker.
 - **Location:** the `scrap-backups-nfs` volume, at
   `/bigdisk/k8s-cluster/backups/scrap` on the NAS.
-- **Off-NAS copy:** at 05:00 `scrap-backup-copy` copies the newest complete
+- **Off-NAS copy:** at 00:50 `scrap-backup-copy` copies the newest complete
   run to a `local-nvme` PV on nuc2 (`/home/k8s-data/scrap-backup-copy`),
   keeping 3. It fails if that run is over 26 hours
   old, so a stalled backup shows as a failed Job.
@@ -603,6 +603,9 @@ CronJob is disabled:
 - `OffsiteBackupStale`: no successful run for 36 hours.
 - `OffsiteBackupNeverSucceeded`: the CronJob has existed for 36 hours
   without a successful run (for example, its SealedSecret did not decrypt).
+
+All three are pushed to the phone through ntfy, like the etcd backup
+alerts ({doc}`/how-to/monitoring`).
 
 ### Set it up
 

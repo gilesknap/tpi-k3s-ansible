@@ -172,12 +172,6 @@ kubectl logs -n backups job/manual-<timestamp> -f
 ### Restore from a backup
 
 1. Set `enable_jellyfin: false` and push, so nothing has the database open.
-   Set `jellyfin.seed_from_host: false` in the same change unless the
-   volume's root (`/home/k8s-data/jellyfin` on nuc2) holds `SEEDED-FROM-HOST`.
-   Without that marker the seed runs on the restored volume: it fails on a
-   new one, and a `SEED-IN-PROGRESS` left by an interrupted seed makes it
-   clear the volume and copy the host install over the restore. See
-   [The seed flag](#the-seed-flag).
 2. On nuc2, unpack the tarball over the volume's root as the `jellyfin`
    account, for example with the NAS share mounted on the node:
 
@@ -213,8 +207,8 @@ jellyfin:
 - Never go backwards: an older Jellyfin cannot open a database that a newer
   one has migrated. Run a backup first, so a bad upgrade can be undone by
   restoring it and reverting the pin.
-- The seed and the backups use `jellyfin.seed.sqlite_image`; bump it under
-  the same rule.
+- The backups (and the seed, when it is on) use
+  `jellyfin.seed.sqlite_image`; bump it under the same rule.
 
 Push the change. ArgoCD stops the old pod and starts the new one
 (`Recreate`); the startup probe waits up to 15 minutes for a database
@@ -247,41 +241,31 @@ only Jellyfin. This is why it uses the host package's paths and nuc2's
 
 ### The seed flag
 
-`jellyfin.seed_from_host` is still `true`. It adds two init containers,
-`seed-copy` and `seed-verify`
+`jellyfin.seed_from_host` is now `false`: the seed is done. While it was
+`true` it added two init containers, `seed-copy` and `seed-verify`
 (`kubernetes-services/additions/jellyfin/files/`), and read-only `hostPath`
 mounts of nuc2's `/var/lib/jellyfin` and `/etc/jellyfin`. Marker files at the
-config volume's root decide what they do:
+config volume's root decided what they did:
 
 | Marker | Meaning |
 |--------|---------|
-| `SEEDED-FROM-HOST` | Seeded (with a timestamp): both steps do nothing, on every later start |
+| `SEEDED-FROM-HOST` | Seeded (with a timestamp): both steps did nothing on a later start |
 | `TRIAL-CONFIG-SAFE-TO-DELETE` | A trial config: the seed may clear it |
 | `SEED-IN-PROGRESS` | The seed owns the volume's contents, and clears and recopies them if interrupted |
 | `SEED-COPY-COMPLETE` | The copy is done, waiting for `seed-verify` |
 
-The volume on nuc2 is marked `SEEDED-FROM-HOST`, so on every start both
-containers log that and exit. That is why the flag is safe to leave on:
+The volume on nuc2 is marked `SEEDED-FROM-HOST`. The seed never wrote to the
+host directories (they were mounted read-only), never cleared a volume that
+was neither empty nor trial-marked, refused while anything listened on port
+8096 of the node, and verified the copy (byte-for-byte database comparison,
+file counts and sizes, then `PRAGMA integrity_check`) before writing the
+marker.
 
-- the seed never writes to the host directories (they are mounted read-only);
-- it never clears a volume that is neither empty nor trial-marked: unmarked
-  data makes it fail loudly, not copy over it;
-- on an empty volume it refuses while anything is listening on port 8096 of
-  the node, and it verifies the copy (byte-for-byte database comparison, file
-  counts and sizes, then `PRAGMA integrity_check`) before writing the marker.
-
-Two things follow from leaving it on:
-
-- The pod needs `/var/lib/jellyfin` and `/etc/jellyfin` to exist on nuc2
-  (`hostPath` type `Directory`). Do not remove the host install's
-  directories while the flag is on.
-- A volume restored from a backup onto an empty disk has no
-  `SEEDED-FROM-HOST` marker, so the seed refuses it. Turn the flag off for a
-  restore, as above.
-
-Turning it off (`jellyfin.seed_from_host: false`) drops both init containers,
-the host mounts and the `jellyfin-seed-scripts` ConfigMap, and changes nothing
-else.
+With the flag off the pod has neither init container, no host mounts and no
+`jellyfin-seed-scripts` ConfigMap, so it no longer needs nuc2's
+`/var/lib/jellyfin` or `/etc/jellyfin`, and a restored volume without the
+marker starts as it is. The code stays for a future move from a host
+install.
 
 ### The trial switch
 

@@ -939,7 +939,7 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <tr class="row-even"><td><p>Grafana database and provisioning</p></td>
 <td><p>node04, <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> CronJobs (<code class="docutils literal notranslate"><span class="pre">backups</span></code>): <code class="docutils literal notranslate"><span class="pre">sqlite3</span> <span class="pre">.backup</span></code>, tarred</p></td>
-<td><p>02:45 UTC daily; 03:45 UTC Sundays</p></td>
+<td><p>00:35 daily; 00:40 Sundays</p></td>
 <td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/grafana/</span></code>, <code class="docutils literal notranslate"><span class="pre">weekly/</span></code></p></td>
 <td><p>7 days; 28 days</p></td>
 <td><p>On Drive only</p></td>
@@ -966,7 +966,7 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <tr class="row-odd"><td><p>scrap database and files</p></td>
 <td><p>NAS <code class="docutils literal notranslate"><span class="pre">scrap-data</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> and <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> CronJobs (<code class="docutils literal notranslate"><span class="pre">scrap</span></code>)</p></td>
-<td><p>03:30 daily; 03:50 UTC on the 1st</p></td>
+<td><p>00:30 daily; 00:40 on the 1st</p></td>
 <td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code>, <code class="docutils literal notranslate"><span class="pre">monthly/</span></code></p></td>
 <td><p>7 runs; 12 runs</p></td>
 <td><p>On Drive only</p></td>
@@ -975,7 +975,7 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <tr class="row-even"><td><p>scrap’s newest backup run</p></td>
 <td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> CronJob</p></td>
-<td><p>05:00 daily</p></td>
+<td><p>00:50 daily</p></td>
 <td><p>nuc2 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/scrap-backup-copy</span></code></p></td>
 <td><p>3 runs</p></td>
 <td><p>No</p></td>
@@ -1083,9 +1083,8 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 </tbody>
 </table>
 </div>
-<p>Times are Europe/London unless marked UTC. The CronJobs marked UTC set no
-time zone, so they follow the control plane’s clock, which is UTC; in summer
-they run an hour later by local time.</p>
+<p>Times are Europe/London. Every CronJob sets that time zone, so none follows
+the control plane’s clock (UTC).</p>
 <p>Three things in that table deserve a reason:</p>
 <ul class="simple">
 <li><p><strong>Prometheus is not backed up.</strong> Metrics refill by scraping, a consistent
@@ -1137,9 +1136,9 @@ library.</p>
 </section>
 <section id="one-night">
 <h2>One night<a class="headerlink" href="#one-night" title="Link to this heading">#</a></h2>
-<p>Every job is timed around the nodes’ own maintenance: backups of the
-cluster’s state first, then patching, then reboots, then the copies that
-depend on everything else having finished.</p>
+<p>Every job is timed around the nodes’ own maintenance: the etcd backup before
+anything changes, the backups to the NAS in the gap before the windows that
+drain nodes, and the off-site copy after the last of them.</p>
 <pre  class="mermaid">
         flowchart LR
     subgraph before[&quot;Before the nodes change&quot;]
@@ -1153,22 +1152,20 @@ depend on everything else having finished.</p>
     end
 
     subgraph tonas[&quot;Backups to the NAS&quot;]
+        scrap[&quot;00:30&lt;br/&gt;scrap-backup&quot;]
+        graf[&quot;00:35&lt;br/&gt;grafana-daily&quot;]
         jf[&quot;01:45&lt;br/&gt;jellyfin-daily&quot;]
-        graf[&quot;02:45 UTC&lt;br/&gt;grafana-daily&quot;]
-        scrap[&quot;03:30&lt;br/&gt;scrap-backup&quot;]
     end
 
     subgraph offnas[&quot;Off the NAS&quot;]
-        copy[&quot;05:00&lt;br/&gt;scrap-backup-copy&quot;]
+        copy[&quot;00:50&lt;br/&gt;scrap-backup-copy&quot;]
         off[&quot;05:30&lt;br/&gt;offsite-backup&quot;]
     end
 
-    etcd --&gt; apt --&gt; k3s --&gt; kured
-    etcd --&gt; jf --&gt; graf --&gt; scrap
-    kured --&gt; copy
-    scrap --&gt; copy --&gt; off
-    </pre><p>Arrows give the order in time, not a dependency between jobs. The backups to
-the NAS run alongside the maintenance windows, not after them.</p>
+    etcd --&gt; apt --&gt; scrap --&gt; graf --&gt; copy --&gt; k3s --&gt; kured --&gt; off
+    k3s --- jf
+    </pre><p>Arrows give the order in time, not a dependency between jobs.
+<code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code> runs inside the K3s upgrade window.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Time</p></th>
@@ -1185,29 +1182,29 @@ the NAS run alongside the maintenance windows, not after them.</p>
 <td><p>unattended-upgrades installs packages</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">roles/update_packages/defaults</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>01:00 to 02:00</p></td>
+<tr class="row-even"><td><p>00:30</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> (1st of the month, 00:40: <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code>)</p></td>
+<td><p>the scrap chart; schedule and time zone in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>00:35</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code> (Sundays 00:40: <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/backups/templates/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>00:50</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> to nuc2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/scrap/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>01:00 to 02:00</p></td>
 <td><p>system-upgrade-controller starts K3s patch upgrades; a pre-upgrade etcd snapshot comes first</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s.upgrade_window</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>01:45</p></td>
+<tr class="row-even"><td><p>01:45</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code> (Sundays 01:50: <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/backups/templates/cronjob-jellyfin.yaml</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>02:30 to 05:00</p></td>
+<tr class="row-odd"><td><p>02:30 to 05:00</p></td>
 <td><p>kured drains and reboots nodes that need it, one at a time; never ws03</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>02:45 UTC</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code> (Sundays 03:45 UTC: <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code>)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">additions/backups/templates/</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>03:30</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code> (1st of the month, 03:50 UTC: <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code>)</p></td>
-<td><p>the scrap chart; time zone in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>05:00</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> to nuc2</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">additions/scrap/values.yaml</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>05:30</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive</p></td>
@@ -1219,9 +1216,11 @@ the NAS run alongside the maintenance windows, not after them.</p>
 <p>The order is the design. The etcd backup runs before anything changes the
 nodes, so there is always a snapshot from before the night’s patching. The
 off-site job runs last so that it carries that night’s backups, not the
-previous night’s. The Grafana and scrap jobs do fall inside the reboot
-window; a job interrupted by a reboot is retried, and a missed scrap backup
-is caught by the next step, below.</p>
+previous night’s. The scrap and Grafana jobs, and scrap’s copy to nuc2, run
+between 00:30 and 01:00, after unattended-upgrades (which never drains or
+reboots) and before the two windows that do. <code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code> stays at 01:45,
+after Jellyfin’s own 01:00 tasks: a K3s patch round that drains nuc2 then
+delays it, and a job interrupted that way is retried.</p>
 </section>
 <section id="knowing-when-a-backup-failed">
 <h2>Knowing when a backup failed<a class="headerlink" href="#knowing-when-a-backup-failed" title="Link to this heading">#</a></h2>
@@ -1233,8 +1232,8 @@ older than 36 hours, no success ever, or missing metrics. Alertmanager
 pushes these to the phone through ntfy.</p></li>
 <li><p><strong>Off-site:</strong> <code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code> and
 <code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code> (<code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code>) fire from
-kube-state-metrics. They are warnings that are not on the push list, so
-they show in Alertmanager and Grafana but do not reach the phone.</p></li>
+kube-state-metrics. They are warnings on the push list, so like the etcd
+alerts they reach the phone through ntfy.</p></li>
 <li><p><strong>The CronJobs to the NAS</strong> are covered by kube-prometheus-stack’s stock
 <code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code>, also shown but not pushed.</p></li>
 <li><p><strong>scrap</strong> has a cross-check: <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> fails if the newest

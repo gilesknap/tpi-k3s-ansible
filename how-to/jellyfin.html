@@ -1078,13 +1078,7 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <section id="restore-from-a-backup">
 <h3>Restore from a backup<a class="headerlink" href="#restore-from-a-backup" title="Link to this heading">#</a></h3>
 <ol class="arabic">
-<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push, so nothing has the database open.
-Set <code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code> in the same change unless the
-volume’s root (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code> on nuc2) holds <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>.
-Without that marker the seed runs on the restored volume: it fails on a
-new one, and a <code class="docutils literal notranslate"><span class="pre">SEED-IN-PROGRESS</span></code> left by an interrupted seed makes it
-clear the volume and copy the host install over the restore. See
-<a class="reference internal" href="#the-seed-flag">The seed flag</a>.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code> and push, so nothing has the database open.</p></li>
 <li><p>On nuc2, unpack the tarball over the volume’s root as the <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code>
 account, for example with the NAS share mounted on the node:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>-u<span class="w"> </span>jellyfin<span class="w"> </span>tar<span class="w"> </span>--no-overwrite-dir<span class="w"> </span><span class="se">\</span>
@@ -1120,8 +1114,8 @@ weeks, recorded in the comment above it.)</p></li>
 <li><p>Never go backwards: an older Jellyfin cannot open a database that a newer
 one has migrated. Run a backup first, so a bad upgrade can be undone by
 restoring it and reverting the pin.</p></li>
-<li><p>The seed and the backups use <code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code>; bump it under
-the same rule.</p></li>
+<li><p>The backups (and the seed, when it is on) use
+<code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code>; bump it under the same rule.</p></li>
 </ul>
 <p>Push the change. ArgoCD stops the old pod and starts the new one
 (<code class="docutils literal notranslate"><span class="pre">Recreate</span></code>); the startup probe waits up to 15 minutes for a database
@@ -1153,11 +1147,11 @@ only Jellyfin. This is why it uses the host package’s paths and nuc2’s
 <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account. What remains of the move in the code:</p>
 <section id="the-seed-flag">
 <h3>The seed flag<a class="headerlink" href="#the-seed-flag" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code> is still <code class="docutils literal notranslate"><span class="pre">true</span></code>. It adds two init containers,
-<code class="docutils literal notranslate"><span class="pre">seed-copy</span></code> and <code class="docutils literal notranslate"><span class="pre">seed-verify</span></code>
+<p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code> is now <code class="docutils literal notranslate"><span class="pre">false</span></code>: the seed is done. While it was
+<code class="docutils literal notranslate"><span class="pre">true</span></code> it added two init containers, <code class="docutils literal notranslate"><span class="pre">seed-copy</span></code> and <code class="docutils literal notranslate"><span class="pre">seed-verify</span></code>
 (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/jellyfin/files/</span></code>), and read-only <code class="docutils literal notranslate"><span class="pre">hostPath</span></code>
 mounts of nuc2’s <code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> and <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>. Marker files at the
-config volume’s root decide what they do:</p>
+config volume’s root decided what they did:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Marker</p></th>
@@ -1166,7 +1160,7 @@ config volume’s root decide what they do:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code></p></td>
-<td><p>Seeded (with a timestamp): both steps do nothing, on every later start</p></td>
+<td><p>Seeded (with a timestamp): both steps did nothing on a later start</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code></p></td>
 <td><p>A trial config: the seed may clear it</p></td>
@@ -1180,28 +1174,17 @@ config volume’s root decide what they do:</p>
 </tbody>
 </table>
 </div>
-<p>The volume on nuc2 is marked <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>, so on every start both
-containers log that and exit. That is why the flag is safe to leave on:</p>
-<ul class="simple">
-<li><p>the seed never writes to the host directories (they are mounted read-only);</p></li>
-<li><p>it never clears a volume that is neither empty nor trial-marked: unmarked
-data makes it fail loudly, not copy over it;</p></li>
-<li><p>on an empty volume it refuses while anything is listening on port 8096 of
-the node, and it verifies the copy (byte-for-byte database comparison, file
-counts and sizes, then <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code>) before writing the marker.</p></li>
-</ul>
-<p>Two things follow from leaving it on:</p>
-<ul class="simple">
-<li><p>The pod needs <code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> and <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code> to exist on nuc2
-(<code class="docutils literal notranslate"><span class="pre">hostPath</span></code> type <code class="docutils literal notranslate"><span class="pre">Directory</span></code>). Do not remove the host install’s
-directories while the flag is on.</p></li>
-<li><p>A volume restored from a backup onto an empty disk has no
-<code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code> marker, so the seed refuses it. Turn the flag off for a
-restore, as above.</p></li>
-</ul>
-<p>Turning it off (<code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host:</span> <span class="pre">false</span></code>) drops both init containers,
-the host mounts and the <code class="docutils literal notranslate"><span class="pre">jellyfin-seed-scripts</span></code> ConfigMap, and changes nothing
-else.</p>
+<p>The volume on nuc2 is marked <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code>. The seed never wrote to the
+host directories (they were mounted read-only), never cleared a volume that
+was neither empty nor trial-marked, refused while anything listened on port
+8096 of the node, and verified the copy (byte-for-byte database comparison,
+file counts and sizes, then <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code>) before writing the
+marker.</p>
+<p>With the flag off the pod has neither init container, no host mounts and no
+<code class="docutils literal notranslate"><span class="pre">jellyfin-seed-scripts</span></code> ConfigMap, so it no longer needs nuc2’s
+<code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> or <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code>, and a restored volume without the
+marker starts as it is. The code stays for a future move from a host
+install.</p>
 </section>
 <section id="the-trial-switch">
 <h3>The trial switch<a class="headerlink" href="#the-trial-switch" title="Link to this heading">#</a></h3>
