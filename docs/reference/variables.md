@@ -152,7 +152,7 @@ applies to that run only.
 | `enable_jellyfin` | `true` | Deploy Jellyfin ({doc}`/how-to/jellyfin`); needs `local_storage.jellyfin` and its `k8s_data_dirs` entry |
 | `jellyfin.chart_version` / `image_tag` | `3.7.0` / `12.4.20261026-211555` | The upstream chart version and the Jellyfin image tag (never older than the database's Jellyfin) |
 | `jellyfin.trial` | `false` | Throwaway trial config: marks the config volume `TRIAL-CONFIG-SAFE-TO-DELETE`. Not with `seed_from_host` |
-| `jellyfin.seed_from_host` | `true` | One-off copy of the stopped host install on `nuc2` into the config volume (init containers). The volume is marked `SEEDED-FROM-HOST`, so it now does nothing |
+| `jellyfin.seed_from_host` | `false` | One-off copy of the stopped host install on `nuc2` into the config volume (init containers). Off now that the seed is done: the volume is marked `SEEDED-FROM-HOST` |
 | `jellyfin.seed.sqlite_image` | `docker.io/keinos/sqlite3:3.54.1` | Image with `sqlite3`, for the seed's integrity check and the backup CronJobs |
 | `jellyfin.seed.hardware_decoding_codecs` | `[h264, hevc, …]` | Replaces `HardwareDecodingCodecs` in the copied `encoding.xml`; empty leaves it unchanged |
 | `jellyfin.data_dir` / `config_dir` / `log_dir` / `cache_dir` | `/var/lib/jellyfin` / `/etc/jellyfin` / `/var/log/jellyfin` / `/var/cache/jellyfin` | Jellyfin's paths in the pod, the same as a host install's. The first three are the config volume's `data/`, `config/` and `log/`; the seed copies the host's `data_dir` and `config_dir` |
