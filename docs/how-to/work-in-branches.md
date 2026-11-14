@@ -76,7 +76,10 @@ just switch-branch my-change
 ```
 
 `switch-branch` runs `ansible-playbook pb_all.yml --tags cluster -e
-repo_branch=my-change`. That re-renders the root application
+repo_branch=my-change`. The only play with that tag runs on `localhost`
+and talks to the Kubernetes API, so it needs the kubeconfig but no SSH key,
+and works the same in a devcontainer terminal and in the claude-sandbox.
+It re-renders the root application
 `all-cluster-services` from `argo-cd/argo-git-repository.yaml` with the
 branch in two places:
 
