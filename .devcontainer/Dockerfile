@@ -34,7 +34,8 @@ RUN set -eu; \
 
 # rclone, for scripts/seal-rclone-drive (the off-site backup's Drive token).
 # Pinned and checked against the release's SHA256SUMS.
-ARG RCLONE_VERSION=1.75.2
+# Not RCLONE_VERSION: rclone reads RCLONE_<FLAG> env vars, so that would set --version.
+ARG RCLONE_RELEASE=1.75.2
 ARG RCLONE_SHA256_AMD64=efbfe852181f7191eb3c9043ed1ab49c9b2d0ba045c61c926a5da111c939ec5c
 ARG RCLONE_SHA256_ARM64=b8ba161d5c837206fad79ff1aabf0a81aa02a5fb164cdbc0ff5db4160aecd278
 RUN set -eu; \
@@ -44,8 +45,8 @@ RUN set -eu; \
         arm64) sha=$RCLONE_SHA256_ARM64 ;; \
         *) echo "no rclone checksum for $arch" >&2; exit 1 ;; \
     esac; \
-    deb="rclone-v${RCLONE_VERSION}-linux-${arch}.deb"; \
-    curl -fsSL "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/${deb}" -o "/tmp/${deb}"; \
+    deb="rclone-v${RCLONE_RELEASE}-linux-${arch}.deb"; \
+    curl -fsSL "https://github.com/rclone/rclone/releases/download/v${RCLONE_RELEASE}/${deb}" -o "/tmp/${deb}"; \
     echo "${sha}  /tmp/${deb}" | sha256sum -c -; \
     dpkg -i "/tmp/${deb}"; \
     rm "/tmp/${deb}"; \
