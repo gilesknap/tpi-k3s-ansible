@@ -355,7 +355,15 @@ with that secret.
 The other `to add` is `cloudflare_ruleset.rate_limit`, a known gap:
 `imports.tf` has no import block for it and `import_ids` has no key. A
 zone has one `http_ratelimit` ruleset, so if the zone already has it the
-apply may fail on the clash. Do not apply while the plan still adds it.
+apply may fail on the clash. Do not apply while the plan adds it and the
+zone still has one. List the zone's rate-limiting ruleset, with the
+variables and `api` function of step 3 (no output means the zone has
+none, and the apply can create it):
+
+```bash
+api "zones/$Z/rulesets" | jq -r '.result[] | select(.phase == "http_ratelimit") | .id'
+```
+
 Either adopt the ruleset with a temporary import block, in a file such
 as `cloudflare/import-rate-limit.tf` that you delete after the apply and
 do not commit:
@@ -367,11 +375,12 @@ import {
 }
 ```
 
-The ruleset ID comes from the `rulesets` call in step 3, with the phase
-`http_ratelimit`. Or delete the zone's rate-limiting ruleset first (the
-API's `DELETE zones/<zone_id>/rulesets/<ruleset_id>`, with the edit
-token) and let the apply create it. With the import block the plan shows
-one more import and `1 to add`.
+The ruleset ID is the one that command printed. Or delete the zone's
+rate-limiting ruleset first (the API's
+`DELETE zones/<zone_id>/rulesets/<ruleset_id>`, with the edit token) and
+let the apply create it: the plan then still shows `2 to add`, which is
+right. With the import block the plan shows one more import and
+`1 to add`.
 
 Any other `to add` or `to change`, or any `to destroy`, means the code
 does not match the live configuration: fix the code (or the values in
@@ -387,6 +396,14 @@ tunnel token: `cloudflared` keeps the connections it has, but cannot
 make new ones until it has the new token, so carry on straight away
 with {ref}`the rotation steps <cf-rotate-tunnel-token>`, from
 `just cf-seal-tunnel-token` (step 4) onwards.
+
+Those steps need a running cluster: `just cf-seal-tunnel-token` seals
+against its Sealed Secrets controller, and stops before it updates `.env`
+if it cannot. If the cluster is down too (a rebuild after losing both),
+put the new token in `.env` instead, with the command under "Collect the
+credentials" in {doc}`/tutorials/build-the-cluster`, which replaces an old
+`CLOUDFLARE_TUNNEL_TOKEN` line. The playbook then seals it with every
+other secret, and the new pods start with it.
 From then on `just cf-plan` prints `No changes. Your infrastructure
 matches the configuration.` and the import blocks are no-ops.
 

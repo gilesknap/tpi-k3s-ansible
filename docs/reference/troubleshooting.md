@@ -635,15 +635,29 @@ sudo systemctl restart k3s
 The API server compacts old revisions every five minutes, but that does not
 shrink the file. When K3s starts it defragments the database, which does, and
 then clears the alarm, so no `etcdctl` (the nodes have none) is needed. Check
-the result:
+the result of this restart, not an earlier one:
 
 ```bash
-sudo journalctl -u k3s | grep 'after defragment'
+systemctl is-active k3s
+sudo journalctl -u k3s --since "$(systemctl show k3s -p ExecMainStartTimestamp --value)" |
+  grep 'after defragment'
 ```
 
-The database is normally tens of MB. If it is still near the quota after the
-restart, the space is live data, not fragmentation: look for an object kind
-with a runaway count (Events, Jobs, ReplicaSets) and delete those.
+The line reads `Datastore using <in use> of <file size> bytes after
+defragment`. The database is normally tens of MB. If it is still near the
+quota, the space may be history that was never compacted: defragmenting
+frees only compacted revisions, and compaction is itself a write, so it can
+have stopped while the alarm was up. With the alarm cleared the API server
+compacts again, so wait ten minutes and restart K3s once more, then repeat
+the check.
+
+If it is still near the quota after that second restart, the space is live
+data: look for an object kind with a runaway count (Events, Jobs,
+ReplicaSets) and delete those. Deleting does not shrink the file either, so
+finish in the same way: wait ten minutes for the compaction, restart K3s,
+and check that the size has fallen and that a write works (for example
+`kubectl annotate node node02 etcd-check=ok --overwrite`, then remove it
+with `etcd-check-`).
 
 ### The nightly etcd backup alert fires
 

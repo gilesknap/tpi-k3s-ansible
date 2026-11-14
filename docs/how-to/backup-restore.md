@@ -772,18 +772,26 @@ installing the cluster.
   `stable/minecraft/` and `stable/archived-minecraft/` (the folders of
   those names in `/k8s-dynamic/stable`). The newest
   `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` holds
-  `archive/` (the contents of `/bigdisk/minecraft-archive`); there is one
-  for each state the archive has had, so go by the upload time. Unpack each
-  into its place. The store and the worlds must be owned by `1000:1000`.
+  `archive/` (the contents of `/bigdisk/minecraft-archive`). There is one
+  for each state the archive has had, and a state that comes back is not
+  uploaded again, so the last upload is the current archive unless the
+  archive was changed back to an earlier state (files removed again, or
+  restored to an earlier size). If it may have been, list the candidates
+  (`age -d -i <key> <file> | tar -tv`) and take the one whose files and
+  sizes are the archive you had. Unpack each into its place. The store and the worlds must be owned by `1000:1000`.
   Make the archive read-only again with `chmod -R a-w`
   ({ref}`minecraft-nas-directories`). The dashboard re-creates the
   worlds from the registry in its store once, at its start: if it is
   already running, restart it afterwards
   (`kubectl -n minecraft rollout restart deploy/minecraft-dashboard`).
   Changes in the worlds since that tarball are lost.
-- **The other backups.** Nothing else needs to go back: the etcd bundles,
-  sealed-secrets key exports and the Grafana and Jellyfin tarballs stay on
-  Drive, and the nightly jobs write new ones to the NAS.
+- **The other backups.** Normally nothing else needs to go back: the etcd
+  bundles, sealed-secrets key exports and the Grafana and Jellyfin tarballs
+  stay on Drive, and the nightly jobs write new ones to the NAS. The
+  exception is a `local-nvme` PV that was wiped as well (step 7 above, for
+  example Grafana after a `flash_force` of node04): step 7 looks for its
+  backup on the NAS, so first download and decrypt that app's newest
+  tarball from Drive into `/bigdisk/k8s-cluster/backups/<app>/`.
 
 ### Minecraft worlds after a rebuild
 

@@ -204,17 +204,21 @@ fetched again from where it was issued.
 The tunnel's token is not in a dashboard to copy: this repo reads it from
 the OpenTofu state (Cloudflare's API can return it too, but only to an
 edit token, so the code does not ask). The other copy is the old
-cluster's Secret. With the state to hand, add the token to a `.env` that
-has no `CLOUDFLARE_TUNNEL_TOKEN` line yet, without printing it. Run this
-from the root of the main checkout, where the state is, not from a git
-worktree:
+cluster's Secret. With the state to hand, put the token in `.env` without
+printing it. Run this from the root of the main checkout, where the state
+is, not from a git worktree:
 
 ```bash
 (umask 077; t=$(scripts/cf-tofu output -raw tunnel_token) &&
+  touch .env && chmod 600 .env &&
+  sed -i -e '/^CLOUDFLARE_TUNNEL_TOKEN=/d' -e '$a\' .env &&
   printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "$t" >> .env)
 ```
 
-If `cf-tofu` fails, nothing is appended.
+It makes `.env` readable by its owner only, removes any old
+`CLOUDFLARE_TUNNEL_TOKEN` line, and ends the last line if it has no
+newline, so the token goes on a line of its own. If `cf-tofu` fails,
+`.env` is not touched.
 
 With no tunnel at all (a new Cloudflare account), create it first:
 {ref}`build the edge from nothing <build-edge-from-nothing>`, below, comes
@@ -334,6 +338,10 @@ Building the edge from nothing is the same commands plus an apply, and it
 is done before the playbook runs, not after: the playbook needs the
 tunnel's token, and the tunnel does not exist until the apply has created
 it.
+
+Run these in the main checkout, not in a git worktree: the state is
+gitignored and stays in the checkout that made it, and the token is read
+from it there.
 
 ```bash
 just cf-init
