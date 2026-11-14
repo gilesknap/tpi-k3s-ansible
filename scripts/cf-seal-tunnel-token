@@ -7,7 +7,20 @@
 # If .env at the repo root (written by scripts/export-external-creds for a
 # rebuild) has a CLOUDFLARE_TUNNEL_TOKEN line, it is updated too, so that
 # a rebuild from that .env does not reseal the old token.
+#
+# --env-only (just cf-env-tunnel-token): skip the sealing, which needs a
+# running cluster, and only add or update the CLOUDFLARE_TUNNEL_TOKEN line
+# in .env (created mode 600 if missing). For a first build, after
+# `just cf-apply` has created the tunnel and before the GENERATE_SECRETS
+# run, whose cluster stage needs the token.
 set -euo pipefail
+
+env_only=false
+case ${1:-} in
+    --env-only) env_only=true ;;
+    "") ;;
+    *) echo "usage: $0 [--env-only]" >&2; exit 2 ;;
+esac
 
 cd "$(dirname "$0")/.."
 . scripts/lib/seal.sh
@@ -33,26 +46,38 @@ if ! printf '%s' "$token" | base64 -d 2>/dev/null |
     exit 1
 fi
 
-echo "Sealing: cloudflared-credentials..."
-printf '%s' "$token" |
-    kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
-        --from-file=TUNNEL_TOKEN=/dev/stdin \
-        --dry-run=client -o yaml | seal_to "$dest"
-echo "  -> $dest"
+if ! $env_only; then
+    echo "Sealing: cloudflared-credentials..."
+    printf '%s' "$token" |
+        kubectl create secret generic cloudflared-credentials --namespace=cloudflared \
+            --from-file=TUNNEL_TOKEN=/dev/stdin \
+            --dry-run=client -o yaml | seal_to "$dest"
+    echo "  -> $dest"
+fi
 
-if [[ -f .env ]] && grep -q '^CLOUDFLARE_TUNNEL_TOKEN=' .env; then
+# Without --env-only, .env is only updated if it already carries the line.
+if $env_only || { [[ -f .env ]] && grep -q '^CLOUDFLARE_TUNNEL_TOKEN=' .env; }; then
     tmp=$(umask 077 && mktemp .env.XXXXXX)
     # Never leave a partial copy (which holds the token) behind.
     trap 'rm -f "$tmp"' EXIT
+    [[ -f .env ]] || : > .env
     TOKEN=$token awk '
-        /^CLOUDFLARE_TUNNEL_TOKEN=/ { print "CLOUDFLARE_TUNNEL_TOKEN=" ENVIRON["TOKEN"]; next }
+        /^CLOUDFLARE_TUNNEL_TOKEN=/ { print "CLOUDFLARE_TUNNEL_TOKEN=" ENVIRON["TOKEN"]; done = 1; next }
         { print }
+        END { if (!done) print "CLOUDFLARE_TUNNEL_TOKEN=" ENVIRON["TOKEN"] }
     ' .env > "$tmp"
     mv "$tmp" .env
     trap - EXIT
-    echo "Updated CLOUDFLARE_TUNNEL_TOKEN in .env: source it again before a rebuild"
+    echo "Set CLOUDFLARE_TUNNEL_TOKEN in .env: source it again before a rebuild"
 fi
 unset token
+
+if $env_only; then
+    echo ""
+    echo "Next: set -a && source .env && set +a, then run the GENERATE_SECRETS build,"
+    echo "which seals the token for cloudflared itself."
+    exit 0
+fi
 
 echo ""
 echo "Next: commit $dest, open a PR and merge it. Once ArgoCD has synced it,"

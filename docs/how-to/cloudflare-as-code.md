@@ -297,8 +297,7 @@ If the state is lost, nothing at Cloudflare is affected: recreate it by
 filling `import_ids` again and running the first plan and apply
 ([step 4](#4-first-init-and-plan)), which imports the objects afresh.
 That apply also sets a new tunnel secret, so it needs the edit token and
-ends with the token rotation steps. The rate-limiting ruleset has no
-import yet: adopt it by hand first, as step 4 describes.
+ends with the token rotation steps.
 
 Local state suits a single operator. Sharing it, or planning in CI,
 would mean adding an S3-compatible backend to `cloudflare/versions.tf`
@@ -327,7 +326,12 @@ api "accounts/$A/cfd_tunnel?is_deleted=false" | jq -r '.result[] | "\(.name) \(.
 api "accounts/$A/access/apps" | jq -r '.result[] | "\(.name) \(.id)"'
 api "accounts/$A/access/policies" | jq -r '.result[] | "\(.name) \(.id)"'
 api "zones/$Z/rulesets" | jq -r '.result[] | select(.phase == "http_request_cache_settings") | .id'
+api "zones/$Z/rulesets" | jq -r '.result[] | select(.phase == "http_ratelimit") | .id'
 ```
+
+The last two are `import_ids.cache_ruleset` and
+`import_ids.rate_limit_ruleset`. A zone has at most one of each; no output
+means the zone has none, so leave the key out and the apply creates it.
 
 The cache rule's `ref`, for `cache_rule_refs`, is in
 `api "zones/$Z/rulesets/<ruleset_id>"` under `.result.rules[].ref`.
@@ -339,11 +343,11 @@ just cf-init
 just cf-plan
 ```
 
-The first plan after filling `import_ids` shows the imports, the
-tunnel's secret and the rate-limiting ruleset:
+The first plan after filling `import_ids` shows the imports and the
+tunnel's secret:
 
 ```
-Plan: N to import, 2 to add, 1 to change, 0 to destroy.
+Plan: N to import, 1 to add, 1 to change, 0 to destroy.
 ```
 
 One `to add` is `random_bytes.tunnel_secret`: the secret exists only
@@ -352,35 +356,13 @@ gets a new one. The one `to change` is
 `cloudflare_zero_trust_tunnel_cloudflared.cluster`, updated in place
 with that secret.
 
-The other `to add` is `cloudflare_ruleset.rate_limit`, a known gap:
-`imports.tf` has no import block for it and `import_ids` has no key. A
-zone has one `http_ratelimit` ruleset, so if the zone already has it the
-apply may fail on the clash. Do not apply while the plan adds it and the
-zone still has one. List the zone's rate-limiting ruleset, with the
-variables and `api` function of step 3 (no output means the zone has
-none, and the apply can create it):
-
-```bash
-api "zones/$Z/rulesets" | jq -r '.result[] | select(.phase == "http_ratelimit") | .id'
-```
-
-Either adopt the ruleset with a temporary import block, in a file such
-as `cloudflare/import-rate-limit.tf` that you delete after the apply and
-do not commit:
-
-```hcl
-import {
-  to = cloudflare_ruleset.rate_limit
-  id = "zones/<zone_id>/<ruleset_id>"
-}
-```
-
-The ruleset ID is the one that command printed. Or delete the zone's
-rate-limiting ruleset first (the API's
-`DELETE zones/<zone_id>/rulesets/<ruleset_id>`, with the edit token) and
-let the apply create it: the plan then still shows `2 to add`, which is
-right. With the import block the plan shows one more import and
-`1 to add`.
+If the plan also adds `cloudflare_ruleset.rate_limit` (or
+`cloudflare_ruleset.cache`), its ID is missing from `import_ids`. A zone
+has one ruleset per phase, so while the zone already has it, an apply that
+creates it fails on the clash. Look the ID up with the `http_ratelimit` (or
+`http_request_cache_settings`) command of step 3, set it in
+`live.auto.tfvars`, and plan again: it then shows one more import. Only
+when that command prints nothing is a `to add` for the ruleset right.
 
 Any other `to add` or `to change`, or any `to destroy`, means the code
 does not match the live configuration: fix the code (or the values in
@@ -400,9 +382,9 @@ with {ref}`the rotation steps <cf-rotate-tunnel-token>`, from
 Those steps need a running cluster: `just cf-seal-tunnel-token` seals
 against its Sealed Secrets controller, and stops before it updates `.env`
 if it cannot. If the cluster is down too (a rebuild after losing both),
-put the new token in `.env` instead, with the command under "Collect the
-credentials" in {doc}`/tutorials/build-the-cluster`, which replaces an old
-`CLOUDFLARE_TUNNEL_TOKEN` line. The playbook then seals it with every
+put the new token in `.env` instead with `just cf-env-tunnel-token`, in
+the main checkout ({doc}`/tutorials/build-the-cluster`), which replaces an
+old `CLOUDFLARE_TUNNEL_TOKEN` line and needs no cluster. The playbook then seals it with every
 other secret, and the new pods start with it.
 From then on `just cf-plan` prints `No changes. Your infrastructure
 matches the configuration.` and the import blocks are no-ops.
@@ -424,7 +406,8 @@ account, or a visitor's own), the order is:
 6. `just cf-seal-tunnel-token`, commit the SealedSecret and merge:
    `cloudflared` then connects with the new tunnel's token. This step
    needs a running cluster to seal against. When the cluster is still to
-   be built, put the token in `.env` instead and the build seals it
+   be built, put the token in `.env` instead with
+   `just cf-env-tunnel-token`, and the build seals it
    ({doc}`/tutorials/build-the-cluster`).
 
 A rebuild of the *cluster* is not this case. The account, the tunnel and

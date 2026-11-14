@@ -40,7 +40,11 @@ rather than trusting a copy.
   then `just cf-tunnel-disconnect` (old connections survive a rotation)
   and check only the pods' connector IDs reconnect. Never rotate in the
   dashboard: tofu doesn't read the secret back, so it would reseal a dead
-  one. The first `cf-apply` on an imported tunnel rotates it. Run `cf-`
+  one. The first `cf-apply` on an imported tunnel rotates it. With no
+  cluster to seal against (first build, or cluster down too),
+  `just cf-env-tunnel-token` writes the token into `.env` only (adds or
+  replaces the line, never prints it) and the `GENERATE_SECRETS=true` run
+  seals it. Run `cf-`
   recipes from the main checkout (docs/how-to/cloudflare-as-code.md)
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
   - a node with `systemd-resolved` overridden to `1.1.1.1` cannot resolve `<node>.lan` names

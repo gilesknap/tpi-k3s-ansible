@@ -59,7 +59,8 @@ no state.
 | `just cf-init` | Downloads the provider and sets up the local, encrypted state | State passphrase |
 | `just cf-plan [args]` | Shows what would change at Cloudflare | Read-only token |
 | `just cf-apply [args]` | Applies the config; asks before changing anything | Edit token, always typed |
-| `just cf-seal-tunnel-token` | Seals the tunnel token from the state into cloudflared's `SealedSecret`, without printing it | State passphrase |
+| `just cf-seal-tunnel-token` | Seals the tunnel token from the state into cloudflared's `SealedSecret`, without printing it | State passphrase; needs the running cluster |
+| `just cf-env-tunnel-token` | Adds or replaces the `CLOUDFLARE_TUNNEL_TOKEN` line in `.env` from the state, without printing it or sealing it (creates `.env`, mode 600, if missing) | State passphrase; no cluster needed. For a build whose tunnel is new, before the `GENERATE_SECRETS=true` run |
 | `just cf-tunnel-disconnect` | Cuts every tunnel connection, then lists the connectors that came back | Edit token; last step of a tunnel token rotation |
 
 ### Secrets and sealing
