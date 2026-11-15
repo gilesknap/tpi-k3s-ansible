@@ -6,6 +6,10 @@ This directory is a small Helm chart holding these things for scrap:
   it only with a scrap chart release that supports `SCRAP_MCP_TOKEN`) an Ingress for `scrap.<domain>/mcp` only, without the
   oauth2-proxy annotations (the main PWA Ingress comes from `additions/ingress`).
 - the SealedSecret below.
+- `templates/scrap-ntfy-secret.yaml`: the SealedSecret `scrap-ntfy`, scrap's
+  ntfy token and `SCRAP_NOTIFY_URL` (key `url`). Not sealed by hand:
+  `just seal-ntfy` and the rebuild seal it with ntfy's `ntfy-auth`
+  (docs/how-to/ntfy.md).
 - for public pages: `templates/public-namespace.yaml`, the `scrap-public`
   namespace (Pod Security `restricted`), and the upload token SealedSecret
   `scrap-publish` sealed once for each namespace (below).

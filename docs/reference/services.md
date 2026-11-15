@@ -312,11 +312,11 @@ filesystem.
 Self-hosted push notifications at `ntfy.gkcluster.org`, locked down:
 `auth-default-access: deny-all`, no sign-up, no web app, no attachments. Users,
 tokens and access are declarative, from the `ntfy-auth` SealedSecret and the
-chart's values: write-only senders (`alertmanager` on `cluster-alerts`, `vps`
-on `vps-alerts`) and a read-only `phone` user. It is public through the tunnel
+chart's values: write-only senders (`alertmanager` and `scrap` on
+`cluster-alerts`, `vps` on `vps-alerts`) and a read-only `phone` user. It is public through the tunnel
 with a bypass Access application, because the phone app cannot log in to
 Access, and a Cloudflare rate-limiting rule. A NetworkPolicy admits only
-ingress-nginx and the Alertmanager pods. See {doc}`/how-to/ntfy`.
+ingress-nginx, the Alertmanager pods and the scrap pods. See {doc}`/how-to/ntfy`.
 
 ### scrap
 

@@ -20,7 +20,10 @@ The Secret's keys:
 An in-cluster publisher in another namespace cannot read ntfy-auth, so its
 token is also sealed into a Secret of its own (CLUSTER_COPIES, key `token`)
 wherever ntfy-auth is sealed: scripts/seal-ntfy and scripts/seal-from-json
-(through `ntfy_auth.py copies`).
+(through `ntfy_auth.py copies`). A publisher that can only POST to a URL,
+with no header of its own, also gets key `url`: its topic URL with the token
+in ntfy's `?auth=` query parameter (COPY_URLS, copy_data, and
+`ntfy_auth.py copy-url USER` for the bash scripts).
 
 There is no admin user: auth is declarative, so nothing needs one. Users
 authenticate with tokens only, so their passwords are random and thrown
@@ -30,6 +33,7 @@ password on stdin, never on a command line.
 
 from __future__ import annotations
 
+import base64
 import re
 import secrets
 import string
@@ -41,6 +45,7 @@ import sys
 # the Secret by an in-cluster publisher and never printed.
 SENDERS = {
     "alertmanager": "cluster",
+    "scrap": "cluster",
     "vps": "owner",
     "phone": "owner",
 }
@@ -54,6 +59,19 @@ CLUSTER_COPIES = {
         "alertmanager-ntfy",
         "kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml",
     ),
+    "scrap": (
+        "scrap",
+        "scrap-ntfy",
+        "kubernetes-services/additions/scrap/templates/scrap-ntfy-secret.yaml",
+    ),
+}
+
+# CLUSTER_COPIES user -> the topic URL its publisher POSTs to. Its copy then
+# also holds key `url`: this URL with the token in ntfy's `?auth=` query
+# parameter, for a publisher that cannot set an Authorization header (scrap
+# reads it as SCRAP_NOTIFY_URL and sends a bare POST).
+COPY_URLS = {
+    "scrap": "http://ntfy.ntfy.svc.cluster.local/cluster-alerts",
 }
 
 # Names become env vars (NTFY_<USER>_TOKEN) and Secret keys.
@@ -68,6 +86,9 @@ for _user in SENDERS:
 for _user in CLUSTER_COPIES:
     if SENDERS.get(_user) != "cluster":
         raise ValueError(f"CLUSTER_COPIES names {_user!r}, not a cluster sender")
+for _user in COPY_URLS:
+    if _user not in CLUSTER_COPIES:
+        raise ValueError(f"COPY_URLS names {_user!r}, which has no CLUSTER_COPIES entry")
 
 
 def env_name(user: str) -> str:
@@ -95,6 +116,25 @@ def bcrypt_hash(password: str) -> str:
     return hash_.replace("$2y$", "$2a$", 1)
 
 
+def auth_url(url: str, token: str) -> str:
+    """`url` with `token` in ntfy's `?auth=` query parameter: the
+    Authorization header value, "Bearer <token>", base64url-encoded without
+    padding (ntfy decodes it with RawURLEncoding)."""
+    if not TOKEN_RE.match(token):
+        raise ValueError("ntfy token is not in ntfy's form")
+    auth = base64.urlsafe_b64encode(f"Bearer {token}".encode()).decode().rstrip("=")
+    return f"{url}{'&' if '?' in url else '?'}auth={auth}"
+
+
+def copy_data(user: str, token: str) -> dict[str, str]:
+    """The data of `user`'s CLUSTER_COPIES Secret: `token`, and `url` if the
+    user is in COPY_URLS."""
+    data = {"token": token}
+    if user in COPY_URLS:
+        data["url"] = auth_url(COPY_URLS[user], token)
+    return data
+
+
 def secret_data(tokens: dict[str, str]) -> dict[str, str]:
     """The ntfy-auth Secret data, from each user's token."""
     for user in TOKEN_USERS:
@@ -118,13 +158,19 @@ def main(argv: list[str]) -> None:
     """`ntfy_auth.py users [--owner | --env]`, one per line: every user, the
     users whose tokens the owner hands out, or every user's rebuild env var.
     `ntfy_auth.py copies`: one "<user> <namespace> <name> <file>" line per
-    entry in CLUSTER_COPIES."""
+    entry in CLUSTER_COPIES. `ntfy_auth.py copy-url USER`: USER's `url` (see
+    copy_data) from the token on stdin, or nothing if USER has none."""
     if argv == ["copies"]:
         for user, (namespace, name, path) in CLUSTER_COPIES.items():
             print(user, namespace, name, path)
         return
+    if len(argv) == 2 and argv[0] == "copy-url" and argv[1] in CLUSTER_COPIES:
+        url = copy_data(argv[1], sys.stdin.read().strip()).get("url")
+        if url:
+            print(url)
+        return
     if argv[:1] != ["users"] or argv[1:] not in ([], ["--owner"], ["--env"]):
-        sys.exit("usage: ntfy_auth.py users [--owner | --env] | copies")
+        sys.exit("usage: ntfy_auth.py users [--owner | --env] | copies | copy-url USER")
     for user, holder in SENDERS.items():
         if argv[1:] == ["--env"]:
             print(env_name(user))

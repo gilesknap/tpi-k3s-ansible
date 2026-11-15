@@ -26,11 +26,17 @@ allowed_namespaces:
 
 # In-cluster publishers that reach ntfy directly: only the pods with these
 # labels in that namespace. Alertmanager publishes cluster alerts to the
-# Service (kubernetes-services/templates/grafana.yaml).
+# Service (kubernetes-services/templates/grafana.yaml), and so does scrap
+# when its Claude ingest pauses (SCRAP_NOTIFY_URL,
+# kubernetes-services/templates/scrap.yaml).
 allowed_pods:
   - namespace: monitoring
     labels:
       app.kubernetes.io/name: alertmanager
+  - namespace: scrap
+    labels:
+      app.kubernetes.io/name: scrap
+      app.kubernetes.io/instance: scrap
 
 # Topic access for the provisioned users. Every user named here must be in
 # SENDERS in scripts/lib/ntfy_auth.py (and so in the ntfy-auth
@@ -38,6 +44,9 @@ allowed_pods:
 # (auth-default-access: deny-all).
 access:
   - user: alertmanager
+    topic: cluster-alerts
+    permission: write-only
+  - user: scrap
     topic: cluster-alerts
     permission: write-only
   - user: vps

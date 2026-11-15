@@ -12,14 +12,19 @@ are generated. The password hashes are always regenerated (users
 authenticate with tokens only). The result is sealed with kubeseal into
 kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml, and each
 in-cluster publisher's copy of its token (CLUSTER_COPIES in
-scripts/lib/ntfy_auth.py, e.g. alertmanager-ntfy in monitoring) into its own
-file. No secret value is printed.
+scripts/lib/ntfy_auth.py, e.g. alertmanager-ntfy in monitoring, and
+scrap-ntfy in scrap with its notify URL) into its own file. No secret value
+is printed.
 
 After committing and pushing, and once ArgoCD has synced the new Secret,
 recreate the pod (not just its container: the user database is on the
 pod's emptyDir, see docs/how-to/ntfy.md):
 
     kubectl delete pod -n ntfy -l app.kubernetes.io/name=ntfy
+
+and restart scrap if its token changed (it reads SCRAP_NOTIFY_URL at start):
+
+    kubectl -n scrap rollout restart deploy/scrap
 
 then give the owner the new tokens with `just ntfy-tokens`.
 """
@@ -119,7 +124,7 @@ def main() -> None:
     # step with ntfy-auth.
     jobs = [(NAMESPACE, NAME, ntfy_auth.secret_data(tokens), DEST)]
     for user, (namespace, name, path) in ntfy_auth.CLUSTER_COPIES.items():
-        jobs.append((namespace, name, {"token": tokens[user]}, REPO / path))
+        jobs.append((namespace, name, ntfy_auth.copy_data(user, tokens[user]), REPO / path))
     sealed = []
     for namespace, name, data, dest in jobs:
         tmp = seal(namespace, name, data, dest)
@@ -135,7 +140,8 @@ def main() -> None:
         print("Kept tokens from the live secret: " + ", ".join(kept))
     if generated:
         print("Generated tokens: " + ", ".join(generated))
-        if live:
+        # A new user's token has no holder yet; only replaced ones need handing out.
+        if any(live.get(f"{user}-token") for user in generated):
             print(
                 "WARNING: each client holding a replaced token must be given "
                 "the new one (`just ntfy-tokens` after the sync).",

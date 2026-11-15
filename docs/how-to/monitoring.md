@@ -194,7 +194,9 @@ kubectl exec -n monitoring \
 ## Phone notifications through ntfy
 
 Alertmanager pushes selected alerts to the `cluster-alerts` topic of the
-self-hosted ntfy ({doc}`/how-to/ntfy`). Every other alert goes to the `null`
+self-hosted ntfy ({doc}`/how-to/ntfy`). scrap also publishes its own notices
+there, such as a pause of its Claude ingest ({ref}`ntfy-scrap`); they do not
+go through Alertmanager. Every other alert goes to the `null`
 receiver: it still shows in Alertmanager and Grafana, but nothing is sent.
 The configuration is the `alertmanager.config` block in `grafana.yaml`.
 

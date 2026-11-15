@@ -64,6 +64,8 @@ only the pods that consume the secrets you changed, from these namespaces:
   database is on the pod's emptyDir, and only a new pod drops the old
   tokens and any minted through the account API (docs/how-to/ntfy.md)
 - `monitoring` (`kubectl rollout restart sts grafana-prometheus -n monitoring`)
+- `scrap` (`kubectl -n scrap rollout restart deploy/scrap`), e.g. after
+  `just seal-ntfy --rotate scrap` (it reads `SCRAP_NOTIFY_URL` at start)
 - `headlamp`
 - `cloudflared` (`kubectl -n cloudflared rollout restart deployment/cloudflared`;
   reseal its token with `just cf-seal-tunnel-token`)

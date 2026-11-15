@@ -26,6 +26,22 @@ spec:
               value: https://scrap.{{ .Values.cluster_domain }}
             - name: TZ
               value: Europe/London
+            # Ingest pauses (credit, auth, budget, outage), gc's orphaned
+            # files page, failed scheduled jobs and replication trouble:
+            # one POST each to the ntfy cluster-alerts topic, as the
+            # write-only ntfy user scrap. The URL carries the token in
+            # ntfy's ?auth= parameter, as scrap sends a bare POST. Not
+            # ingest.notifyUrlKey, which must name a key of scrap-secrets:
+            # the scrap-ntfy Secret (additions/scrap) is sealed by
+            # `just seal-ntfy` and the rebuild together with ntfy-auth, so
+            # the token stays in step.
+            # Optional: without it scrap runs and announces nothing.
+            - name: SCRAP_NOTIFY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scrap-ntfy
+                  key: url
+                  optional: true
 
           # /mcp requires a bearer token from the scrap-secrets SealedSecret
           # (additions/scrap); the chart never takes the token as a value.
