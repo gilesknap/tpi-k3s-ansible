@@ -505,7 +505,9 @@ store, <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic
 <p>The export squashes root (to <code class="docutils literal notranslate"><span class="pre">65534</span></code>) but not other users, so a pod’s
 writes arrive with its own uid. That is why each directory is owned by the
 uid of the workload that writes it, and why the backup directories with
-mixed writers (root-squashed Alpine jobs, Jellyfin’s uid <code class="docutils literal notranslate"><span class="pre">122</span></code>) are <code class="docutils literal notranslate"><span class="pre">0777</span></code>.</p>
+mixed writers (Grafana’s uid <code class="docutils literal notranslate"><span class="pre">472</span></code>, Jellyfin’s uid <code class="docutils literal notranslate"><span class="pre">122</span></code>, and the
+root-squashed <code class="docutils literal notranslate"><span class="pre">65534</span></code> of older Grafana tarballs, which the jobs must still
+prune) are <code class="docutils literal notranslate"><span class="pre">0777</span></code>.</p>
 <p>The media library is the one directory here that the cluster did not
 create and never writes: Jellyfin mounts it read-only three times over (the
 PV, its access mode and the pod’s mount).</p>
@@ -565,7 +567,7 @@ directories of Grafana, Jellyfin and etcd.</p>
 <span class="c1"># 1. Create the cluster-owned directory tree.</span>
 <span class="c1">#    The export uses root_squash (root → 65534) but not all_squash, so</span>
 <span class="c1">#    writes from in-cluster pods arrive with their own UIDs. Leaf backup</span>
-<span class="c1">#    dirs use 0777 so mixed writers (alpine=root-squashed, app UIDs)</span>
+<span class="c1">#    dirs use 0777 so mixed writers (app UIDs, root-squashed jobs)</span>
 <span class="c1">#    can all write.</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
 mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>

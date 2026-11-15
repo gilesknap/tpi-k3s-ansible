@@ -39,7 +39,9 @@ store, `/k8s-dynamic/stable` and the archive, all read-only.
 The export squashes root (to `65534`) but not other users, so a pod's
 writes arrive with its own uid. That is why each directory is owned by the
 uid of the workload that writes it, and why the backup directories with
-mixed writers (root-squashed Alpine jobs, Jellyfin's uid `122`) are `0777`.
+mixed writers (Grafana's uid `472`, Jellyfin's uid `122`, and the
+root-squashed `65534` of older Grafana tarballs, which the jobs must still
+prune) are `0777`.
 
 The media library is the one directory here that the cluster did not
 create and never writes: Jellyfin mounts it read-only three times over (the
@@ -89,7 +91,7 @@ ROOT=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
 # 1. Create the cluster-owned directory tree.
 #    The export uses root_squash (root → 65534) but not all_squash, so
 #    writes from in-cluster pods arrive with their own UIDs. Leaf backup
-#    dirs use 0777 so mixed writers (alpine=root-squashed, app UIDs)
+#    dirs use 0777 so mixed writers (app UIDs, root-squashed jobs)
 #    can all write.
 mkdir -p "$ROOT"
 mkdir -p "$ROOT/backups"
