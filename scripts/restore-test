@@ -1,0 +1,425 @@
+#!/usr/bin/env bash
+# Read-only restore test of the off-site backups on Google Drive
+# (drive:home-cluster-offsite, written by the offsite-backup CronJob).
+#
+# Downloads the newest scrap daily run, Grafana daily, Jellyfin daily, etcd
+# bundle (+ its .sha256 sidecar) and the Minecraft archive's CURRENT marker
+# into a new scratch directory, decrypts and checks each one, prints a
+# PASS/FAIL table and deletes everything it downloaded or decrypted. Only
+# the summary log is kept (no secrets in it).
+#
+# Nothing is changed on Drive, the NAS or the cluster: rclone only lists and
+# downloads, kubectl only reads the Secret. A local --rclone-config is only
+# read: rclone works on a throwaway copy.
+#
+# Usage: scripts/restore-test [options]   (or: just restore-test [options])
+#   --rclone-config FILE  rclone config with the [drive] remote (see
+#                         docs/how-to/backup-restore.md, "Restore from
+#                         Drive"); default: the Secret
+#                         backups/offsite-backup-rclone, read with kubectl
+#   --identity FILE       age identity file (AGE-SECRET-KEY-1...); default:
+#                         paste the key when asked (it is not echoed)
+#   --remote PATH         rclone path laid out like the Drive folder;
+#                         default drive:home-cluster-offsite
+#   --work-dir DIR        where the scratch directory is made (default
+#                         $TMPDIR or /tmp); it needs ~1 GB free
+#   --log FILE            the summary log (default
+#                         build/restore-test/last-run.txt in the repo)
+#   --with-minecraft      also stream the newest Minecraft nightly (~3.7 GB)
+#                         through age and tar -t (nothing written to disk)
+#   --no-decrypt          stop after the downloads and age header checks
+#                         (no key needed)
+set -euo pipefail
+
+usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+with_minecraft=
+no_decrypt=
+rclone_config=
+identity_file=
+remote=${RESTORE_TEST_REMOTE:-drive:home-cluster-offsite}
+work_base=${TMPDIR:-/tmp}
+log=$here/build/restore-test/last-run.txt
+while [ $# -gt 0 ]; do
+    case $1 in
+        --with-minecraft) with_minecraft=1 ;;
+        --no-decrypt) no_decrypt=1 ;;
+        --rclone-config | --identity | --remote | --work-dir | --log)
+            [ $# -ge 2 ] && [ -n "$2" ] || { echo "$1 needs a value" >&2; exit 2; }
+            case $1 in
+                --rclone-config) rclone_config=$2 ;;
+                --identity) identity_file=$2 ;;
+                --remote) remote=$2 ;;
+                --work-dir) work_base=$2 ;;
+                --log) log=$2 ;;
+            esac
+            shift
+            ;;
+        -h | --help) usage; exit 0 ;;
+        *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+if [ -n "$rclone_config" ] && [ ! -r "$rclone_config" ]; then
+    echo "cannot read $rclone_config" >&2; exit 1
+fi
+if [ -n "$identity_file" ]; then
+    [ -n "$no_decrypt" ] && { echo "--identity and --no-decrypt together make no sense" >&2; exit 2; }
+    [ -r "$identity_file" ] || { echo "cannot read $identity_file" >&2; exit 1; }
+    # Checked without printing it: a plain identity file, not a public key
+    # or a passphrase-protected one (age would ask once per file).
+    grep -q '^AGE-SECRET-KEY-1' "$identity_file" ||
+        { echo "$identity_file holds no AGE-SECRET-KEY-1 line" >&2; exit 1; }
+fi
+[ -d "$work_base" ] && [ -w "$work_base" ] || { echo "cannot write to $work_base" >&2; exit 1; }
+
+umask 077
+age_bin=$(command -v age || true)
+if [ -z "$age_bin" ] && [ -x "$HOME/bin/age" ]; then age_bin=$HOME/bin/age; fi
+[ -n "$age_bin" ] || { echo "age not found (PATH or ~/bin/age)" >&2; exit 1; }
+tools=(rclone python3 tar sha256sum)
+[ -n "$rclone_config" ] || tools+=(kubectl base64)
+for t in "${tools[@]}"; do
+    command -v "$t" >/dev/null || { echo "$t not found" >&2; exit 1; }
+done
+python3 -I -c 'import sqlite3' || { echo "python3 has no sqlite3 module" >&2; exit 1; }
+
+# Secrets live only in RAM-backed tmp where there is one.
+secret_tmp=${TMPDIR:-/tmp}
+if [ -d /dev/shm ] && [ -w /dev/shm ]; then secret_tmp=/dev/shm; fi
+rconf=
+identity=
+work=
+cleanup() {
+    local st=$?
+    # Only the files this script made: never --identity or --rclone-config.
+    [ -n "$identity" ] && rm -f "$identity"
+    [ -n "$rconf" ] && rm -f "$rconf"
+    [ -n "$work" ] && rm -rf "$work"
+    exit "$st"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# A new, empty scratch directory: nothing that was there before is touched.
+work=$(mktemp -d "$work_base/restore-test.XXXXXX")
+mkdir -p "$work/enc" "$work/dec" "$(dirname "$log")"
+exec > >(tee "$log") 2>&1
+echo "Off-site restore test, $(date -u +%Y-%m-%dT%H:%M:%SZ), $remote"
+echo "age: $("$age_bin" --version), $(rclone version | head -n 1)"
+echo "rclone config: ${rclone_config:-Secret backups/offsite-backup-rclone}"
+
+# 1. A throwaway copy of the rclone config, never printed: rclone may write
+#    a refreshed access token back into the file it is given.
+rconf=$(mktemp "$secret_tmp/restore-rclone.XXXXXX")
+chmod 600 "$rconf"
+if [ -n "$rclone_config" ]; then
+    cat "$rclone_config" >"$rconf"
+else
+    kubectl -n backups get secret offsite-backup-rclone \
+        -o jsonpath='{.data.rclone\.conf}' | base64 -d >"$rconf"
+fi
+case $remote in
+    drive:*) grep -q '^\[drive\]' "$rconf" || { echo "the rclone config has no [drive] remote" >&2; exit 1; } ;;
+esac
+rc() { rclone --config "$rconf" "$@"; }
+
+# 2. Pick the newest of each series, by the date or time in its name.
+lsf() { rc lsf --files-only "$remote/$1"; }
+newest() { # DIR ERE: newest file in DIR whose name matches ERE
+    lsf "$1" | grep -E "$2" | sort | tail -n 1
+}
+newest_etcd() { # by the UTC time in the name (the node part varies)
+    lsf backups/etcd | grep -E '^k3s-etcd-.+-[0-9]{8}T[0-9]{6}Z\.tar\.age$' |
+        sed -E 's/^(.*-([0-9]{8}T[0-9]{6}Z)\.tar\.age)$/\2 \1/' | sort | tail -n 1 | cut -d' ' -f2
+}
+
+declare -A pick
+pick[scrap]=backups/scrap/$(newest backups/scrap '^[0-9]{8}T[0-9]{6}Z\.tar\.age$')
+pick[grafana]=backups/grafana/$(newest backups/grafana '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}\.tar\.gz\.age$')
+pick[jellyfin]=backups/jellyfin/$(newest backups/jellyfin '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}\.tar\.gz\.age$')
+etcd_name=$(newest_etcd)
+pick[etcd]=backups/etcd/$etcd_name
+pick[etcd-sha256]=backups/etcd/${etcd_name:+$etcd_name.sha256.age}
+pick[mc-current]=minecraft/archive/CURRENT.age
+mc_nightly=minecraft/nightly/$(newest minecraft/nightly '^minecraft-[0-9]{8}T[0-9]{6}Z\.tar\.age$')
+order=(scrap grafana jellyfin etcd etcd-sha256 mc-current)
+
+declare -A result detail
+record() { result[$1]=$2; detail[$1]=$3; }
+
+echo
+echo "Selected (newest of each):"
+for k in "${order[@]}"; do
+    p=${pick[$k]}
+    case $p in */) echo "  $k: nothing found"; record "$k" FAIL "no file on Drive"; continue ;; esac
+    size=$(rc size --json "$remote/$p" 2>/dev/null | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["bytes"])' || echo "?")
+    printf '  %-12s %-62s %s bytes\n' "$k" "$p" "$size"
+done
+if [ "$mc_nightly" = minecraft/nightly/ ]; then
+    echo "  mc-nightly   nothing found"
+    [ -z "$with_minecraft" ] || record mc-nightly FAIL "no file on Drive"
+elif [ -n "$with_minecraft" ]; then
+    echo "  mc-nightly   $mc_nightly (streamed, not downloaded)"
+else
+    echo "  mc-nightly   $mc_nightly (skipped: pass --with-minecraft)"
+fi
+
+# Download and check the age header (rclone checks Drive's MD5 on copy).
+echo
+echo "Downloading to $work/enc"
+for k in "${order[@]}"; do
+    [ -z "${result[$k]:-}" ] || continue
+    p=${pick[$k]}
+    f=$work/enc/${p##*/}
+    if ! rc copyto "$remote/$p" "$f"; then
+        record "$k" FAIL "download failed"; continue
+    fi
+    if [ "$(head -c 21 "$f")" != "age-encryption.org/v1" ]; then
+        record "$k" FAIL "not an age file"; continue
+    fi
+    echo "  ok: ${p##*/} ($(stat -c %s "$f") bytes, age header)"
+done
+
+summary() {
+    echo
+    printf '%-12s %-5s %s\n' CHECK RESULT DETAIL
+    printf '%-12s %-5s %s\n' ----- ------ ------
+    local fails=0 k
+    for k in "${order[@]}" ${with_minecraft:+mc-nightly}; do
+        printf '%-12s %-5s %s\n' "$k" "${result[$k]:-SKIP}" "${detail[$k]:-}"
+        [ "${result[$k]:-}" = FAIL ] && fails=$((fails + 1))
+    done
+    echo
+    if [ "$fails" -gt 0 ]; then
+        echo "$fails FAILED"
+    elif [ -n "$no_decrypt" ]; then
+        echo "downloads OK; nothing decrypted, so nothing restored was checked"
+    else
+        echo "ALL PASS"
+    fi
+    echo "(decrypted data and downloads deleted; this log: $log)"
+    return "$fails"
+}
+
+if [ -n "$no_decrypt" ]; then
+    for k in "${order[@]}"; do
+        [ -n "${result[$k]:-}" ] || record "$k" SKIP "downloaded, age header ok; not decrypted (--no-decrypt)"
+    done
+    if summary; then exit 0; else exit 1; fi
+fi
+
+# 3. The age key. From --identity, used where it is; or pasted once, never
+#    on argv, and on disk only in a 0600 file in RAM-backed tmp, deleted on
+#    exit.
+if [ -n "$identity_file" ]; then
+    key_file=$identity_file
+else
+    identity=$(mktemp "$secret_tmp/restore-age.XXXXXX")
+    chmod 600 "$identity"
+    echo
+    if [ -t 0 ]; then
+        printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
+    fi
+    IFS= read -rs key || true
+    if [ -t 0 ]; then echo >/dev/tty; fi
+    case $key in
+        AGE-SECRET-KEY-1*) ;;
+        *) unset key; echo "that is not an age private key" >&2; exit 1 ;;
+    esac
+    printf '%s\n' "$key" >"$identity"
+    unset key
+    key_file=$identity
+fi
+
+dec() { "$age_bin" -d -i "$key_file" "$@"; }
+
+# Python checks (run with -I: nothing imported from the cwd).
+read -r -d '' PY_INTEGRITY <<'PY' || true
+import sqlite3, sys
+from contextlib import closing
+from pathlib import Path
+db = Path(sys.argv[1]).resolve()
+with closing(sqlite3.connect(f"{db.as_uri()}?immutable=1", uri=True)) as c:
+    r = [row[0] for row in c.execute("PRAGMA integrity_check")]
+    print("ok" if r == ["ok"] else "; ".join(r[:3]))
+    for q in sys.argv[2:]:
+        try:
+            print(c.execute(q).fetchone()[0])
+        except sqlite3.Error as e:
+            print(f"? ({e})")
+PY
+
+read -r -d '' PY_SCRAP <<'PY' || true
+import hashlib, sqlite3, sys
+from contextlib import closing
+from pathlib import Path
+run = Path(sys.argv[1]).resolve()
+db = run / "scrap.db"
+files = run / "files"
+with closing(sqlite3.connect(f"{db.as_uri()}?immutable=1", uri=True)) as c:
+    check = [row[0] for row in c.execute("PRAGMA integrity_check")]
+    pages = c.execute("SELECT count(*) FROM page").fetchone()[0]
+    live = c.execute("SELECT count(*) FROM page WHERE deleted_at IS NULL").fetchone()[0]
+    revs = c.execute("SELECT count(*) FROM page_rev").fetchone()[0]
+    blobs = [r[0] for r in c.execute("SELECT sha256 FROM blob")]
+missing = [s for s in blobs if not (files / s[:2] / s).is_file()]
+on_disk = [p for p in files.rglob("*") if p.is_file()] if files.is_dir() else []
+bad = 0
+for p in on_disk:
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    if h.hexdigest() != p.name:
+        bad += 1
+complete = (run / "COMPLETE").read_text().strip() if (run / "COMPLETE").is_file() else ""
+ok = check == ["ok"] and complete and not missing and not bad
+print("PASS" if ok else "FAIL")
+print(f"integrity_check={'ok' if check == ['ok'] else check[:3]}; pages={pages} (live {live}), "
+      f"revisions={revs}; blob rows={len(blobs)}, files={len(on_disk)}, "
+      f"missing={len(missing)}, bad hash={bad}; COMPLETE={complete or 'MISSING'}")
+PY
+
+read -r -d '' PY_ETCD <<'PY' || true
+import hashlib, sys, tarfile
+want, got, size, meta = {}, {}, {}, {}
+with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as t:
+    for m in t:
+        if not m.isfile():
+            continue
+        name = m.name[2:] if m.name.startswith("./") else m.name
+        data = t.extractfile(m)
+        h = hashlib.sha256()
+        if name == "MANIFEST":
+            text = data.read().decode()
+            section = None
+            for line in text.splitlines():
+                if line.startswith("  ") and section == "sha256":
+                    d, _, p = line.strip().partition("  ")
+                    want[p] = d
+                elif ":" in line:
+                    k, _, v = line.partition(":")
+                    section = k
+                    meta[k] = v.strip()
+            continue
+        for chunk in iter(lambda: data.read(1 << 20), b""):
+            h.update(chunk)
+        got[name], size[name] = h.hexdigest(), m.size
+snap = [n for n in got if n.startswith("snapshot/") and size[n] > 0]
+mismatch = [p for p in want if got.get(p) != want[p]]
+unlisted = [p for p in got if p not in want]
+ok = bool(want) and snap and "token" in got and not mismatch and not unlisted
+print("PASS" if ok else "FAIL")
+print(f"node={meta.get('node','?')} created={meta.get('created','?')} k3s={meta.get('k3s_version','?')}; "
+      f"snapshot={(snap[0] if snap else 'MISSING')} ({(size[snap[0]] if snap else 0)} bytes); "
+      f"files={len(got)}, MANIFEST sha256 mismatches={len(mismatch)}, unlisted={len(unlisted)}, "
+      f"token={'present' if 'token' in got else 'MISSING'}")
+PY
+
+# 4. The checks, each in a subshell with set -e; a failure is recorded and
+#    the rest carry on.
+run_check() { # NAME FUNCTION
+    local out st
+    set +e
+    out=$( set -e; "$2" 2>&1 )
+    st=$?
+    set -e
+    if [ "$st" -eq 0 ]; then
+        record "$1" "$(head -n 1 <<<"$out")" "$(tail -n +2 <<<"$out" | tr '\n' ' ')"
+    else
+        record "$1" FAIL "error: $(tail -n 2 <<<"$out" | tr '\n' ' ')"
+    fi
+}
+
+untar() { # KEY TARFLAGS: decrypt enc/<file> to dec/KEY/archive, list it, extract
+    local enc=$work/enc/${pick[$1]##*/} d=$work/dec/$1
+    mkdir -p "$d/x"
+    dec -o "$d/archive" "$enc"
+    tar "-t$2f" "$d/archive" >"$d/list"
+    tar "-x$2f" "$d/archive" -C "$d/x" --no-same-owner
+    rm -f "$d/archive"
+}
+
+check_scrap() {
+    untar scrap ''
+    local n db
+    n=$(wc -l <"$work/dec/scrap/list")
+    db=$(find "$work/dec/scrap/x" -name scrap.db -type f | head -n 1)
+    [ -n "$db" ] || { echo "no scrap.db in the tarball ($n entries)"; return 1; }
+    python3 -I -c "$PY_SCRAP" "$(dirname "$db")" | sed "2s/^/tar entries=$n; /"
+}
+
+check_grafana() {
+    untar grafana z
+    local n db out ic dash users
+    n=$(wc -l <"$work/dec/grafana/list")
+    db=$(find "$work/dec/grafana/x" -name grafana.db -type f | head -n 1)
+    [ -n "$db" ] || { echo "no grafana.db in the tarball ($n entries)"; return 1; }
+    out=$(python3 -I -c "$PY_INTEGRITY" "$db" \
+        "SELECT count(*) FROM dashboard" "SELECT count(*) FROM user")
+    { read -r ic; read -r dash; read -r users; } <<<"$out"
+    if [ "$ic" = ok ]; then echo PASS; else echo FAIL; fi
+    echo "tar entries=$n; grafana.db integrity_check=$ic; dashboards=$dash, users=$users;" \
+        "provisioning/ $(grep -c '^\(\./\)\?provisioning/' "$work/dec/grafana/list" || true) entries"
+}
+
+check_jellyfin() {
+    untar jellyfin z
+    local n db ic all=ok msg='' main=''
+    n=$(wc -l <"$work/dec/jellyfin/list")
+    while IFS= read -r db; do
+        ic=$(python3 -I -c "$PY_INTEGRITY" "$db")
+        [ "$ic" = ok ] || all=FAIL
+        case $db in */jellyfin.db) main=1 ;; esac
+        msg="$msg ${db#"$work/dec/jellyfin/x/"}=$ic;"
+    done < <(find "$work/dec/jellyfin/x" -name '*.db' -type f | sort)
+    [ -n "$main" ] || { all=FAIL; msg="$msg jellyfin.db MISSING;"; }
+    if [ "$all" = ok ]; then echo PASS; else echo FAIL; fi
+    echo "tar entries=$n; integrity_check:$msg"
+}
+
+check_etcd() {
+    dec "$work/enc/$etcd_name" | python3 -I -c "$PY_ETCD"
+}
+
+check_etcd_sha256() {
+    local side want name got
+    side=$(dec "$work/enc/$etcd_name.sha256.age")
+    read -r want name <<<"$side"
+    got=$(sha256sum "$work/enc/$etcd_name" | cut -d' ' -f1)
+    if [ "$want" = "$got" ] && [ "$name" = "$etcd_name" ]; then echo PASS; else echo FAIL; fi
+    echo "sidecar names $name, sha256 ${want:0:12}...; downloaded bundle ${got:0:12}..."
+}
+
+check_mc_current() {
+    local text name checked
+    text=$(dec "$work/enc/CURRENT.age")
+    name=$(sed -n 's/^current: //p' <<<"$text")
+    checked=$(sed -n 's/^checked: //p' <<<"$text")
+    if [ -n "$name" ] && lsf minecraft/archive | grep -qxF "$name"; then echo PASS; else echo FAIL; fi
+    echo "names ${name:-NOTHING} (checked $checked); on Drive: $(lsf minecraft/archive | grep -cxF "${name:-//}" || true)"
+}
+
+check_mc_nightly() {
+    local n
+    n=$(rc cat "$remote/$mc_nightly" | dec | tar -tf - | wc -l)
+    echo PASS
+    echo "${mc_nightly##*/}: streamed, decrypted and listed: $n tar entries"
+}
+
+echo
+echo "Decrypting and checking..."
+for k in "${order[@]}" ${with_minecraft:+mc-nightly}; do
+    [ -z "${result[$k]:-}" ] || continue
+    echo "  $k"
+    run_check "$k" "check_${k//-/_}"
+    rm -rf "${work:?}/dec/$k"
+done
+
+# 5. The table. The EXIT trap deletes the scratch directory, the pasted key
+#    and the rclone config copy.
+if summary; then exit 0; else exit 1; fi

@@ -318,14 +318,13 @@ If `/tmp/wildcard-tls-backup.yaml` exists (saved in Phase 1b), restore
 it to avoid a Let's Encrypt re-issue:
 
 ```bash
-# Strip cluster-specific metadata so it can be applied to the new cluster
-kubectl apply -f - <<'APPLY_EOF'
-$(cat /tmp/wildcard-tls-backup.yaml \
-  | grep -v '^\s*uid:' \
-  | grep -v '^\s*resourceVersion:' \
-  | grep -v '^\s*creationTimestamp:' \
-  | sed '/^  managedFields:/,/^[^ ]/{ /^[^ ]/!d; /^  managedFields:/d }')
-APPLY_EOF
+# Strip the old cluster's object metadata, then apply. ownerReferences
+# point at the old Certificate's uid: left in, the garbage collector
+# would delete the restored Secret.
+yq 'del(.metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp,
+        .metadata.managedFields, .metadata.ownerReferences,
+        .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration")' \
+  /tmp/wildcard-tls-backup.yaml | kubectl apply -f -
 ```
 
 Verify the certificate shows as Ready:
