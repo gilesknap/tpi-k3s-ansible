@@ -254,10 +254,12 @@ The root application is created last on purpose: if ArgoCD started syncing
 before the new SealedSecrets were pushed, it would apply the old ones,
 which the new controller cannot decrypt.
 
-**How long it takes.** An RK1 takes about 25 minutes from bare metal:
-about ten to flash the eMMC, a few to boot the staging system, and about
-five to install the NVMe and reboot. With three RK1s flashed in turn, the
-flash stage is most of the run. The K3s and cluster stages take ten to
+**How long it takes.** An RK1 takes about 27 minutes from bare metal:
+about ten to flash the eMMC, a minute or two to seed and boot the staging
+system, about four to write the NVMe, then about six and a half for the
+dist-upgrade and one and a half for K3s
+({ref}`the measured stages <rk1-reflash-timings>`). With three RK1s flashed
+in turn, the flash stage is most of the run. The K3s and cluster stages take ten to
 twenty minutes, and ArgoCD needs a few more minutes after the playbook ends
 to bring every application to `Healthy`. The controller needs about 6 GB
 free in `/tmp` while it builds the RK1 image.
