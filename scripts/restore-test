@@ -22,7 +22,10 @@
 #   --remote PATH         rclone path laid out like the Drive folder;
 #                         default drive:home-cluster-offsite
 #   --work-dir DIR        where the scratch directory is made (default
-#                         $TMPDIR or /tmp); it needs ~1 GB free
+#                         $TMPDIR or /tmp); it needs ~1 GB free, and the
+#                         decrypted scrap, Grafana and Jellyfin data sit
+#                         there (on disk unless DIR is RAM-backed) until
+#                         the script exits
 #   --log FILE            the summary log (default
 #                         build/restore-test/last-run.txt in the repo)
 #   --with-minecraft      also stream the newest Minecraft nightly (~3.7 GB)
@@ -31,7 +34,7 @@
 #                         (no key needed)
 set -euo pipefail
 
-usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; }
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 with_minecraft=
@@ -129,12 +132,14 @@ rc() { rclone --config "$rconf" "$@"; }
 
 # 2. Pick the newest of each series, by the date or time in its name.
 lsf() { rc lsf --files-only "$remote/$1"; }
+# Each prints nothing (and succeeds) when the folder is missing or has no
+# match, so the caller records "no file on Drive" instead of set -e exiting.
 newest() { # DIR ERE: newest file in DIR whose name matches ERE
-    lsf "$1" | grep -E "$2" | sort | tail -n 1
+    { lsf "$1" | grep -E "$2" | sort | tail -n 1; } || true
 }
 newest_etcd() { # by the UTC time in the name (the node part varies)
-    lsf backups/etcd | grep -E '^k3s-etcd-.+-[0-9]{8}T[0-9]{6}Z\.tar\.age$' |
-        sed -E 's/^(.*-([0-9]{8}T[0-9]{6}Z)\.tar\.age)$/\2 \1/' | sort | tail -n 1 | cut -d' ' -f2
+    { lsf backups/etcd | grep -E '^k3s-etcd-.+-[0-9]{8}T[0-9]{6}Z\.tar\.age$' |
+        sed -E 's/^(.*-([0-9]{8}T[0-9]{6}Z)\.tar\.age)$/\2 \1/' | sort | tail -n 1 | cut -d' ' -f2; } || true
 }
 
 declare -A pick
@@ -151,10 +156,16 @@ order=(scrap grafana jellyfin etcd etcd-sha256 mc-current)
 declare -A result detail
 record() { result[$1]=$2; detail[$1]=$3; }
 
+# Minecraft's off-site copy is optional (offsite_backup.minecraft.enabled).
+if ! { rc lsf --dirs-only "$remote" 2>/dev/null || true; } | grep -qxF minecraft/; then
+    record mc-current SKIP "no minecraft/ folder on Drive"
+fi
+
 echo
 echo "Selected (newest of each):"
 for k in "${order[@]}"; do
     p=${pick[$k]}
+    [ "${result[$k]:-}" != SKIP ] || { echo "  $k: skipped (${detail[$k]})"; continue; }
     case $p in */) echo "  $k: nothing found"; record "$k" FAIL "no file on Drive"; continue ;; esac
     size=$(rc size --json "$remote/$p" 2>/dev/null | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["bytes"])' || echo "?")
     printf '  %-12s %-62s %s bytes\n' "$k" "$p" "$size"

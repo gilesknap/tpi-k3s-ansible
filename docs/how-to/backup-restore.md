@@ -754,7 +754,7 @@ any machine with rclone (the devcontainer has it), in one of two ways:
   `client_id` and `client_secret` from the JSON, pasted at their prompts
   (so they are on no command line); scope `drive.file`; no service account
   file; no advanced config; `y` to use a web browser, and allow access in
-  it; not a shared drive; then `q`. As in "Set it up", the browser must be
+  it; not a shared drive; `y` to keep the remote; then `q`. As in "Set it up", the browser must be
   on the same machine, or have port 53682 forwarded to it.
 
 Without either, the Drive web page still downloads the files with just the
@@ -772,7 +772,10 @@ checks the SQLite databases (`PRAGMA integrity_check`), scrap's file
 hashes and `COMPLETE` marker, the etcd bundle against its `MANIFEST`, and
 that `CURRENT` names a copy on Drive; prints a PASS/FAIL table; and deletes
 everything it downloaded or decrypted. Only the table is kept, in
-`build/restore-test/last-run.txt`. It asks for the age private key (not
+`build/restore-test/last-run.txt`. The decrypted data sits in the scratch
+directory (under `$TMPDIR` or `/tmp`, so on disk unless that is RAM-backed;
+`--work-dir` moves it) until the script exits, and a killed run leaves a
+`restore-test.*` folder there to delete by hand. It asks for the age private key (not
 echoed) unless given `--identity`.
 
 ```bash
@@ -822,7 +825,7 @@ ssh -t nas "sudo chown -R 472:472 $S/grafana"
 
 Then follow "Restore — Grafana sqlite" or "Restore scrap" with the
 `restore-scratch` volume their notes give. Once the restore is checked,
-remove the folder: `ssh -t nas "sudo rm -rf $S"`.
+remove the folder: `ssh -t nas "sudo rm -rf ${S:?}"`.
 
 ## Disaster recovery
 
