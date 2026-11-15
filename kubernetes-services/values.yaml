@@ -377,6 +377,12 @@ kyverno:
 # node or path; keep `claim_namespace`/`claim_name` matching the
 # workload chart's PVC naming convention.
 #
+# Binding adds the claim's uid to the PV's claimRef, and a sync never
+# removes it: if the claim is deleted by hand, the PV stays Released
+# and refuses the new claim. Claims rendered from this repo carry
+# Prune=false,Delete=false so an Application delete leaves them; see
+# "A local-nvme PV stuck Released" in docs/reference/troubleshooting.md.
+#
 # SYNC: the `node` and `path` for each entry MUST match the
 # corresponding entry in `k8s_data_dirs` in group_vars/all.yml — that's
 # the Ansible loop that actually creates the host directory backing

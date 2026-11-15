@@ -381,6 +381,54 @@ change anything under `/var/lib/k8s-data` by hand:
 ansible-playbook pb_all.yml --tags k8s_data_dirs
 ```
 
+(local-nvme-pv-released)=
+### A `local-nvme` PV stuck `Released`
+
+**Symptom:** A `local-nvme` PV is `Released`, its claim `Pending`, and the
+pod `Pending` with `didn't find available persistent volumes to bind`.
+
+**Cause:** binding writes the claim's `uid` into the PV's `claimRef`. When
+that claim is deleted, the PV (policy `Retain`) goes `Released` and keeps
+the old `uid`, so it refuses the new claim even though the name matches.
+The `local-storage` chart renders `claimRef` with only `namespace` and
+`name`, but a sync does not clear the `uid`: ArgoCD never set that field,
+so it is not part of the diff, and the app shows `Synced`.
+
+Only deleting the claim itself causes this, by hand (`kubectl delete pvc`)
+or with its namespace. Deleting or re-creating an Application does not:
+Jellyfin's and scrap's claims carry
+`argocd.argoproj.io/sync-options: Prune=false,Delete=false`, and Grafana's
+and Prometheus's are made by their StatefulSets, so ArgoCD does not track
+them, and the StatefulSets keep them when deleted
+(`persistentVolumeClaimRetentionPolicy` `Retain`).
+
+**Check:** the PV's `claimRef.uid` is not the claim's `uid`. For example,
+for Grafana's:
+
+```bash
+kubectl get pv grafana-local -o jsonpath='{.status.phase} {.spec.claimRef.uid}{"\n"}'
+kubectl -n monitoring get pvc storage-grafana-prometheus-0 -o jsonpath='{.metadata.uid}{"\n"}'
+```
+
+**Fix:** delete the PV through ArgoCD and sync, so ArgoCD re-creates it
+from the chart, without a `uid`, and the waiting claim binds to it. This
+deletes only the PV object: the policy is `Retain`, the data is a
+directory on the node, and the `local-nvme` class has no provisioner, so
+nothing deletes or replaces that directory. `argocd --core` uses the kube
+context's namespace:
+
+```bash
+kubectl config set-context --current --namespace=argo-cd
+argocd app delete-resource local-storage --core \
+  --kind PersistentVolume --resource-name grafana-local
+argocd app sync local-storage --core
+```
+
+Then set the namespace back to the one you had before, if it was not
+`argo-cd`. This is step 3 of {ref}`move-a-local-nvme-pv`, without the
+move; see there if the sync fails with `another operation is already in
+progress`.
+
 ### Pod `Pending` because its node is down
 
 A workload on a `local-nvme` PV can run only on that PV's node (Grafana and
