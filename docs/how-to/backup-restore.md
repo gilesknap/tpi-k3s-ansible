@@ -128,9 +128,15 @@ snapshot of `grafana.db` plus the `provisioning/` directory. To restore one:
        - name: backup
          nfs:
            server: 192.168.1.3
+           # A copy from Drive: /bigdisk/k8s-cluster/restore-scratch/grafana
            path: /bigdisk/k8s-cluster/backups/grafana
            readOnly: true
    ```
+
+   To restore a tarball brought back from Drive, unpack it in the restore
+   scratch folder ({ref}`restore-scratch`), not in `backups/grafana`, and
+   set the `backup` volume's `path` to
+   `/bigdisk/k8s-cluster/restore-scratch/grafana`.
 
    The PVC is bound to a `local-nvme` PV, so the pod lands on node04 by
    itself. Check `kubectl -n monitoring logs grafana-restore`, then
@@ -225,6 +231,21 @@ as `/data/litestream.retired-<time>`.
            claimName: scrap-backups-nfs   # or scrap-backup-copy, for the off-NAS copy
        - name: tmp
          emptyDir: {}
+   ```
+
+   For a run brought back from Drive, unpack it in the restore scratch
+   folder ({ref}`restore-scratch`), not in `backups/scrap`, and replace the
+   `backups` volume with one that mounts that folder from the NAS. The
+   tarball's paths start `scrap/<run>/` (a monthly run's
+   `scrap/monthly/<run>/`), so the restore's argument stays
+   `/backups/<run>` (or `/backups/monthly/<run>`):
+
+   ```yaml
+       - name: backups
+         nfs:
+           server: 192.168.1.3   # nfs.server
+           path: /bigdisk/k8s-cluster/restore-scratch/scrap
+           readOnly: true
    ```
 
 3. Delete the pod and revert the pause commit. Then check
@@ -678,13 +699,13 @@ SealedSecret in Git decrypt as it is.
 ### Restore from Drive
 
 Download what you need, either from the Drive web page (a folder downloads
-as a zip) or with rclone, on any machine with the rclone config (the
-sealed one, or a fresh `rclone config` with a `drive.file` remote: a new
-token from the same OAuth client sees the same files):
+as a zip) or with rclone, on any machine with an rclone config holding the
+`[drive]` remote ({ref}`offsite-rclone-without-cluster` makes one without
+the cluster):
 
 ```bash
-rclone lsf -R drive:home-cluster-offsite/backups/grafana
-rclone copy drive:home-cluster-offsite/backups/grafana/<file>.tar.gz.age .
+rclone --config /dev/shm/rclone.conf lsf -R drive:home-cluster-offsite/backups/grafana
+rclone --config /dev/shm/rclone.conf copy drive:home-cluster-offsite/backups/grafana/<file>.tar.gz.age .
 ```
 
 Then decrypt with the private key, and verify or unpack:
@@ -696,9 +717,115 @@ age -d -i ~/k3s-etcd-backup.agekey minecraft-<time>.tar.age | tar -t | head
 ```
 
 The etcd bundles and sealed-secrets key exports are as they were on the NAS
-(`.tar.age`, `.yaml.age`): restore them as in the sections above. Put a
-decrypted backup back where the restore recipes above expect it (on the
-NAS, under `backups/<app>/`), or restore from it directly.
+(`.tar.age`, `.yaml.age`): restore them as in the sections above. To
+restore Grafana or scrap from a copy from Drive, unpack it in the restore
+scratch folder ({ref}`restore-scratch`) and point the recipe's volume
+there, as its notes say.
+
+(offsite-rclone-without-cluster)=
+#### rclone without the cluster
+
+The remote lives in the SealedSecret `offsite-backup-rclone` (namespace
+`backups`), which only the running cluster can decrypt. Without it, make
+the config in RAM-backed `/dev/shm` (so it is never written to disk) on
+any machine with rclone (the devcontainer has it), in one of two ways:
+
+- **From `.env`.** `just export-external-creds` saves it in `.env` as
+  `OFFSITE_BACKUP_RCLONE_CONF_B64` (a planned rebuild does that first).
+  If that `.env` is still there:
+
+  ```bash
+  (umask 077; grep '^OFFSITE_BACKUP_RCLONE_CONF_B64=' .env | cut -d= -f2- |
+      base64 -d >/dev/shm/rclone.conf)
+  ```
+
+- **A new token from the same OAuth client.** With the `drive.file`
+  scope, rclone sees only the files made through its OAuth client, so use
+  that client: its `client_secret_<...>.json` from step 1 of "Set it up",
+  kept offline. If the JSON is lost, open the same client in the Google
+  Cloud console and add a new secret to it rather than making a new
+  client. Then run
+
+  ```bash
+  (umask 077; rclone config --config /dev/shm/rclone.conf)
+  ```
+
+  and answer: `n` (new remote); name `drive`; storage `drive`;
+  `client_id` and `client_secret` from the JSON, pasted at their prompts
+  (so they are on no command line); scope `drive.file`; no service account
+  file; no advanced config; `y` to use a web browser, and allow access in
+  it; not a shared drive; `y` to keep the remote; then `q`. As in "Set it up", the browser must be
+  on the same machine, or have port 53682 forwarded to it.
+
+Without either, the Drive web page still downloads the files with just the
+Google login. Delete `/dev/shm/rclone.conf` when done.
+
+(offsite-restore-test)=
+#### Test a restore
+
+`scripts/restore-test` (`just restore-test`) proves the off-site copy can
+be restored, without changing anything on Drive, the NAS or the cluster.
+It downloads the newest scrap daily run, Grafana and Jellyfin daily
+tarballs, etcd bundle with its `.sha256` sidecar, and the Minecraft
+archive's `CURRENT` marker into a new scratch directory; decrypts each;
+checks the SQLite databases (`PRAGMA integrity_check`), scrap's file
+hashes and `COMPLETE` marker, the etcd bundle against its `MANIFEST`, and
+that `CURRENT` names a copy on Drive; prints a PASS/FAIL table; and deletes
+everything it downloaded or decrypted. Only the table is kept, in
+`build/restore-test/last-run.txt`. The decrypted data sits in the scratch
+directory (under `$TMPDIR` or `/tmp`, so on disk unless that is RAM-backed;
+`--work-dir` moves it) until the script exits, and a killed run leaves a
+`restore-test.*` folder there to delete by hand. It asks for the age private key (not
+echoed) unless given `--identity`.
+
+```bash
+# With the cluster up: rclone's config comes from the Secret.
+just restore-test
+# Without the cluster: rclone's config and the age key from local files,
+# both only read.
+just restore-test --rclone-config /dev/shm/rclone.conf --identity /dev/shm/age.key
+```
+
+`--with-minecraft` also streams the newest Minecraft nightly (about
+3.7 GB) through `age` and `tar -t`, writing nothing; `--no-decrypt` stops
+after the downloads, with no key; `--help` lists the rest. To put the key
+from paper into a file, type it into `(umask 077; cat >/dev/shm/age.key)`
+and end with Ctrl-D; delete the file afterwards.
+
+(restore-scratch)=
+#### Where to unpack a copy from Drive
+
+Unpack a backup brought back from Drive (for a drill, or because the NAS
+copy is gone) in `restore-scratch/` at the root of the cluster share,
+`/bigdisk/k8s-cluster/restore-scratch/<app>/` as NFS clients see it, and
+never in `backups/`:
+
+- `backups/` is the off-site job's source: a file put there is uploaded
+  unless one of its name is already on Drive, and each app's retention
+  prunes its folder. A copy there would be mixed in with the live backups.
+- `restore-scratch/` is outside `backups/`, so the off-site job never
+  reads it and no retention touches it.
+
+Decrypt on the machine that holds the key and stream the result to the
+NAS, so nothing decrypted is left on that machine. The export's directory
+on the NAS itself is `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster` on the
+QNAP and `/bigdisk/k8s-cluster` on the Ubuntu NAS:
+
+```bash
+SHARE=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster   # /bigdisk/k8s-cluster on the Ubuntu NAS
+S=$SHARE/restore-scratch
+ssh -t nas "sudo mkdir -p $S/grafana && sudo chown \$(id -u) $S $S/grafana"
+# scrap: a run (unpacks as scrap/<run>/, owned by scrap's uid)
+age -d -i ~/k3s-etcd-backup.agekey <run>.tar.age | ssh nas "cat >$S/run.tar"
+ssh -t nas "cd $S && sudo tar -xf run.tar && sudo rm run.tar && sudo chown -R 10001:10001 scrap"
+# Grafana: one tarball, readable by Grafana's uid
+age -d -i ~/k3s-etcd-backup.agekey <file>.tar.gz.age | ssh nas "cat >$S/grafana/<file>.tar.gz"
+ssh -t nas "sudo chown -R 472:472 $S/grafana"
+```
+
+Then follow "Restore — Grafana sqlite" or "Restore scrap" with the
+`restore-scratch` volume their notes give. Once the restore is checked,
+remove the folder: `ssh -t nas "sudo rm -rf ${S:?}"`.
 
 ## Disaster recovery
 

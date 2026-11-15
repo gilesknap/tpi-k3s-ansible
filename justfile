@@ -131,6 +131,12 @@ offsite-backup-now:
     kubectl -n backups create job --from=cronjob/offsite-backup "$job"
     kubectl -n backups logs -f "job/$job" --all-containers --prefix --pod-running-timeout=5m
 
+# Downloads the newest of each backup, decrypts, checks and deletes it;
+# --rclone-config and --identity work without the cluster (see --help).
+# Read-only restore test of the off-site copy on Google Drive
+restore-test *args:
+    scripts/restore-test {{ args }}
+
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
