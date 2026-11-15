@@ -35,7 +35,6 @@ no PersistentVolume changes:
 | `tank/bigdisk/Photos-Archive` | `/bigdisk/Photos-Archive` | read-write, `ws03` only | the photo archive |
 | `tank/k8s-dynamic` | `/k8s-dynamic` | read-write, root not squashed | the NFS CSI driver's `nfs-rwx` and `nfs-stable` volumes (the Minecraft worlds) |
 | `tank/Minecraft` | `/Minecraft` | read-write, `ws03` only | the pre-cluster Minecraft share |
-| `tank/qts-other` | `/srv/qts-other` | no | QTS's other shares (Multimedia, OpenBrain, homes), kept until sorted out |
 
 The list is `nas_datasets` in `roles/nas/defaults/main.yml`
 ({doc}`/reference/variables`). Adding an entry and re-running the playbook
@@ -267,7 +266,7 @@ On the NAS, send each top-level dataset back from the backup pool, with every
 snapshot:
 
 ```bash
-for ds in bigdisk k8s-dynamic Minecraft qts-other; do
+for ds in bigdisk k8s-dynamic Minecraft; do
     sudo syncoid --recursive --no-sync-snap "backup/tank/$ds" "tank/$ds"
 done
 ```

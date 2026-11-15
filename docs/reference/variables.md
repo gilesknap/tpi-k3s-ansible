@@ -95,7 +95,7 @@ documents each one; these are the ones a rebuild touches.
 | `nas_pool` / `nas_pool_disks` | `tank` / by-id paths of the two SSDs | The main pool, a mirror. The disks must be `/dev/disk/by-id/` paths |
 | `nas_backup_pool` / `nas_backup_pool_disks` | `backup` / by-id path of the LaCie | The backup pool, which receives a nightly copy of every dataset; optional |
 | `nas_create_pool`, `nas_create_backup_pool`, `nas_force` | `false` | Command-line only. Create the pool (destroying the disks' contents); `nas_force` also allows disks that are not blank |
-| `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft`, `tank/qts-other` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
+| `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
 | `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, `0755` ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
 | `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS). Optional `clients` narrows the hosts, `read_only_for` makes it read-only to some (`/bigdisk`, `Photos-Archive`, `/Minecraft`: `ws03` only; `media`: read-only to the nodes) |
