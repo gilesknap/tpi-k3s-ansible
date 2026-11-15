@@ -290,6 +290,17 @@ spec:
           # still visible via the apiserver and kubelet ServiceMonitors.
           kubeControllerManager:
             enabled: false
+          # etcd is embedded in k3s-server too, but it does serve metrics on
+          # :2381. With no etcd pods the Service gets its endpoints from
+          # this list: the control plane, which exposes them with
+          # etcd-expose-metrics (roles/k3s/templates/k3s-server-config.yml.j2).
+          kubeEtcd:
+            endpoints:
+              {{- toYaml .Values.k3s.etcd_metrics_endpoints | nindent 14 }}
+            # :2381 is plain HTTP and needs no credentials: do not send
+            # Prometheus's ServiceAccount token there in the clear.
+            serviceMonitor:
+              authorization: null
           kubeScheduler:
             enabled: false
           kubeProxy:
@@ -299,6 +310,15 @@ spec:
               kubeControllerManager: false
               kubeScheduler: false
               kubeProxyAlerting: false
+            # etcd has one member (node02). These three only say "the member
+            # is down", which every reboot of node02 does (two of them are
+            # critical, so they would push); KubeAPIDown already covers a
+            # dead control plane. The other etcd rules (latency, failed
+            # requests, database size) stay.
+            disabled:
+              etcdMembersDown: true
+              etcdInsufficientMembers: true
+              etcdNoLeader: true
 
     - path: ./kubernetes-services/additions/grafana
       repoURL: {{ .Values.repo_remote }}
