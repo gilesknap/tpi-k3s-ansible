@@ -1113,12 +1113,23 @@ package on GitHub, so no pull secret is needed.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code> and <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">token</span></code> (the public-pages upload token)</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-ntfy</span></code> (<code class="docutils literal notranslate"><span class="pre">scrap-ntfy-secret.yaml</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">url</span></code> (<code class="docutils literal notranslate"><span class="pre">SCRAP_NOTIFY_URL</span></code>, the ntfy topic URL with the token in it), <code class="docutils literal notranslate"><span class="pre">token</span></code> (the ntfy <code class="docutils literal notranslate"><span class="pre">scrap</span></code> user’s token)</p></td>
+</tr>
 </tbody>
 </table>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/README.md</span></code> has the commands that reseal
-each by hand; <a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> covers the general rules.
+the first two by hand; <a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a> covers the general rules.
 Without <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code> the pod sits in <code class="docutils literal notranslate"><span class="pre">CreateContainerConfigError</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">scrap-ntfy</span></code> is never sealed by hand: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> seals it together with
+ntfy’s <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>, and the rebuild does too. scrap reads its <code class="docutils literal notranslate"><span class="pre">url</span></code> as
+<code class="docutils literal notranslate"><span class="pre">SCRAP_NOTIFY_URL</span></code> and POSTs one line there when its Claude ingest pauses
+(credit, auth, budget or an outage), when gc gathers orphaned files, when a
+scheduled job fails and when replication stalls or recovers. These arrive on
+the phone on the <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> topic (<a class="reference internal" href="ntfy.html#ntfy-scrap"><span class="std std-ref">Notices from scrap</span></a>). The variable is
+optional: without the Secret, scrap runs and announces nothing.</p>
 <p>A cluster rebuild reseals them: <code class="docutils literal notranslate"><span class="pre">scripts/export-external-creds</span></code> exports
 <code class="docutils literal notranslate"><span class="pre">SCRAP_ANTHROPIC_API_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code> and <code class="docutils literal notranslate"><span class="pre">SCRAP_PUBLISH_TOKEN</span></code> from
 the running cluster, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code> seals them again. The

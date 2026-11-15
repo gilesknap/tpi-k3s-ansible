@@ -42,6 +42,7 @@ All thirteen are under `kubernetes-services/additions/`. Find them with
 | `cloudflare-api-token` | `cert-manager` | cert-manager's DNS-01 API token | `cert-manager/templates/cloudflare-api-token-secret.yaml` | By hand ({ref}`cf-dns01-token`) |
 | `ntfy-auth` | `ntfy` | ntfy's users (bcrypt hashes) and access tokens | `ntfy/templates/ntfy-auth-secret.yaml` | `just seal-ntfy` ({doc}`ntfy`) |
 | `alertmanager-ntfy` | `monitoring` | Alertmanager's copy of the ntfy `alertmanager` token | `grafana/alertmanager-ntfy-secret.yaml` | `just seal-ntfy`, together with `ntfy-auth` |
+| `scrap-ntfy` | `scrap` | scrap's copy of the ntfy `scrap` token, and its `SCRAP_NOTIFY_URL` | `scrap/templates/scrap-ntfy-secret.yaml` | `just seal-ntfy`, together with `ntfy-auth` |
 | `scrap-secrets` | `scrap` | Claude API key and the `/mcp` bearer token | `scrap/templates/scrap-secret.yaml` | By hand ({doc}`scrap`) |
 | `scrap-publish` | `scrap` | scrap's public-pages upload token | `scrap/templates/scrap-publish-secret.yaml` | By hand; the same token as the next row |
 | `scrap-publish` | `scrap-public` | The same token, for the public-pages server | `scrap/templates/scrap-public-publish-secret.yaml` | By hand |

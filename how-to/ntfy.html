@@ -425,7 +425,8 @@ alerts reach the owner’s Android phone without passing through a
 third-party service. It carries two topics:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>: Alertmanager’s pushes (see <a class="reference internal" href="monitoring.html"><span class="doc">Monitoring and alerts</span></a> for
-which alerts are routed there);</p></li>
+which alerts are routed there), and scrap’s notices when its Claude
+ingest pauses (see <a class="reference internal" href="#ntfy-scrap"><span class="std std-ref">Notices from scrap</span></a>);</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code>: alerts from the VPS, published over HTTPS from outside
 the cluster.</p></li>
 </ul>
@@ -489,11 +490,15 @@ list grants each the least it needs:</p>
 <td><p>write-only on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code></p></td>
 <td><p>Alertmanager</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<td><p>write-only on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code></p></td>
+<td><p>scrap (<a class="reference internal" href="scrap.html"><span class="doc">Run scrap</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps</span></code></p></td>
 <td><p>write-only on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code></p></td>
 <td><p>the VPS</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">phone</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">phone</span></code></p></td>
 <td><p>read-only on <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> and <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code></p></td>
 <td><p>the phone app</p></td>
 </tr>
@@ -520,8 +525,8 @@ are random and discarded: they authenticate with tokens only.</p></li>
 <code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code>; every script derives them from there.</p></li>
 </ul>
 <p>The NetworkPolicy admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> (the <code class="docutils literal notranslate"><span class="pre">allowed_namespaces</span></code>
-value) and the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>), which
-publish to the Service directly. Another in-cluster publisher adds its pods
+value), the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> and the scrap pods in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
+(<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>), which publish to the Service directly. Another in-cluster publisher adds its pods
 to <code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>. This limits who reaches the pod
 <em>directly</em>; anything that can reach ingress-nginx can still talk to ntfy
 through it, so ntfy’s token auth is the real gate.</p>
@@ -570,9 +575,11 @@ for another one) or a sender has been added:</p>
 <p>It keeps every value already in the live <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> Secret and generates
 the rest, then seals the result into
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml</span></code>,
-and Alertmanager’s copy of its token into
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml</span></code>.
-No value is printed. Commit and push both. A cluster rebuild does this
+Alertmanager’s copy of its token into
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml</span></code>
+and scrap’s into
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/templates/scrap-ntfy-secret.yaml</span></code>.
+No value is printed. Commit and push all three. A cluster rebuild does this
 by itself (see <a class="reference internal" href="#rebuilds">Rebuilds</a>).</p>
 </li>
 <li><p>Apply the tunnel route, the Access bypass and the rate limit
@@ -690,6 +697,49 @@ have synced: Alertmanager uses the new token straight away, and ntfy
 rejects it (and so drops those alerts) until the new pod starts.</p></li>
 </ul>
 </section>
+<section id="notices-from-scrap">
+<span id="ntfy-scrap"></span><h2>Notices from scrap<a class="headerlink" href="#notices-from-scrap" title="Link to this heading">#</a></h2>
+<p>scrap (<a class="reference internal" href="scrap.html"><span class="doc">Run scrap</span></a>) announces trouble with one plain POST to
+<code class="docutils literal notranslate"><span class="pre">SCRAP_NOTIFY_URL</span></code>: the first pause of an episode of its Claude ingest
+(credit, auth, budget or an outage), gc gathering orphaned files onto a
+page, a failed scheduled job, and Litestream replication stalling or
+recovering. Each is a fixed line of text, sent to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code> at the
+default priority, so it reaches the phone beside the cluster alerts.</p>
+<p>scrap sends no headers of its own (<code class="docutils literal notranslate"><span class="pre">urllib</span></code> with only a body), so its token
+travels in the URL instead, in ntfy’s <code class="docutils literal notranslate"><span class="pre">auth</span></code> query parameter: the value of
+the <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> header, <code class="docutils literal notranslate"><span class="pre">Bearer</span> <span class="pre">&lt;token&gt;</span></code>, base64url-encoded without
+padding. The URL is</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>http://ntfy.ntfy.svc.cluster.local/cluster-alerts?auth=&lt;base64url(&quot;Bearer &lt;scrap token&gt;&quot;)&gt;
+</pre></div>
+</div>
+<p>over the in-cluster Service, which ntfy’s NetworkPolicy admits from the scrap
+pods (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>); scrap has no egress policy.</p>
+<ul class="simple">
+<li><p>The URL is the <code class="docutils literal notranslate"><span class="pre">url</span></code> key of the <code class="docutils literal notranslate"><span class="pre">scrap-ntfy</span></code> Secret in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, the
+<code class="docutils literal notranslate"><span class="pre">CLUSTER_COPIES</span></code> copy of <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>’s <code class="docutils literal notranslate"><span class="pre">scrap-token</span></code>, built from the topic
+URL in <code class="docutils literal notranslate"><span class="pre">COPY_URLS</span></code> (<code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code>). <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> and the
+rebuild seal it with <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code>, so it never needs editing by hand.</p></li>
+<li><p>The scrap Application (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code>) sets
+<code class="docutils literal notranslate"><span class="pre">SCRAP_NOTIFY_URL</span></code> from it through <code class="docutils literal notranslate"><span class="pre">extraEnv</span></code>, in the app and the jobs
+container. It does not use the chart’s <code class="docutils literal notranslate"><span class="pre">ingest.notifyUrlKey</span></code>, which must
+name a key of <code class="docutils literal notranslate"><span class="pre">scrap-secrets</span></code>, a Secret sealed by hand. The reference is
+optional: without the Secret, scrap runs and announces nothing.</p></li>
+<li><p>The token can only publish to <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>. Being in a URL, it can
+show up wherever the URL is logged; scrap logs only “notification
+failed”, never the URL.</p></li>
+</ul>
+<p>scrap reads the URL at start: after its token is rotated
+(<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span> <span class="pre">--rotate</span> <span class="pre">scrap</span></code>) and both Secrets have synced, recreate the
+ntfy pod and then restart scrap
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">rollout</span> <span class="pre">restart</span> <span class="pre">deploy/scrap</span></code>).</p>
+<p>To send a test notice as scrap, from the running pod, without printing the
+URL:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>deploy/scrap<span class="w"> </span>-c<span class="w"> </span>scrap<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;from scrap.notify import notify; notify(&quot;scrap: test notice&quot;)&#39;</span>
+</pre></div>
+</div>
+<p>It logs “notification failed” if the POST did not go through.</p>
+</section>
 <section id="publishing-from-the-vps">
 <h2>Publishing from the VPS<a class="headerlink" href="#publishing-from-the-vps" title="Link to this heading">#</a></h2>
 <p>The VPS publishes its own alerts to <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code> over the public
@@ -738,7 +788,8 @@ generation, <code class="docutils literal notranslate"><span class="pre">just</s
 <ul class="simple">
 <li><p><strong>To add a sender:</strong> add it to <code class="docutils literal notranslate"><span class="pre">SENDERS</span></code> (with <code class="docutils literal notranslate"><span class="pre">&quot;owner&quot;</span></code> if its token is
 handed out by hand, <code class="docutils literal notranslate"><span class="pre">&quot;cluster&quot;</span></code> for an in-cluster publisher, which also
-needs a <code class="docutils literal notranslate"><span class="pre">CLUSTER_COPIES</span></code> entry if it runs outside the <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> namespace), add its
+needs a <code class="docutils literal notranslate"><span class="pre">CLUSTER_COPIES</span></code> entry if it runs outside the <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> namespace, and
+a <code class="docutils literal notranslate"><span class="pre">COPY_URLS</span></code> entry if it can only POST to a URL, as scrap does), add its
 topic grants to <code class="docutils literal notranslate"><span class="pre">access</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/values.yaml</span></code>,
 run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-ntfy</span></code> (which generates its token), commit, push and
 recreate the pod.</p></li>
@@ -751,7 +802,9 @@ entries from <code class="docutils literal notranslate"><span class="pre">access
 <p><code class="docutils literal notranslate"><span class="pre">scripts/export-external-creds</span></code> exports one <code class="docutils literal notranslate"><span class="pre">NTFY_&lt;USER&gt;_TOKEN</span></code> per user
 (for example <code class="docutils literal notranslate"><span class="pre">NTFY_PHONE_TOKEN</span></code>) from the running cluster, and
 <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">generate-and-seal-all</span></code> seals them into <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> on the new
-cluster, so the phone and the VPS keep working. Any left unset is
+cluster, so the phone and the VPS keep working (<code class="docutils literal notranslate"><span class="pre">NTFY_SCRAP_TOKEN</span></code>, like
+<code class="docutils literal notranslate"><span class="pre">NTFY_ALERTMANAGER_TOKEN</span></code>, only needs to match its in-cluster copy, which
+the rebuild seals from the same value). Any left unset is
 generated, and a warning says so. To rotate a token during a rebuild,
 remove its line from <code class="docutils literal notranslate"><span class="pre">.env</span></code>.</p>
 </section>
@@ -823,6 +876,7 @@ repo.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#android-app">Android app</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-alerts-from-alertmanager">Cluster alerts from Alertmanager</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notices-from-scrap">Notices from scrap</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#publishing-from-the-vps">Publishing from the VPS</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#revoking-or-rotating-tokens">Revoking or rotating tokens</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rebuilds">Rebuilds</a></li>
