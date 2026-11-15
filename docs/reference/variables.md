@@ -96,9 +96,9 @@ documents each one; these are the ones a rebuild touches.
 | `nas_backup_pool` / `nas_backup_pool_disks` | `backup` / by-id path of the LaCie | The backup pool, which receives a nightly copy of every dataset; optional |
 | `nas_create_pool`, `nas_create_backup_pool`, `nas_force` | `false` | Command-line only. Create the pool (destroying the disks' contents); `nas_force` also allows disks that are not blank |
 | `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft`, `tank/qts-other` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
-| `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode ({doc}`/how-to/nas-setup` has why) |
+| `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, `0755` ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
-| `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS) |
+| `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS). Optional `clients` narrows the hosts, `read_only_for` makes it read-only to some (`/bigdisk`, `Photos-Archive`, `/Minecraft`: `ws03` only; `media`: read-only to the nodes) |
 | `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool |
 | `nas_replicate_on_calendar` | `*-*-* 06:30:00 Europe/London` | When the nightly copy to the backup pool runs |
 | `nas_qnap_ec_driver` | `true` | Build the community `qnap8528` EC driver (fans, temperatures) with DKMS, at `nas_qnap_ec_commit` |

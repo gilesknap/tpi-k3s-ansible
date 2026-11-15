@@ -97,19 +97,24 @@ nas_datasets:
 nas_directories:
   - { path: /bigdisk/k8s-cluster, owner: "0", group: "0", mode: "0755" }
   - { path: /bigdisk/k8s-cluster/backups, owner: "0", group: "0", mode: "0755" }
-  # Mixed writers (Grafana 472, Jellyfin 122, root squashed to 65534): 0777
-  # by design, see tpi-k3s-ansible issue 343. The exports below limit who
-  # can reach them to the cluster's nodes and ws03.
-  - { path: /bigdisk/k8s-cluster/backups/grafana, owner: "0", group: "0", mode: "0777" }
-  - { path: /bigdisk/k8s-cluster/backups/grafana/weekly, owner: "0", group: "0", mode: "0777" }
-  - { path: /bigdisk/k8s-cluster/backups/jellyfin, owner: "0", group: "0", mode: "0777" }
-  - { path: /bigdisk/k8s-cluster/backups/jellyfin/weekly, owner: "0", group: "0", mode: "0777" }
-  - { path: /bigdisk/k8s-cluster/backups/etcd, owner: "0", group: "0", mode: "0777" }
-  - { path: /bigdisk/k8s-cluster/backups/etcd/pre-upgrade, owner: "0", group: "0", mode: "0777" }
+  # Each backup directory is owned by the one uid that writes it, mode
+  # 0755: only that writer can add, replace or delete files there. Others
+  # keep read access, which the off-site copy needs (it reads backups/ as
+  # 65534, nobody; the tarballs are 0644 and the etcd bundles 0600 to
+  # 65534). SYNC: the uids in kubernetes-services (Grafana's backup
+  # CronJobs: additions/backups grafana.uid/gid; Jellyfin's: jellyfin.uid/gid
+  # in values.yaml; etcd: node02's k3s-etcd-backup job runs as root, which
+  # the export squashes to 65534).
+  - { path: /bigdisk/k8s-cluster/backups/grafana, owner: "472", group: "472", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups/grafana/weekly, owner: "472", group: "472", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups/jellyfin, owner: "122", group: "124", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups/jellyfin/weekly, owner: "122", group: "124", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups/etcd, owner: "65534", group: "65534", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups/etcd/pre-upgrade, owner: "65534", group: "65534", mode: "0755" }
   # scrap (uid 10001): its data and backup runs are private to it.
   - { path: /bigdisk/k8s-cluster/scrap-data, owner: "10001", group: "10001", mode: "0750" }
   - { path: /bigdisk/k8s-cluster/backups/scrap, owner: "10001", group: "10001", mode: "0750" }
-  - { path: /bigdisk/k8s-cluster/backups/scrap-curated, owner: "10001", group: "10001" }
+  - { path: /bigdisk/k8s-cluster/backups/scrap-curated, owner: "10001", group: "10001", mode: "0750" }
   # The Minecraft dashboard's store (uid 1000).
   - { path: /bigdisk/k8s-cluster/minecraft, owner: "1000", group: "1000", mode: "0755" }
   - { path: /bigdisk/k8s-cluster/minecraft/backups, owner: "1000", group: "1000", mode: "0755" }
@@ -146,16 +151,35 @@ nas_nfs_options_dynamic: rw,async,insecure,no_subtree_check,no_root_squash
 
 # Every dataset mountpoint the cluster or ws03 mounts, with its options.
 # Each ZFS dataset is a separate filesystem, so each is exported on its
-# own; an NFSv4 client crosses into a child export from its parent's mount.
+# own; an NFSv4 client crosses into a child export from its parent's mount,
+# and reaches an export through the parents it is not given (/bigdisk for
+# the nodes) by the server's NFSv4 pseudo-root.
+# Optional per export, both lists of names from nas_nfs_clients:
+#   clients: the only hosts admitted (default: all of nas_nfs_clients);
+#   read_only_for: hosts that get it read-only (rw in options becomes ro).
+# The cluster mounts only /bigdisk/k8s-cluster, /bigdisk/media (Jellyfin,
+# read-only), /bigdisk/minecraft-archive (read-only) and /k8s-dynamic, so
+# the rest is ws03's alone and the nodes cannot write the media library.
 nas_nfs_exports:
-  - { path: /bigdisk, options: "{{ nas_nfs_options_bigdisk }}" }
-  - { path: /bigdisk/k8s-cluster, options: "{{ nas_nfs_options_bigdisk }}" }
-  - { path: /bigdisk/media, options: "{{ nas_nfs_options_bigdisk }}" }
-  - { path: /bigdisk/Photos-Archive, options: "{{ nas_nfs_options_bigdisk }}" }
+  - path: /bigdisk
+    options: "{{ nas_nfs_options_bigdisk }}"
+    clients: [ws03]
+  - path: /bigdisk/k8s-cluster
+    options: "{{ nas_nfs_options_bigdisk }}"
+  - path: /bigdisk/media
+    options: "{{ nas_nfs_options_bigdisk }}"
+    read_only_for: [node02, node03, node04, nuc1, nuc2]
+  - path: /bigdisk/Photos-Archive
+    options: "{{ nas_nfs_options_bigdisk }}"
+    clients: [ws03]
   # Read-only here too: the second of three locks on the archive.
-  - { path: /bigdisk/minecraft-archive, options: "{{ nas_nfs_options_bigdisk | replace('rw,', 'ro,') }}" }
-  - { path: /k8s-dynamic, options: "{{ nas_nfs_options_dynamic }}" }
-  - { path: /Minecraft, options: "{{ nas_nfs_options_bigdisk }}" }
+  - path: /bigdisk/minecraft-archive
+    options: "{{ nas_nfs_options_bigdisk | replace('rw,', 'ro,') }}"
+  - path: /k8s-dynamic
+    options: "{{ nas_nfs_options_dynamic }}"
+  - path: /Minecraft
+    options: "{{ nas_nfs_options_bigdisk }}"
+    clients: [ws03]
 
 # Every consumer mounts NFS 4.1 (the PVs, the storage classes, node02's
 # etcd backup). NFSv3 stays on in case a hand-made mount (ws03) uses it;

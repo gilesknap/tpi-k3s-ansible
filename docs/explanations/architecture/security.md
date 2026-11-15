@@ -324,6 +324,16 @@ These are known and left as they are.
   by design.
 - **No default-deny between namespaces.** A compromised pod can reach most
   other Services in the cluster.
+- **NFS trusts its clients.** The NAS's exports take a client's word for its
+  uid (`AUTH_SYS`, no Kerberos). A host allowed to mount an export can read
+  and write anything in it as any uid but root (squashed to `65534`, except
+  on `/k8s-dynamic`, where the NFS CSI driver needs root), so a compromised
+  node, or a privileged pod on one, reaches every service's files on the
+  NAS, backups included. The `nas` role admits only the nodes and `ws03`,
+  gives the nodes only the exports the cluster mounts (the media library
+  read-only), and owns each backup directory by its one writer
+  ({doc}`/how-to/nas-ubuntu-zfs`); QTS, until the switchover, admits the
+  whole LAN.
 - **Viewer rules are only as narrow as their values.** The guard detects an
   open policy, not a wide one, such as a public email domain in
   `viewer_email_domains`.

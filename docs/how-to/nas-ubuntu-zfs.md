@@ -28,13 +28,13 @@ no PersistentVolume changes:
 
 | Dataset | Mountpoint | Exported | Used by |
 |---------|------------|----------|---------|
-| `tank/bigdisk` | `/bigdisk` | read-write | parent of the four below |
+| `tank/bigdisk` | `/bigdisk` | read-write, `ws03` only | parent of the four below |
 | `tank/bigdisk/k8s-cluster` | `/bigdisk/k8s-cluster` | read-write | the backups, scrap's data and the Minecraft store ({doc}`/how-to/nas-setup` lists each directory) |
-| `tank/bigdisk/media` | `/bigdisk/media` | read-write (Jellyfin mounts it read-only) | the Jellyfin library |
+| `tank/bigdisk/media` | `/bigdisk/media` | read-write to `ws03`, **read-only** to the nodes | the Jellyfin library |
 | `tank/bigdisk/minecraft-archive` | `/bigdisk/minecraft-archive` | **read-only** | the Minecraft dashboard's archive |
-| `tank/bigdisk/Photos-Archive` | `/bigdisk/Photos-Archive` | read-write | the photo archive |
+| `tank/bigdisk/Photos-Archive` | `/bigdisk/Photos-Archive` | read-write, `ws03` only | the photo archive |
 | `tank/k8s-dynamic` | `/k8s-dynamic` | read-write, root not squashed | the NFS CSI driver's `nfs-rwx` and `nfs-stable` volumes (the Minecraft worlds) |
-| `tank/Minecraft` | `/Minecraft` | read-write | the pre-cluster Minecraft share |
+| `tank/Minecraft` | `/Minecraft` | read-write, `ws03` only | the pre-cluster Minecraft share |
 | `tank/qts-other` | `/srv/qts-other` | no | QTS's other shares (Multimedia, OpenBrain, homes), kept until sorted out |
 
 The list is `nas_datasets` in `roles/nas/defaults/main.yml`
@@ -51,18 +51,29 @@ difference.
 
 | | QTS | Ubuntu |
 |---|-----|--------|
-| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` | Read-write only to the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else |
+| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` Only the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else. The nodes get only what the cluster mounts (`k8s-cluster`, `k8s-dynamic`, and `media` and `minecraft-archive` read-only); `/bigdisk`, `Photos-Archive` and `/Minecraft` are `ws03`'s alone |
 | Root | `bigdisk`: `root_squash` to 65534; `k8s-dynamic`: `no_root_squash` | The same |
 | Other uids | Not squashed | Not squashed: a pod's writes keep its uid (scrap's 10001, the dashboard's 1000, Grafana's 472, Jellyfin's 122) |
 | Writes | `bigdisk`: `sync`; `k8s-dynamic`: `async` | The same |
 | `minecraft-archive` | Read-write over NFS (read-only only by mode and the PV) | Read-only in the export too |
 | One filesystem? | Yes: `bigdisk` and `k8s-dynamic` were one ext4 volume | No: each dataset is its own filesystem and its own export. A move between datasets is a copy, not a rename |
 
-`nas_nfs_clients` in the role's defaults holds the client list. A new node
-must be added there (and the playbook re-run) before its pods can mount
-anything from the NAS. The backup directories stay `0777` because several uids
-write them (tpi-k3s-ansible issue 343); with the client list above, that is
-world-writable only to the cluster's own hosts.
+`nas_nfs_clients` in the role's defaults holds the client list, and each
+entry of `nas_nfs_exports` can narrow it (`clients`) or make it read-only to
+some hosts (`read_only_for`). A new node must be added there (and the
+playbook re-run) before its pods can mount anything from the NAS. The nodes
+still reach `/bigdisk/k8s-cluster` and `/bigdisk/media` without `/bigdisk`
+itself being exported to them: the server's NFSv4 pseudo-root shows them the
+path down to the exports they are given, and nothing else in it.
+
+On QTS the backup directories are `0777`, because several uids write them.
+Here each is owned by its one writer, mode `0755`: Grafana's backups by
+`472`, Jellyfin's by `122:124`, and `etcd/` (with `pre-upgrade/`) by `65534`,
+which node02's root-run job is squashed to. Only that writer can add or
+delete backups there (pruning older files of other owners included), and the
+off-site copy, which reads `backups/` as `65534`, can still read them all.
+`backups/scrap-curated/` becomes `0750`, scrap's alone, like its other
+directories.
 
 Two things follow from moving NAS:
 
@@ -150,7 +161,8 @@ ansible-playbook pb_nas.yml -e nas_create_backup_pool=true -e nas_force=true
 ```
 
 Then the same run creates the datasets, the cluster's directories
-(`nas_directories`, with the owners and modes of {doc}`/how-to/nas-setup`),
+(`nas_directories`: the directories of {doc}`/how-to/nas-setup`, the backup
+directories owned by their writers as above),
 the exports, the snapshot schedule and the health checks. Every later run is
 plain `ansible-playbook pb_nas.yml`; `--check --diff` shows what it would
 change.

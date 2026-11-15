@@ -3,8 +3,9 @@
 :::{note}
 This page describes the NAS as it runs today, on QTS. It is being replaced
 by Ubuntu Server + ZFS configured by Ansible ({doc}`/how-to/nas-ubuntu-zfs`),
-whose `nas` role creates these same directories, with the same owners and
-modes, and exports the same paths. Until the switchover, this page is the
+whose `nas` role creates these same directories and exports the same
+paths, with the backup directories owned by their writers rather than
+`0777`. Until the switchover, this page is the
 procedure.
 :::
 
@@ -49,7 +50,8 @@ writes arrive with its own uid. That is why each directory is owned by the
 uid of the workload that writes it, and why the backup directories with
 mixed writers (Grafana's uid `472`, Jellyfin's uid `122`, and the
 root-squashed `65534` of older Grafana tarballs, which the jobs must still
-prune) are `0777`.
+prune) are `0777`. The `nas` role on Ubuntu instead gives each backup
+directory to its one writer, mode `0755` ({doc}`/how-to/nas-ubuntu-zfs`).
 
 The media library is the one directory here that the cluster did not
 create and never writes: Jellyfin mounts it read-only three times over (the
