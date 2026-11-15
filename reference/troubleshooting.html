@@ -749,6 +749,46 @@ change anything under <code class="docutils literal notranslate"><span class="pr
 </pre></div>
 </div>
 </section>
+<section id="a-local-nvme-pv-stuck-released">
+<span id="local-nvme-pv-released"></span><h3>A <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV stuck <code class="docutils literal notranslate"><span class="pre">Released</span></code><a class="headerlink" href="#a-local-nvme-pv-stuck-released" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> A <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV is <code class="docutils literal notranslate"><span class="pre">Released</span></code>, its claim <code class="docutils literal notranslate"><span class="pre">Pending</span></code>, and the
+pod <code class="docutils literal notranslate"><span class="pre">Pending</span></code> with <code class="docutils literal notranslate"><span class="pre">didn't</span> <span class="pre">find</span> <span class="pre">available</span> <span class="pre">persistent</span> <span class="pre">volumes</span> <span class="pre">to</span> <span class="pre">bind</span></code>.</p>
+<p><strong>Cause:</strong> binding writes the claim’s <code class="docutils literal notranslate"><span class="pre">uid</span></code> into the PV’s <code class="docutils literal notranslate"><span class="pre">claimRef</span></code>. When
+that claim is deleted, the PV (policy <code class="docutils literal notranslate"><span class="pre">Retain</span></code>) goes <code class="docutils literal notranslate"><span class="pre">Released</span></code> and keeps
+the old <code class="docutils literal notranslate"><span class="pre">uid</span></code>, so it refuses the new claim even though the name matches.
+The <code class="docutils literal notranslate"><span class="pre">local-storage</span></code> chart renders <code class="docutils literal notranslate"><span class="pre">claimRef</span></code> with only <code class="docutils literal notranslate"><span class="pre">namespace</span></code> and
+<code class="docutils literal notranslate"><span class="pre">name</span></code>, but a sync does not clear the <code class="docutils literal notranslate"><span class="pre">uid</span></code>: ArgoCD never set that field,
+so it is not part of the diff, and the app shows <code class="docutils literal notranslate"><span class="pre">Synced</span></code>.</p>
+<p>Only deleting the claim itself causes this, by hand (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">delete</span> <span class="pre">pvc</span></code>)
+or with its namespace. Deleting or re-creating an Application does not:
+Jellyfin’s and scrap’s claims carry
+<code class="docutils literal notranslate"><span class="pre">argocd.argoproj.io/sync-options:</span> <span class="pre">Prune=false,Delete=false</span></code>, and Grafana’s
+and Prometheus’s are made by their StatefulSets, so ArgoCD does not track
+them, and the StatefulSets keep them when deleted
+(<code class="docutils literal notranslate"><span class="pre">persistentVolumeClaimRetentionPolicy</span></code> <code class="docutils literal notranslate"><span class="pre">Retain</span></code>).</p>
+<p><strong>Check:</strong> the PV’s <code class="docutils literal notranslate"><span class="pre">claimRef.uid</span></code> is not the claim’s <code class="docutils literal notranslate"><span class="pre">uid</span></code>. For example,
+for Grafana’s:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>pv<span class="w"> </span>grafana-local<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.phase} {.spec.claimRef.uid}{&quot;\n&quot;}&#39;</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>monitoring<span class="w"> </span>get<span class="w"> </span>pvc<span class="w"> </span>storage-grafana-prometheus-0<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.metadata.uid}{&quot;\n&quot;}&#39;</span>
+</pre></div>
+</div>
+<p><strong>Fix:</strong> delete the PV through ArgoCD and sync, so ArgoCD re-creates it
+from the chart, without a <code class="docutils literal notranslate"><span class="pre">uid</span></code>, and the waiting claim binds to it. This
+deletes only the PV object: the policy is <code class="docutils literal notranslate"><span class="pre">Retain</span></code>, the data is a
+directory on the node, and the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> class has no provisioner, so
+nothing deletes or replaces that directory. <code class="docutils literal notranslate"><span class="pre">argocd</span> <span class="pre">--core</span></code> uses the kube
+context’s namespace:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>config<span class="w"> </span>set-context<span class="w"> </span>--current<span class="w"> </span>--namespace<span class="o">=</span>argo-cd
+argocd<span class="w"> </span>app<span class="w"> </span>delete-resource<span class="w"> </span>local-storage<span class="w"> </span>--core<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--kind<span class="w"> </span>PersistentVolume<span class="w"> </span>--resource-name<span class="w"> </span>&lt;pv&gt;
+argocd<span class="w"> </span>app<span class="w"> </span>sync<span class="w"> </span>local-storage<span class="w"> </span>--core
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">&lt;pv&gt;</span></code> is the stuck PV, such as <code class="docutils literal notranslate"><span class="pre">grafana-local</span></code>. Then set the namespace
+back to the one you had before, if it was not <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>. This is step 3 of
+<a class="reference internal" href="../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a>, without the move; see there if the sync fails
+with <code class="docutils literal notranslate"><span class="pre">another</span> <span class="pre">operation</span> <span class="pre">is</span> <span class="pre">already</span> <span class="pre">in</span> <span class="pre">progress</span></code>.</p>
+</section>
 <section id="pod-pending-because-its-node-is-down">
 <h3>Pod <code class="docutils literal notranslate"><span class="pre">Pending</span></code> because its node is down<a class="headerlink" href="#pod-pending-because-its-node-is-down" title="Link to this heading">#</a></h3>
 <p>A workload on a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV can run only on that PV’s node (Grafana and
@@ -1144,6 +1184,7 @@ tpi<span class="w"> </span>info
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-nvme-pvs-and-nfs-backups">Local-nvme PVs and NFS backups</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#static-pv-not-bound">Static PV not bound</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-local-nvme-pv-stuck-released">A <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV stuck <code class="docutils literal notranslate"><span class="pre">Released</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pod-pending-because-its-node-is-down">Pod <code class="docutils literal notranslate"><span class="pre">Pending</span></code> because its node is down</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restoring-from-a-backup">Restoring from a backup</a></li>
 </ul>

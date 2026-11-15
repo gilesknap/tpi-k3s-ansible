@@ -126,7 +126,10 @@ flowchart TB
 - **The claim** is created later by the workload's own chart (Grafana,
   Prometheus) or by a small template beside it (Jellyfin, scrap). Because the
   volume already reserves that claim's name, the claim binds to it and to
-  nothing else.
+  nothing else. Deleting an Application leaves its claim: the templates
+  carry `Prune=false,Delete=false`, and ArgoCD does not track the claims
+  the StatefulSets make. Deleting a claim by hand leaves its volume
+  `Released`; see {ref}`local-nvme-pv-released`.
 - **The pod** follows the volume: the class binds
   `WaitForFirstConsumer`, so the scheduler places the pod on the node the
   volume is pinned to.
