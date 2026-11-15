@@ -59,7 +59,9 @@ control_plane: node03
 standby_control_plane: "" # or the next spare: a node with no local-nvme PV
 ```
 
-Repoint or clear `standby_control_plane` in the same change. The `cluster`
+Repoint or clear `standby_control_plane` in the same change, and set
+`k3s.etcd_metrics_endpoints` in `kubernetes-services/values.yaml` to the new
+node's IP, where Prometheus scrapes etcd. The `cluster`
 tag skips the soft taint on the control plane itself, but clearing it keeps
 the inventory honest, and naming the next spare means the cluster has a
 standby again.
@@ -350,7 +352,8 @@ and check with
    `ansible-playbook pb_all.yml --tags k3s --limit node02`.
 8. Taint the new control plane with
    `ansible-playbook pb_all.yml --tags cluster`, and update anything else
-   that names the old node, such as the API server comment on its
+   that names the old node, such as `k3s.etcd_metrics_endpoints` in
+   `kubernetes-services/values.yaml` and the API server comment on its
    `allow-ip` line in `.devcontainer/claude-sandbox.conf`.
    The same run sets `NoSchedule` on node03, removes its
    `standby-control-plane` taint and puts that taint on the new

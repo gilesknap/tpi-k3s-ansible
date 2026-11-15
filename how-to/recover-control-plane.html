@@ -487,7 +487,9 @@ means no standby.</p>
 <span class="nt">standby_control_plane</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="c1"># or the next spare: a node with no local-nvme PV</span>
 </pre></div>
 </div>
-<p>Repoint or clear <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in the same change. The <code class="docutils literal notranslate"><span class="pre">cluster</span></code>
+<p>Repoint or clear <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in the same change, and set
+<code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> to the new
+node’s IP, where Prometheus scrapes etcd. The <code class="docutils literal notranslate"><span class="pre">cluster</span></code>
 tag skips the soft taint on the control plane itself, but clearing it keeps
 the inventory honest, and naming the next spare means the cluster has a
 standby again.</p>
@@ -771,7 +773,8 @@ podCIDR, then run
 </li>
 <li><p>Taint the new control plane with
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>, and update anything else
-that names the old node, such as the API server comment on its
+that names the old node, such as <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> and the API server comment on its
 <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> line in <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>.
 The same run sets <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> on node03, removes its
 <code class="docutils literal notranslate"><span class="pre">standby-control-plane</span></code> taint and puts that taint on the new

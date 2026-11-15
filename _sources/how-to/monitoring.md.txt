@@ -118,6 +118,7 @@ object without that label is ignored without an error.
 | API server, kubelet and cAdvisor, CoreDNS, kube-state-metrics, node-exporter, and the stack itself | The chart's own ServiceMonitors |
 | cert-manager | `additions/grafana/cert-manager-servicemonitor.yaml`. It lives here, not in the cert-manager chart's values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap |
 | kured | The kured chart's ServiceMonitor (`kubernetes-services/templates/kured.yaml`), in the `kured` namespace |
+| etcd | The chart's `kube-etcd` ServiceMonitor, on a Service whose only endpoint is the control plane's address (`k3s.etcd_metrics_endpoints` in `values.yaml`), port 2381. K3s serves etcd's metrics there because the `k3s` role sets `etcd-expose-metrics: true` in node02's `/etc/rancher/k3s/config.yaml` |
 | Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd backup timer on node02 (`roles/etcd_backup`) writes its `k3s_etcd_backup_*` metrics there |
 
 Three chart defaults are switched off: the scrape targets and rules for
@@ -125,11 +126,20 @@ kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
 inside the `k3s` server process, so there are no such pods and the chart's
 "down" alerts would fire for ever.
 
-etcd is not scraped. The chart still creates its `kube-etcd` ServiceMonitor
-and **etcd** dashboard, but K3s's embedded etcd on node02 does not expose
-metrics (the `k3s` role sets no `etcd-expose-metrics`), so the Service has no
-endpoints and the dashboard is empty. etcd's health shows only through the
-API server's metrics and the etcd backup alerts below.
+etcd runs inside the `k3s` server process too, but it does serve metrics, so
+it is scraped and the **etcd** dashboard works. The endpoint is plain HTTP,
+so the ServiceMonitor sends no credentials (`authorization: null`). It is a
+fixed address, not a pod: when the control plane moves to another node,
+change `k3s.etcd_metrics_endpoints` with it
+({doc}`/how-to/recover-control-plane`), or the target goes down.
+
+Of the chart's etcd rules, three are switched off with
+`defaultRules.disabled`: `etcdMembersDown`, `etcdInsufficientMembers` and
+`etcdNoLeader`. etcd has one member, so they only say that it is down, which
+happens on every reboot of node02; `KubeAPIDown` already covers a dead
+control plane. The rest stay: leader changes, failed and slow gRPC requests,
+slow member communication, failed proposals, fsync and commit durations,
+database quota, growth and fragmentation.
 
 To monitor something new, give its chart `serviceMonitor.enabled: true` (with
 the `release: grafana-prometheus` label) or add a ServiceMonitor manifest
@@ -187,6 +197,7 @@ The configuration is the `alertmanager.config` block in `grafana.yaml`.
 | Alerts | Pushed |
 |--------|--------|
 | Any `severity=critical` | Yes, ntfy priority 5 (urgent) |
+| The chart's etcd rules at `severity=critical`: `etcdHighNumberOfFailedGRPCRequests`, `etcdGRPCRequestsSlow`, `etcdHighFsyncDurations` (critical variants) and `etcdDatabaseQuotaLowSpace` | Yes, as any critical. Their warning variants and the other etcd rules go to `null` |
 | `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
 | `OffsiteBackup*` (the three off-site backup alerts) | Yes, priority 3 |
 | `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |

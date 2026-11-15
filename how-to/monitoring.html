@@ -1028,7 +1028,10 @@ object without that label is ignored without an error.</p>
 <tr class="row-even"><td><p>kured</p></td>
 <td><p>The kured chart’s ServiceMonitor (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/kured.yaml</span></code>), in the <code class="docutils literal notranslate"><span class="pre">kured</span></code> namespace</p></td>
 </tr>
-<tr class="row-odd"><td><p>Host-side jobs</p></td>
+<tr class="row-odd"><td><p>etcd</p></td>
+<td><p>The chart’s <code class="docutils literal notranslate"><span class="pre">kube-etcd</span></code> ServiceMonitor, on a Service whose only endpoint is the control plane’s address (<code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>), port 2381. K3s serves etcd’s metrics there because the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role sets <code class="docutils literal notranslate"><span class="pre">etcd-expose-metrics:</span> <span class="pre">true</span></code> in node02’s <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Host-side jobs</p></td>
 <td><p>node-exporter’s <strong>textfile collector</strong> reads <code class="docutils literal notranslate"><span class="pre">/var/lib/node_exporter/textfile_collector</span></code> on each node. The etcd backup timer on node02 (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup</span></code>) writes its <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics there</p></td>
 </tr>
 </tbody>
@@ -1038,11 +1041,19 @@ object without that label is ignored without an error.</p>
 kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
 inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process, so there are no such pods and the chart’s
 “down” alerts would fire for ever.</p>
-<p>etcd is not scraped. The chart still creates its <code class="docutils literal notranslate"><span class="pre">kube-etcd</span></code> ServiceMonitor
-and <strong>etcd</strong> dashboard, but K3s’s embedded etcd on node02 does not expose
-metrics (the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role sets no <code class="docutils literal notranslate"><span class="pre">etcd-expose-metrics</span></code>), so the Service has no
-endpoints and the dashboard is empty. etcd’s health shows only through the
-API server’s metrics and the etcd backup alerts below.</p>
+<p>etcd runs inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process too, but it does serve metrics, so
+it is scraped and the <strong>etcd</strong> dashboard works. The endpoint is plain HTTP,
+so the ServiceMonitor sends no credentials (<code class="docutils literal notranslate"><span class="pre">authorization:</span> <span class="pre">null</span></code>). It is a
+fixed address, not a pod: when the control plane moves to another node,
+change <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> with it
+(<a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the control plane</span></a>), or the target goes down.</p>
+<p>Of the chart’s etcd rules, three are switched off with
+<code class="docutils literal notranslate"><span class="pre">defaultRules.disabled</span></code>: <code class="docutils literal notranslate"><span class="pre">etcdMembersDown</span></code>, <code class="docutils literal notranslate"><span class="pre">etcdInsufficientMembers</span></code> and
+<code class="docutils literal notranslate"><span class="pre">etcdNoLeader</span></code>. etcd has one member, so they only say that it is down, which
+happens on every reboot of node02; <code class="docutils literal notranslate"><span class="pre">KubeAPIDown</span></code> already covers a dead
+control plane. The rest stay: leader changes, failed and slow gRPC requests,
+slow member communication, failed proposals, fsync and commit durations,
+database quota, growth and fragmentation.</p>
 <p>To monitor something new, give its chart <code class="docutils literal notranslate"><span class="pre">serviceMonitor.enabled:</span> <span class="pre">true</span></code> (with
 the <code class="docutils literal notranslate"><span class="pre">release:</span> <span class="pre">grafana-prometheus</span></code> label) or add a ServiceMonitor manifest
 beside the app.</p>
@@ -1133,25 +1144,28 @@ The configuration is the <code class="docutils literal notranslate"><span class=
 <tr class="row-even"><td><p>Any <code class="docutils literal notranslate"><span class="pre">severity=critical</span></code></p></td>
 <td><p>Yes, ntfy priority 5 (urgent)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackup*</span></code> (the four etcd backup alerts)</p></td>
+<tr class="row-odd"><td><p>The chart’s etcd rules at <code class="docutils literal notranslate"><span class="pre">severity=critical</span></code>: <code class="docutils literal notranslate"><span class="pre">etcdHighNumberOfFailedGRPCRequests</span></code>, <code class="docutils literal notranslate"><span class="pre">etcdGRPCRequestsSlow</span></code>, <code class="docutils literal notranslate"><span class="pre">etcdHighFsyncDurations</span></code> (critical variants) and <code class="docutils literal notranslate"><span class="pre">etcdDatabaseQuotaLowSpace</span></code></p></td>
+<td><p>Yes, as any critical. Their warning variants and the other etcd rules go to <code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackup*</span></code> (the four etcd backup alerts)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code> (the three off-site backup alerts)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code> (the three off-site backup alerts)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> (fires after 15 minutes; not for a cordoned node)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> (fires after 15 minutes; not for a cordoned node)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-even"><td><p>Volumes and filesystems filling up: <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeInodesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemSpaceFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemFilesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfFiles</span></code></p></td>
+<tr class="row-odd"><td><p>Volumes and filesystems filling up: <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeInodesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemSpaceFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemFilesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfFiles</span></code></p></td>
 <td><p>Yes, priority 3 (5 for their critical variants)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
 <td><p>Yes</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code>, which is how a failed <code class="docutils literal notranslate"><span class="pre">grafana-*</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-*</span></code> or <code class="docutils literal notranslate"><span class="pre">scrap-backup*</span></code> CronJob shows</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code>, which is how a failed <code class="docutils literal notranslate"><span class="pre">grafana-*</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-*</span></code> or <code class="docutils literal notranslate"><span class="pre">scrap-backup*</span></code> CronJob shows</p></td>
 <td><p>No (<code class="docutils literal notranslate"><span class="pre">null</span></code>): a warning not in the list</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
 <td><p>No (<code class="docutils literal notranslate"><span class="pre">null</span></code>)</p></td>
 </tr>
 </tbody>
