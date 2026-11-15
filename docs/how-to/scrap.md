@@ -209,10 +209,19 @@ package on GitHub, so no pull secret is needed.
 |--------------|-----------|------|
 | `scrap-secrets` (`scrap-secret.yaml`) | `scrap` | `ANTHROPIC_API_KEY` (Claude ingest), `SCRAP_MCP_TOKEN` (the `/mcp` bearer token) |
 | `scrap-publish` | `scrap` and `scrap-public` | `token` (the public-pages upload token) |
+| `scrap-ntfy` (`scrap-ntfy-secret.yaml`) | `scrap` | `url` (`SCRAP_NOTIFY_URL`, the ntfy topic URL with the token in it), `token` (the ntfy `scrap` user's token) |
 
 `kubernetes-services/additions/scrap/README.md` has the commands that reseal
-each by hand; {doc}`/how-to/manage-sealed-secrets` covers the general rules.
+the first two by hand; {doc}`/how-to/manage-sealed-secrets` covers the general rules.
 Without `scrap-secrets` the pod sits in `CreateContainerConfigError`.
+
+`scrap-ntfy` is never sealed by hand: `just seal-ntfy` seals it together with
+ntfy's `ntfy-auth`, and the rebuild does too. scrap reads its `url` as
+`SCRAP_NOTIFY_URL` and POSTs one line there when its Claude ingest pauses
+(credit, auth, budget or an outage), when gc gathers orphaned files, when a
+scheduled job fails and when replication stalls or recovers. These arrive on
+the phone on the `cluster-alerts` topic ({ref}`ntfy-scrap`). The variable is
+optional: without the Secret, scrap runs and announces nothing.
 
 A cluster rebuild reseals them: `scripts/export-external-creds` exports
 `SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN` and `SCRAP_PUBLISH_TOKEN` from

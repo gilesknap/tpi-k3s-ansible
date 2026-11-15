@@ -8,7 +8,8 @@ alerts reach the owner's Android phone without passing through a
 third-party service. It carries two topics:
 
 - `cluster-alerts`: Alertmanager's pushes (see {doc}`monitoring` for
-  which alerts are routed there);
+  which alerts are routed there), and scrap's notices when its Claude
+  ingest pauses (see {ref}`ntfy-scrap`);
 - `vps-alerts`: alerts from the VPS, published over HTTPS from outside
   the cluster.
 
@@ -47,6 +48,7 @@ list grants each the least it needs:
 | User | Access | Used by |
 |---|---|---|
 | `alertmanager` | write-only on `cluster-alerts` | Alertmanager |
+| `scrap` | write-only on `cluster-alerts` | scrap ({doc}`scrap`) |
 | `vps` | write-only on `vps-alerts` | the VPS |
 | `phone` | read-only on `cluster-alerts` and `vps-alerts` | the phone app |
 
@@ -71,8 +73,8 @@ longer configured. Nobody runs `ntfy user add`.
   `scripts/lib/ntfy_auth.py`; every script derives them from there.
 
 The NetworkPolicy admits only `ingress-nginx` (the `allowed_namespaces`
-value) and the Alertmanager pods in `monitoring` (`allowed_pods`), which
-publish to the Service directly. Another in-cluster publisher adds its pods
+value), the Alertmanager pods in `monitoring` and the scrap pods in `scrap`
+(`allowed_pods`), which publish to the Service directly. Another in-cluster publisher adds its pods
 to `allowed_pods`. This limits who reaches the pod
 *directly*; anything that can reach ingress-nginx can still talk to ntfy
 through it, so ntfy's token auth is the real gate.
@@ -123,9 +125,11 @@ check it after a change.
    It keeps every value already in the live `ntfy-auth` Secret and generates
    the rest, then seals the result into
    `kubernetes-services/additions/ntfy/templates/ntfy-auth-secret.yaml`,
-   and Alertmanager's copy of its token into
-   `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml`.
-   No value is printed. Commit and push both. A cluster rebuild does this
+   Alertmanager's copy of its token into
+   `kubernetes-services/additions/grafana/alertmanager-ntfy-secret.yaml`
+   and scrap's into
+   `kubernetes-services/additions/scrap/templates/scrap-ntfy-secret.yaml`.
+   No value is printed. Commit and push all three. A cluster rebuild does this
    by itself (see [Rebuilds](#rebuilds)).
 
 2. Apply the tunnel route, the Access bypass and the rate limit
@@ -241,6 +245,56 @@ bridge component:
   have synced: Alertmanager uses the new token straight away, and ntfy
   rejects it (and so drops those alerts) until the new pod starts.
 
+(ntfy-scrap)=
+## Notices from scrap
+
+scrap ({doc}`scrap`) announces trouble with one plain POST to
+`SCRAP_NOTIFY_URL`: the first pause of an episode of its Claude ingest
+(credit, auth, budget or an outage), gc gathering orphaned files onto a
+page, a failed scheduled job, and Litestream replication stalling or
+recovering. Each is a fixed line of text, sent to `cluster-alerts` at the
+default priority, so it reaches the phone beside the cluster alerts.
+
+scrap sends no headers of its own (`urllib` with only a body), so its token
+travels in the URL instead, in ntfy's `auth` query parameter: the value of
+the `Authorization` header, `Bearer <token>`, base64url-encoded without
+padding. The URL is
+
+```text
+http://ntfy.ntfy.svc.cluster.local/cluster-alerts?auth=<base64url("Bearer <scrap token>")>
+```
+
+over the in-cluster Service, which ntfy's NetworkPolicy admits from the scrap
+pods (`allowed_pods`); scrap has no egress policy.
+
+- The URL is the `url` key of the `scrap-ntfy` Secret in `scrap`, the
+  `CLUSTER_COPIES` copy of `ntfy-auth`'s `scrap-token`, built from the topic
+  URL in `COPY_URLS` (`scripts/lib/ntfy_auth.py`). `just seal-ntfy` and the
+  rebuild seal it with `ntfy-auth`, so it never needs editing by hand.
+- The scrap Application (`kubernetes-services/templates/scrap.yaml`) sets
+  `SCRAP_NOTIFY_URL` from it through `extraEnv`, in the app and the jobs
+  container. It does not use the chart's `ingest.notifyUrlKey`, which must
+  name a key of `scrap-secrets`, a Secret sealed by hand. The reference is
+  optional: without the Secret, scrap runs and announces nothing.
+- The token can only publish to `cluster-alerts`. Being in a URL, it can
+  show up wherever the URL is logged; scrap logs only "notification
+  failed", never the URL.
+
+scrap reads the URL at start: after its token is rotated
+(`just seal-ntfy --rotate scrap`) and both Secrets have synced, recreate the
+ntfy pod and then restart scrap
+(`kubectl -n scrap rollout restart deploy/scrap`).
+
+To send a test notice as scrap, from the running pod, without printing the
+URL:
+
+```bash
+kubectl exec -n scrap deploy/scrap -c scrap -- \
+  python -c 'from scrap.notify import notify; notify("scrap: test notice")'
+```
+
+It logs "notification failed" if the POST did not go through.
+
 ## Publishing from the VPS
 
 The VPS publishes its own alerts to `vps-alerts` over the public
@@ -298,7 +352,8 @@ generation, `just ntfy-tokens`) derives them from there.
 
 - **To add a sender:** add it to `SENDERS` (with `"owner"` if its token is
   handed out by hand, `"cluster"` for an in-cluster publisher, which also
-  needs a `CLUSTER_COPIES` entry if it runs outside the `ntfy` namespace), add its
+  needs a `CLUSTER_COPIES` entry if it runs outside the `ntfy` namespace, and
+  a `COPY_URLS` entry if it can only POST to a URL, as scrap does), add its
   topic grants to `access` in `kubernetes-services/additions/ntfy/values.yaml`,
   run `just seal-ntfy` (which generates its token), commit, push and
   recreate the pod.
@@ -310,7 +365,9 @@ generation, `just ntfy-tokens`) derives them from there.
 `scripts/export-external-creds` exports one `NTFY_<USER>_TOKEN` per user
 (for example `NTFY_PHONE_TOKEN`) from the running cluster, and
 `just generate-and-seal-all` seals them into `ntfy-auth` on the new
-cluster, so the phone and the VPS keep working. Any left unset is
+cluster, so the phone and the VPS keep working (`NTFY_SCRAP_TOKEN`, like
+`NTFY_ALERTMANAGER_TOKEN`, only needs to match its in-cluster copy, which
+the rebuild seals from the same value). Any left unset is
 generated, and a warning says so. To rotate a token during a rebuild,
 remove its line from `.env`.
 

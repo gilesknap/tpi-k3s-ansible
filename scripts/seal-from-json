@@ -182,12 +182,16 @@ if has_secret ntfy-auth ntfy; then
         [ -n "$user" ] || continue
         echo "Sealing: $name ($ns)..."
         v=$(get_key ntfy-auth ntfy "$user-token") || exit 1
-        kubectl create secret generic "$name" --namespace="$ns" \
-            --from-literal=token="$v" \
+        # A publisher that only POSTs to a URL also gets its topic URL with
+        # the token in it (COPY_URLS), e.g. scrap's SCRAP_NOTIFY_URL.
+        copy_args=(--from-literal=token="$v")
+        url=$(printf %s "$v" | python3 "$(dirname "$0")/lib/ntfy_auth.py" copy-url "$user") || exit 1
+        [ -z "$url" ] || copy_args+=(--from-literal=url="$url")
+        kubectl create secret generic "$name" --namespace="$ns" "${copy_args[@]}" \
             --dry-run=client -o yaml | seal_to "$path"
         echo "  -> $path"
     done <<< "$ntfy_copies"
-    unset v
+    unset v url copy_args
 else
     echo "Skipping: ntfy-auth (not in JSON)"
 fi
