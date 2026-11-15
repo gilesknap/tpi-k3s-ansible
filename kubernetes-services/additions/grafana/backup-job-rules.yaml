@@ -1,0 +1,112 @@
+# Alerts for the CronJobs that back up Grafana, Jellyfin and scrap to the
+# NAS (additions/backups and additions/scrap; docs/how-to/backup-restore.md).
+# Like offsite-backup-rules.yaml they use kube-state-metrics' CronJob and
+# Job series, and reach ntfy because templates/grafana.yaml routes them by
+# name. A new backup CronJob is covered once its name is added to the
+# cronjob lists below: a daily one to the 36-hour lists, a weekly one to
+# the 8.5-day lists and a monthly one to the 32-day lists.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backup-jobs
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  groups:
+    - name: backup-jobs
+      rules:
+        # The newest failed Job of a backup CronJob started after its last
+        # success, so the alert clears at the next successful run.
+        - alert: BackupJobFailed
+          expr: >-
+            label_replace(
+              max by (namespace, owner_name) (
+                kube_job_status_start_time{namespace=~"backups|scrap"}
+                * on (namespace, job_name) group_left (owner_name)
+                  kube_job_owner{owner_kind="CronJob", owner_name=~"grafana-daily|grafana-weekly|jellyfin-daily|jellyfin-weekly|scrap-backup|scrap-backup-copy|scrap-backup-monthly"}
+                * on (namespace, job_name) group_left ()
+                  (kube_job_failed{condition="true"} == 1)
+              ),
+              "cronjob", "$1", "owner_name", "(.*)"
+            )
+            > on (namespace, cronjob) group_left ()
+            (
+              max by (namespace, cronjob) (
+                kube_cronjob_status_last_successful_time{namespace=~"backups|scrap"}
+              )
+              or
+              max by (namespace, cronjob) (
+                kube_cronjob_info{namespace=~"backups|scrap"}
+              ) * 0
+            )
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The {{ $labels.cronjob }} backup failed.
+            description: >-
+              The newest run of the {{ $labels.namespace }}/{{ $labels.cronjob }}
+              CronJob failed. Read its logs:
+              `kubectl -n {{ $labels.namespace }} get jobs`, then
+              `kubectl -n {{ $labels.namespace }} logs job/<job>`. For
+              scrap-backup-copy, a failure also means the newest scrap
+              backup run is over 26 hours old.
+        - alert: BackupJobStale
+          expr: >-
+            (
+              time() - kube_cronjob_status_last_successful_time{namespace=~"backups|scrap", cronjob=~"grafana-daily|jellyfin-daily|scrap-backup|scrap-backup-copy"}
+              > 36 * 3600
+            )
+            or
+            (
+              time() - kube_cronjob_status_last_successful_time{namespace="backups", cronjob=~"grafana-weekly|jellyfin-weekly"}
+              > 8.5 * 86400
+            )
+            or
+            (
+              time() - kube_cronjob_status_last_successful_time{namespace="scrap", cronjob="scrap-backup-monthly"}
+              > 32 * 86400
+            )
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: The {{ $labels.cronjob }} backup has not succeeded on schedule.
+            description: >-
+              The {{ $labels.namespace }}/{{ $labels.cronjob }} CronJob last
+              succeeded {{ $value | humanizeDuration }} ago. Check that it is
+              not suspended and that its Jobs are being created
+              (`kubectl -n {{ $labels.namespace }} get cronjob,jobs`).
+        # kube_cronjob_status_last_successful_time is absent until the
+        # first success, for example after a rebuild.
+        - alert: BackupJobNeverSucceeded
+          expr: >-
+            (
+              (
+                time() - kube_cronjob_created{namespace=~"backups|scrap", cronjob=~"grafana-daily|jellyfin-daily|scrap-backup|scrap-backup-copy"}
+                > 36 * 3600
+              )
+              or
+              (
+                time() - kube_cronjob_created{namespace="backups", cronjob=~"grafana-weekly|jellyfin-weekly"}
+                > 8.5 * 86400
+              )
+              or
+              (
+                time() - kube_cronjob_created{namespace="scrap", cronjob="scrap-backup-monthly"}
+                > 32 * 86400
+              )
+            )
+            unless on (namespace, cronjob)
+              kube_cronjob_status_last_successful_time
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: The {{ $labels.cronjob }} backup has never succeeded.
+            description: >-
+              The {{ $labels.namespace }}/{{ $labels.cronjob }} CronJob has
+              existed for longer than its schedule allows without a
+              successful run. Read the logs of its Jobs
+              (`kubectl -n {{ $labels.namespace }} get jobs`).

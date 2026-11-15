@@ -155,7 +155,7 @@ the comment there says.
 ## Alert rules
 
 The chart ships its default rules (node health, pod restarts, volumes filling,
-API server, kubelet and so on). This cluster adds three rule files in
+API server, kubelet and so on). This cluster adds four rule files in
 `kubernetes-services/additions/grafana/`:
 
 | File | Alerts | Fires when |
@@ -167,11 +167,15 @@ API server, kubelet and so on). This cluster adds three rule files in
 | `offsite-backup-rules.yaml` | `OffsiteBackupFailed` | The newest run of the `offsite-backup` CronJob failed |
 | | `OffsiteBackupStale` | No off-site backup has succeeded for over 36 hours |
 | | `OffsiteBackupNeverSucceeded` | The CronJob has existed for over 36 hours without a success |
+| `backup-job-rules.yaml` | `BackupJobFailed` | The newest run of a Grafana, Jellyfin or scrap backup CronJob (`grafana-*`, `jellyfin-*`, `scrap-backup*`) failed |
+| | `BackupJobStale` | Its last success is older than its schedule allows: 36 hours for a daily job, 8.5 days for a weekly one, 32 days for `scrap-backup-monthly` |
+| | `BackupJobNeverSucceeded` | The CronJob has existed for that long without a success |
 | `cert-expiry-rules.yaml` | `CertManagerCertificateExpiringSoon` | A certificate expires in under 14 days (warning) or under 7 (critical). cert-manager renews 30 days ahead, so this means renewal is failing |
 
-The off-site rules use kube-state-metrics' CronJob and Job series, which exist
-only while the CronJob does, so they are silent when `offsite_backup.enabled`
-is `false`. All of the above are `severity: warning` except the 7-day
+The off-site and backup-job rules use kube-state-metrics' CronJob and Job
+series, which exist only while the CronJob does, so the off-site ones are
+silent when `offsite_backup.enabled` is `false`. A new backup CronJob is
+covered once its name is added to the lists in `backup-job-rules.yaml`. All of the above are `severity: warning` except the 7-day
 certificate alert.
 
 The directory also holds two SealedSecrets: `grafana-oauth-secret.yaml`
@@ -200,10 +204,11 @@ The configuration is the `alertmanager.config` block in `grafana.yaml`.
 | The chart's etcd rules at `severity=critical`: `etcdHighNumberOfFailedGRPCRequests`, `etcdGRPCRequestsSlow`, `etcdHighFsyncDurations` (critical variants) and `etcdDatabaseQuotaLowSpace` | Yes, as any critical. Their warning variants and the other etcd rules go to `null` |
 | `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
 | `OffsiteBackup*` (the three off-site backup alerts) | Yes, priority 3 |
+| `BackupJob*` (the three alerts for the Grafana, Jellyfin and scrap CronJobs) | Yes, priority 3 |
 | `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |
 | Volumes and filesystems filling up: `KubePersistentVolumeFillingUp`, `KubePersistentVolumeInodesFillingUp`, `NodeFilesystemSpaceFillingUp`, `NodeFilesystemAlmostOutOfSpace`, `NodeFilesystemFilesFillingUp`, `NodeFilesystemAlmostOutOfFiles` | Yes, priority 3 (5 for their critical variants) |
 | `CertManagerCertificateExpiringSoon` | Yes |
-| `KubeJobFailed`, which is how a failed `grafana-*`, `jellyfin-*` or `scrap-backup*` CronJob shows | No (`null`): a warning not in the list |
+| `KubeJobFailed` (any failed Job; a failed backup Job also raises `BackupJobFailed`) | No (`null`): a warning not in the list |
 | `Watchdog`, `InfoInhibitor` and everything else | No (`null`) |
 
 - **Grouping:** one notification per alert name (`group_by: [alertname]`),
