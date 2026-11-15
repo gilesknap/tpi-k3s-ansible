@@ -118,7 +118,7 @@ object without that label is ignored without an error.
 | API server, kubelet and cAdvisor, CoreDNS, kube-state-metrics, node-exporter, and the stack itself | The chart's own ServiceMonitors |
 | cert-manager | `additions/grafana/cert-manager-servicemonitor.yaml`. It lives here, not in the cert-manager chart's values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap |
 | kured | The kured chart's ServiceMonitor (`kubernetes-services/templates/kured.yaml`), in the `kured` namespace |
-| etcd | The chart's `kube-etcd` ServiceMonitor, on a Service whose only endpoint is the control plane's address (`k3s.etcd_metrics_endpoints` in `values.yaml`), port 2381. K3s serves etcd's metrics there because the `k3s` role sets `etcd-expose-metrics: true` in node02's `/etc/rancher/k3s/config.yaml` |
+| etcd | A static `kube-etcd` scrape job (`additionalScrapeConfigs` in `grafana.yaml`; not the chart's Service and ServiceMonitor, whose hand-made Endpoints ArgoCD never applies), targeting the control plane's address (`k3s.etcd_metrics_endpoints` in `values.yaml`), port 2381. K3s serves etcd's metrics there because the `k3s` role sets `etcd-expose-metrics: true` in node02's `/etc/rancher/k3s/config.yaml` |
 | Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd backup timer on node02 (`roles/etcd_backup`) writes its `k3s_etcd_backup_*` metrics there |
 
 Three chart defaults are switched off: the scrape targets and rules for

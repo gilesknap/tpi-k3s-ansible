@@ -95,6 +95,18 @@ spec:
                   operator: Equal
                   value: "true"
                   effect: NoSchedule
+              # etcd's metrics (see kubeEtcd below). A static target, because
+              # the chart's alternative, a Service with hand-made Endpoints,
+              # never reaches the cluster: ArgoCD excludes Endpoints and
+              # EndpointSlices by default. job "kube-etcd" is the label the
+              # chart's etcd rules and dashboard expect.
+              additionalScrapeConfigs:
+                - job_name: kube-etcd
+                  static_configs:
+                    - targets:
+{{- range .Values.k3s.etcd_metrics_endpoints }}
+                        - "{{ . }}:2381"
+{{- end }}
 
           alertmanager:
             ingress:
@@ -291,16 +303,18 @@ spec:
           kubeControllerManager:
             enabled: false
           # etcd is embedded in k3s-server too, but it does serve metrics on
-          # :2381. With no etcd pods the Service gets its endpoints from
-          # this list: the control plane, which exposes them with
+          # :2381 of the control plane, which exposes them with
           # etcd-expose-metrics (roles/k3s/templates/k3s-server-config.yml.j2).
+          # Prometheus scrapes it through additionalScrapeConfigs above, so
+          # the chart's Service and ServiceMonitor are off; kubeEtcd stays
+          # enabled for its rules and dashboard. The static target is plain
+          # HTTP and sends no credentials.
           kubeEtcd:
-            endpoints:
-              {{- toYaml .Values.k3s.etcd_metrics_endpoints | nindent 14 }}
-            # :2381 is plain HTTP and needs no credentials: do not send
-            # Prometheus's ServiceAccount token there in the clear.
+            enabled: true
+            service:
+              enabled: false
             serviceMonitor:
-              authorization: null
+              enabled: false
           kubeScheduler:
             enabled: false
           kubeProxy:
