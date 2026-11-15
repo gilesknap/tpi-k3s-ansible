@@ -607,10 +607,15 @@ the backup to restore:</p>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backup</span>
 <span class="w">      </span><span class="nt">nfs</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span>
+<span class="w">        </span><span class="c1"># A copy from Drive: /bigdisk/k8s-cluster/restore-scratch/grafana</span>
 <span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/k8s-cluster/backups/grafana</span>
 <span class="w">        </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
+<p>To restore a tarball brought back from Drive, unpack it in the restore
+scratch folder (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>), not in <code class="docutils literal notranslate"><span class="pre">backups/grafana</span></code>, and
+set the <code class="docutils literal notranslate"><span class="pre">backup</span></code> volume’s <code class="docutils literal notranslate"><span class="pre">path</span></code> to
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/restore-scratch/grafana</span></code>.</p>
 <p>The PVC is bound to a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV, so the pod lands on node04 by
 itself. Check <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">logs</span> <span class="pre">grafana-restore</span></code>, then
 <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">monitoring</span> <span class="pre">delete</span> <span class="pre">pod</span> <span class="pre">grafana-restore</span></code>.</p>
@@ -700,6 +705,19 @@ release that made the backup, or a newer one. <code class="docutils literal notr
 <span class="w">        </span><span class="nt">claimName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap-backups-nfs</span><span class="w">   </span><span class="c1"># or scrap-backup-copy, for the off-NAS copy</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
 <span class="w">      </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</pre></div>
+</div>
+<p>For a run brought back from Drive, unpack it in the restore scratch
+folder (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>), not in <code class="docutils literal notranslate"><span class="pre">backups/scrap</span></code>, and replace the
+<code class="docutils literal notranslate"><span class="pre">backups</span></code> volume with one that mounts that folder from the NAS. The
+tarball’s paths start <code class="docutils literal notranslate"><span class="pre">scrap/&lt;run&gt;/</span></code> (a monthly run’s
+<code class="docutils literal notranslate"><span class="pre">scrap/monthly/&lt;run&gt;/</span></code>), so the restore’s argument stays
+<code class="docutils literal notranslate"><span class="pre">/backups/&lt;run&gt;</span></code> (or <code class="docutils literal notranslate"><span class="pre">/backups/monthly/&lt;run&gt;</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backups</span>
+<span class="w">      </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">   </span><span class="c1"># nfs.server</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/k8s-cluster/restore-scratch/scrap</span>
+<span class="w">        </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
 </li>
@@ -1159,11 +1177,11 @@ SealedSecret in Git decrypt as it is.</p>
 <section id="restore-from-drive">
 <h3>Restore from Drive<a class="headerlink" href="#restore-from-drive" title="Link to this heading">#</a></h3>
 <p>Download what you need, either from the Drive web page (a folder downloads
-as a zip) or with rclone, on any machine with the rclone config (the
-sealed one, or a fresh <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">config</span></code> with a <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> remote: a new
-token from the same OAuth client sees the same files):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>lsf<span class="w"> </span>-R<span class="w"> </span>drive:home-cluster-offsite/backups/grafana
-rclone<span class="w"> </span>copy<span class="w"> </span>drive:home-cluster-offsite/backups/grafana/&lt;file&gt;.tar.gz.age<span class="w"> </span>.
+as a zip) or with rclone, on any machine with an rclone config holding the
+<code class="docutils literal notranslate"><span class="pre">[drive]</span></code> remote (<a class="reference internal" href="#offsite-rclone-without-cluster"><span class="std std-ref">rclone without the cluster</span></a> makes one without
+the cluster):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>lsf<span class="w"> </span>-R<span class="w"> </span>drive:home-cluster-offsite/backups/grafana
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>copy<span class="w"> </span>drive:home-cluster-offsite/backups/grafana/&lt;file&gt;.tar.gz.age<span class="w"> </span>.
 </pre></div>
 </div>
 <p>Then decrypt with the private key, and verify or unpack:</p>
@@ -1173,9 +1191,106 @@ age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~
 </pre></div>
 </div>
 <p>The etcd bundles and sealed-secrets key exports are as they were on the NAS
-(<code class="docutils literal notranslate"><span class="pre">.tar.age</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml.age</span></code>): restore them as in the sections above. Put a
-decrypted backup back where the restore recipes above expect it (on the
-NAS, under <code class="docutils literal notranslate"><span class="pre">backups/&lt;app&gt;/</span></code>), or restore from it directly.</p>
+(<code class="docutils literal notranslate"><span class="pre">.tar.age</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml.age</span></code>): restore them as in the sections above. To
+restore Grafana or scrap from a copy from Drive, unpack it in the restore
+scratch folder (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>) and point the recipe’s volume
+there, as its notes say.</p>
+<section id="rclone-without-the-cluster">
+<span id="offsite-rclone-without-cluster"></span><h4>rclone without the cluster<a class="headerlink" href="#rclone-without-the-cluster" title="Link to this heading">#</a></h4>
+<p>The remote lives in the SealedSecret <code class="docutils literal notranslate"><span class="pre">offsite-backup-rclone</span></code> (namespace
+<code class="docutils literal notranslate"><span class="pre">backups</span></code>), which only the running cluster can decrypt. Without it, make
+the config in RAM-backed <code class="docutils literal notranslate"><span class="pre">/dev/shm</span></code> (so it is never written to disk) on
+any machine with rclone (the devcontainer has it), in one of two ways:</p>
+<ul>
+<li><p><strong>From <code class="docutils literal notranslate"><span class="pre">.env</span></code>.</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code> saves it in <code class="docutils literal notranslate"><span class="pre">.env</span></code> as
+<code class="docutils literal notranslate"><span class="pre">OFFSITE_BACKUP_RCLONE_CONF_B64</span></code> (a planned rebuild does that first).
+If that <code class="docutils literal notranslate"><span class="pre">.env</span></code> is still there:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;^OFFSITE_BACKUP_RCLONE_CONF_B64=&#39;</span><span class="w"> </span>.env<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d<span class="o">=</span><span class="w"> </span>-f2-<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>base64<span class="w"> </span>-d<span class="w"> </span>&gt;/dev/shm/rclone.conf<span class="o">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>A new token from the same OAuth client.</strong> With the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code>
+scope, rclone sees only the files made through its OAuth client, so use
+that client: its <code class="docutils literal notranslate"><span class="pre">client_secret_&lt;...&gt;.json</span></code> from step 1 of “Set it up”,
+kept offline. If the JSON is lost, open the same client in the Google
+Cloud console and add a new secret to it rather than making a new
+client. Then run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>rclone<span class="w"> </span>config<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="o">)</span>
+</pre></div>
+</div>
+<p>and answer: <code class="docutils literal notranslate"><span class="pre">n</span></code> (new remote); name <code class="docutils literal notranslate"><span class="pre">drive</span></code>; storage <code class="docutils literal notranslate"><span class="pre">drive</span></code>;
+<code class="docutils literal notranslate"><span class="pre">client_id</span></code> and <code class="docutils literal notranslate"><span class="pre">client_secret</span></code> from the JSON, pasted at their prompts
+(so they are on no command line); scope <code class="docutils literal notranslate"><span class="pre">drive.file</span></code>; no service account
+file; no advanced config; <code class="docutils literal notranslate"><span class="pre">y</span></code> to use a web browser, and allow access in
+it; not a shared drive; <code class="docutils literal notranslate"><span class="pre">y</span></code> to keep the remote; then <code class="docutils literal notranslate"><span class="pre">q</span></code>. As in “Set it up”, the browser must be
+on the same machine, or have port 53682 forwarded to it.</p>
+</li>
+</ul>
+<p>Without either, the Drive web page still downloads the files with just the
+Google login. Delete <code class="docutils literal notranslate"><span class="pre">/dev/shm/rclone.conf</span></code> when done.</p>
+</section>
+<section id="test-a-restore">
+<span id="offsite-restore-test"></span><h4>Test a restore<a class="headerlink" href="#test-a-restore" title="Link to this heading">#</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">scripts/restore-test</span></code> (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">restore-test</span></code>) proves the off-site copy can
+be restored, without changing anything on Drive, the NAS or the cluster.
+It downloads the newest scrap daily run, Grafana and Jellyfin daily
+tarballs, etcd bundle with its <code class="docutils literal notranslate"><span class="pre">.sha256</span></code> sidecar, and the Minecraft
+archive’s <code class="docutils literal notranslate"><span class="pre">CURRENT</span></code> marker into a new scratch directory; decrypts each;
+checks the SQLite databases (<code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">integrity_check</span></code>), scrap’s file
+hashes and <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker, the etcd bundle against its <code class="docutils literal notranslate"><span class="pre">MANIFEST</span></code>, and
+that <code class="docutils literal notranslate"><span class="pre">CURRENT</span></code> names a copy on Drive; prints a PASS/FAIL table; and deletes
+everything it downloaded or decrypted. Only the table is kept, in
+<code class="docutils literal notranslate"><span class="pre">build/restore-test/last-run.txt</span></code>. The decrypted data sits in the scratch
+directory (under <code class="docutils literal notranslate"><span class="pre">$TMPDIR</span></code> or <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>, so on disk unless that is RAM-backed;
+<code class="docutils literal notranslate"><span class="pre">--work-dir</span></code> moves it) until the script exits, and a killed run leaves a
+<code class="docutils literal notranslate"><span class="pre">restore-test.*</span></code> folder there to delete by hand. It asks for the age private key (not
+echoed) unless given <code class="docutils literal notranslate"><span class="pre">--identity</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># With the cluster up: rclone&#39;s config comes from the Secret.</span>
+just<span class="w"> </span>restore-test
+<span class="c1"># Without the cluster: rclone&#39;s config and the age key from local files,</span>
+<span class="c1"># both only read.</span>
+just<span class="w"> </span>restore-test<span class="w"> </span>--rclone-config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--with-minecraft</span></code> also streams the newest Minecraft nightly (about
+3.7 GB) through <code class="docutils literal notranslate"><span class="pre">age</span></code> and <code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-t</span></code>, writing nothing; <code class="docutils literal notranslate"><span class="pre">--no-decrypt</span></code> stops
+after the downloads, with no key; <code class="docutils literal notranslate"><span class="pre">--help</span></code> lists the rest. To put the key
+from paper into a file, type it into <code class="docutils literal notranslate"><span class="pre">(umask</span> <span class="pre">077;</span> <span class="pre">cat</span> <span class="pre">&gt;/dev/shm/age.key)</span></code>
+and end with Ctrl-D; delete the file afterwards.</p>
+</section>
+<section id="where-to-unpack-a-copy-from-drive">
+<span id="restore-scratch"></span><h4>Where to unpack a copy from Drive<a class="headerlink" href="#where-to-unpack-a-copy-from-drive" title="Link to this heading">#</a></h4>
+<p>Unpack a backup brought back from Drive (for a drill, or because the NAS
+copy is gone) in <code class="docutils literal notranslate"><span class="pre">restore-scratch/</span></code> at the root of the cluster share,
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/restore-scratch/&lt;app&gt;/</span></code> as NFS clients see it, and
+never in <code class="docutils literal notranslate"><span class="pre">backups/</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">backups/</span></code> is the off-site job’s source: a file put there is uploaded
+unless one of its name is already on Drive, and each app’s retention
+prunes its folder. A copy there would be mixed in with the live backups.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">restore-scratch/</span></code> is outside <code class="docutils literal notranslate"><span class="pre">backups/</span></code>, so the off-site job never
+reads it and no retention touches it.</p></li>
+</ul>
+<p>Decrypt on the machine that holds the key and stream the result to the
+NAS, so nothing decrypted is left on that machine. The export’s directory
+on the NAS itself is <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster</span></code> on the
+QNAP and <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> on the Ubuntu NAS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">SHARE</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster<span class="w">   </span><span class="c1"># /bigdisk/k8s-cluster on the Ubuntu NAS</span>
+<span class="nv">S</span><span class="o">=</span><span class="nv">$SHARE</span>/restore-scratch
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo mkdir -p </span><span class="nv">$S</span><span class="s2">/grafana &amp;&amp; sudo chown \$(id -u) </span><span class="nv">$S</span><span class="s2"> </span><span class="nv">$S</span><span class="s2">/grafana&quot;</span>
+<span class="c1"># scrap: a run (unpacks as scrap/&lt;run&gt;/, owned by scrap&#39;s uid)</span>
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>&lt;run&gt;.tar.age<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cat &gt;</span><span class="nv">$S</span><span class="s2">/run.tar&quot;</span>
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cd </span><span class="nv">$S</span><span class="s2"> &amp;&amp; sudo tar -xf run.tar &amp;&amp; sudo rm run.tar &amp;&amp; sudo chown -R 10001:10001 scrap&quot;</span>
+<span class="c1"># Grafana: one tarball, readable by Grafana&#39;s uid</span>
+age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>&lt;file&gt;.tar.gz.age<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cat &gt;</span><span class="nv">$S</span><span class="s2">/grafana/&lt;file&gt;.tar.gz&quot;</span>
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo chown -R 472:472 </span><span class="nv">$S</span><span class="s2">/grafana&quot;</span>
+</pre></div>
+</div>
+<p>Then follow “Restore — Grafana sqlite” or “Restore scrap” with the
+<code class="docutils literal notranslate"><span class="pre">restore-scratch</span></code> volume their notes give. Once the restore is checked,
+remove the folder: <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">-t</span> <span class="pre">nas</span> <span class="pre">&quot;sudo</span> <span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">${S:?}&quot;</span></code>.</p>
+</section>
 </section>
 </section>
 <section id="disaster-recovery">
@@ -1366,7 +1481,12 @@ folders.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#space-on-drive">Space on Drive</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#alerts">Alerts</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-it-up">Set it up</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-drive">Restore from Drive</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-drive">Restore from Drive</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#rclone-without-the-cluster">rclone without the cluster</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#test-a-restore">Test a restore</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-unpack-a-copy-from-drive">Where to unpack a copy from Drive</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a><ul class="nav section-nav flex-column">
