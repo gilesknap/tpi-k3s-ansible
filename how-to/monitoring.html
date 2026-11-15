@@ -1068,7 +1068,7 @@ the comment there says.</p>
 <section id="alert-rules">
 <h2>Alert rules<a class="headerlink" href="#alert-rules" title="Link to this heading">#</a></h2>
 <p>The chart ships its default rules (node health, pod restarts, volumes filling,
-API server, kubelet and so on). This cluster adds three rule files in
+API server, kubelet and so on). This cluster adds four rule files in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/grafana/</span></code>:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -1106,16 +1106,29 @@ API server, kubelet and so on). This cluster adds three rule files in
 <td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code></p></td>
 <td><p>The CronJob has existed for over 36 hours without a success</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cert-expiry-rules.yaml</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backup-job-rules.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BackupJobFailed</span></code></p></td>
+<td><p>The newest run of a Grafana, Jellyfin or scrap backup CronJob (<code class="docutils literal notranslate"><span class="pre">grafana-*</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-*</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-backup*</span></code>) failed</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BackupJobStale</span></code></p></td>
+<td><p>Its last success is older than its schedule allows: 36 hours for a daily job, 8.5 days for a weekly one, 32 days for <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BackupJobNeverSucceeded</span></code></p></td>
+<td><p>The CronJob has existed for that long without a success</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cert-expiry-rules.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
 <td><p>A certificate expires in under 14 days (warning) or under 7 (critical). cert-manager renews 30 days ahead, so this means renewal is failing</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The off-site rules use kube-state-metrics’ CronJob and Job series, which exist
-only while the CronJob does, so they are silent when <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code>
-is <code class="docutils literal notranslate"><span class="pre">false</span></code>. All of the above are <code class="docutils literal notranslate"><span class="pre">severity:</span> <span class="pre">warning</span></code> except the 7-day
+<p>The off-site and backup-job rules use kube-state-metrics’ CronJob and Job
+series, which exist only while the CronJob does, so the off-site ones are
+silent when <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">false</span></code>. A new backup CronJob is
+covered once its name is added to the lists in <code class="docutils literal notranslate"><span class="pre">backup-job-rules.yaml</span></code>. All of the above are <code class="docutils literal notranslate"><span class="pre">severity:</span> <span class="pre">warning</span></code> except the 7-day
 certificate alert.</p>
 <p>The directory also holds two SealedSecrets: <code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret.yaml</span></code>
 (Grafana’s Dex client secret) and <code class="docutils literal notranslate"><span class="pre">alertmanager-ntfy-secret.yaml</span></code> (the ntfy
@@ -1153,19 +1166,22 @@ The configuration is the <code class="docutils literal notranslate"><span class=
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code> (the three off-site backup alerts)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> (fires after 15 minutes; not for a cordoned node)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">BackupJob*</span></code> (the three alerts for the Grafana, Jellyfin and scrap CronJobs)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-odd"><td><p>Volumes and filesystems filling up: <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeInodesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemSpaceFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemFilesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfFiles</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KubeNodeNotReady</span></code> (fires after 15 minutes; not for a cordoned node)</p></td>
+<td><p>Yes, priority 3</p></td>
+</tr>
+<tr class="row-even"><td><p>Volumes and filesystems filling up: <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">KubePersistentVolumeInodesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemSpaceFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfSpace</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemFilesFillingUp</span></code>, <code class="docutils literal notranslate"><span class="pre">NodeFilesystemAlmostOutOfFiles</span></code></p></td>
 <td><p>Yes, priority 3 (5 for their critical variants)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CertManagerCertificateExpiringSoon</span></code></p></td>
 <td><p>Yes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code>, which is how a failed <code class="docutils literal notranslate"><span class="pre">grafana-*</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-*</span></code> or <code class="docutils literal notranslate"><span class="pre">scrap-backup*</span></code> CronJob shows</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KubeJobFailed</span></code> (any failed Job; a failed backup Job also raises <code class="docutils literal notranslate"><span class="pre">BackupJobFailed</span></code>)</p></td>
 <td><p>No (<code class="docutils literal notranslate"><span class="pre">null</span></code>): a warning not in the list</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Watchdog</span></code>, <code class="docutils literal notranslate"><span class="pre">InfoInhibitor</span></code> and everything else</p></td>
 <td><p>No (<code class="docutils literal notranslate"><span class="pre">null</span></code>)</p></td>
 </tr>
 </tbody>

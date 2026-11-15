@@ -197,8 +197,10 @@ delays it, and a job interrupted that way is retried.
   `OffsiteBackupNeverSucceeded` (`offsite-backup-rules.yaml`) fire from
   kube-state-metrics. They are warnings on the push list, so like the etcd
   alerts they reach the phone through ntfy.
-- **The CronJobs to the NAS** are covered by kube-prometheus-stack's stock
-  `KubeJobFailed`, also shown but not pushed.
+- **The CronJobs to the NAS** (Grafana, Jellyfin, scrap):
+  `BackupJobFailed`, `BackupJobStale` and `BackupJobNeverSucceeded`
+  (`backup-job-rules.yaml`) fire on a failed run, a last success older than
+  the schedule allows, or no success ever, and are pushed to the phone too.
 - **scrap** has a cross-check: `scrap-backup-copy` fails if the newest
   complete run is more than 26 hours old, so a backup that silently stopped
   shows up as a failed Job the next morning.

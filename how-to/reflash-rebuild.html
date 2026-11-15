@@ -493,10 +493,50 @@ kubectl<span class="w"> </span>uncordon<span class="w"> </span>node03
 </div>
 <p>With no <code class="docutils literal notranslate"><span class="pre">--tags</span></code>, the run carries on through <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">servers</span></code> and
 <code class="docutils literal notranslate"><span class="pre">k3s</span></code>: the node gets Ubuntu on its NVMe, a dist-upgrade and its K3s agent
-back. It takes about 25 minutes. The node gets new SSH host keys, which the
+back. It takes about 27 minutes. The node gets new SSH host keys, which the
 <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> play records. The old Node object is <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> by the time
 the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> play reaches it, so the role deletes it and the node registers
 afresh, uncordoned; the <code class="docutils literal notranslate"><span class="pre">uncordon</span></code> above is for a run that stopped early.</p>
+<p id="rk1-reflash-timings">Where the time goes, from one clean run on node02 in November 2026 with
+the image already cached and on the BMC:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Stage</p></th>
+<th class="head"><p>Time</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Check the cached image and its copy on the BMC</p></td>
+<td><p>0.5 min</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> of the eMMC</p></td>
+<td><p>10.3 min</p></td>
+</tr>
+<tr class="row-even"><td><p>Seed the staging OS and wipe the NVMe from U-Boot</p></td>
+<td><p>1.3 min</p></td>
+</tr>
+<tr class="row-odd"><td><p>Staging OS boots and answers SSH</p></td>
+<td><p>0.5 min</p></td>
+</tr>
+<tr class="row-even"><td><p>Write the image to the NVMe and verify it</p></td>
+<td><p>4 min</p></td>
+</tr>
+<tr class="row-odd"><td><p>Reboot into the NVMe install, cloud-init</p></td>
+<td><p>0.6 min</p></td>
+</tr>
+<tr class="row-even"><td><p>Dist-upgrade (<code class="docutils literal notranslate"><span class="pre">update_packages</span></code>)</p></td>
+<td><p>6.5 min</p></td>
+</tr>
+<tr class="row-odd"><td><p>K3s install and join</p></td>
+<td><p>1.5 min</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Ubuntu is up on the NVMe about 18 minutes after <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code> starts, and
+the node has rejoined K3s about 27 minutes after the run starts. A first
+run with no cached image also builds it, which needs about 6 GB free in
+<code class="docutils literal notranslate"><span class="pre">/tmp</span></code> on the controller.</p>
 <p>For a node that is dead rather than misbehaving (it does not answer SSH),
 <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code> is enough and is the safer flag: it cannot wipe an NVMe
 that still has an install on it.</p>

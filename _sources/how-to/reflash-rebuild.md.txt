@@ -66,10 +66,30 @@ kubectl uncordon node03
 
 With no `--tags`, the run carries on through `known_hosts`, `servers` and
 `k3s`: the node gets Ubuntu on its NVMe, a dist-upgrade and its K3s agent
-back. It takes about 25 minutes. The node gets new SSH host keys, which the
+back. It takes about 27 minutes. The node gets new SSH host keys, which the
 `known_hosts` play records. The old Node object is `NotReady` by the time
 the `k3s` play reaches it, so the role deletes it and the node registers
 afresh, uncordoned; the `uncordon` above is for a run that stopped early.
+
+(rk1-reflash-timings)=
+Where the time goes, from one clean run on node02 in November 2026 with
+the image already cached and on the BMC:
+
+| Stage | Time |
+|-------|------|
+| Check the cached image and its copy on the BMC | 0.5 min |
+| `tpi flash` of the eMMC | 10.3 min |
+| Seed the staging OS and wipe the NVMe from U-Boot | 1.3 min |
+| Staging OS boots and answers SSH | 0.5 min |
+| Write the image to the NVMe and verify it | 4 min |
+| Reboot into the NVMe install, cloud-init | 0.6 min |
+| Dist-upgrade (`update_packages`) | 6.5 min |
+| K3s install and join | 1.5 min |
+
+Ubuntu is up on the NVMe about 18 minutes after `tpi flash` starts, and
+the node has rejoined K3s about 27 minutes after the run starts. A first
+run with no cached image also builds it, which needs about 6 GB free in
+`/tmp` on the controller.
 
 For a node that is dead rather than misbehaving (it does not answer SSH),
 `-e do_flash=true` is enough and is the safer flag: it cannot wipe an NVMe
