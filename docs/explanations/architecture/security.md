@@ -118,6 +118,7 @@ left at their weaker defaults.
 | scrap-public | 10001, non-root | Read-only | None | Namespace enforces the `restricted` standard; no egress |
 | oauth2-proxy | 2000, non-root | Read-only | None | |
 | Minecraft worlds and dashboard | 1000, non-root | Read-only | None | |
+| Grafana and Jellyfin backup CronJobs | 472 (Grafana's), 122 (Jellyfin's), non-root | Writable | None, all capabilities dropped | Each reads its app's data through a read-only mount, as the uid that owns it |
 | Headlamp | 100, non-root | Writable | None, but capabilities not dropped | Chart defaults; its ServiceAccount is `cluster-admin` (below) |
 | argocd-monitor (and its oauth2-proxy sidecar) | The images' own users | Writable | None, but no security context set | Chart defaults |
 | Jellyfin | 122, non-root | Writable | None | `hostNetwork`; GPU through the Intel device plugin, not `privileged` |

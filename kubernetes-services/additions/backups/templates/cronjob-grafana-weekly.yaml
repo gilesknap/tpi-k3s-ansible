@@ -17,27 +17,48 @@ spec:
           restartPolicy: OnFailure
           nodeSelector:
             kubernetes.io/hostname: {{ .Values.local_storage.grafana.node }}
+          # Grafana's uid and gid, which own its data (grafana.db is 0660):
+          # the volume is mounted read-only, and the NAS directories are
+          # 0777, so the job needs no root.
+          securityContext:
+            runAsUser: {{ .Values.grafana.uid }}
+            runAsGroup: {{ .Values.grafana.gid }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: sqlite-backup
-              image: alpine:3.24
+              image: {{ .Values.grafana.image }}
               command:
                 - /bin/sh
                 - -c
                 - |
                   set -euo pipefail
-                  apk add --no-cache sqlite tar gzip >/dev/null
                   stamp=$(date +%F)
-                  sqlite3 /data/grafana.db ".backup /tmp/grafana.db"
+                  sqlite3 /data/grafana.db ".backup /work/grafana.db"
                   tar -czf "/backup/${stamp}.tar.gz" \
-                    -C /tmp grafana.db \
+                    -C /work grafana.db \
                     -C /data provisioning 2>/dev/null || \
-                  tar -czf "/backup/${stamp}.tar.gz" -C /tmp grafana.db
+                  tar -czf "/backup/${stamp}.tar.gz" -C /work grafana.db
                   ls -lh /backup
                   find /backup -maxdepth 1 -type f -name '*.tar.gz' -mtime +28 -delete
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
               volumeMounts:
                 - name: data
                   mountPath: /data
                   readOnly: true
+                - name: work
+                  mountPath: /work
                 - name: nfs
                   mountPath: /backup
                   subPath: backups/grafana/weekly
@@ -46,6 +67,9 @@ spec:
               hostPath:
                 path: {{ .Values.local_storage.grafana.path }}
                 type: Directory
+            - name: work
+              emptyDir:
+                sizeLimit: 1Gi
             - name: nfs
               persistentVolumeClaim:
                 claimName: k8s-cluster-nfs
