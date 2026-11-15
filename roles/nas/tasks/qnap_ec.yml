@@ -1,0 +1,95 @@
+# The community qnap8528 driver for the TS-253D's embedded controller:
+# fan speeds and PWM, temperatures, LEDs and buttons, through hwmon. DKMS
+# rebuilds it for each new kernel. TODO(trial): confirm the module loads
+# (lsmod, dmesg), `sensors` shows its fans and temperatures, and the fans
+# keep running sensibly with no fancontrol (the EC's own behaviour).
+
+- name: Install DKMS, git and the kernel headers
+  ansible.builtin.apt:
+    pkg:
+      - dkms
+      - git
+      - build-essential
+      - linux-headers-generic
+      - "linux-headers-{{ ansible_facts['kernel'] }}"
+    update_cache: false
+
+- name: Fetch the qnap8528 source at the pinned commit
+  ansible.builtin.git:
+    repo: "{{ nas_qnap_ec_repo }}"
+    dest: /usr/src/qnap8528-{{ nas_qnap_ec_version }}
+    version: "{{ nas_qnap_ec_commit }}"
+    force: true
+  register: nas_qnap_ec_src
+
+- name: Check the source's DKMS version matches
+  ansible.builtin.lineinfile:
+    path: /usr/src/qnap8528-{{ nas_qnap_ec_version }}/dkms.conf
+    regexp: '^PACKAGE_VERSION='
+    line: PACKAGE_VERSION={{ nas_qnap_ec_version }}
+  check_mode: true
+  register: nas_qnap_ec_dkms_version
+  failed_when: nas_qnap_ec_dkms_version is changed
+
+- name: Read the module's DKMS status
+  ansible.builtin.command: dkms status -m qnap8528 -v {{ nas_qnap_ec_version }} -k {{ ansible_facts['kernel'] }}
+  register: nas_qnap_ec_status
+  changed_when: false
+  check_mode: false
+
+- name: Add the module to DKMS
+  ansible.builtin.command: dkms add -m qnap8528 -v {{ nas_qnap_ec_version }}
+  when: nas_qnap_ec_status.stdout | trim | length == 0
+  changed_when: true
+
+- name: Build and install the module
+  ansible.builtin.command: dkms install --force -m qnap8528 -v {{ nas_qnap_ec_version }} -k {{ ansible_facts['kernel'] }}
+  when: nas_qnap_ec_src is changed or 'installed' not in nas_qnap_ec_status.stdout
+  changed_when: true
+
+- name: Set the module's options
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      options qnap8528 {{ nas_qnap_ec_options }}
+    dest: /etc/modprobe.d/qnap8528.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load the module at boot
+  ansible.builtin.copy:
+    content: "qnap8528\n"
+    dest: /etc/modules-load.d/qnap8528.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load the module now
+  community.general.modprobe:
+    name: qnap8528
+    params: "{{ nas_qnap_ec_options }}"
+    state: present
+
+- name: Install fancontrol
+  ansible.builtin.apt:
+    pkg: fancontrol
+    update_cache: false
+  when: nas_fancontrol_config | length > 0
+
+- name: Write the fan curve
+  ansible.builtin.copy:
+    content: "{{ nas_fancontrol_config }}"
+    dest: /etc/fancontrol
+    owner: root
+    group: root
+    mode: "0644"
+  when: nas_fancontrol_config | length > 0
+  notify: Restart fancontrol
+
+- name: Enable fancontrol
+  ansible.builtin.systemd_service:
+    name: fancontrol
+    enabled: true
+    state: started
+  when: nas_fancontrol_config | length > 0

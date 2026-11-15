@@ -1,0 +1,97 @@
+# Disk and pool health: smartd, monthly scrubs, and node-exporter (with
+# its ZFS collector and textfile metrics for SMART, pool errors, scrubs and
+# the backup pool copy) for the cluster's Prometheus to scrape on :9100.
+
+- name: List the pools that exist
+  ansible.builtin.set_fact:
+    nas_present_pools: >-
+      {{ nas_pools_present | default({}) | dict2items | selectattr('value')
+         | map(attribute='key') | list }}
+
+- name: Configure smartd
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      # Every disk smartd finds: all attributes, a short self-test daily at
+      # 02:00 and a long one on Saturdays at 03:00, temperature warnings.
+      # TODO(trial): check `smartctl -a` reads the NVMe through its USB
+      # enclosure (JMicron, may need -d sntjmicron) and the LaCie (-d sat).
+      DEVICESCAN -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,45,55
+    dest: /etc/smartd.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: nas_smartd_conf
+
+- name: Enable smartd
+  ansible.builtin.systemd_service:
+    name: smartmontools
+    enabled: true
+    state: "{{ 'restarted' if nas_smartd_conf is changed else 'started' }}"
+
+# Ubuntu's zfsutils-linux also scrubs every pool from cron
+# (/etc/cron.d/zfsutils-linux, second Sunday of the month). Its script
+# skips a pool whose org.debian:periodic-scrub is "disable", which leaves
+# the timers below in charge without editing the package's cron file.
+- name: Leave scrubs to the timers, not cron
+  community.general.zfs:
+    name: "{{ item }}"
+    state: present
+    extra_zfs_properties:
+      "org.debian:periodic-scrub": disable
+  loop: "{{ nas_present_pools }}"
+
+- name: Enable the scrub timer for each pool
+  ansible.builtin.systemd_service:
+    name: zfs-scrub-{{ nas_scrub_timer }}@{{ item }}.timer
+    enabled: true
+    state: started
+  loop: "{{ nas_present_pools }}"
+
+- name: Create node-exporter's textfile directory
+  ansible.builtin.file:
+    path: "{{ nas_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pool metrics script
+  ansible.builtin.template:
+    src: nas-zpool-metrics.sh.j2
+    dest: /usr/local/sbin/nas-zpool-metrics
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pool metrics units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nas-zpool-metrics.service
+    - nas-zpool-metrics.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the metrics units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the pool metrics timer
+  ansible.builtin.systemd_service:
+    name: nas-zpool-metrics.timer
+    enabled: true
+    state: started
+
+# prometheus-node-exporter-collectors runs smartmon and nvme textfile
+# collectors from its own timers.
+- name: Enable node-exporter and its SMART collector
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - prometheus-node-exporter
+    - prometheus-node-exporter-smartmon.timer

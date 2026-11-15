@@ -85,6 +85,24 @@ described, with the values each node has, in {doc}`/reference/inventory`.
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
 
+### `nas` role (`roles/nas/defaults/main.yml`)
+
+Used by `pb_nas.yml` only ({doc}`/how-to/nas-ubuntu-zfs`). The defaults file
+documents each one; these are the ones a rebuild touches.
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `nas_pool` / `nas_pool_disks` | `tank` / by-id paths of the two SSDs | The main pool, a mirror. The disks must be `/dev/disk/by-id/` paths |
+| `nas_backup_pool` / `nas_backup_pool_disks` | `backup` / by-id path of the LaCie | The backup pool, which receives a nightly copy of every dataset; optional |
+| `nas_create_pool`, `nas_create_backup_pool`, `nas_force` | `false` | Command-line only. Create the pool (destroying the disks' contents); `nas_force` also allows disks that are not blank |
+| `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft`, `tank/qts-other` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
+| `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode ({doc}`/how-to/nas-setup` has why) |
+| `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
+| `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS) |
+| `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool |
+| `nas_replicate_on_calendar` | `*-*-* 06:30:00 Europe/London` | When the nightly copy to the backup pool runs |
+| `nas_qnap_ec_driver` | `true` | Build the community `qnap8528` EC driver (fans, temperatures) with DKMS, at `nas_qnap_ec_commit` |
+
 ### `update_packages` and `node_reboot` roles (`defaults/main.yml`)
 
 | Variable | Value | Description |
@@ -143,6 +161,7 @@ applies to that run only.
 | `admin_emails` | *(list)* | GitHub-linked addresses with admin rights: Grafana Admin, and the only addresses oauth2-proxy lets through. ArgoCD admin comes from the copy in `group_vars/all.yml`. **SYNC:** that copy |
 | `nfs.server` | `192.168.1.3` | The NAS: NFS server for the static backup, Minecraft, scrap and media volumes |
 | `nfs.cluster_share_path` | `/bigdisk/k8s-cluster` | The cluster-owned directory on the NAS ({doc}`/how-to/nas-setup`) |
+| `nas.monitoring.enabled` / `nas.monitoring.targets` | `false` / `[192.168.1.3:9100]` | Scrape the NAS's node-exporter (job `nas`) and load the NAS alerts. Turn on once the NAS runs Ubuntu ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nfs_csi.server` | `192.168.1.3` | NFS server for the dynamic StorageClasses (the NAS again) |
 | `nfs_csi.share` | `/k8s-dynamic` | Export for `nfs-rwx` scratch volumes (a new folder per PV) |
 | `nfs_csi.stable_share` | `/k8s-dynamic/stable` | Folder for `nfs-stable` volumes (one fixed folder per PVC); keep it a subfolder of `share` |

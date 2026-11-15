@@ -16,6 +16,7 @@ For what the machines are, see {doc}`/explanations/architecture/hardware`.
 | `turingpi_nodes` | `node02` to `node04` | The `flash` role, to find the BMC's nodes; member of `all_nodes` |
 | `extra_nodes` | `ws03`, `nuc2`, `nuc1` | `pb_add_nodes.yml`, which gives Ansible its account on a machine whose OS was installed by hand; member of `all_nodes` |
 | `all_nodes` | `turingpi_nodes` and `extra_nodes` | Every node play in `pb_all.yml` (`known_hosts`, `servers`, `k3s`, `claude_key`) and `pb_decommission.yml` |
+| `nas` | `gknas` (the NAS) | `pb_nas.yml` only ({doc}`/how-to/nas-ubuntu-zfs`). The NAS is not a cluster node: it is in no other group, so no play of `pb_all.yml`, `pb_add_nodes.yml` or `pb_decommission.yml` reaches it, and the `nas` role refuses a host that is in `all_nodes` |
 
 `turing_pis` connects as `tpi_user` (`root`); the node groups connect as
 `ansible_account` (`ansible`), with sudo.
@@ -58,6 +59,7 @@ control plane is not an inventory setting: `control_plane` and
 | `ws03` | `extra_nodes` | 192.168.1.10 | | | | `nvidia_gpu_node`, `workstation` | Worker, tainted |
 | `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `flannel_iface: enp3s0`, `intel_gpu_node` | Worker |
 | `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
+| `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` once it runs Ubuntu |
 
 The addresses are not in `hosts.yml`; they are the ones the router hands out,
 and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.

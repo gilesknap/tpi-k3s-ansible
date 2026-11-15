@@ -1,5 +1,13 @@
 # Set up the cluster's directories on the NAS
 
+:::{note}
+This page describes the NAS as it runs today, on QTS. It is being replaced
+by Ubuntu Server + ZFS configured by Ansible ({doc}`/how-to/nas-ubuntu-zfs`),
+whose `nas` role creates these same directories, with the same owners and
+modes, and exports the same paths. Until the switchover, this page is the
+procedure.
+:::
+
 The NAS is a QNAP at 192.168.1.3. Everything the cluster keeps on it lives
 in a handful of directories, and creating them is the one part of the
 system done by hand: Ansible has no access to the NAS, and none is wanted.

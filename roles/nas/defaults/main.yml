@@ -1,0 +1,223 @@
+# The NAS (gknas, a QNAP TS-253D) on Ubuntu Server + ZFS, run by
+# pb_nas.yml only. See docs/how-to/nas-ubuntu-zfs.md.
+
+################################################################################
+# ZFS pools
+################################################################################
+
+# The main pool: the two 4 TB SSDs, mirrored. The role never creates a pool
+# unless asked: without -e nas_create_pool=true it only imports an existing,
+# exported pool of this name (non-destructive) and fails if there is none.
+nas_pool: tank
+# Whole disks, by /dev/disk/by-id path only (never /dev/sdX, which moves
+# between boots). TODO(trial): fill in from `ls -l /dev/disk/by-id/` on the
+# NAS with the trays in (ata-Samsung_SSD_870_QVO_4TB_<serial>).
+nas_pool_disks: []
+# The vdev type: mirror for two disks.
+nas_pool_vdev: mirror
+
+# The backup pool: the LaCie 4 TB USB drive, a single disk. It receives a
+# nightly copy of every dataset of nas_pool. It is optional: until it
+# exists (it holds the migration's tar copies until then), the role leaves
+# the replication timer off and says so.
+nas_backup_pool: backup
+# TODO(trial): the LaCie's by-id path (usb-LaCie_..._<serial>-0:0).
+nas_backup_pool_disks: []
+# Where the received datasets are mounted, read-only, for restores.
+nas_backup_pool_mountpoint: /srv/backup
+
+# Both are destructive and off by default; pass them on the command line,
+# never set them here. nas_force also allows disks that carry a partition
+# table or filesystem signature (the QTS RAID on the SSDs, the LaCie's NTFS).
+nas_create_pool: false
+nas_create_backup_pool: false
+nas_force: false
+
+# Pool (-o) and root dataset (-O) properties set at creation. Datasets
+# inherit the -O ones.
+nas_pool_properties:
+  ashift: "12"
+  autotrim: "on"
+nas_pool_fs_properties:
+  compression: lz4
+  atime: "off"
+  xattr: sa
+  acltype: posixacl
+  dnodesize: auto
+  # Never mount over a directory that has files in it (Linux defaults to
+  # on): a dataset that fails to mount then shows up, rather than hiding
+  # whatever was written to the bare mount point.
+  overlay: "off"
+  # The pool's root dataset holds no files; each dataset below sets its own.
+  mountpoint: none
+
+################################################################################
+# Datasets
+################################################################################
+
+# One ZFS dataset per entry, created if missing; `properties` are set on it
+# (children inherit them, including the mountpoint: tank/bigdisk/media is
+# mounted at /bigdisk/media). Removing an entry never destroys a dataset.
+# The mountpoints are the paths the cluster's NFS volumes use (SYNC:
+# kubernetes-services/values.yaml nfs.*, nfs_csi.*, minecraft.archive_path,
+# jellyfin.media.nfs_path), so no PV changes when the NAS moves off QTS.
+nas_datasets:
+  - name: tank/bigdisk
+    properties:
+      mountpoint: /bigdisk
+  # The cluster's tree: backups, scrap's data, the Minecraft store.
+  - name: tank/bigdisk/k8s-cluster
+  # The Jellyfin library: large files, read sequentially.
+  - name: tank/bigdisk/media
+    properties:
+      recordsize: 1M
+  - name: tank/bigdisk/minecraft-archive
+  - name: tank/bigdisk/Photos-Archive
+    properties:
+      recordsize: 1M
+  # The NFS CSI driver's share (nfs-rwx; nfs-stable in stable/).
+  - name: tank/k8s-dynamic
+    properties:
+      mountpoint: /k8s-dynamic
+  # The QTS "Minecraft" share (Minecraft worlds from before the cluster).
+  - name: tank/Minecraft
+    properties:
+      mountpoint: /Minecraft
+  # The other QTS shares (Multimedia, OpenBrain, homes), restored for safe
+  # keeping until they are sorted out. Not exported.
+  - name: tank/qts-other
+    properties:
+      mountpoint: /srv/qts-other
+
+# Directories the cluster needs inside the datasets
+# (docs/how-to/nas-setup.md has why each has its owner and mode). Created
+# if missing, and their owner and mode kept; never emptied or removed.
+# An entry without a mode keeps the directory's existing mode.
+# Keep these in step with docs/how-to/nas-setup.md.
+nas_directories:
+  - { path: /bigdisk/k8s-cluster, owner: "0", group: "0", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/backups, owner: "0", group: "0", mode: "0755" }
+  # Mixed writers (Grafana 472, Jellyfin 122, root squashed to 65534): 0777
+  # by design, see tpi-k3s-ansible issue 343. The exports below limit who
+  # can reach them to the cluster's nodes and ws03.
+  - { path: /bigdisk/k8s-cluster/backups/grafana, owner: "0", group: "0", mode: "0777" }
+  - { path: /bigdisk/k8s-cluster/backups/grafana/weekly, owner: "0", group: "0", mode: "0777" }
+  - { path: /bigdisk/k8s-cluster/backups/jellyfin, owner: "0", group: "0", mode: "0777" }
+  - { path: /bigdisk/k8s-cluster/backups/jellyfin/weekly, owner: "0", group: "0", mode: "0777" }
+  - { path: /bigdisk/k8s-cluster/backups/etcd, owner: "0", group: "0", mode: "0777" }
+  - { path: /bigdisk/k8s-cluster/backups/etcd/pre-upgrade, owner: "0", group: "0", mode: "0777" }
+  # scrap (uid 10001): its data and backup runs are private to it.
+  - { path: /bigdisk/k8s-cluster/scrap-data, owner: "10001", group: "10001", mode: "0750" }
+  - { path: /bigdisk/k8s-cluster/backups/scrap, owner: "10001", group: "10001", mode: "0750" }
+  - { path: /bigdisk/k8s-cluster/backups/scrap-curated, owner: "10001", group: "10001" }
+  # The Minecraft dashboard's store (uid 1000).
+  - { path: /bigdisk/k8s-cluster/minecraft, owner: "1000", group: "1000", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/minecraft/backups, owner: "1000", group: "1000", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/minecraft/snapshots, owner: "1000", group: "1000", mode: "0755" }
+  - { path: /bigdisk/k8s-cluster/minecraft/dashboard, owner: "1000", group: "1000", mode: "0755" }
+  # Read-only for everyone, owner included (it is also exported read-only).
+  - { path: /bigdisk/minecraft-archive, owner: "0", group: "0", mode: "0555" }
+  # The NFS CSI share and nfs-stable's share root: the driver makes a
+  # folder per volume in each, as root (the export does not squash it).
+  - { path: /k8s-dynamic, owner: "0", group: "0", mode: "0777" }
+  - { path: /k8s-dynamic/stable, owner: "0", group: "0", mode: "0777" }
+
+################################################################################
+# NFS
+################################################################################
+
+# The only hosts the exports admit: the cluster's nodes and ws03, by IP
+# (each node mounts NFS volumes for its pods, so the NAS sees the node's
+# address). SYNC: the nodes in hosts.yml; their addresses are DHCP
+# reservations on the router.
+nas_nfs_clients:
+  - { name: ws03, ip: 192.168.1.10 }
+  - { name: node02, ip: 192.168.1.82 }
+  - { name: node03, ip: 192.168.1.83 }
+  - { name: node04, ip: 192.168.1.84 }
+  - { name: nuc1, ip: 192.168.1.91 }
+  - { name: nuc2, ip: 192.168.1.92 }
+
+# Export options, as on QTS: the bigdisk family squashes root to
+# 65534 (nobody) but no other uid; the NFS CSI share does not squash root
+# (the driver creates and archives volume folders as root) and is async.
+nas_nfs_options_bigdisk: rw,sync,secure,no_subtree_check,root_squash,anonuid=65534,anongid=65534
+nas_nfs_options_dynamic: rw,async,insecure,no_subtree_check,no_root_squash
+
+# Every dataset mountpoint the cluster or ws03 mounts, with its options.
+# Each ZFS dataset is a separate filesystem, so each is exported on its
+# own; an NFSv4 client crosses into a child export from its parent's mount.
+nas_nfs_exports:
+  - { path: /bigdisk, options: "{{ nas_nfs_options_bigdisk }}" }
+  - { path: /bigdisk/k8s-cluster, options: "{{ nas_nfs_options_bigdisk }}" }
+  - { path: /bigdisk/media, options: "{{ nas_nfs_options_bigdisk }}" }
+  - { path: /bigdisk/Photos-Archive, options: "{{ nas_nfs_options_bigdisk }}" }
+  # Read-only here too: the second of three locks on the archive.
+  - { path: /bigdisk/minecraft-archive, options: "{{ nas_nfs_options_bigdisk | replace('rw,', 'ro,') }}" }
+  - { path: /k8s-dynamic, options: "{{ nas_nfs_options_dynamic }}" }
+  - { path: /Minecraft, options: "{{ nas_nfs_options_bigdisk }}" }
+
+# Every consumer mounts NFS 4.1 (the PVs, the storage classes, node02's
+# etcd backup). NFSv3 stays on in case a hand-made mount (ws03) uses it;
+# set false to turn it (and rpcbind's use for it) off.
+nas_nfs_v3: true
+nas_nfs_threads: 16
+
+################################################################################
+# Snapshots and the backup pool
+################################################################################
+
+# sanoid's retention on nas_pool (taken every hour, pruned by sanoid.timer).
+nas_snapshot_retention:
+  hourly: 48
+  daily: 30
+  monthly: 12
+# Retention of the copies on the backup pool (sanoid prunes, never takes).
+nas_backup_retention:
+  hourly: 0
+  daily: 60
+  monthly: 24
+# When the nightly zfs send to the backup pool runs: after the cluster's
+# nightly backups (the last, off-site, starts 05:30).
+nas_replicate_on_calendar: "*-*-* 06:30:00 Europe/London"
+
+################################################################################
+# Health and monitoring
+################################################################################
+
+# node-exporter's textfile collector directory (Ubuntu's default for the
+# prometheus-node-exporter package).
+nas_textfile_dir: /var/lib/prometheus/node-exporter
+# Monthly scrubs, by zfsutils-linux's zfs-scrub-monthly@<pool>.timer.
+nas_scrub_timer: monthly
+
+################################################################################
+# OS
+################################################################################
+
+# The OS disk is an NVMe in a USB enclosure for now: keep writes down.
+# The journal lives in RAM (lost on reboot) with this cap.
+nas_journal_runtime_max_use: 128M
+# ZFS ARC cap in bytes; 0 keeps the OpenZFS default.
+nas_zfs_arc_max: 0
+
+################################################################################
+# QNAP embedded controller (fans, temperatures, LEDs)
+################################################################################
+
+# The community qnap8528 kernel module (https://github.com/0xGiddi/qnap8528),
+# built by DKMS. TS-253D is listed as tested; it needs skip_hw_check=true
+# (its EC reports another chip ID).
+nas_qnap_ec_driver: true
+nas_qnap_ec_repo: https://github.com/0xGiddi/qnap8528.git
+# Tag v1.27 (released 2026-10-11). Pin a release at least two weeks old;
+# PACKAGE_VERSION in its dkms.conf must equal nas_qnap_ec_version.
+nas_qnap_ec_commit: 1358ddcad0de2db5ac17e13f762ddb12519ea527
+nas_qnap_ec_version: "1.27"
+nas_qnap_ec_options: skip_hw_check=true
+# The module only exposes the fans (hwmon pwm/fan inputs); it does not
+# drive them. A fan curve needs fancontrol: TODO(trial) run `pwmconfig` on
+# the NAS, check the fans respond, then paste the resulting
+# /etc/fancontrol here to have the role install and enable it. Empty
+# leaves the fans as the EC runs them.
+nas_fancontrol_config: ""

@@ -1,0 +1,35 @@
+# {{ ansible_managed }} (roles/nas).
+# Snapshots of the main pool, and pruning of the copies on the backup pool.
+# sanoid.timer runs `sanoid --cron` every 15 minutes.
+
+[{{ nas_pool }}]
+	use_template = production
+	recursive = yes
+	process_children_only = yes
+
+{% if nas_pools_present[nas_backup_pool] | default(false) %}
+[{{ nas_backup_pool }}/{{ nas_pool }}]
+	use_template = backup
+	recursive = yes
+{% endif %}
+
+[template_production]
+	frequently = 0
+	hourly = {{ nas_snapshot_retention.hourly }}
+	daily = {{ nas_snapshot_retention.daily }}
+	monthly = {{ nas_snapshot_retention.monthly }}
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+
+# The copies: never snapshotted here (they arrive by zfs receive), only
+# pruned. syncoid keeps its own newest snapshot on both sides, so the next
+# night's copy is incremental whatever sanoid prunes.
+[template_backup]
+	frequently = 0
+	hourly = {{ nas_backup_retention.hourly }}
+	daily = {{ nas_backup_retention.daily }}
+	monthly = {{ nas_backup_retention.monthly }}
+	yearly = 0
+	autosnap = no
+	autoprune = yes

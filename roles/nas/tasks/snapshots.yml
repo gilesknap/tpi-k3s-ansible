@@ -1,0 +1,58 @@
+# sanoid takes and prunes snapshots of the main pool (hourly, daily,
+# monthly) and prunes the copies on the backup pool. A nightly timer sends
+# every dataset of the main pool to the backup pool with syncoid (zfs
+# send/receive, incremental after the first run).
+
+- name: Create the sanoid configuration directory
+  ansible.builtin.file:
+    path: /etc/sanoid
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure sanoid
+  ansible.builtin.template:
+    src: sanoid.conf.j2
+    dest: /etc/sanoid/sanoid.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# The sanoid package runs `sanoid --cron` from this timer every 15 minutes.
+- name: Enable sanoid
+  ansible.builtin.systemd_service:
+    name: sanoid.timer
+    enabled: true
+    state: started
+
+- name: Install the backup pool copy script
+  ansible.builtin.template:
+    src: nas-replicate.sh.j2
+    dest: /usr/local/sbin/nas-replicate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the backup pool copy units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nas-replicate.service
+    - nas-replicate.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the new units
+  ansible.builtin.meta: flush_handlers
+
+# Only once the backup pool exists: until then its disk holds the
+# migration's copies (docs/how-to/nas-ubuntu-zfs.md).
+- name: Enable or disable the nightly copy to the backup pool
+  ansible.builtin.systemd_service:
+    name: nas-replicate.timer
+    enabled: "{{ nas_pools_present[nas_backup_pool] | default(false) }}"
+    state: "{{ 'started' if nas_pools_present[nas_backup_pool] | default(false) else 'stopped' }}"

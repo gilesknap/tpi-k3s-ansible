@@ -109,6 +109,16 @@ nas_paused:
   backups: false
   # The Jellyfin pod.
   jellyfin: true
+# The NAS's own monitoring: Prometheus scrapes node-exporter on gknas
+# (installed by roles/nas, pb_nas.yml) for ZFS pool state, SMART, scrubs
+# and the nightly copy to its backup pool, with alerts (templates/grafana.yaml,
+# docs/how-to/nas-ubuntu-zfs.md). Turn on once the NAS runs Ubuntu + ZFS;
+# under QTS there is no node-exporter to scrape.
+nas:
+  monitoring:
+    enabled: false
+    targets:
+      - 192.168.1.3:9100
 # Off-site copy of the cluster's backups to Google Drive (additions/backups,
 # templates/cronjob-offsite.yaml; docs/how-to/backup-restore.md, "Off-site
 # copy to Google Drive"). A nightly CronJob in the `backups` namespace uploads,

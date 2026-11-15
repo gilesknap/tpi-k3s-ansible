@@ -11,6 +11,7 @@ how-to/cloudflare-as-code
 how-to/oauth-setup
 how-to/manage-sealed-secrets
 how-to/nas-setup
+how-to/nas-ubuntu-zfs
 ```
 
 ```{toctree}

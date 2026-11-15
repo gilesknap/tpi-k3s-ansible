@@ -1,0 +1,34 @@
+#!/bin/bash
+# {{ ansible_managed }} (roles/nas).
+# Pool error counts and scrub results for node-exporter's textfile
+# collector (its own zfs collector has pool state but neither of these).
+# Reads `zpool status -j` (OpenZFS 2.3 and later).
+# TODO(trial): check the JSON field names against the NAS's OpenZFS.
+set -euo pipefail
+prom={{ nas_textfile_dir }}/nas_zpool.prom
+tmp=$(mktemp "$prom.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+zpool status -j --json-int | jq -r '
+  def labels($p): "{zpool=\"" + $p + "\"}";
+  "# HELP nas_zpool_errors Read, write and checksum errors summed over every device of the pool.",
+  "# TYPE nas_zpool_errors gauge",
+  "# HELP nas_zpool_scrub_errors Errors found by the last scrub.",
+  "# TYPE nas_zpool_scrub_errors gauge",
+  "# HELP nas_zpool_scrub_end_timestamp_seconds When the last scrub finished.",
+  "# TYPE nas_zpool_scrub_end_timestamp_seconds gauge",
+  (.pools // {} | to_entries[] | .key as $p | .value as $v |
+    ([$v.vdevs // {} | .. | objects | select(has("read_errors"))
+      | (.read_errors // 0) + (.write_errors // 0) + (.checksum_errors // 0)] | add // 0) as $errs |
+    ("nas_zpool_errors" + labels($p) + " " + ($errs | tostring)),
+    (if ($v.scan_stats.function // "") == "SCRUB" then
+      ("nas_zpool_scrub_errors" + labels($p) + " " + (($v.scan_stats.errors // 0) | tostring)),
+      (if ($v.scan_stats.state // "") == "FINISHED" then
+        ($v.scan_stats.end_time // null | numbers
+          | "nas_zpool_scrub_end_timestamp_seconds" + labels($p) + " " + tostring)
+      else empty end)
+    else empty end))
+' >"$tmp"
+chmod 0644 "$tmp"
+mv "$tmp" "$prom"
+trap - EXIT

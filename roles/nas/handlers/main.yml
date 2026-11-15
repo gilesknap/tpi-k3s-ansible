@@ -1,0 +1,38 @@
+- name: Update the initramfs
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
+
+- name: Restart journald
+  ansible.builtin.systemd_service:
+    name: systemd-journald
+    state: restarted
+
+- name: Remount the root filesystem
+  ansible.posix.mount:
+    path: /
+    state: remounted
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart the NFS server
+  ansible.builtin.systemd_service:
+    name: nfs-server
+    state: restarted
+  when: nas_pools_present[nas_pool] | default(false)
+
+- name: Re-export the shares
+  ansible.builtin.command: exportfs -ra
+  changed_when: true
+  when: nas_pools_present[nas_pool] | default(false)
+
+- name: Restart fancontrol
+  ansible.builtin.systemd_service:
+    name: fancontrol
+    state: restarted
+
+- name: Restart node-exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    state: restarted

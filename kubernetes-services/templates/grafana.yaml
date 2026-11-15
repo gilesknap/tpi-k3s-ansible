@@ -112,6 +112,21 @@ spec:
 {{- range .Values.k3s.etcd_metrics_endpoints }}
                         - "{{ . }}:2381"
 {{- end }}
+{{- if .Values.nas.monitoring.enabled }}
+                # The NAS's node-exporter (roles/nas): ZFS pool state, SMART,
+                # and the textfile metrics of its scrubs and its nightly copy
+                # to the backup pool. Not job "node-exporter", so the chart's
+                # node rules (written for cluster nodes) leave it alone; the
+                # nas rules below cover it.
+                - job_name: nas
+                  static_configs:
+                    - targets:
+{{- range .Values.nas.monitoring.targets }}
+                        - "{{ . }}"
+{{- end }}
+                      labels:
+                        instance: gknas
+{{- end }}
 
           alertmanager:
             ingress:
@@ -175,7 +190,7 @@ spec:
                   # `for`), and ignores cordoned nodes.
                   - receiver: ntfy
                     matchers:
-                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon"
+                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale"
               inhibit_rules:
                 # Chart defaults: a critical mutes its own warning/info, a
                 # warning its own info; InfoInhibitor mutes info alerts in its
@@ -338,6 +353,92 @@ spec:
               etcdMembersDown: true
               etcdInsufficientMembers: true
               etcdNoLeader: true
+{{- if .Values.nas.monitoring.enabled }}
+          # Alerts for the NAS (docs/how-to/nas-ubuntu-zfs.md). The pool
+          # alerts are critical (pushed); the rest are warnings listed by name
+          # in the ntfy route above.
+          additionalPrometheusRulesMap:
+            nas:
+              groups:
+                - name: nas
+                  rules:
+                    - alert: NasDown
+                      expr: up{job="nas"} == 0
+                      for: 10m
+                      labels:
+                        severity: critical
+                      annotations:
+                        summary: The NAS (gknas) is not answering Prometheus.
+                        description: >-
+                          node-exporter on gknas has not been scraped for
+                          10 minutes. The cluster's NFS volumes hang while the
+                          NAS is down.
+                    - alert: NasZfsPoolNotOnline
+                      expr: node_zfs_zpool_state{job="nas", state!="online"} > 0
+                      for: 5m
+                      labels:
+                        severity: critical
+                      annotations:
+                        summary: A ZFS pool on the NAS is not ONLINE.
+                        description: >-
+                          A pool on gknas is DEGRADED, FAULTED, SUSPENDED or
+                          UNAVAIL. Run `zpool status -x` on the NAS.
+                    - alert: NasZfsPoolErrors
+                      expr: nas_zpool_errors{job="nas"} > 0
+                      for: 15m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A ZFS pool on the NAS has read, write or checksum errors.
+                        description: >-
+                          `zpool status -v` on gknas lists the device; after
+                          dealing with it, `zpool clear <pool>`.
+                    - alert: NasZfsScrubErrors
+                      expr: nas_zpool_scrub_errors{job="nas"} > 0
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: The last scrub of a ZFS pool on the NAS found errors.
+                        description: Run `zpool status -v` on gknas.
+                    - alert: NasZfsScrubOverdue
+                      expr: time() - nas_zpool_scrub_end_timestamp_seconds{job="nas"} > 40 * 86400
+                      for: 1h
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A ZFS pool on the NAS has not been scrubbed for 40 days.
+                        description: Check the zfs-scrub-monthly@ timers on gknas.
+                    - alert: NasDiskSmartUnhealthy
+                      expr: smartmon_device_smart_healthy{job="nas"} == 0
+                      for: 15m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A disk in the NAS fails its SMART health check.
+                        description: Run `smartctl -a` on the disk on gknas.
+                    - alert: NasPoolFillingUp
+                      expr: >-
+                        node_filesystem_avail_bytes{job="nas", mountpoint="/bigdisk"}
+                        / node_filesystem_size_bytes{job="nas", mountpoint="/bigdisk"} < 0.15
+                      for: 1h
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: The NAS's main pool is over 85% full.
+                        description: >-
+                          ZFS slows down as a pool fills. Free space on gknas,
+                          or prune snapshots (`zfs list -t snapshot`).
+                    - alert: NasBackupPoolCopyStale
+                      expr: time() - nas_replicate_last_success_timestamp_seconds{job="nas"} > 36 * 3600
+                      for: 30m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: The NAS's nightly copy to its backup pool has not succeeded for 36 hours.
+                        description: >-
+                          See `journalctl -u nas-replicate` on gknas (is the
+                          LaCie plugged in?).
+{{- end }}
 
     - path: ./kubernetes-services/additions/grafana
       repoURL: {{ .Values.repo_remote }}

@@ -1,0 +1,74 @@
+# The NFS server: one export per dataset the cluster (or ws03) mounts,
+# read-write only to the hosts in nas_nfs_clients. The server will not
+# start unless every exported path is its ZFS dataset, mounted: otherwise
+# clients would write into an empty directory on the OS disk.
+
+- name: Install the export mount check
+  ansible.builtin.template:
+    src: nas-check-exports.sh.j2
+    dest: /usr/local/sbin/nas-check-exports
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create the nfs-server drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/nfs-server.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start the NFS server only after the datasets are mounted
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      [Unit]
+      After=zfs-mount.service
+      Requires=zfs-mount.service
+
+      [Service]
+      ExecStartPre=/usr/local/sbin/nas-check-exports
+    dest: /etc/systemd/system/nfs-server.service.d/10-nas-zfs.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart the NFS server
+
+- name: Create the NFS configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/nfs.conf.d
+    - /etc/exports.d
+
+- name: Set the NFS server's options
+  ansible.builtin.template:
+    src: nfs.conf.j2
+    dest: /etc/nfs.conf.d/90-nas.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the NFS server
+
+- name: Write the exports
+  ansible.builtin.template:
+    src: nas.exports.j2
+    dest: /etc/exports.d/nas.exports
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Re-export the shares
+
+- name: Enable the NFS server
+  ansible.builtin.systemd_service:
+    name: nfs-server
+    enabled: true
+    state: started
+  when: nas_pools_present[nas_pool] | default(false)
