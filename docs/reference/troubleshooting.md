@@ -420,14 +420,14 @@ context's namespace:
 ```bash
 kubectl config set-context --current --namespace=argo-cd
 argocd app delete-resource local-storage --core \
-  --kind PersistentVolume --resource-name grafana-local
+  --kind PersistentVolume --resource-name <pv>
 argocd app sync local-storage --core
 ```
 
-Then set the namespace back to the one you had before, if it was not
-`argo-cd`. This is step 3 of {ref}`move-a-local-nvme-pv`, without the
-move; see there if the sync fails with `another operation is already in
-progress`.
+`<pv>` is the stuck PV, such as `grafana-local`. Then set the namespace
+back to the one you had before, if it was not `argo-cd`. This is step 3 of
+{ref}`move-a-local-nvme-pv`, without the move; see there if the sync fails
+with `another operation is already in progress`.
 
 ### Pod `Pending` because its node is down
 
