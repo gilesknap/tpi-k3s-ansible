@@ -91,6 +91,24 @@ admin_emails:
 nfs:
   server: 192.168.1.3
   cluster_share_path: /bigdisk/k8s-cluster
+# Pause the workloads that mount the NAS, for NAS maintenance (the QNAP to
+# Ubuntu+ZFS switchover), one key per group so they can resume in stages.
+# A paused pod gets a nodeSelector no node has (nas-switchover: paused), so
+# it stops and its replacement stays Pending (all three use Recreate); a
+# paused CronJob is suspended, keeping its last-success time. Minecraft
+# worlds are the dashboard's, not ArgoCD's: stop them from the dashboard
+# first. Host NFS mounts (node02's etcd backup) are outside the cluster.
+nas_paused:
+  # The scrap pod, its chart's backup CronJobs (which share the pod's
+  # nodeSelector, so a run that fires stays Pending) and scrap-backup-copy.
+  scrap: false
+  # The Minecraft dashboard Deployment.
+  minecraft_dashboard: false
+  # Every CronJob in the backups namespace: grafana-daily/weekly,
+  # jellyfin-daily/weekly, offsite-backup (Drive) and offsite-backup-b2.
+  backups: false
+  # The Jellyfin pod.
+  jellyfin: false
 # Off-site copy of the cluster's backups to Google Drive (additions/backups,
 # templates/cronjob-offsite.yaml; docs/how-to/backup-restore.md, "Off-site
 # copy to Google Drive"). A nightly CronJob in the `backups` namespace uploads,

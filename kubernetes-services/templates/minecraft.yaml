@@ -25,6 +25,13 @@ spec:
         valuesObject:
           image:
             repository: {{ .Values.minecraft.image.repository | quote }}
+          {{- if .Values.nas_paused.minecraft_dashboard }}
+          # nas_paused.minecraft_dashboard: no node has this label, so the
+          # dashboard stays Pending. Its worlds are not this chart's: stop
+          # them first.
+          nodeSelector:
+            nas-switchover: paused
+          {{- end }}
           storage:
             archive:
               nfs:
