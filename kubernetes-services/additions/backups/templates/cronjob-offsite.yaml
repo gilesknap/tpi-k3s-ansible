@@ -41,7 +41,7 @@ second Minecraft nightly if one from the same UTC day is already there.
 {{- $mc := $o.minecraft }}
 {{- $targets := list }}
 {{- if $o.enabled }}
-{{- $targets = append $targets (dict "name" "offsite-backup" "kind" "drive" "root" (printf "drive:%s" $o.drive_root) "secret" $o.secret_name "include" $o.include "prune_days" $o.backups.prune_days) }}
+{{- $targets = append $targets (dict "name" "offsite-backup" "kind" "drive" "root" (printf "drive:%s" $o.drive_root) "secret" $o.secret_name "include" $o.include "prune_days" $o.backups.prune_days "schedule" $o.schedule) }}
 {{- if $o.b2.enabled }}
 {{- $bucket := required "offsite_backup.b2.bucket is required with offsite_backup.b2.enabled" $o.b2.bucket }}
 {{- $b2prune := $o.backups.prune_days }}
@@ -50,7 +50,7 @@ second Minecraft nightly if one from the same UTC day is already there.
 {{- $b2prune = $o.b2.prune_days }}
 {{- end }}
 {{- end }}
-{{- $targets = append $targets (dict "name" "offsite-backup-b2" "kind" "b2" "root" (printf "b2:%s" $bucket) "secret" $o.b2.secret_name "include" $o.b2.include "prune_days" $b2prune) }}
+{{- $targets = append $targets (dict "name" "offsite-backup-b2" "kind" "b2" "root" (printf "b2:%s" $bucket) "secret" $o.b2.secret_name "include" $o.b2.include "prune_days" $b2prune "schedule" (default $o.schedule $o.b2.schedule)) }}
 {{- end }}
 {{- end }}
 {{- range $targets }}
@@ -106,7 +106,7 @@ metadata:
   name: {{ $t.name }}
   namespace: backups
 spec:
-  schedule: {{ $o.schedule | quote }}
+  schedule: {{ $t.schedule | quote }}
   timeZone: {{ $o.time_zone | quote }}
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600

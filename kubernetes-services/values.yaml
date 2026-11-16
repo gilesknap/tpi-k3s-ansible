@@ -129,8 +129,8 @@ offsite_backup:
   # pruning only hides files; the bucket's lifecycle rule deletes a hidden
   # version once its lock has expired. Set enabled to true AFTER the
   # one-time B2 setup and `just seal-b2-offsite` (docs/how-to/backup-restore.md,
-  # "Second off-site copy: Backblaze B2"). Runs on `schedule`, beside the
-  # Drive job; a failure on either alerts by its CronJob's name.
+  # "Second off-site copy: Backblaze B2"). Runs on `b2.schedule` (05:45), after
+  # the Drive job; a failure on either alerts by its CronJob's name.
   b2:
     enabled: true
     # The bucket's name (B2 bucket names are global); the job writes
@@ -142,6 +142,9 @@ offsite_backup:
     # As `include` above. Only the NAS backups: the Minecraft tarballs and
     # archive stay on Drive (the archive has other copies).
     include: [backups]
+    # Cron schedule (in offsite_backup.time_zone); empty means `schedule`.
+    # 15 minutes after the Drive job, so the two don't read the NAS at once.
+    schedule: "45 5 * * *"
     # backups.prune_days for this bucket; empty means the same as Drive's
     # (180). A pruned file's versions stay until their 30-day lock ends,
     # so a value under 30 saves nothing; 30 keeps the bucket at about
