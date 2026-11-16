@@ -1063,7 +1063,7 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <tr class="row-odd"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS, again</p></td>
 <td><p>The NAS</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">backups</span></code>), once <code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code>: rclone</p></td>
-<td><p>05:30 daily</p></td>
+<td><p>05:45 daily</p></td>
 <td><p>B2 bucket <code class="docutils literal notranslate"><span class="pre">backups/</span></code>, Object Lock in compliance mode</p></td>
 <td><p>As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does</p></td>
 <td><p>Yes</p></td>
@@ -1187,7 +1187,7 @@ drain nodes, and the off-site copy after the last of them.</p>
 
     subgraph offnas[&quot;Off the NAS&quot;]
         copy[&quot;00:50&lt;br/&gt;scrap-backup-copy&quot;]
-        off[&quot;05:30&lt;br/&gt;offsite-backup,&lt;br/&gt;offsite-backup-b2&quot;]
+        off[&quot;05:30&lt;br/&gt;offsite-backup&lt;br/&gt;05:45&lt;br/&gt;offsite-backup-b2&quot;]
     end
 
     etcd --&gt; apt --&gt; scrap --&gt; graf --&gt; copy --&gt; k3s --&gt; kured --&gt; off
@@ -1235,8 +1235,12 @@ drain nodes, and the off-site copy after the last of them.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>05:30</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive, and <code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> to B2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>05:45</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> to B2, after the Drive job has started, so the two don’t read the NAS at the same moment</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.schedule</span></code></p></td>
 </tr>
 </tbody>
 </table>

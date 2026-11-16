@@ -80,7 +80,7 @@ flowchart LR
 | Pre-upgrade etcd snapshots | node02 | Taken by the K3s upgrade Plan; shipped by the same timer | Before each K3s patch upgrade | NAS `backups/etcd/pre-upgrade/` | 4 | Yes | {doc}`/how-to/recover-control-plane` |
 | Sealed Secrets private keys | `kube-system` Secrets | The same timer | 23:15 daily | NAS `backups/etcd/sealed-secrets-keys/` | 14 dated copies, plus the current one | Yes | {ref}`sealed-secrets-key-backup` |
 | Everything under `backups/` on the NAS | The NAS | `offsite-backup` CronJob (`backups`): rclone | 05:30 daily | Drive `home-cluster-offsite/backups/` | Until gone from the NAS for 180 days, and never the 4 newest of a series | Yes | {ref}`offsite-backup` |
-| Everything under `backups/` on the NAS, again | The NAS | `offsite-backup-b2` CronJob (`backups`), once `offsite_backup.b2.enabled`: rclone | 05:30 daily | B2 bucket `backups/`, Object Lock in compliance mode | As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does | Yes | {ref}`offsite-b2` |
+| Everything under `backups/` on the NAS, again | The NAS | `offsite-backup-b2` CronJob (`backups`), once `offsite_backup.b2.enabled`: rclone | 05:45 daily | B2 bucket `backups/`, Object Lock in compliance mode | As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does | Yes | {ref}`offsite-b2` |
 | OpenTofu state for Cloudflare | `cloudflare/terraform.tfstate` in the working copy (gitignored) | By hand | After a change | The owner's own copy | n/a | Yes, by OpenTofu with a passphrase | {doc}`/how-to/cloudflare-as-code` |
 | `admin-auth` (Grafana's built-in admin password) | A Secret in `monitoring` | Not backed up | n/a | Password manager | n/a | n/a | `just set-admin-password` |
 | The age private key | Offline | The owner, in two places | n/a | n/a | n/a | n/a | Without it no encrypted backup can be read |
@@ -174,7 +174,7 @@ flowchart LR
 
     subgraph offnas["Off the NAS"]
         copy["00:50<br/>scrap-backup-copy"]
-        off["05:30<br/>offsite-backup,<br/>offsite-backup-b2"]
+        off["05:30<br/>offsite-backup<br/>05:45<br/>offsite-backup-b2"]
     end
 
     etcd --> apt --> scrap --> graf --> copy --> k3s --> kured --> off
@@ -194,7 +194,8 @@ Arrows give the order in time, not a dependency between jobs.
 | 01:00 to 02:00 | system-upgrade-controller starts K3s patch upgrades; a pre-upgrade etcd snapshot comes first | `k3s.upgrade_window` |
 | 01:45 | `jellyfin-daily` (Sundays 01:50: `jellyfin-weekly`) | `additions/backups/templates/cronjob-jellyfin.yaml` |
 | 02:30 to 05:00 | kured drains and reboots nodes that need it, one at a time; never ws03 | `kured` |
-| 05:30 | `offsite-backup` to Drive, and `offsite-backup-b2` to B2 | `offsite_backup.schedule` |
+| 05:30 | `offsite-backup` to Drive | `offsite_backup.schedule` |
+| 05:45 | `offsite-backup-b2` to B2, after the Drive job has started, so the two don't read the NAS at the same moment | `offsite_backup.b2.schedule` |
 
 The order is the design. The etcd backup runs before anything changes the
 nodes, so there is always a snapshot from before the night's patching. The

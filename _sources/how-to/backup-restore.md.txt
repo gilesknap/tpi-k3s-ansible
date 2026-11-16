@@ -41,7 +41,7 @@ compromised cluster, can delete from for 30 days ({ref}`offsite-b2`).
 | 00:50 Europe/London | scrap's newest run, copied off the NAS | CronJob `scrap-backup-copy` in `scrap`, on nuc2 |
 | 01:45 Europe/London (weekly: Sunday 01:50) | Jellyfin | CronJobs `jellyfin-daily`, `jellyfin-weekly` in `backups`, on nuc2 |
 | 05:30 Europe/London | the backups on the NAS and the Minecraft data, to Google Drive | CronJob `offsite-backup` in `backups` |
-| 05:30 Europe/London | the backups on the NAS, to Backblaze B2 (once enabled) | CronJob `offsite-backup-b2` in `backups` |
+| 05:45 Europe/London | the backups on the NAS, to Backblaze B2 | CronJob `offsite-backup-b2` in `backups` |
 
 Every CronJob sets `timeZone: Europe/London`. The jobs before 01:00 run
 clear of the two maintenance windows that drain nodes (K3s upgrades from
