@@ -174,7 +174,9 @@ after it, the `nas` role creates them, run by `pb_nas.yml` only
 ({doc}`/how-to/nas-ubuntu-zfs`). That role never destroys data: no task
 destroys a pool, dataset or snapshot (`scripts/check-no-destroy`, run by
 `just check`), pool creation is opt-in and refuses an existing pool, and
-the cluster playbooks never target the NAS.
+the cluster playbooks never target the NAS. A ZFS hold on each dataset's
+newest weekly snapshot also makes an accidental destroy of it, or of the
+dataset, fail ({ref}`nas-snapshot-hold`).
 
 ```text
 /bigdisk/

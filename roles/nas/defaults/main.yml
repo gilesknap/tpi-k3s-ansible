@@ -189,18 +189,40 @@ nas_nfs_threads: 16
 ################################################################################
 
 # sanoid's retention on nas_pool (taken every hour, pruned by sanoid.timer).
+# weekly must be at least 1 while nas_hold_datasets is not empty (the role
+# checks): sanoid then never prunes the newest weekly, the one held.
 nas_snapshot_retention:
   hourly: 48
   daily: 30
+  weekly: 8
   monthly: 12
 # Retention of the copies on the backup pool (sanoid prunes, never takes).
+# The weeklies that arrive are pruned: the 60 dailies cover those weeks.
 nas_backup_retention:
   hourly: 0
   daily: 60
+  weekly: 0
   monthly: 24
 # When the nightly zfs send to the backup pool runs: after the cluster's
 # nightly backups (the last, off-site, starts 05:30).
 nas_replicate_on_calendar: "*-*-* 06:30:00 Europe/London"
+
+# A ZFS hold with this tag stays on the newest weekly snapshot of each
+# dataset of nas_hold_datasets, so destroying that snapshot by mistake, or
+# the dataset with `zfs destroy -r`, fails. nas-hold.timer moves it to each
+# new weekly, then releases the older one. It guards against accidents, not
+# against root: `zfs release nas-keep <snapshot>` lifts it.
+nas_hold_tag: nas-keep
+# Every dataset sanoid snapshots: the children of nas_pool in nas_datasets
+# (the [nas_pool] section of sanoid.conf is recursive and takes the weekly
+# for each), the photo archive included.
+nas_hold_datasets: "{{ nas_datasets | map(attribute='name') | select('match', nas_pool ~ '/') | list }}"
+# Daily, so a missed night is caught up the next. sanoid takes the weekly
+# on Monday at 23:30 in the NAS's local time (sanoid.timer runs every 15
+# minutes), so the Tuesday run moves the hold 2.5 hours later (1.5 if the
+# NAS keeps UTC while London is on BST). The held weekly is then at most
+# about 7 days 3 hours old; the NasZfsHoldStale alert fires past 8 days.
+nas_hold_on_calendar: "*-*-* 02:00:00 Europe/London"
 
 ################################################################################
 # Health and monitoring

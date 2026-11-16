@@ -99,7 +99,9 @@ documents each one; these are the ones a rebuild touches.
 | `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, `0755` ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
 | `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS). Optional `clients` narrows the hosts, `read_only_for` makes it read-only to some (`/bigdisk`, `Photos-Archive`, `/Minecraft`: `ws03` only; `media`: read-only to the nodes) |
-| `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool |
+| `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 8 weekly, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool. `weekly` on the main pool must be at least 1 while any dataset is held |
+| `nas_hold_tag` / `nas_hold_datasets` | `nas-keep` / every dataset of `tank` in `nas_datasets` | The ZFS hold kept on the newest weekly snapshot of each dataset, against an accidental destroy ({doc}`/how-to/nas-ubuntu-zfs`) |
+| `nas_hold_on_calendar` | `*-*-* 02:00:00 Europe/London` | When `nas-hold` moves the holds to the newest weeklies (daily; sanoid takes them Mondays at 23:30) |
 | `nas_replicate_on_calendar` | `*-*-* 06:30:00 Europe/London` | When the nightly copy to the backup pool runs |
 | `nas_qnap_ec_driver` | `true` | Build the community `qnap8528` EC driver (fans, temperatures) with DKMS, at `nas_qnap_ec_commit` |
 

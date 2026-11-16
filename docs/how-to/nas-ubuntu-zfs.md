@@ -152,7 +152,8 @@ when told, and checks first. It refuses unless:
   unless `-e nas_force=true` is also given.
 
 Nothing else in the role destroys data: no task destroys a pool, dataset or
-snapshot (sanoid prunes only snapshots past their retention).
+snapshot (sanoid prunes only snapshots past their retention, and never the
+held weekly, {ref}`nas-snapshot-hold`).
 `scripts/check-no-destroy`, run by `just check`, fails if one does, if this
 gating is removed, or if a cluster playbook targets the NAS.
 
@@ -190,12 +191,14 @@ Set `nas.monitoring.enabled: true` in `kubernetes-services/values.yaml`
 - **The OS disk** is spared writes: the journal is in RAM only (lost on a
   reboot; capped at 128 MB), `/` is mounted `noatime`, and there is no swap.
 - **Snapshots**: sanoid snapshots every dataset of `tank` hourly (kept 48),
-  daily (30) and monthly (12). A file can be read back from
-  `<mountpoint>/.zfs/snapshot/<snapshot>/` on the NAS.
+  daily (30), weekly (8, on Mondays at 23:30) and monthly (12). A file can be
+  read back from `<mountpoint>/.zfs/snapshot/<snapshot>/` on the NAS. The
+  newest weekly snapshot of each dataset is held ({ref}`nas-snapshot-hold`).
 - **The copy to the backup pool**: `nas-replicate.timer` runs `syncoid` at
   06:30, after the cluster's nightly backups, sending every dataset of `tank`
   to `backup/tank` (incrementally). The copies are read-only, mounted under
-  `/srv/backup`, and sanoid keeps 60 daily and 24 monthly snapshots of them.
+  `/srv/backup`, and sanoid keeps 60 daily and 24 monthly snapshots of them
+  (and prunes the weeklies that arrive).
   `journalctl -u nas-replicate` shows the last run.
 - **Scrubs**: `zfs-scrub-monthly@tank.timer` and `zfs-scrub-monthly@backup.timer`
   (Ubuntu's own cron scrub is turned off per pool with the
@@ -205,13 +208,59 @@ Set `nas.monitoring.enabled: true` in `kubernetes-services/values.yaml`
 - **The off-site copy** to Google Drive is unchanged: the cluster's
   `offsite-backup` CronJob reads the NAS over NFS ({ref}`offsite-backup`).
 
+(nas-snapshot-hold)=
+### The hold on the newest weekly snapshot
+
+Each dataset sanoid snapshots (`nas_hold_datasets`: every dataset of `tank`
+in `nas_datasets`, `Photos-Archive` included) keeps a ZFS *hold*, tag
+`nas-keep` (`nas_hold_tag`), on its newest weekly snapshot. ZFS refuses to
+destroy a held snapshot, so a mistyped `zfs destroy` of that snapshot fails,
+and so does a `zfs destroy -r` of the dataset: ZFS destroys a dataset's
+snapshots in one all-or-nothing batch before the dataset itself, so neither
+the dataset nor any of its snapshots goes. (A child dataset with no held
+snapshot, made by hand or too new to have a weekly, is not protected.) It
+guards against accidents only. Root can release the
+hold and then destroy (and `zfs destroy -d` marks a held snapshot to go as
+soon as it is released); `zpool destroy` ignores holds altogether. The
+backup pool, and the off-site copy, are what cover a deliberate attack.
+
+`nas-hold.timer` runs `/usr/local/sbin/nas-hold` daily at 02:00
+(`nas_hold_on_calendar`), after sanoid's Monday 23:30 weekly: it holds the
+newest weekly first, then releases the tag from older snapshots, so a dataset
+never goes without a held snapshot. Other tags are left alone, and running it
+again changes nothing. The hold costs no space: sanoid keeps that snapshot
+anyway. The received copies on the backup pool are not held (`zfs send` does
+not carry holds).
+
+sanoid prunes weeklies oldest first and only while more than `weekly` remain,
+so it never tries to prune the newest one; the role refuses a weekly
+retention below 1 for a held dataset. If sanoid ever met a held snapshot, its
+destroy would fail and it would log `could not remove <snapshot>` and carry
+on with the rest, trying again on each run.
+
+To see or lift the holds by hand, on the NAS:
+
+```bash
+# Every snapshot of a dataset with its hold count, then the holds on one.
+zfs list -t snapshot -d 1 -o name,userrefs tank/bigdisk/k8s-cluster
+zfs holds tank/bigdisk/k8s-cluster@autosnap_<date>_weekly
+# Release it, e.g. to destroy that snapshot on purpose.
+sudo zfs release nas-keep tank/bigdisk/k8s-cluster@autosnap_<date>_weekly
+```
+
+The next run of `nas-hold` holds the newest weekly again: to keep a dataset
+out for good, take it out of `nas_hold_datasets`.
+
 (nas-monitoring)=
 ## Monitoring
 
 node-exporter runs on the NAS on port 9100, with its ZFS collector (pool
-states), the `smartmon` collector, and two textfile metrics files the role
-adds: `nas_zpool.prom` (error counts and the last scrub, every 5 minutes) and
-`nas_replicate.prom` (the last copy to the backup pool).
+states), the `smartmon` collector, and three textfile metrics files the role
+adds: `nas_zpool.prom` (error counts and the last scrub, every 5 minutes),
+`nas_replicate.prom` (the last copy to the backup pool) and `nas_hold.prom`
+(`nas_zfs_held_snapshot_timestamp_seconds{dataset}`, the creation time of
+each dataset's held weekly snapshot, and whether `nas-hold` last
+succeeded).
 
 With `nas.monitoring.enabled: true`, Prometheus scrapes it as job `nas`
 (a static target, `nas.monitoring.targets`, like `kube-etcd`) and loads these
@@ -227,6 +276,8 @@ alerts:
 | `NasDiskSmartUnhealthy` | a disk fails its SMART health check | warning |
 | `NasPoolFillingUp` | `/bigdisk` is over 85% full | warning |
 | `NasBackupPoolCopyStale` | the copy to the backup pool has not succeeded for 36 hours | warning |
+| `NasZfsHoldStale` | a dataset has no held snapshot, or its held weekly is over 8 days old (a new dataset gets 8 days from its creation) | warning |
+| `NasZfsHoldFailed` | the last `nas-hold` run failed | warning |
 
 All of them reach ntfy ({doc}`/how-to/ntfy`): the critical ones by severity,
 the warnings by name.

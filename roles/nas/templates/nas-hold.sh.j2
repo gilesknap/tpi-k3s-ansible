@@ -1,0 +1,124 @@
+#!/bin/bash
+# {{ ansible_managed }} (roles/nas).
+# Keep a ZFS hold, tag {{ nas_hold_tag }}, on the newest weekly sanoid
+# snapshot of each dataset below, so that destroying that snapshot by
+# mistake, or the dataset with -r, fails. A guard against accidents, not
+# against root, who can release the hold first.
+#
+# For each dataset: hold the newest weekly, then release the tag from any
+# older snapshot. The new hold always comes first, so a dataset that had a
+# held snapshot never goes without one. Running it again changes nothing.
+# Writes metrics for node-exporter's textfile collector.
+set -euo pipefail
+
+tag={{ nas_hold_tag | quote }}
+datasets=(
+{% for ds in nas_hold_datasets %}
+    {{ ds | quote }}
+{% endfor %}
+)
+prom={{ nas_textfile_dir }}/nas_hold.prom
+
+# Whether snapshot $1 carries our tag.
+has_tag() {
+    local holds
+    holds=$(zfs holds -H "$1") || return 2
+    awk -F'\t' -v t="$tag" '$2 == t { f = 1 } END { exit !f }' <<<"$holds"
+}
+
+# Move the hold on dataset $1 to its newest weekly snapshot.
+hold_dataset() {
+    local ds=$1 snaps name ctime refs newest="" rc
+    # The dataset's own snapshots, oldest first.
+    snaps=$(zfs list -H -p -t snapshot -d 1 -s creation -o name,creation,userrefs "$ds") || return 1
+    while IFS=$'\t' read -r name ctime refs; do
+        case $name in
+            *@autosnap_*_weekly) newest=$name ;;
+        esac
+    done <<<"$snaps"
+    if [ -z "$newest" ]; then
+        echo "$ds: no weekly snapshot yet, nothing to hold"
+        return 0
+    fi
+    rc=0
+    has_tag "$newest" || rc=$?
+    case $rc in
+        0) ;;
+        1) zfs hold "$tag" "$newest" || return 1
+           echo "$ds: held $newest" ;;
+        *) return 1 ;;
+    esac
+    while IFS=$'\t' read -r name ctime refs; do
+        if [ -z "$name" ] || [ "$name" = "$newest" ] || [ "${refs:-0}" = 0 ]; then
+            continue
+        fi
+        rc=0
+        has_tag "$name" || rc=$?
+        case $rc in
+            0) zfs release "$tag" "$name" || return 1
+               echo "$ds: released $name" ;;
+            1) ;;
+            *) return 1 ;;
+        esac
+    done <<<"$snaps"
+}
+
+# The metric for dataset $1, read back from ZFS rather than assumed: the
+# creation time of its newest snapshot that carries the tag; with no
+# weekly snapshot yet (a new or restored dataset), the dataset's own
+# creation time, which gives sanoid a week to take one; otherwise 0.
+held_metric() {
+    local ds=$1 snaps name ctime refs held=0 weekly=0 rc
+    snaps=$(zfs list -H -p -t snapshot -d 1 -s creation -o name,creation,userrefs "$ds") || return 1
+    while IFS=$'\t' read -r name ctime refs; do
+        case $name in
+            *@autosnap_*_weekly) weekly=1 ;;
+        esac
+        if [ -n "$name" ] && [ "${refs:-0}" != 0 ]; then
+            rc=0
+            has_tag "$name" || rc=$?
+            case $rc in
+                0) held=$ctime ;;
+                1) ;;
+                *) return 1 ;;
+            esac
+        fi
+    done <<<"$snaps"
+    if [ "$held" = 0 ] && [ "$weekly" = 0 ]; then
+        held=$(zfs get -H -p -o value creation "$ds") || return 1
+    fi
+    echo "nas_zfs_held_snapshot_timestamp_seconds{dataset=\"$ds\"} $held"
+}
+
+ok=1
+metrics=""
+for ds in "${datasets[@]}"; do
+    if ! hold_dataset "$ds"; then
+        echo "$ds: could not move the $tag hold" >&2
+        ok=0
+    fi
+    if line=$(held_metric "$ds"); then
+        metrics+="$line"$'\n'
+    else
+        echo "$ds: could not read its holds" >&2
+        ok=0
+    fi
+done
+
+tmp=$(mktemp "$prom.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+{
+    echo "# HELP nas_zfs_held_snapshot_timestamp_seconds Creation time of the newest snapshot of the dataset held with tag $tag (the dataset's own creation time while it has no weekly snapshot; 0 if no snapshot is held)."
+    echo "# TYPE nas_zfs_held_snapshot_timestamp_seconds gauge"
+    printf '%s' "$metrics"
+    echo "# HELP nas_zfs_hold_last_run_timestamp_seconds When nas-hold last ran."
+    echo "# TYPE nas_zfs_hold_last_run_timestamp_seconds gauge"
+    echo "nas_zfs_hold_last_run_timestamp_seconds $(date +%s)"
+    echo "# HELP nas_zfs_hold_last_run_success 1 if nas-hold last moved and read back every hold."
+    echo "# TYPE nas_zfs_hold_last_run_success gauge"
+    echo "nas_zfs_hold_last_run_success $ok"
+} >"$tmp"
+chmod 0644 "$tmp"
+mv "$tmp" "$prom"
+trap - EXIT
+[ "$ok" = 1 ]

@@ -190,7 +190,7 @@ spec:
                   # `for`), and ignores cordoned nodes.
                   - receiver: ntfy
                     matchers:
-                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale"
+                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale|NasZfsHoldStale|NasZfsHoldFailed"
               inhibit_rules:
                 # Chart defaults: a critical mutes its own warning/info, a
                 # warning its own info; InfoInhibitor mutes info alerts in its
@@ -438,6 +438,29 @@ spec:
                         description: >-
                           See `journalctl -u nas-replicate` on gknas (is the
                           LaCie plugged in?).
+                    # nas-hold keeps a hold on each dataset's newest weekly
+                    # snapshot; the metric is the held snapshot's creation
+                    # time (0 if none is held), so a missing hold also fires.
+                    - alert: NasZfsHoldStale
+                      expr: time() - nas_zfs_held_snapshot_timestamp_seconds{job="nas"} > 8 * 86400
+                      for: 1h
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A dataset on the NAS has no held weekly snapshot newer than 8 days.
+                        description: >-
+                          No snapshot of a dataset on gknas carries the
+                          nas-keep hold, or the held one is over 8 days old.
+                          See `journalctl -u nas-hold` and `zfs holds` on its
+                          weekly snapshots.
+                    - alert: NasZfsHoldFailed
+                      expr: nas_zfs_hold_last_run_success{job="nas"} == 0
+                      for: 15m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: The NAS's job that moves the weekly snapshot holds failed.
+                        description: See `journalctl -u nas-hold` on gknas.
 {{- end }}
 
     - path: ./kubernetes-services/additions/grafana
