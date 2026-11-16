@@ -5,6 +5,7 @@
 # remote).
 #
 # Usage: scripts/seal-b2-offsite   (or: just seal-b2-offsite)
+#        ... | scripts/seal-b2-offsite --stdin   ("<keyID> <key>" on stdin)
 #
 # Asks for the key's ID and the key itself (neither is echoed), then checks
 # with B2 (b2_authorize_account) that the key:
@@ -44,11 +45,17 @@ if [[ -z $bucket ]]; then
 fi
 secret_name=$(yq -r '.offsite_backup.b2.secret_name // "offsite-backup-b2"' "$values")
 
-[[ -r /dev/tty ]] || { echo "ERROR: run this in a terminal: it asks for the key" >&2; exit 1; }
-read -rsp "B2 application key ID (keyID) for bucket $bucket: " key_id </dev/tty
-echo >&2
-read -rsp "B2 application key (applicationKey): " app_key </dev/tty
-echo >&2
+if [[ ${1:-} == --stdin ]]; then
+    # From another program (e.g. `b2 key create` output): "<keyID> <key>"
+    # on one line of stdin, so the key is never shown or typed.
+    read -r key_id app_key _ || true
+else
+    [[ -r /dev/tty ]] || { echo "ERROR: run this in a terminal: it asks for the key" >&2; exit 1; }
+    read -rsp "B2 application key ID (keyID) for bucket $bucket: " key_id </dev/tty
+    echo >&2
+    read -rsp "B2 application key (applicationKey): " app_key </dev/tty
+    echo >&2
+fi
 # keyIDs are hex; keys are base64-like. Neither holds a quote or newline,
 # which would break curl's config or rclone.conf.
 if [[ ! $key_id =~ ^[0-9a-fA-F]{12,40}$ ]] || [[ ! $app_key =~ ^[A-Za-z0-9+/=_-]{20,64}$ ]]; then
@@ -58,10 +65,14 @@ if [[ ! $key_id =~ ^[0-9a-fA-F]{12,40}$ ]] || [[ ! $app_key =~ ^[A-Za-z0-9+/=_-]
 fi
 
 echo "Checking the key with B2..." >&2
-if ! auth=$(printf 'user = "%s:%s"\n' "$key_id" "$app_key" |
-    curl -fsS --config - https://api.backblazeb2.com/b2api/v3/b2_authorize_account); then
+auth=$(printf 'user = "%s:%s"\n' "$key_id" "$app_key" |
+    curl -sS --config - -w '\n%{http_code}' https://api.backblazeb2.com/b2api/v4/b2_authorize_account) || true
+code=${auth##*$'\n'}
+auth=${auth%$'\n'*}
+if [[ $code != 200 ]]; then
     unset key_id app_key
-    echo "ERROR: B2 refused the key (wrong ID or key, or the key was deleted)" >&2
+    # B2's error reply is {"code","message","status"}: no secret in it.
+    echo "ERROR: B2 refused the key (HTTP $code): $(printf '%s' "$auth" | jq -c '{code, message}' 2>/dev/null || echo '(no JSON reply)')" >&2
     exit 1
 fi
 
@@ -101,7 +112,7 @@ token=$(printf '%s' "$auth" | jq -r '.authorizationToken')
 unset auth
 if ! info=$(jq -n --arg a "$account_id" --arg b "$bucket_id" '{accountId: $a, bucketId: $b}' |
     curl -fsS --config <(printf 'header = "Authorization: %s"\n' "$token") \
-        --data @- "$api/b2api/v3/b2_list_buckets"); then
+        --data @- "$api/b2api/v4/b2_list_buckets"); then
     unset token key_id app_key
     echo "ERROR: could not read the bucket's settings" >&2
     exit 1
@@ -140,6 +151,22 @@ case $lock in
         exit 1
         ;;
 esac
+
+# The job's own client: rclone (same version as the job's image if possible)
+# must list the bucket with this key. The key goes in rclone's environment,
+# for this one command, not on its command line.
+if command -v rclone >/dev/null; then
+    if RCLONE_B2_ACCOUNT=$key_id RCLONE_B2_KEY=$app_key \
+        rclone lsf --max-depth 1 ":b2:$bucket" >/dev/null 2>&1; then
+        echo "  ok: rclone $(rclone version | awk 'NR==1{print $2}') lists $bucket with the key" >&2
+    else
+        unset key_id app_key
+        echo "ERROR: rclone could not list $bucket with the key" >&2
+        exit 1
+    fi
+else
+    echo "  (rclone not installed here: skipped its check)" >&2
+fi
 
 echo "Sealing: $secret_name..."
 # hard_delete = false: a deletion only hides a file (also rclone's default).
