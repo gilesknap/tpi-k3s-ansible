@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Read-only restore test of the off-site backups on Google Drive
-# (drive:home-cluster-offsite, written by the offsite-backup CronJob).
+# Read-only restore test of an off-site copy: on Google Drive
+# (drive:home-cluster-offsite, written by the offsite-backup CronJob) or, with
+# --target b2, in the Backblaze B2 bucket (offsite-backup-b2), as it is now
+# or, with --at, as it was at an earlier time (B2 keeps every version for
+# the bucket's 30-day lock).
 #
 # Downloads the newest scrap daily run, Grafana daily, Jellyfin daily, etcd
 # bundle (+ its .sha256 sidecar) and the Minecraft archive's CURRENT marker
@@ -8,19 +11,27 @@
 # PASS/FAIL table and deletes everything it downloaded or decrypted. Only
 # the summary log is kept (no secrets in it).
 #
-# Nothing is changed on Drive, the NAS or the cluster: rclone only lists and
-# downloads, kubectl only reads the Secret. A local --rclone-config is only
-# read: rclone works on a throwaway copy.
+# Nothing is changed on the remote, the NAS or the cluster: rclone only
+# lists and downloads, kubectl only reads the Secret. A local
+# --rclone-config is only read: rclone works on a throwaway copy.
 #
 # Usage: scripts/restore-test [options]   (or: just restore-test [options])
-#   --rclone-config FILE  rclone config with the [drive] remote (see
+#   --target drive|b2     which copy (default drive)
+#   --rclone-config FILE  rclone config with the [drive] or [b2] remote (see
 #                         docs/how-to/backup-restore.md, "Restore from
-#                         Drive"); default: the Secret
-#                         backups/offsite-backup-rclone, read with kubectl
+#                         Drive" and "Restore from B2"); default: the Secret
+#                         backups/offsite-backup-rclone (b2:
+#                         offsite-backup-b2), read with kubectl
 #   --identity FILE       age identity file (AGE-SECRET-KEY-1...); default:
 #                         paste the key when asked (it is not echoed)
 #   --remote PATH         rclone path laid out like the Drive folder;
-#                         default drive:home-cluster-offsite
+#                         default drive:home-cluster-offsite, or for b2
+#                         b2:<offsite_backup.b2.bucket from values.yaml>
+#   --at TIME             b2 only: the files as they were at TIME (rclone
+#                         --b2-version-at: e.g. 2026-11-01T12:00:00Z, or 7d
+#                         for a week ago: N with s, m, h, d, w, M or y,
+#                         turned into a fixed time once at the start),
+#                         hidden and overwritten ones too
 #   --work-dir DIR        where the scratch directory is made (default
 #                         $TMPDIR or /tmp); it needs ~1 GB free, and the
 #                         decrypted scrap, Grafana and Jellyfin data sit
@@ -34,21 +45,23 @@
 #                         (no key needed)
 set -euo pipefail
 
-usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; }
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 with_minecraft=
 no_decrypt=
 rclone_config=
 identity_file=
-remote=${RESTORE_TEST_REMOTE:-drive:home-cluster-offsite}
+target=drive
+remote=${RESTORE_TEST_REMOTE:-}
+at=
 work_base=${TMPDIR:-/tmp}
 log=$here/build/restore-test/last-run.txt
 while [ $# -gt 0 ]; do
     case $1 in
         --with-minecraft) with_minecraft=1 ;;
         --no-decrypt) no_decrypt=1 ;;
-        --rclone-config | --identity | --remote | --work-dir | --log)
+        --rclone-config | --identity | --remote | --work-dir | --log | --target | --at)
             [ $# -ge 2 ] && [ -n "$2" ] || { echo "$1 needs a value" >&2; exit 2; }
             case $1 in
                 --rclone-config) rclone_config=$2 ;;
@@ -56,6 +69,8 @@ while [ $# -gt 0 ]; do
                 --remote) remote=$2 ;;
                 --work-dir) work_base=$2 ;;
                 --log) log=$2 ;;
+                --target) target=$2 ;;
+                --at) at=$2 ;;
             esac
             shift
             ;;
@@ -65,6 +80,36 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+case $target in
+    drive) secret=offsite-backup-rclone ;;
+    b2) secret=offsite-backup-b2 ;;
+    *) echo "--target must be drive or b2" >&2; exit 2 ;;
+esac
+if [ -n "$at" ] && [ "$target" != b2 ]; then
+    echo "--at needs --target b2 (Drive keeps no versions)" >&2; exit 2
+fi
+# A relative --at (7d) becomes one fixed UTC time now: rclone would resolve
+# it afresh on each call, moving the cutoff between listing and download.
+# Units as rclone's: M is 30 days, y 365.
+if [[ $at =~ ^([0-9]+)([smhdwMy])$ ]]; then
+    case ${BASH_REMATCH[2]} in
+        s) unit=1 ;; m) unit=60 ;; h) unit=3600 ;; d) unit=86400 ;;
+        w) unit=604800 ;; M) unit=2592000 ;; y) unit=31536000 ;;
+    esac
+    at=$(date -u -d "@$(($(date +%s) - 10#${BASH_REMATCH[1]} * unit))" +%Y-%m-%dT%H:%M:%SZ)
+elif [[ $at =~ ^[0-9.]+[a-zA-Z] ]]; then
+    echo "--at: give a time (2026-11-01T12:00:00Z) or N with one unit (7d)" >&2; exit 2
+fi
+if [ -z "$remote" ]; then
+    if [ "$target" = drive ]; then
+        remote=drive:home-cluster-offsite
+    else
+        command -v yq >/dev/null || { echo "yq not found: give --remote b2:<bucket>" >&2; exit 1; }
+        bucket=$(yq -r '.offsite_backup.b2.bucket // ""' "$here/kubernetes-services/values.yaml")
+        [ -n "$bucket" ] || { echo "offsite_backup.b2.bucket is not set: give --remote b2:<bucket>" >&2; exit 1; }
+        remote=b2:$bucket
+    fi
+fi
 if [ -n "$rclone_config" ] && [ ! -r "$rclone_config" ]; then
     echo "cannot read $rclone_config" >&2; exit 1
 fi
@@ -111,9 +156,9 @@ trap 'exit 143' TERM
 work=$(mktemp -d "$work_base/restore-test.XXXXXX")
 mkdir -p "$work/enc" "$work/dec" "$(dirname "$log")"
 exec > >(tee "$log") 2>&1
-echo "Off-site restore test, $(date -u +%Y-%m-%dT%H:%M:%SZ), $remote"
+echo "Off-site restore test, $(date -u +%Y-%m-%dT%H:%M:%SZ), $remote${at:+, as at $at}"
 echo "age: $("$age_bin" --version), $(rclone version | head -n 1)"
-echo "rclone config: ${rclone_config:-Secret backups/offsite-backup-rclone}"
+echo "rclone config: ${rclone_config:-Secret backups/$secret}"
 
 # 1. A throwaway copy of the rclone config, never printed: rclone may write
 #    a refreshed access token back into the file it is given.
@@ -122,18 +167,20 @@ chmod 600 "$rconf"
 if [ -n "$rclone_config" ]; then
     cat "$rclone_config" >"$rconf"
 else
-    kubectl -n backups get secret offsite-backup-rclone \
+    kubectl -n backups get secret "$secret" \
         -o jsonpath='{.data.rclone\.conf}' | base64 -d >"$rconf"
 fi
 case $remote in
     drive:*) grep -q '^\[drive\]' "$rconf" || { echo "the rclone config has no [drive] remote" >&2; exit 1; } ;;
+    b2:*) grep -q '^\[b2\]' "$rconf" || { echo "the rclone config has no [b2] remote" >&2; exit 1; } ;;
 esac
-rc() { rclone --config "$rconf" "$@"; }
+# --at: every listing and download sees the bucket as it was then.
+rc() { rclone --config "$rconf" ${at:+--b2-version-at "$at"} "$@"; }
 
 # 2. Pick the newest of each series, by the date or time in its name.
 lsf() { rc lsf --files-only "$remote/$1"; }
 # Each prints nothing (and succeeds) when the folder is missing or has no
-# match, so the caller records "no file on Drive" instead of set -e exiting.
+# match, so the caller records "no file on the remote" instead of set -e exiting.
 newest() { # DIR ERE: newest file in DIR whose name matches ERE
     { lsf "$1" | grep -E "$2" | sort | tail -n 1; } || true
 }
@@ -158,7 +205,7 @@ record() { result[$1]=$2; detail[$1]=$3; }
 
 # Minecraft's off-site copy is optional (offsite_backup.minecraft.enabled).
 if ! { rc lsf --dirs-only "$remote" 2>/dev/null || true; } | grep -qxF minecraft/; then
-    record mc-current SKIP "no minecraft/ folder on Drive"
+    record mc-current SKIP "no minecraft/ folder on the remote"
 fi
 
 echo
@@ -166,20 +213,21 @@ echo "Selected (newest of each):"
 for k in "${order[@]}"; do
     p=${pick[$k]}
     [ "${result[$k]:-}" != SKIP ] || { echo "  $k: skipped (${detail[$k]})"; continue; }
-    case $p in */) echo "  $k: nothing found"; record "$k" FAIL "no file on Drive"; continue ;; esac
+    case $p in */) echo "  $k: nothing found"; record "$k" FAIL "no file on the remote"; continue ;; esac
     size=$(rc size --json "$remote/$p" 2>/dev/null | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["bytes"])' || echo "?")
     printf '  %-12s %-62s %s bytes\n' "$k" "$p" "$size"
 done
 if [ "$mc_nightly" = minecraft/nightly/ ]; then
     echo "  mc-nightly   nothing found"
-    [ -z "$with_minecraft" ] || record mc-nightly FAIL "no file on Drive"
+    [ -z "$with_minecraft" ] || record mc-nightly FAIL "no file on the remote"
 elif [ -n "$with_minecraft" ]; then
     echo "  mc-nightly   $mc_nightly (streamed, not downloaded)"
 else
     echo "  mc-nightly   $mc_nightly (skipped: pass --with-minecraft)"
 fi
 
-# Download and check the age header (rclone checks Drive's MD5 on copy).
+# Download and check the age header (rclone checks Drive's MD5, or B2's
+# SHA-1, on copy).
 echo
 echo "Downloading to $work/enc"
 for k in "${order[@]}"; do
@@ -412,7 +460,7 @@ check_mc_current() {
     name=$(sed -n 's/^current: //p' <<<"$text")
     checked=$(sed -n 's/^checked: //p' <<<"$text")
     if [ -n "$name" ] && lsf minecraft/archive | grep -qxF "$name"; then echo PASS; else echo FAIL; fi
-    echo "names ${name:-NOTHING} (checked $checked); on Drive: $(lsf minecraft/archive | grep -cxF "${name:-//}" || true)"
+    echo "names ${name:-NOTHING} (checked $checked); on the remote: $(lsf minecraft/archive | grep -cxF "${name:-//}" || true)"
 }
 
 check_mc_nightly() {

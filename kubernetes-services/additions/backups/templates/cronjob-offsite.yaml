@@ -1,39 +1,66 @@
 {{- /*
-The off-site copy: each night, new backups from the NAS go to Google Drive,
+The off-site copies: each night, new backups from the NAS go to each target,
 age-encrypted to offsite_backup.age_recipient (the cluster holds only that
 public key). Only ever adds dated files; a deletion on the NAS is never
-mirrored. See docs/how-to/backup-restore.md ("Off-site copy to Google Drive").
+mirrored. See docs/how-to/backup-restore.md ("Off-site copy to Google Drive" and
+"Second off-site copy: Backblaze B2").
 
-Three containers run side by side, as the owners the NAS files need (its
-export squashes root to 65534, so no single uid can read everything):
+One CronJob per target, each with its own rclone Secret, so a failure on
+one shows as that CronJob's (and alerts by its name) and never stops the
+other's uploads:
+  - offsite-backup: Google Drive (offsite_backup.drive_root), Secret
+    offsite_backup.secret_name, sealed by scripts/seal-rclone-drive: a
+    [drive] remote with the drive.file scope, so it sees only files it made.
+  - offsite-backup-b2, only with offsite_backup.b2.enabled: a Backblaze B2
+    bucket with Object Lock (compliance mode), Secret
+    offsite_backup.b2.secret_name, sealed by scripts/seal-b2-offsite: a [b2]
+    remote whose key is restricted to that bucket. No key can delete or
+    overwrite a version there before its retention ends.
+Each target's `include` picks what it gets: backups (the NAS backups/ tree),
+minecraft-nightly, minecraft-archive. The scripts and the encryption are
+the same for both.
+
+Up to three containers run side by side, as the owners the NAS files need
+(its export squashes root to 65534, so no single uid can read everything):
   - backups (uid 65534, nobody: the owner of the root-written, mode 0600
     etcd bundles): the backups/ tree but for the run_dirs
     (files/offsite-backups.sh others);
   - scrap (offsite_backup.scrap.uid, scrap's: the files of its backup runs
     are its own, many mode 0600): the run_dirs subtrees of backups/
     (files/offsite-backups.sh runs). Each of these two reads, cleans up and
-    prunes only its own part of backups/ on Drive;
+    prunes only its own part of backups/ on the target;
   - minecraft (uid 1000, the dashboard's and the worlds' owner: level.dat is
-    0600): the dashboard store, the worlds and the archive
-    (files/offsite-minecraft.sh).
-An init container first makes the Drive folders, so no two race to make
-the same one. The Job fails if any container does, and is retried once. A retry uploads only the backups still missing, and no second
-Minecraft nightly if one from the same UTC day is already on Drive.
-
-rclone's credentials are the Secret offsite_backup.secret_name, sealed by
-scripts/seal-rclone-drive: a [drive] remote with the drive.file scope, so it
-sees only files it made itself.
+    0600): the dashboard store and the worlds (the nightly tarball) and the
+    archive (files/offsite-minecraft.sh).
+On Drive an init container first makes the folders, so no two race to make
+the same one (B2 has no folders). The Job fails if any container does, and
+is retried once. A retry uploads only the backups still missing, and no
+second Minecraft nightly if one from the same UTC day is already there.
 */}}
 {{- $o := .Values.offsite_backup }}
-{{- if $o.enabled }}
 {{- $mc := $o.minecraft }}
-{{- $folders := list "backups" }}
-{{- range $o.backups.run_dirs }}
-{{- $folders = append $folders (printf "backups/%s" .) }}
+{{- $targets := list }}
+{{- if $o.enabled }}
+{{- $targets = append $targets (dict "name" "offsite-backup" "kind" "drive" "root" (printf "drive:%s" $o.drive_root) "secret" $o.secret_name "include" $o.include "prune_days" $o.backups.prune_days) }}
+{{- if $o.b2.enabled }}
+{{- $bucket := required "offsite_backup.b2.bucket is required with offsite_backup.b2.enabled" $o.b2.bucket }}
+{{- $b2prune := $o.backups.prune_days }}
+{{- if not (kindIs "invalid" $o.b2.prune_days) }}
+{{- if ne (toString $o.b2.prune_days) "" }}
+{{- $b2prune = $o.b2.prune_days }}
 {{- end }}
-{{- if $mc.enabled }}
-{{- $folders = concat $folders (list "minecraft/nightly" "minecraft/archive") }}
 {{- end }}
+{{- $targets = append $targets (dict "name" "offsite-backup-b2" "kind" "b2" "root" (printf "b2:%s" $bucket) "secret" $o.b2.secret_name "include" $o.b2.include "prune_days" $b2prune) }}
+{{- end }}
+{{- end }}
+{{- range $targets }}
+{{- range .include }}
+{{- if not (has . (list "backups" "minecraft-nightly" "minecraft-archive")) }}
+{{- fail (printf "offsite_backup: unknown include entry %q (backups, minecraft-nightly, minecraft-archive)" .) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if $targets }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -50,11 +77,33 @@ data:
   offsite-minecraft.sh: |
 {{ .Files.Get "files/offsite-minecraft.sh" | indent 4 }}
 {{- end }}
+{{- end }}
+{{- range $t := $targets }}
+{{- $ctx := dict "o" $o "t" $t }}
+{{- $backups := has "backups" $t.include }}
+{{- $nightly := and $mc.enabled (has "minecraft-nightly" $t.include) }}
+{{- $archive := and $mc.enabled (has "minecraft-archive" $t.include) (not (empty $mc.archive_path)) }}
+{{- $folders := list }}
+{{- if $backups }}
+{{- $folders = append $folders "backups" }}
+{{- range $o.backups.run_dirs }}
+{{- $folders = append $folders (printf "backups/%s" .) }}
+{{- end }}
+{{- end }}
+{{- if $nightly }}
+{{- $folders = append $folders "minecraft/nightly" }}
+{{- end }}
+{{- if $archive }}
+{{- $folders = append $folders "minecraft/archive" }}
+{{- end }}
+{{- if not (or $backups $nightly $archive) }}
+{{- fail (printf "offsite_backup: %s would upload nothing (check its include list and offsite_backup.minecraft)" $t.name) }}
+{{- end }}
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: offsite-backup
+  name: {{ $t.name }}
   namespace: backups
 spec:
   schedule: {{ $o.schedule | quote }}
@@ -70,7 +119,7 @@ spec:
   jobTemplate:
     metadata:
       labels:
-        app.kubernetes.io/name: offsite-backup
+        app.kubernetes.io/name: {{ $t.name }}
     spec:
       backoffLimit: 1
       ttlSecondsAfterFinished: 86400
@@ -80,7 +129,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: offsite-backup
+            app.kubernetes.io/name: {{ $t.name }}
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
@@ -128,6 +177,7 @@ spec:
               volumeMounts:
                 - name: tools
                   mountPath: /tools
+            {{- if eq $t.kind "drive" }}
             - name: make-folders
               image: {{ $o.image }}
               command:
@@ -138,7 +188,7 @@ spec:
                   value: /work/folders
                 - name: FOLDERS
                   value: {{ join " " $folders | quote }}
-                {{- include "offsite-backup.env" . | nindent 16 }}
+                {{- include "offsite-backup.env" $ctx | nindent 16 }}
               securityContext:
                 runAsUser: {{ $o.backups.uid }}
                 runAsGroup: {{ $o.backups.uid }}
@@ -147,7 +197,9 @@ spec:
                 {{- include "offsite-backup.resources" . | nindent 16 }}
               volumeMounts:
                 {{- include "offsite-backup.mounts" . | nindent 16 }}
+            {{- end }}
           containers:
+            {{- if $backups }}
             - name: backups
               image: {{ $o.image }}
               command:
@@ -164,10 +216,10 @@ spec:
                 - name: EXCLUDE
                   value: {{ join " " $o.backups.exclude | quote }}
                 - name: PRUNE_DAYS
-                  value: {{ $o.backups.prune_days | quote }}
+                  value: {{ $t.prune_days | quote }}
                 - name: KEEP_MIN
                   value: {{ $o.backups.keep_min | quote }}
-                {{- include "offsite-backup.env" . | nindent 16 }}
+                {{- include "offsite-backup.env" $ctx | nindent 16 }}
               securityContext:
                 runAsUser: {{ $o.backups.uid }}
                 runAsGroup: {{ $o.backups.uid }}
@@ -180,7 +232,8 @@ spec:
                   subPath: backups
                   readOnly: true
                 {{- include "offsite-backup.mounts" . | nindent 16 }}
-            {{- if $o.backups.run_dirs }}
+            {{- end }}
+            {{- if and $backups $o.backups.run_dirs }}
             - name: scrap
               image: {{ $o.image }}
               command:
@@ -197,10 +250,10 @@ spec:
                 - name: EXCLUDE
                   value: {{ join " " $o.backups.exclude | quote }}
                 - name: PRUNE_DAYS
-                  value: {{ $o.backups.prune_days | quote }}
+                  value: {{ $t.prune_days | quote }}
                 - name: KEEP_MIN
                   value: {{ $o.backups.keep_min | quote }}
-                {{- include "offsite-backup.env" . | nindent 16 }}
+                {{- include "offsite-backup.env" $ctx | nindent 16 }}
               securityContext:
                 runAsUser: {{ $o.scrap.uid }}
                 runAsGroup: {{ $o.scrap.gid }}
@@ -218,7 +271,7 @@ spec:
                   readOnly: true
                 {{- include "offsite-backup.mounts" . | nindent 16 }}
             {{- end }}
-            {{- if $mc.enabled }}
+            {{- if or $nightly $archive }}
             - name: minecraft
               image: {{ $o.image }}
               command:
@@ -227,15 +280,17 @@ spec:
               env:
                 - name: WORK
                   value: /work/minecraft
+                - name: NIGHTLY
+                  value: {{ ternary "true" "false" $nightly | quote }}
                 - name: WORLD_DIRS
                   value: {{ join " " $mc.world_dirs | quote }}
                 - name: ARCHIVE
-                  value: {{ ternary "true" "false" (not (empty $mc.archive_path)) | quote }}
+                  value: {{ ternary "true" "false" $archive | quote }}
                 - name: KEEP
                   value: {{ $mc.keep | quote }}
                 - name: MIN_SIZE_PERCENT
                   value: {{ $mc.min_size_percent | quote }}
-                {{- include "offsite-backup.env" . | nindent 16 }}
+                {{- include "offsite-backup.env" $ctx | nindent 16 }}
               securityContext:
                 runAsUser: {{ $mc.uid }}
                 runAsGroup: {{ $mc.gid }}
@@ -243,6 +298,7 @@ spec:
               resources:
                 {{- include "offsite-backup.resources" . | nindent 16 }}
               volumeMounts:
+                {{- if $nightly }}
                 - name: nfs
                   mountPath: /src/store
                   subPath: {{ $mc.store_subdir }}
@@ -250,7 +306,8 @@ spec:
                 - name: worlds
                   mountPath: /src/stable
                   readOnly: true
-                {{- if $mc.archive_path }}
+                {{- end }}
+                {{- if $archive }}
                 - name: archive
                   mountPath: /src/archive
                   readOnly: true
@@ -262,23 +319,23 @@ spec:
               persistentVolumeClaim:
                 claimName: k8s-cluster-nfs
                 readOnly: true
-            {{- if $mc.enabled }}
+            {{- if $nightly }}
             - name: worlds
               nfs:
                 server: {{ $mc.worlds_server | quote }}
                 path: {{ $mc.worlds_path | quote }}
                 readOnly: true
-            {{- if $mc.archive_path }}
+            {{- end }}
+            {{- if $archive }}
             - name: archive
               nfs:
-                server: {{ .Values.nfs.server | quote }}
+                server: {{ $.Values.nfs.server | quote }}
                 path: {{ $mc.archive_path | quote }}
                 readOnly: true
             {{- end }}
-            {{- end }}
             - name: rclone
               secret:
-                secretName: {{ $o.secret_name }}
+                secretName: {{ $t.secret }}
                 # Read by every container's user; nothing else runs in the pod.
                 defaultMode: 0444
             - name: scripts

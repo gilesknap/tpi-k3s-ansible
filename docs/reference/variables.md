@@ -161,9 +161,14 @@ applies to that run only.
 | `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
-| `offsite_backup.enabled` | `true` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). It needs the sealed rclone credentials (`just seal-rclone-drive`), and its alerts fire only while it is on |
+| `offsite_backup.enabled` | `true` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). It needs the sealed rclone credentials (`just seal-rclone-drive`), and its alerts fire only while it is on. It gates the B2 copy too: off, neither job exists |
 | `offsite_backup.schedule` / `time_zone` | `30 5 * * *` / `Europe/London` | When it runs: after the other nightly backups |
 | `offsite_backup.drive_root` | `home-cluster-offsite` | Folder in the Drive's root that everything goes into |
+| `offsite_backup.include` | `[backups, minecraft-nightly, minecraft-archive]` | What goes to Drive: the NAS `backups/` tree, the nightly Minecraft tarball, the world archive |
+| `offsite_backup.b2.enabled` | `true` | The second off-site copy, to a Backblaze B2 bucket with Object Lock ({ref}`offsite-b2`). Needs `offsite_backup.enabled` too. Turn on only after the one-time B2 setup and `just seal-b2-offsite`; its alerts fire only while it is on |
+| `offsite_backup.b2.bucket` | `gk-cluster-offsite` | The bucket's name; required when `b2.enabled` |
+| `offsite_backup.b2.secret_name` | `offsite-backup-b2` | The Secret holding rclone's `[b2]` remote |
+| `offsite_backup.b2.include` | `[backups]` | What goes to B2, from the same three as `include`: only the NAS backups, which keeps the bucket inside B2's free 10 GB |
 | `offsite_backup.age_recipient` | *(age public key)* | age public key every file is encrypted to. **SYNC:** `etcd_backup_age_recipient` |
 | `offsite_backup.image` | `docker.io/rclone/rclone:1.75.2` | rclone image (Alpine, busybox) every container runs |
 | `offsite_backup.age.version` / `sha256.amd64` / `sha256.arm64` | `1.3.2` / *(checksums)* | age release an init container fetches, checked against these checksums; bump all three together |
@@ -231,6 +236,7 @@ secret prompts for it when the variable is unset.
 | `SCRAP_MCP_TOKEN`, `SCRAP_PUBLISH_TOKEN` | `generate-secrets` | Kept as given, since clients hold copies; generated if unset |
 | `SCRAP_ROTATE_MCP_TOKEN` | `generate-secrets` | `true` replaces `SCRAP_MCP_TOKEN` with a new one |
 | `OFFSITE_BACKUP_RCLONE_CONF_B64` | `generate-secrets` | The off-site backup's `rclone.conf`, base64-encoded; resealed as given |
+| `OFFSITE_BACKUP_B2_RCLONE_CONF_B64` | `generate-secrets` | The B2 off-site copy's `rclone.conf` (its application key), base64-encoded; resealed as given |
 | `NTFY_<USER>_TOKEN` | `generate-secrets` | One per ntfy user in `scripts/lib/ntfy_auth.py` (for example `NTFY_PHONE_TOKEN`); kept as given, generated if unset |
 | `TF_VAR_state_passphrase` | `scripts/cf-tofu` | OpenTofu state passphrase; else `cloudflare/.secrets/state-passphrase`, else a prompt |
 | `CF_PLAN_TOKEN` | `cf-tofu plan` | Read-only Cloudflare token; else `cloudflare/.secrets/plan-token`, else a prompt |

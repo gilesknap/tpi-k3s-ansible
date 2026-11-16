@@ -102,6 +102,8 @@ nfs:
 # `just seal-rclone-drive <client_secret.json>` and committing
 # additions/backups/templates/offsite-backup-rclone-secret.yaml. Its alerts
 # (additions/grafana/offsite-backup-rules.yaml) fire only while it is enabled.
+# A second target, a Backblaze B2 bucket that nothing can delete from before
+# its retention ends, is set in `b2` below.
 offsite_backup:
   enabled: true
   # 05:30 Europe/London: after the other nightly backups (etcd 23:15,
@@ -112,6 +114,40 @@ offsite_backup:
   # Folder in the Drive's root. With the drive.file scope rclone sees only
   # what it made, so a folder of this name made by hand is a different one.
   drive_root: home-cluster-offsite
+  # What goes to Drive: any of backups (everything under
+  # <nfs.cluster_share_path>/backups), minecraft-nightly (the nightly tarball
+  # of the store and worlds) and minecraft-archive (the world archive). The
+  # minecraft-* ones need minecraft.enabled below.
+  include: [backups, minecraft-nightly, minecraft-archive]
+  # The second off-site target: the offsite-backup-b2 CronJob uploads the
+  # same files, encrypted the same way and with the same pruning, to a
+  # Backblaze B2 bucket made with Object Lock, whose default retention is
+  # compliance mode for 30 days. No credential, not even the account
+  # owner's, can delete or overwrite a version there before its 30 days
+  # are up, so someone with root on the cluster (who can read both rclone
+  # credentials) can wipe Drive and the NAS but not this copy. The job's
+  # pruning only hides files; the bucket's lifecycle rule deletes a hidden
+  # version once its lock has expired. Set enabled to true AFTER the
+  # one-time B2 setup and `just seal-b2-offsite` (docs/how-to/backup-restore.md,
+  # "Second off-site copy: Backblaze B2"). Runs on `schedule`, beside the
+  # Drive job; a failure on either alerts by its CronJob's name.
+  b2:
+    enabled: true
+    # The bucket's name (B2 bucket names are global); the job writes
+    # backups/ at its root.
+    bucket: gk-cluster-offsite
+    # Holds rclone.conf with a [b2] remote: the application key restricted
+    # to the bucket. Sealed by scripts/seal-b2-offsite.
+    secret_name: offsite-backup-b2
+    # As `include` above. Only the NAS backups: the Minecraft tarballs and
+    # archive stay on Drive (the archive has other copies).
+    include: [backups]
+    # backups.prune_days for this bucket; empty means the same as Drive's
+    # (180). A pruned file's versions stay until their 30-day lock ends,
+    # so a value under 30 saves nothing; 30 keeps the bucket at about
+    # 10.5 GB (just over the free 10 GB), 180 at about 46 GB, about $3 a
+    # year (docs/how-to/backup-restore.md, "Cost").
+    prune_days: ""
   # age public key every file is encrypted to: one key for every backup.
   # SYNC: etcd_backup_age_recipient in group_vars/all.yml.
   age_recipient: age13c5tkz4n35adg7vy73c4lk2tj5av2t8sgwy8u60uwx3ue5n5j95sly0x20

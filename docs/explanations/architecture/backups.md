@@ -12,7 +12,9 @@ runbook brings it back. The procedures themselves are in
 ## The shape of it
 
 Backups move outwards in three steps, and every step that leaves the house
-is encrypted to a key the cluster does not have.
+is encrypted to a key the cluster does not have. The NAS backups leave it
+twice: to Google Drive, and to a Backblaze B2 bucket where nothing, not
+even someone who has taken over the cluster, can delete them for 30 days.
 
 ```mermaid
 flowchart LR
@@ -31,6 +33,7 @@ flowchart LR
 
     nuc2["nuc2 local disk<br/>newest scrap run"]
     drive["Google Drive<br/>home-cluster-offsite"]
+    b2["Backblaze B2 bucket<br/>Object Lock, 30 days"]
     key["age private key<br/>offline, with the owner"]
 
     graf -- "CronJobs" --> bk
@@ -40,8 +43,10 @@ flowchart LR
     mc --> live
     bk -- "scrap-backup-copy" --> nuc2
     bk -- "offsite-backup: age, rclone" --> drive
+    bk -- "offsite-backup-b2: age, rclone" --> b2
     live -- "Minecraft tarball: age, rclone" --> drive
     key -. "decrypts" .-> drive
+    key -. "decrypts" .-> b2
     key -. "decrypts etcd bundles" .-> bk
 ```
 
@@ -50,12 +55,13 @@ flowchart LR
    is a different machine from every node, so this covers a dead disk or a
    dead node.
 2. **Off the NAS.** scrap's newest backup is also copied to nuc2's local
-   disk, and everything under `backups/` is uploaded to Google Drive. That
-   covers a dead NAS.
+   disk, and everything under `backups/` is uploaded to Google Drive and to
+   Backblaze B2. That covers a dead NAS, and B2's lock covers an attacker
+   who deletes Drive and the NAS together.
 3. **Encrypted to an offline key.** The etcd bundles are encrypted before
-   they reach the NAS, and everything is encrypted before it reaches Drive,
-   with [age](https://github.com/FiloSottile/age) to one public key. The
-   private key is not on the cluster, the NAS or Drive.
+   they reach the NAS, and everything is encrypted before it reaches Drive
+   or B2, with [age](https://github.com/FiloSottile/age) to one public key.
+   The private key is not on the cluster, the NAS, Drive or B2.
 
 ## What is not in Git
 
@@ -74,6 +80,7 @@ flowchart LR
 | Pre-upgrade etcd snapshots | node02 | Taken by the K3s upgrade Plan; shipped by the same timer | Before each K3s patch upgrade | NAS `backups/etcd/pre-upgrade/` | 4 | Yes | {doc}`/how-to/recover-control-plane` |
 | Sealed Secrets private keys | `kube-system` Secrets | The same timer | 23:15 daily | NAS `backups/etcd/sealed-secrets-keys/` | 14 dated copies, plus the current one | Yes | {ref}`sealed-secrets-key-backup` |
 | Everything under `backups/` on the NAS | The NAS | `offsite-backup` CronJob (`backups`): rclone | 05:30 daily | Drive `home-cluster-offsite/backups/` | Until gone from the NAS for 180 days, and never the 4 newest of a series | Yes | {ref}`offsite-backup` |
+| Everything under `backups/` on the NAS, again | The NAS | `offsite-backup-b2` CronJob (`backups`), once `offsite_backup.b2.enabled`: rclone | 05:30 daily | B2 bucket `backups/`, Object Lock in compliance mode | As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does | Yes | {ref}`offsite-b2` |
 | OpenTofu state for Cloudflare | `cloudflare/terraform.tfstate` in the working copy (gitignored) | By hand | After a change | The owner's own copy | n/a | Yes, by OpenTofu with a passphrase | {doc}`/how-to/cloudflare-as-code` |
 | `admin-auth` (Grafana's built-in admin password) | A Secret in `monitoring` | Not backed up | n/a | Password manager | n/a | n/a | `just set-admin-password` |
 | The age private key | Offline | The owner, in two places | n/a | n/a | n/a | n/a | Without it no encrypted backup can be read |
@@ -96,12 +103,15 @@ Three things in that table deserve a reason:
   the backup matters. K3s also takes its own snapshots twice a day, but they
   stay on node02 and are lost with it.
 
-## The off-site copy
+## The off-site copies
 
 The `offsite-backup` CronJob (`kubernetes-services/additions/backups/`,
 settings in `offsite_backup` in `values.yaml`) uploads to the folder
-`home-cluster-offsite` in a personal Google Drive with rclone. Its rules are
-what make it safe to leave running:
+`home-cluster-offsite` in a personal Google Drive with rclone. The
+`offsite-backup-b2` CronJob runs the same scripts against a Backblaze B2
+bucket, for the NAS backups only (`offsite_backup.b2.include`); each
+target's `include` list says what it gets. Their rules are what make them
+safe to leave running:
 
 - **Encrypted first.** Each file is streamed through `age` straight into
   the upload, so nothing readable is staged anywhere. Files that are
@@ -116,9 +126,18 @@ what make it safe to leave running:
 - **A size check on Minecraft.** A nightly tarball smaller than
   `min_size_percent` (50) of the largest one on Drive fails the run and
   stops pruning, so a wiped source cannot push the good copies out.
-- **Least privilege.** rclone's token has the `drive.file` scope: it sees
-  only files it created. It can delete those, which is an accepted risk
-  ({doc}`/explanations/architecture/security`).
+- **Least privilege.** rclone's Drive token has the `drive.file` scope: it
+  sees only files it created. It can delete those, and someone with root
+  on the cluster can read it and delete the NAS backups too. That used to
+  be an accepted risk; the B2 copy now covers it. The B2 bucket was made
+  with Object Lock in compliance mode and a 30-day default retention, so no
+  key, not even the account owner's, can delete or overwrite a version, or
+  shorten its lock, within 30 days of its upload. The job's own key is also
+  narrow: restricted to the bucket, with no capability that touches
+  retention, legal holds, buckets or keys. Its pruning only hides files,
+  and the bucket's lifecycle rule deletes a hidden version once its lock
+  has expired ({doc}`/explanations/decisions/0014-immutable-offsite-copy`,
+  {doc}`/explanations/architecture/security`).
 - **Three identities.** The NAS squashes root and no single user can read
   everything, so three containers run side by side: `backups` as `nobody`
   for the etcd bundles and tarballs, `scrap` as uid 10001 for scrap's runs,
@@ -155,7 +174,7 @@ flowchart LR
 
     subgraph offnas["Off the NAS"]
         copy["00:50<br/>scrap-backup-copy"]
-        off["05:30<br/>offsite-backup"]
+        off["05:30<br/>offsite-backup,<br/>offsite-backup-b2"]
     end
 
     etcd --> apt --> scrap --> graf --> copy --> k3s --> kured --> off
@@ -175,7 +194,7 @@ Arrows give the order in time, not a dependency between jobs.
 | 01:00 to 02:00 | system-upgrade-controller starts K3s patch upgrades; a pre-upgrade etcd snapshot comes first | `k3s.upgrade_window` |
 | 01:45 | `jellyfin-daily` (Sundays 01:50: `jellyfin-weekly`) | `additions/backups/templates/cronjob-jellyfin.yaml` |
 | 02:30 to 05:00 | kured drains and reboots nodes that need it, one at a time; never ws03 | `kured` |
-| 05:30 | `offsite-backup` to Drive | `offsite_backup.schedule` |
+| 05:30 | `offsite-backup` to Drive, and `offsite-backup-b2` to B2 | `offsite_backup.schedule` |
 
 The order is the design. The etcd backup runs before anything changes the
 nodes, so there is always a snapshot from before the night's patching. The
@@ -195,7 +214,8 @@ delays it, and a job interrupted that way is retried.
   pushes these to the phone through ntfy.
 - **Off-site:** `OffsiteBackupFailed`, `OffsiteBackupStale` and
   `OffsiteBackupNeverSucceeded` (`offsite-backup-rules.yaml`) fire from
-  kube-state-metrics. They are warnings on the push list, so like the etcd
+  kube-state-metrics, per CronJob, so a failure on Drive or on B2 alerts
+  by its own name. They are warnings on the push list, so like the etcd
   alerts they reach the phone through ntfy.
 - **The CronJobs to the NAS** (Grafana, Jellyfin, scrap):
   `BackupJobFailed`, `BackupJobStale` and `BackupJobNeverSucceeded`
@@ -257,7 +277,14 @@ Two cases need no restore at all:
   makes its own, and the rebuild seals every secret again under that key
   ({doc}`/how-to/reflash-rebuild`). The reasoning is on
   the {doc}`storage page </explanations/architecture/storage>`.
-- **Losing Drive** loses only the third copy.
+- **Losing Drive** loses only the third copy: the NAS backups are on B2
+  too.
+
+One loss needs a different start: **an attacker who deleted Drive and the
+NAS backups** (anyone with root on the cluster can). B2 still holds every
+version uploaded in the last 30 days: take the cluster's keys away, read
+the bucket as it was before the attack, and rebuild from it
+({ref}`restore-after-attack`).
 
 The one loss with no recovery is the age private key together with the
 cluster: the encrypted backups then cannot be read. That is why the key is

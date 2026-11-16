@@ -30,15 +30,23 @@ jellyfin:
   uid: 122
   gid: 124
   image: docker.io/keinos/sqlite3:3.54.1
-# The off-site copy to Google Drive (templates/cronjob-offsite.yaml),
-# rendered only when enabled. In the cluster these come from offsite_backup
-# in kubernetes-services/values.yaml (see the comments there), with the
+# The off-site copies (templates/cronjob-offsite.yaml): to Google Drive,
+# rendered only when enabled, and to a Backblaze B2 bucket, only when
+# b2.enabled too. In the cluster these come from offsite_backup in
+# kubernetes-services/values.yaml (see the comments there), with the
 # Minecraft paths filled in from its minecraft and nfs_csi blocks.
 offsite_backup:
   enabled: false
   schedule: "30 5 * * *"
   time_zone: Europe/London
   drive_root: home-cluster-offsite
+  include: [backups, minecraft-nightly, minecraft-archive]
+  b2:
+    enabled: false
+    bucket: ""
+    secret_name: offsite-backup-b2
+    include: [backups]
+    prune_days: ""
   age_recipient: age13c5tkz4n35adg7vy73c4lk2tj5av2t8sgwy8u60uwx3ue5n5j95sly0x20
   secret_name: offsite-backup-rclone
   image: docker.io/rclone/rclone:1.75.2

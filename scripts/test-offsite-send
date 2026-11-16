@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Tests send() in kubernetes-services/additions/backups/files/offsite-lib.sh,
+# the off-site backup's upload step, for both targets (drive: a temporary
+# .partial- name renamed on success; b2: straight to the final name through
+# a fifo). It runs the library under busybox sh, as the rclone image does,
+# with the real rclone against its local backend standing in for the
+# remote, and a stand-in for age (the encryption is not under test).
+#
+# The local backend writes a streamed file in place as it arrives, where B2
+# shows a large file only once rclone finishes it (after the end of the
+# stream). So for b2 the cases raise --streaming-upload-cutoff above every
+# stream, and rclone buffers each whole stream before writing: as on B2,
+# only a stream rclone saw the end of becomes a file.
+#
+# For each target it checks that a good upload lands under its name, and
+# that a producer that fails part-way (after writing some of the stream),
+# or at once, makes send fail and leaves nothing under the destination's
+# name (nor a .partial- file). Run by `just check`.
+#
+# Usage: scripts/test-offsite-send
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+lib=$here/kubernetes-services/additions/backups/files/offsite-lib.sh
+
+for tool in busybox rclone; do
+    if ! command -v "$tool" >/dev/null; then
+        echo "test-offsite-send: $tool not found, skipped" >&2
+        exit 0
+    fi
+done
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-offsite-send.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/bin" "$tmp/remote" "$tmp/work"
+# age stand-in: passes the stream through.
+printf '#!/bin/sh\nexec cat\n' >"$tmp/bin/age"
+chmod +x "$tmp/bin/age"
+
+# The cases, in busybox sh. Each prints "ok ..." or "FAIL ...".
+cat >"$tmp/cases.sh" <<'EOF'
+set -eu
+set -o pipefail
+# shellcheck source=/dev/null
+. "$LIB"
+failed=0
+check() { # NAME EXPECTED-RC RC DEST [CONTENT]
+    _why=
+    if [ "$2" = 0 ] && [ "$3" -ne 0 ]; then _why="returned $3"; fi
+    if [ "$2" != 0 ] && [ "$3" -eq 0 ]; then _why="returned 0"; fi
+    if [ $# -ge 5 ]; then
+        [ "$(cat "$4" 2>/dev/null)" = "$5" ] || _why="$_why; wrong or no file"
+    elif [ -e "$4" ]; then
+        _why="$_why; left $4"
+    fi
+    for _p in "${4%/*}"/.partial-*; do
+        [ -e "$_p" ] && _why="$_why; left ${_p##*/}"
+    done
+    if [ -n "$_why" ]; then
+        echo "FAIL $TARGET $1:$_why"
+        failed=1
+    else
+        echo "ok   $TARGET $1"
+    fi
+}
+# Writes some of the stream, then fails after rclone has started reading.
+fail_late() { head -c "$1" /dev/zero | tr '\0' x; sleep 1; return 3; }
+for TARGET in drive b2; do
+    if [ "$TARGET" = b2 ]; then export RCLONE_STREAMING_UPLOAD_CUTOFF=10M; fi
+    d=$REMOTE/$TARGET
+    mkdir -p "$d"
+    rc=0; send "$d/good.age" age printf 'hello\n' || rc=$?
+    check "good upload" 0 "$rc" "$d/good.age" hello
+    rc=0; send "$d/late-small.age" age fail_late 1000 || rc=$?
+    check "producer fails part-way (small stream)" 1 "$rc" "$d/late-small.age"
+    rc=0; send "$d/late-large.age" age fail_late 300000 || rc=$?
+    check "producer fails part-way (large stream)" 1 "$rc" "$d/late-large.age"
+    rc=0; send "$d/missing.age" as-is cat "$WORK/no-such-file" 2>/dev/null || rc=$?
+    check "producer fails at once" 1 "$rc" "$d/missing.age"
+done
+exit "$failed"
+EOF
+
+PATH=$tmp/bin:$PATH RCLONE_CONFIG=/dev/null LIB=$lib REMOTE=$tmp/remote \
+    WORK=$tmp/work AGE_RECIPIENT=age1test \
+    busybox sh "$tmp/cases.sh" 2>"$tmp/stderr" || {
+    echo "--- stderr" >&2
+    cat "$tmp/stderr" >&2
+    exit 1
+}

@@ -114,26 +114,35 @@ seal-ntfy *args:
 seal-rclone-drive client_secret_json:
     scripts/seal-rclone-drive "{{ client_secret_json }}"
 
-# Run the off-site backup to Google Drive now and follow its logs
-offsite-backup-now:
+# Seal the Backblaze B2 key for the second off-site copy (asks for it; prints nothing secret)
+seal-b2-offsite:
+    scripts/seal-b2-offsite
+
+# Run an off-site backup now and follow its logs: target drive (default) or b2
+offsite-backup-now target="drive":
     #!/usr/bin/env bash
     set -euo pipefail
-    # Refuse while a run (scheduled or manual) is going: two runs at once
-    # would upload the same files twice.
-    active=$(kubectl -n backups get jobs -l app.kubernetes.io/name=offsite-backup -o json |
+    case "{{ target }}" in
+        drive) cronjob=offsite-backup ;;
+        b2) cronjob=offsite-backup-b2 ;;
+        *) echo "target must be drive or b2" >&2; exit 2 ;;
+    esac
+    # Refuse while a run (scheduled or manual) of that target is going: two
+    # runs at once would upload the same files twice.
+    active=$(kubectl -n backups get jobs -l "app.kubernetes.io/name=$cronjob" -o json |
         jq -r '[.items[] | select((.status.active // 0) > 0) | .metadata.name] | join(" ")')
     if [ -n "$active" ]; then
         echo "An off-site backup is already running: $active" >&2
         echo "Follow it with: kubectl -n backups logs -f job/<name> --all-containers --prefix" >&2
         exit 1
     fi
-    job=offsite-now-$(date +%s)
-    kubectl -n backups create job --from=cronjob/offsite-backup "$job"
+    job=$cronjob-now-$(date +%s)
+    kubectl -n backups create job --from="cronjob/$cronjob" "$job"
     kubectl -n backups logs -f "job/$job" --all-containers --prefix --pod-running-timeout=5m
 
 # Downloads the newest of each backup, decrypts, checks and deletes it;
 # --rclone-config and --identity work without the cluster (see --help).
-# Read-only restore test of the off-site copy on Google Drive
+# Read-only restore test of an off-site copy (Drive, or --target b2)
 restore-test *args:
     scripts/restore-test {{ args }}
 

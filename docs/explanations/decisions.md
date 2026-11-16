@@ -25,6 +25,7 @@ the {doc}`architecture pages </explanations/architecture>`.
 | 11 | {doc}`MinIO for Open Brain file attachments <decisions/0011-minio-file-attachments>` | Superseded: Open Brain and Supabase removed | No, history |
 | 12 | {doc}`Drop Longhorn in favour of static local PVs and NFS backups <decisions/0012-drop-longhorn>` | Accepted | Yes, except for scrap, which ADR 13 amends ({doc}`/explanations/architecture/storage`) |
 | 13 | {doc}`scrap runs on any node: Litestream on NFS <decisions/0013-scrap-litestream-on-nfs>` | Accepted | Yes ({doc}`/explanations/architecture/backups`) |
+| 14 | {doc}`A second, immutable off-site copy on Backblaze B2 <decisions/0014-immutable-offsite-copy>` | Accepted | Yes, once `offsite_backup.b2.enabled` is on ({doc}`/explanations/architecture/backups`) |
 
 ```{toctree}
 :maxdepth: 1
@@ -42,4 +43,5 @@ decisions/0010-mcp-protocol-github-oauth
 decisions/0011-minio-file-attachments
 decisions/0012-drop-longhorn
 decisions/0013-scrap-litestream-on-nfs
+decisions/0014-immutable-offsite-copy
 ```

@@ -34,7 +34,7 @@ anti-affinity rule asks for a second node, and otherwise prefers the others.
 | `system-upgrade` | Vendored upstream manifests plus two Plans | controller v0.20.2 | `system-upgrade` | 1 (on node02 today) |
 | `intel-gpu-plugin` | Vendored upstream DaemonSet, kustomize patch | 0.37.1 | `intel-gpu-plugin` | DaemonSet on nuc2 only |
 | `nvidia-device-plugin` | `NVIDIA/k8s-device-plugin` chart | 0.20.1 | `nvidia-device-plugin` | DaemonSet on ws03 only |
-| `backups` | Local chart | n/a | `backups` | CronJobs only: `grafana-daily`, `grafana-weekly` (node04), `jellyfin-daily`, `jellyfin-weekly` (nuc2), `offsite-backup` |
+| `backups` | Local chart | n/a | `backups` | CronJobs only: `grafana-daily`, `grafana-weekly` (node04), `jellyfin-daily`, `jellyfin-weekly` (nuc2), `offsite-backup`, `offsite-backup-b2` (when enabled) |
 
 ### Operations UIs and monitoring
 
@@ -260,7 +260,9 @@ CronJobs that write to `/bigdisk/k8s-cluster/backups` on the NAS through the
 static `k8s-cluster-nfs` volume: Grafana's database daily and weekly (on
 node04), Jellyfin's database and config daily and weekly (on nuc2), and
 `offsite-backup`, which at 05:30 uploads every backup, age-encrypted, to the
-Google Drive folder `home-cluster-offsite`. scrap's backups are CronJobs of
+Google Drive folder `home-cluster-offsite`, and, once enabled,
+`offsite-backup-b2`, which uploads the NAS backups to a Backblaze B2 bucket
+with Object Lock. scrap's backups are CronJobs of
 its own chart, and etcd's is a systemd timer on node02. See
 {doc}`/how-to/backup-restore`.
 
