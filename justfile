@@ -154,7 +154,8 @@ unseal-check *args:
 
 # One age key for all three: pasted when asked, or a file as the argument
 # (just drill-monthly /dev/shm/age.key). Adds a dated line to
-# build/restore-test/drill-log.txt (docs/how-to/backup-restore.md, "Restore drills").
+# build/restore-test/drill-log.txt (docs/how-to/backup-restore.md,
+# "Restore drills").
 # Monthly drill: restore-test of Drive and B2, then unseal-check --all
 drill-monthly identity="":
     #!/usr/bin/env bash
@@ -177,20 +178,40 @@ drill-monthly identity="":
             tmpdir=${TMPDIR:-/tmp}
             echo "warning: no writable /dev/shm; the key goes in $tmpdir" >&2
         fi
-        key=$(umask 077; mktemp "$tmpdir/drill-age.XXXXXX") || { echo "cannot make a key file in $tmpdir" >&2; exit 1; }
+        key=$(umask 077; mktemp "$tmpdir/drill-age.XXXXXX") ||
+            { echo "cannot make a key file in $tmpdir" >&2; exit 1; }
         printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
         IFS= read -rs k </dev/tty; echo >/dev/tty
-        case $k in AGE-SECRET-KEY-1*) ;; *) unset k; echo "that is not an age private key" >&2; exit 1 ;; esac
+        case $k in
+            AGE-SECRET-KEY-1*) ;;
+            *) unset k; echo "that is not an age private key" >&2; exit 1 ;;
+        esac
         printf '%s\n' "$k" >"$key" || { unset k; echo "cannot write $key" >&2; exit 1; }
         unset k
         id=$key
     fi
+    # restore-test's decrypted data in RAM when /dev/shm has room for it
+    # (it needs about 1 GB; 2 GiB leaves a margin), else on disk.
+    work=()
+    avail=$(df --output=avail -k /dev/shm 2>/dev/null | tail -n 1 | tr -d ' ')
+    if [ -w /dev/shm ] && [ "${avail:-0}" -ge 2097152 ]; then
+        work=(--work-dir /dev/shm)
+    else
+        echo "warning: under 2 GiB free in /dev/shm; restore-test's decrypted data goes to" \
+            "${TMPDIR:-/tmp}, on disk unless that is RAM-backed" >&2
+    fi
     # Each run's output to the terminal; only PASS, WARN or FAIL captured.
-    # unseal-check exits 3 when all passed but the newest key export is stale.
-    result() { "$@" >&2; case $? in 0) echo PASS ;; 3) echo WARN ;; *) echo FAIL ;; esac; }
-    drive=$(result scripts/restore-test --target drive --identity "$id" --log "$dir/drill-$stamp-drive.txt")
-    b2=$(result scripts/restore-test --target b2 --identity "$id" --log "$dir/drill-$stamp-b2.txt")
-    unseal=$(result scripts/unseal-check --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
+    # Only unseal-check's 3 means WARN (all passed, newest key export stale).
+    restore() { if scripts/restore-test "$@" >&2; then echo PASS; else echo FAIL; fi; }
+    unseal() {
+        scripts/unseal-check "$@" >&2
+        case $? in 0) echo PASS ;; 3) echo WARN ;; *) echo FAIL ;; esac
+    }
+    drive=$(restore --target drive --identity "$id" "${work[@]}" \
+        --log "$dir/drill-$stamp-drive.txt")
+    b2=$(restore --target b2 --identity "$id" "${work[@]}" \
+        --log "$dir/drill-$stamp-b2.txt")
+    unseal=$(unseal --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
     line="$stamp drive=$drive b2=$b2 unseal=$unseal"
     echo "$line" >>"$dir/drill-log.txt"
     echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"

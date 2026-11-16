@@ -1183,7 +1183,10 @@ runs, in turn:
 - `scripts/unseal-check --all` ({ref}`unseal-check`).
 
 It needs the cluster up, since rclone's configs come from its Secrets.
-Each run's log is kept as `build/restore-test/drill-<UTC time>-<check>.txt`,
+restore-test decrypts about 1 GB of backups. The recipe puts that in
+`/dev/shm` (`--work-dir`) when it has 2 GiB free. Otherwise it warns, and
+the decrypted data goes to `$TMPDIR` or `/tmp`, on disk unless that is
+RAM-backed, until each run ends. Each run's log is kept as `build/restore-test/drill-<UTC time>-<check>.txt`,
 and one line per drill is added to `build/restore-test/drill-log.txt`:
 
 ```text
@@ -1206,8 +1209,16 @@ full drill or a `/rebuild-cluster`.
 
 1. Run `just drill-monthly` first: its Drive log has the counts to compare
    against, from the same run.
-2. Download the newest scrap run from Drive and unpack it in the restore
-   scratch folder ({ref}`restore-scratch`), as
+2. Take the run the drill checked, named under "Selected (newest of
+   each)" in its Drive log:
+
+   ```bash
+   grep '^  scrap ' build/restore-test/drill-<UTC time>-drive.txt
+   # e.g.  scrap   backups/scrap/20261205T003000Z.tar.age   ...
+   ```
+
+   Download that file from Drive and unpack it in the restore scratch
+   folder ({ref}`restore-scratch`), as
    `/bigdisk/k8s-cluster/restore-scratch/scrap/<run>/`.
 3. Save this as `restore-drill.yaml`, with `<run>` and the image of the
    running scrap
@@ -1270,7 +1281,9 @@ full drill or a `/rebuild-cluster`.
 
    ```bash
    kubectl apply -f restore-drill.yaml
-   kubectl -n scrap wait --for=jsonpath='{.status.phase}'=Succeeded pod/scrap-restore-drill --timeout=15m
+   # Wait until it has finished, either way (prints Succeeded or Failed).
+   until p=$(kubectl -n scrap get pod scrap-restore-drill -o jsonpath='{.status.phase}') &&
+       [ "$p" = Succeeded ] || [ "$p" = Failed ]; do sleep 10; done; echo "$p"
    kubectl -n scrap logs pod/scrap-restore-drill | tail -n 1
    grep '^scrap ' build/restore-test/drill-<UTC time>-drive.txt
    ```

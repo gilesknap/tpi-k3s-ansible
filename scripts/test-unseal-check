@@ -21,11 +21,22 @@ keygen=$(command -v age-keygen || true)
 if [ -z "$age_bin" ] && [ -x "$HOME/bin/age" ]; then age_bin=$HOME/bin/age; fi
 if [ -z "$keygen" ] && [ -x "$HOME/bin/age-keygen" ]; then keygen=$HOME/bin/age-keygen; fi
 for tool in kubeseal rclone openssl python3; do
-    command -v "$tool" >/dev/null || { echo "test-unseal-check: $tool not found, skipped" >&2; exit 0; }
+    if ! command -v "$tool" >/dev/null; then
+        echo "test-unseal-check: $tool not found, skipped" >&2
+        exit 0
+    fi
 done
-if [ -z "$age_bin" ] || [ -z "$keygen" ]; then
-    echo "test-unseal-check: age or age-keygen not found, skipped" >&2; exit 0
+if [ -z "$age_bin" ]; then
+    echo "test-unseal-check: age not found (PATH or ~/bin/age), skipped" >&2
+    exit 0
 fi
+if [ -z "$keygen" ]; then
+    echo "test-unseal-check: age-keygen not found (PATH or ~/bin/age-keygen), skipped" >&2
+    exit 0
+fi
+# unseal-check directories already in /dev/shm (a run of the real check):
+# only new ones left by these runs count as a failure.
+shm_before=$(ls -d /dev/shm/unseal-check.* 2>/dev/null | sort || true)
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-unseal-check.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
@@ -105,6 +116,8 @@ put() { # KEYFILE [NAME]: an export on the remote, with a good sidecar
 cp bad.yaml.age "$dir/$old"
 printf '[drive]\ntype = local\n' >rclone.conf
 
+secret_b64=$(printf 'hunter2-sentinel' | base64 -w0)
+user_b64=$(printf 'not-a-real-user' | base64 -w0)
 probe_line='PASS testns/probe: 2 key(s): PASSWORD, USERNAME'
 fails=0
 run() { # EXPECT-EXIT EXPECT-LINES(;-separated, may be empty) DESCRIPTION CMD...
@@ -118,7 +131,8 @@ run() { # EXPECT-EXIT EXPECT-LINES(;-separated, may be empty) DESCRIPTION CMD...
     if [ "$st" -ne "$want" ]; then
         echo "FAIL $what: exit $st, wanted $want"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
     fi
-    if grep -q -e hunter2-sentinel -e not-a-real-user -e "$(printf 'hunter2-sentinel' | base64)" out.txt "$tmp/log.txt" 2>/dev/null; then
+    if grep -q -e hunter2-sentinel -e not-a-real-user -e "$secret_b64" -e "$user_b64" \
+        out.txt "$tmp/log.txt" 2>/dev/null; then
         echo "FAIL $what: a value was printed"; fails=$((fails + 1)); return
     fi
     IFS=';' read -ra want_lines <<<"$lines"
@@ -173,8 +187,10 @@ chmod +x stub/kubeseal
 run 1 "missing: PASSWORD" "a sealed key name missing from the Secret" \
     env PATH="$tmp/stub:$PATH" "$check" "${ss[@]}" --keys "$tmp/good.yaml.age" "${id[@]}"
 
-if ls /dev/shm/unseal-check.* >/dev/null 2>&1; then
-    echo "FAIL: unseal-check left a directory in /dev/shm"; fails=$((fails + 1))
+shm_after=$(ls -d /dev/shm/unseal-check.* 2>/dev/null | sort || true)
+left=$(comm -13 <(printf '%s\n' "$shm_before") <(printf '%s\n' "$shm_after") | grep . || true)
+if [ -n "$left" ]; then
+    echo "FAIL: unseal-check left $left"; fails=$((fails + 1))
 fi
 [ "$fails" -eq 0 ] || { echo "test-unseal-check: $fails failed"; exit 1; }
 echo "test-unseal-check: all ok"

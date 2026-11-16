@@ -148,8 +148,12 @@ if [ ! -d "$shm" ] || [ ! -w "$shm" ]; then
     echo "warning: no writable /dev/shm; the decrypted keys go in $shm (on disk unless RAM-backed)" >&2
 fi
 work=
+stale_exit=
 cleanup() {
     local st=$?
+    # 3 means only "all passed, export stale": any other 3 (from a tool
+    # under set -e) is a plain failure.
+    if [ "$st" -eq 3 ] && [ -z "$stale_exit" ]; then st=1; fi
     # Only the directory this script made: never --keys, --identity or
     # --rclone-config.
     if [ -n "$work" ] && [ -d "$work" ]; then
@@ -180,10 +184,11 @@ if [ -n "$keys_file" ]; then
 else
     rconf=$work/rclone.conf
     if [ -n "$rclone_config" ]; then
-        cat "$rclone_config" >"$rconf"
+        cat "$rclone_config" >"$rconf" || { echo "FAIL: cannot copy $rclone_config"; exit 1; }
     else
         kubectl -n backups get secret "$secret" \
-            -o jsonpath='{.data.rclone\.conf}' | base64 -d >"$rconf"
+            -o jsonpath='{.data.rclone\.conf}' | base64 -d >"$rconf" ||
+            { echo "FAIL: cannot read the Secret backups/$secret (give --rclone-config or --keys)"; exit 1; }
     fi
     case $remote in
         drive:*) grep -q '^\[drive\]' "$rconf" || { echo "the rclone config has no [drive] remote" >&2; exit 1; } ;;
@@ -196,12 +201,14 @@ else
     name=$({ grep -E '^sealed-secrets-keys-[0-9]{8}T[0-9]{6}Z\.yaml\.age$' <<<"$listing" | sort | tail -n 1; } || true)
     [ -n "$name" ] || { echo "FAIL: no sealed-secrets-keys-<time>.yaml.age in $remote/$dir"; exit 1; }
     enc=$work/$name
-    rclone --config "$rconf" copyto "$remote/$dir/$name" "$enc"
+    rclone --config "$rconf" copyto "$remote/$dir/$name" "$enc" ||
+        { echo "FAIL: could not download $dir/$name"; exit 1; }
     rclone --config "$rconf" copyto "$remote/$dir/$name.sha256.age" "$work/$name.sha256.age" ||
         fail "no $name.sha256.age sidecar on the remote"
     ts=${name#sealed-secrets-keys-}
     ts=${ts%.yaml.age}
-    made=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2}T${ts:9:2}:${ts:11:2}:${ts:13:2}Z" +%s)
+    made=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2}T${ts:9:2}:${ts:11:2}:${ts:13:2}Z" +%s) ||
+        { echo "FAIL: cannot read the time in $name"; exit 1; }
     hours=$((($(date +%s) - made) / 3600))
     echo "key export: $dir/$name ($(stat -c %s "$enc") bytes, ${hours} h old)"
     if [ "$hours" -gt "$max_age_hours" ]; then
@@ -322,5 +329,5 @@ else
 fi
 echo "(downloads and decrypted keys deleted; this log: $log)"
 if [ "$fails" -gt 0 ]; then exit 1; fi
-if [ -n "$warn" ]; then exit 3; fi
+if [ -n "$warn" ]; then stale_exit=1; exit 3; fi
 exit 0
