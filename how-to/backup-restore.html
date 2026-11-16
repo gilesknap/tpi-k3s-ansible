@@ -825,6 +825,51 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class=
 new secrets with it, since its certificate is the newest; the restored keys
 still decrypt the SealedSecrets in Git.</p>
 </section>
+<section id="check-the-keys-open-the-sealedsecrets">
+<span id="unseal-check"></span><h3>Check the keys open the SealedSecrets<a class="headerlink" href="#check-the-keys-open-the-sealedsecrets" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">scripts/unseal-check</span></code> (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">unseal-check</span></code>) proves that the key export in
+the off-site copy still opens the SealedSecrets in Git, as it would have to
+after the cluster died. It is read-only. It:</p>
+<ol class="arabic simple">
+<li><p>downloads the newest dated export,
+<code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys/sealed-secrets-keys-&lt;UTC</span> <span class="pre">time&gt;.yaml.age</span></code>,
+and its <code class="docutils literal notranslate"><span class="pre">.sha256.age</span></code> sidecar, from Drive or, with <code class="docutils literal notranslate"><span class="pre">--target</span> <span class="pre">b2</span></code>, from B2;</p></li>
+<li><p>checks the sidecar and decrypts the export with the backup age key;</p></li>
+<li><p>runs <code class="docutils literal notranslate"><span class="pre">kubeseal</span> <span class="pre">--recovery-unseal</span></code> on one SealedSecret
+(<code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret</span></code> by default; <code class="docutils literal notranslate"><span class="pre">--all</span></code> takes every one under
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code>);</p></li>
+<li><p>prints each Secret’s key names, never a value, and checks that every
+name the SealedSecret gives (<code class="docutils literal notranslate"><span class="pre">encryptedData</span></code>, and <code class="docutils literal notranslate"><span class="pre">template.data</span></code> if
+any) is there.</p></li>
+</ol>
+<p>The downloads, the decrypted keys and a pasted age key are kept in
+<code class="docutils literal notranslate"><span class="pre">/dev/shm</span></code> and deleted on exit; without a writable <code class="docutils literal notranslate"><span class="pre">/dev/shm</span></code> it refuses
+to run. The unsealed Secret goes through a pipe
+and is never stored. kubeseal runs with <code class="docutils literal notranslate"><span class="pre">KUBECONFIG</span></code> set to a path that
+does not exist, so it never talks to a cluster. The result is in
+<code class="docutils literal notranslate"><span class="pre">build/restore-test/unseal-check-last-run.txt</span></code>.</p>
+<p>The only thing it reads from the cluster is rclone’s config, from the
+<code class="docutils literal notranslate"><span class="pre">offsite-backup-rclone</span></code> Secret (<code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> for B2). With the cluster
+dead, give it the config, or an export you already hold:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># With the cluster up:</span>
+just<span class="w"> </span>unseal-check
+just<span class="w"> </span>unseal-check<span class="w"> </span>--target<span class="w"> </span>b2<span class="w"> </span>--all
+<span class="c1"># Without the cluster: rclone&#39;s config (&quot;rclone without the cluster&quot;)</span>
+<span class="c1"># and the age key from files in /dev/shm.</span>
+just<span class="w"> </span>unseal-check<span class="w"> </span>--rclone-config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+<span class="c1"># Without rclone either: your offline copy of the keys.</span>
+just<span class="w"> </span>unseal-check<span class="w"> </span>--keys<span class="w"> </span>~/sealed-secrets-keys-&lt;date&gt;.yaml.age
+</pre></div>
+</div>
+<p>When everything passes but the newest export is over 48 hours old
+(<code class="docutils literal notranslate"><span class="pre">--max-age-hours</span></code>), it says <code class="docutils literal notranslate"><span class="pre">WARN</span></code> and exits with status 3: the nightly
+etcd backup or the off-site job has stopped. A FAIL (status 1) with
+<code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">key</span> <span class="pre">could</span> <span class="pre">decrypt</span> <span class="pre">secret</span></code> means the export no longer matches the
+SealedSecrets in Git, for example after a rebuild whose new key has not
+reached the off-site copy yet. Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">etcd-backup-now</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">offsite-backup-now</span></code> for Drive and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">offsite-backup-now</span> <span class="pre">b2</span></code> for
+B2.</p>
+</section>
 </section>
 <section id="etcd-backup-and-restore">
 <h2>etcd backup and restore<a class="headerlink" href="#etcd-backup-and-restore" title="Link to this heading">#</a></h2>
@@ -1569,6 +1614,146 @@ left on Drive or the archive’s other copies.</p></li>
 </ol>
 </section>
 </section>
+<section id="restore-drills">
+<span id="id3"></span><h2>Restore drills<a class="headerlink" href="#restore-drills" title="Link to this heading">#</a></h2>
+<p>A backup counts only if it restores. Run these on a schedule, and write
+down anything that breaks.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>When</p></th>
+<th class="head"><p>What</p></th>
+<th class="head"><p>How</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Monthly</p></td>
+<td><p>List and decrypt-check both off-site copies, and open the SealedSecrets with the off-site keys</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">drill-monthly</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Quarterly</p></td>
+<td><p>The monthly drill, plus a scrap restore from Drive into a throwaway pod</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">drill-monthly</span></code>, then “Quarterly: restore scrap into a throwaway pod” below</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">drill-monthly</span></code> asks for the age private key once, or takes a key
+file as its argument (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">drill-monthly</span> <span class="pre">/dev/shm/age.key</span></code>). Then it
+runs, in turn:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/restore-test</span> <span class="pre">--target</span> <span class="pre">drive</span></code> (<a class="reference internal" href="#offsite-restore-test"><span class="std std-ref">Test a restore</span></a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/restore-test</span> <span class="pre">--target</span> <span class="pre">b2</span></code> (<a class="reference internal" href="#offsite-b2-restore"><span class="std std-ref">Restore from B2</span></a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/unseal-check</span> <span class="pre">--all</span></code> (<a class="reference internal" href="#unseal-check"><span class="std std-ref">Check the keys open the SealedSecrets</span></a>).</p></li>
+</ul>
+<p>It needs the cluster up, since rclone’s configs come from its Secrets.
+restore-test decrypts about 1 GB of backups. The recipe puts that in
+<code class="docutils literal notranslate"><span class="pre">/dev/shm</span></code> (<code class="docutils literal notranslate"><span class="pre">--work-dir</span></code>) when it has 2 GiB free. Otherwise it warns, and
+the decrypted data goes to <code class="docutils literal notranslate"><span class="pre">$TMPDIR</span></code> or <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>, on disk unless that is
+RAM-backed, until each run ends. Each run’s log is kept as <code class="docutils literal notranslate"><span class="pre">build/restore-test/drill-&lt;UTC</span> <span class="pre">time&gt;-&lt;check&gt;.txt</span></code>,
+and one line per drill is added to <code class="docutils literal notranslate"><span class="pre">build/restore-test/drill-log.txt</span></code>:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>20261205T101500Z drive=PASS b2=PASS unseal=PASS
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">unseal=WARN</span></code> means the keys opened every SealedSecret but the newest
+export is over 48 hours old (<a class="reference internal" href="#unseal-check"><span class="std std-ref">Check the keys open the SealedSecrets</span></a>). The recipe exits 1 on
+any FAIL, 3 on a WARN alone.</p>
+<p>With the cluster dead, run the three scripts by hand with
+<code class="docutils literal notranslate"><span class="pre">--rclone-config</span></code> and <code class="docutils literal notranslate"><span class="pre">--identity</span></code>, as in their sections.</p>
+<section id="quarterly-restore-scrap-into-a-throwaway-pod">
+<h3>Quarterly: restore scrap into a throwaway pod<a class="headerlink" href="#quarterly-restore-scrap-into-a-throwaway-pod" title="Link to this heading">#</a></h3>
+<p>This proves a Drive run restores with <code class="docutils literal notranslate"><span class="pre">scrap</span> <span class="pre">restore</span></code>, without touching
+the live scrap: the restore goes into an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, deleted with the pod.
+A real restore over live scrap (“Restore scrap”) is only for a planned
+full drill or a <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code>.</p>
+<ol class="arabic">
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">drill-monthly</span></code> first: its Drive log has the counts to compare
+against, from the same run.</p></li>
+<li><p>Take the run the drill checked, named under “Selected (newest of
+each)” in its Drive log:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span><span class="s1">&#39;^  scrap &#39;</span><span class="w"> </span>build/restore-test/drill-&lt;UTC<span class="w"> </span>time&gt;-drive.txt
+<span class="c1"># e.g.  scrap   backups/scrap/20261205T003000Z.tar.age   ...</span>
+</pre></div>
+</div>
+<p>Download that file from Drive and unpack it in the restore scratch
+folder (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>), as
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/restore-scratch/scrap/&lt;run&gt;/</span></code>.</p>
+</li>
+<li><p>Save this as <code class="docutils literal notranslate"><span class="pre">restore-drill.yaml</span></code>, with <code class="docutils literal notranslate"><span class="pre">&lt;run&gt;</span></code> and the image of the
+running scrap
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">get</span> <span class="pre">deploy</span> <span class="pre">scrap</span> <span class="pre">-o</span> <span class="pre">jsonpath='{.spec.template.spec.containers[0].image}'</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap-restore-drill</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scrap</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Never</span>
+<span class="w">  </span><span class="nt">automountServiceAccountToken</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">    </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10001</span>
+<span class="w">    </span><span class="nt">seccompProfile</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RuntimeDefault</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">restore</span>
+<span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/gilesknap/scrap:&lt;version&gt;</span>
+<span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">args</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">          </span><span class="no">set -e</span>
+<span class="w">          </span><span class="no"># Into the empty /data ($SCRAP_DATA_DIR): no --stage, no --force.</span>
+<span class="w">          </span><span class="no">scrap restore /backups/&lt;run&gt;</span>
+<span class="w">          </span><span class="no">python - &lt;&lt;&#39;PY&#39;</span>
+<span class="w">          </span><span class="no">import sqlite3</span>
+<span class="w">          </span><span class="no">c = sqlite3.connect(&quot;file:/data/scrap.db?mode=ro&quot;, uri=True)</span>
+<span class="w">          </span><span class="no">q = lambda sql: c.execute(sql).fetchone()[0]</span>
+<span class="w">          </span><span class="no">print(f&quot;pages={q(&#39;SELECT count(*) FROM page&#39;)} &quot;</span>
+<span class="w">                </span><span class="no">f&quot;(live {q(&#39;SELECT count(*) FROM page WHERE deleted_at IS NULL&#39;)}), &quot;</span>
+<span class="w">                </span><span class="no">f&quot;revisions={q(&#39;SELECT count(*) FROM page_rev&#39;)}&quot;)</span>
+<span class="w">          </span><span class="no">PY</span>
+<span class="w">      </span><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">allowPrivilegeEscalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">        </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">capabilities</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">drop</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ALL</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">data</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/data</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">backups</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/backups</span><span class="p p-Indicator">,</span><span class="nt"> readOnly</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">tmp</span><span class="p p-Indicator">,</span><span class="nt"> mountPath</span><span class="p">:</span><span class="w"> </span><span class="nv">/tmp</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">      </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backups</span>
+<span class="w">      </span><span class="nt">nfs</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.3</span><span class="w">   </span><span class="c1"># nfs.server</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bigdisk/k8s-cluster/restore-scratch/scrap</span>
+<span class="w">        </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">      </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</pre></div>
+</div>
+</li>
+<li><p>Run it and compare its last line with the drill’s scrap row:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>restore-drill.yaml
+<span class="c1"># Wait until it has finished, either way (prints Succeeded or Failed).</span>
+<span class="k">until</span><span class="w"> </span><span class="nv">p</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>scrap-restore-drill<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.phase}&#39;</span><span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">    </span><span class="o">[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$p</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>Succeeded<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$p</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>Failed<span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">10</span><span class="p">;</span><span class="w"> </span><span class="k">done</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$p</span><span class="s2">&quot;</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>scrap<span class="w"> </span>logs<span class="w"> </span>pod/scrap-restore-drill<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span>
+grep<span class="w"> </span><span class="s1">&#39;^scrap &#39;</span><span class="w"> </span>build/restore-test/drill-&lt;UTC<span class="w"> </span>time&gt;-drive.txt
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">pages=</span></code>, <code class="docutils literal notranslate"><span class="pre">(live</span> <span class="pre">...)</span></code> and <code class="docutils literal notranslate"><span class="pre">revisions=</span></code> figures must be the same.
+The <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code> is on the node’s disk and needs room for the whole run,
+files included.
+If the pod fails, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">logs</span> <span class="pre">pod/scrap-restore-drill</span></code> gives
+scrap’s reason.</p>
+</li>
+<li><p>Clean up: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">scrap</span> <span class="pre">delete</span> <span class="pre">pod</span> <span class="pre">scrap-restore-drill</span></code>, then remove
+the scratch folder as in <a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>.</p></li>
+</ol>
+</section>
+</section>
 <section id="disaster-recovery">
 <h2>Disaster recovery<a class="headerlink" href="#disaster-recovery" title="Link to this heading">#</a></h2>
 <p>If only the control plane is lost, restore it from the nightly etcd backup
@@ -1673,6 +1858,86 @@ Every world is on <code class="docutils literal notranslate"><span class="pre">n
 claim on <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code>, the default class, also comes back with its data. <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> volumes come back empty, in new
 folders.</p>
 </section>
+<section id="restore-one-minecraft-world-from-drive">
+<span id="restore-minecraft-world"></span><h3>Restore one Minecraft world from Drive<a class="headerlink" href="#restore-one-minecraft-world-from-drive" title="Link to this heading">#</a></h3>
+<p>Use this when one world’s folder is damaged or lost and the dashboard’s own
+snapshots and backups in its store cannot bring it back (if they can,
+restore from the dashboard instead: its copies are taken with the world
+stopped). Only Drive has the Minecraft data: B2 holds none.</p>
+<p>The nightly tarball <code class="docutils literal notranslate"><span class="pre">minecraft/nightly/minecraft-&lt;UTC</span> <span class="pre">time&gt;.tar.age</span></code> holds
+each live world as <code class="docutils literal notranslate"><span class="pre">stable/minecraft/&lt;world&gt;-data/</span></code>, the PVC’s folder on
+the NAS (<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/minecraft/&lt;world&gt;-data</span></code> as NFS clients see
+it). Drive keeps the newest seven. The tarball is taken while the worlds
+run, so a world that was being saved at the time may need a second, older
+tarball. Changes since the tarball are lost.</p>
+<p>The steps below use <code class="docutils literal notranslate"><span class="pre">science-lab</span></code> as the world. They unpack into
+<code class="docutils literal notranslate"><span class="pre">minecraft-restore-scratch/</span></code> in the stable share, beside <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code>, not
+into the cluster share’s <code class="docutils literal notranslate"><span class="pre">restore-scratch/</span></code> (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>). On the
+Ubuntu NAS, <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> is a ZFS dataset of its own, so a move from the
+cluster share would copy the whole world; from a folder on the same share,
+the moves below are renames. The nightly tarball takes only <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> and
+<code class="docutils literal notranslate"><span class="pre">archived-minecraft/</span></code> from that share, so it never uploads this folder.</p>
+<ol class="arabic">
+<li><p><strong>Stop the world</strong> on the dashboard (<a class="reference external" href="https://minecraft.gkcluster.org">https://minecraft.gkcluster.org</a>,
+<strong>Stop</strong>). Check it has no pod:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>get<span class="w"> </span>deploy<span class="w"> </span>science-lab<span class="w">   </span><span class="c1"># READY 0/0</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>science-lab<span class="w">   </span><span class="c1"># nothing</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Pick the tarball</strong> (an rclone config with the <code class="docutils literal notranslate"><span class="pre">[drive]</span></code> remote:
+<a class="reference internal" href="#offsite-rclone-without-cluster"><span class="std std-ref">rclone without the cluster</span></a>, or the one the cluster uses):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>lsf<span class="w"> </span>drive:home-cluster-offsite/minecraft/nightly
+</pre></div>
+</div>
+</li>
+<li><p><strong>Unpack only that world</strong> on the NAS. The tarball is streamed from
+Drive through <code class="docutils literal notranslate"><span class="pre">age</span></code> into <code class="docutils literal notranslate"><span class="pre">tar</span></code> on the NAS, so nothing decrypted is
+written on your machine. <code class="docutils literal notranslate"><span class="pre">tar</span></code> still reads the whole tarball (about
+3.7 GB):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">STABLE</span><span class="o">=</span>/share/CACHEDEV1_DATA/k8s-dynamic/stable<span class="w">   </span><span class="c1"># /k8s-dynamic/stable on the Ubuntu NAS</span>
+<span class="nv">S</span><span class="o">=</span><span class="nv">$STABLE</span>/minecraft-restore-scratch
+<span class="nv">W</span><span class="o">=</span>science-lab
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo mkdir -p </span><span class="nv">$S</span><span class="s2"> &amp;&amp; sudo chown \$(id -u) </span><span class="nv">$S</span><span class="s2">&quot;</span>
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>drive:home-cluster-offsite/minecraft/nightly/minecraft-&lt;time&gt;.tar.age<span class="w"> </span><span class="p">|</span>
+<span class="w">  </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span><span class="p">|</span>
+<span class="w">  </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;tar -xf - -C </span><span class="nv">$S</span><span class="s2"> stable/minecraft/</span><span class="nv">$W</span><span class="s2">-data&quot;</span>
+ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;ls -l </span><span class="nv">$S</span><span class="s2">/stable/minecraft/</span><span class="nv">$W</span><span class="s2">-data/world/level.dat&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Swap the contents</strong> on the NAS. The world’s folder stays where it is,
+with its own owner and mode (made by the NFS CSI driver); only what is
+inside it is replaced. The old contents are kept in <code class="docutils literal notranslate"><span class="pre">minecraft-restore-scratch/</span></code>
+until you are happy:</p>
+<p>If the world’s folder itself is gone, make it first, with the owner and
+mode of another world’s folder (here <code class="docutils literal notranslate"><span class="pre">animal-world-data</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cd </span><span class="nv">$STABLE</span><span class="s2">/minecraft &amp;&amp; sudo mkdir </span><span class="nv">$W</span><span class="s2">-data &amp;&amp;</span>
+<span class="s2">  sudo chown --reference=animal-world-data </span><span class="nv">$W</span><span class="s2">-data &amp;&amp;</span>
+<span class="s2">  sudo chmod --reference=animal-world-data </span><span class="nv">$W</span><span class="s2">-data&quot;</span>
+</pre></div>
+</div>
+<p>Then swap:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;set -e; cd </span><span class="nv">$STABLE</span>
+<span class="s2">  sudo mkdir minecraft-restore-scratch/</span><span class="nv">$W</span><span class="s2">-before</span>
+<span class="s2">  sudo find minecraft/</span><span class="nv">$W</span><span class="s2">-data -mindepth 1 -maxdepth 1 -exec mv {} minecraft-restore-scratch/</span><span class="nv">$W</span><span class="s2">-before/ \;</span>
+<span class="s2">  sudo find minecraft-restore-scratch/stable/minecraft/</span><span class="nv">$W</span><span class="s2">-data -mindepth 1 -maxdepth 1 -exec mv {} minecraft/</span><span class="nv">$W</span><span class="s2">-data/ \;</span>
+<span class="s2">  sudo find minecraft/</span><span class="nv">$W</span><span class="s2">-data -mindepth 1 -exec chown 1000:1000 {} +</span>
+<span class="s2">  ls -ln minecraft/</span><span class="nv">$W</span><span class="s2">-data/world/level.dat&quot;</span>
+</pre></div>
+</div>
+<p>The world’s files must be owned by <code class="docutils literal notranslate"><span class="pre">1000:1000</span></code> (the Minecraft server’s
+uid and gid). The folder itself keeps the owner and mode it has.</p>
+</li>
+<li><p><strong>Start the world</strong> on the dashboard (<strong>Start</strong>), follow its log
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">minecraft</span> <span class="pre">logs</span> <span class="pre">-f</span> <span class="pre">deploy/science-lab</span></code>) until it is ready,
+and join it to check.</p></li>
+<li><p><strong>Clean up</strong> once the world is right: <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">-t</span> <span class="pre">nas</span> <span class="pre">&quot;sudo</span> <span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">${S:?}&quot;</span></code>.
+To go back instead, stop the world and swap <code class="docutils literal notranslate"><span class="pre">minecraft-restore-scratch/$W-before</span></code>
+back in the same way.</p></li>
+</ol>
+</section>
 </section>
 </section>
 
@@ -1740,6 +2005,7 @@ folders.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nightly-encrypted-copy-on-the-nas">Nightly encrypted copy on the NAS</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-an-offline-copy">Keep an offline copy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-the-keys">Restore the keys</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-keys-open-the-sealedsecrets">Check the keys open the SealedSecrets</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-and-restore">etcd backup and restore</a><ul class="nav section-nav flex-column">
@@ -1775,9 +2041,14 @@ folders.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-an-attacker-wiped-drive-and-the-nas">After an attacker wiped Drive and the NAS</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-drills">Restore drills</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quarterly-restore-scrap-into-a-throwaway-pod">Quarterly: restore scrap into a throwaway pod</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disaster-recovery">Disaster recovery</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-losing-the-nas">After losing the NAS</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-worlds-after-a-rebuild">Minecraft worlds after a rebuild</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-one-minecraft-world-from-drive">Restore one Minecraft world from Drive</a></li>
 </ul>
 </li>
 </ul>

@@ -303,7 +303,8 @@ be skipped on restore.
 The dashboard's own snapshots and promoted backups are on the store. The
 nightly off-site job ({ref}`offsite-backup`) uploads a tarball of the store and
 of the worlds' folders (live and archived) to Google Drive, keeps seven, and
-uploads the archive once.
+uploads the archive once. B2 holds no Minecraft data. To bring one world
+back from Drive, see {ref}`restore-minecraft-world`.
 
 ## Troubleshooting
 
