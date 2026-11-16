@@ -164,9 +164,9 @@ API server, kubelet and so on). This cluster adds four rule files in
 | | `K3sEtcdBackupStale` | The newest successful backup is over 36 hours old (for 30 minutes) |
 | | `K3sEtcdBackupNeverSucceeded` | No backup has ever succeeded (for 36 hours) |
 | | `K3sEtcdBackupMetricsMissing` | The job's metrics are absent (for 2 hours): the timer or the textfile collector is broken |
-| `offsite-backup-rules.yaml` | `OffsiteBackupFailed` | The newest run of the `offsite-backup` CronJob failed |
-| | `OffsiteBackupStale` | No off-site backup has succeeded for over 36 hours |
-| | `OffsiteBackupNeverSucceeded` | The CronJob has existed for over 36 hours without a success |
+| `offsite-backup-rules.yaml` | `OffsiteBackupFailed` | The newest run of an off-site CronJob failed: `offsite-backup` (Google Drive) or `offsite-backup-b2` (Backblaze B2), named in its `cronjob` label |
+| | `OffsiteBackupStale` | That CronJob has not succeeded for over 36 hours |
+| | `OffsiteBackupNeverSucceeded` | That CronJob has existed for over 36 hours without a success |
 | `backup-job-rules.yaml` | `BackupJobFailed` | The newest run of a Grafana, Jellyfin or scrap backup CronJob (`grafana-*`, `jellyfin-*`, `scrap-backup*`) failed |
 | | `BackupJobStale` | Its last success is older than its schedule allows: 36 hours for a daily job, 8.5 days for a weekly one, 32 days for `scrap-backup-monthly` |
 | | `BackupJobNeverSucceeded` | The CronJob has existed for that long without a success |
@@ -174,7 +174,8 @@ API server, kubelet and so on). This cluster adds four rule files in
 
 The off-site and backup-job rules use kube-state-metrics' CronJob and Job
 series, which exist only while the CronJob does, so the off-site ones are
-silent when `offsite_backup.enabled` is `false`. A new backup CronJob is
+silent for a target that is not enabled (`offsite_backup.enabled`,
+`offsite_backup.b2.enabled`). A new backup CronJob is
 covered once its name is added to the lists in `backup-job-rules.yaml`. All of the above are `severity: warning` except the 7-day
 certificate alert.
 
@@ -205,7 +206,7 @@ The configuration is the `alertmanager.config` block in `grafana.yaml`.
 | Any `severity=critical` | Yes, ntfy priority 5 (urgent) |
 | The chart's etcd rules at `severity=critical`: `etcdHighNumberOfFailedGRPCRequests`, `etcdGRPCRequestsSlow`, `etcdHighFsyncDurations` (critical variants) and `etcdDatabaseQuotaLowSpace` | Yes, as any critical. Their warning variants and the other etcd rules go to `null` |
 | `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
-| `OffsiteBackup*` (the three off-site backup alerts) | Yes, priority 3 |
+| `OffsiteBackup*` (the three off-site backup alerts, for either target) | Yes, priority 3 |
 | `BackupJob*` (the three alerts for the Grafana, Jellyfin and scrap CronJobs) | Yes, priority 3 |
 | `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |
 | Volumes and filesystems filling up: `KubePersistentVolumeFillingUp`, `KubePersistentVolumeInodesFillingUp`, `NodeFilesystemSpaceFillingUp`, `NodeFilesystemAlmostOutOfSpace`, `NodeFilesystemFilesFillingUp`, `NodeFilesystemAlmostOutOfFiles` | Yes, priority 3 (5 for their critical variants) |

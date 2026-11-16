@@ -1,7 +1,10 @@
-# Alerts for the nightly off-site copy to Google Drive (the offsite-backup
-# CronJob in additions/backups; docs/how-to/backup-restore.md). They use
-# kube-state-metrics' CronJob and Job series, which exist only while the
-# CronJob does, so nothing fires while offsite_backup.enabled is false.
+# Alerts for the nightly off-site copies (additions/backups;
+# docs/how-to/backup-restore.md): the offsite-backup CronJob (Google Drive)
+# and offsite-backup-b2 (Backblaze B2). Each alert is per CronJob, so its
+# `cronjob` label names the target that failed. They use kube-state-metrics'
+# CronJob and Job series, which exist only while a CronJob does, so nothing
+# fires for a target that is not enabled (offsite_backup.enabled,
+# offsite_backup.b2.enabled).
 # They reach ntfy because templates/grafana.yaml routes them by name.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -24,7 +27,7 @@ spec:
               max by (namespace, owner_name) (
                 kube_job_status_start_time{namespace="backups"}
                 * on (namespace, job_name) group_left (owner_name)
-                  kube_job_owner{owner_kind="CronJob", owner_name="offsite-backup"}
+                  kube_job_owner{owner_kind="CronJob", owner_name=~"offsite-backup|offsite-backup-b2"}
                 * on (namespace, job_name) group_left ()
                   (kube_job_failed{condition="true"} == 1)
               ),
@@ -33,38 +36,39 @@ spec:
             > on (namespace, cronjob) group_left ()
             (
               max by (namespace, cronjob) (
-                kube_cronjob_status_last_successful_time{namespace="backups", cronjob="offsite-backup"}
+                kube_cronjob_status_last_successful_time{namespace="backups", cronjob=~"offsite-backup|offsite-backup-b2"}
               )
               or
               max by (namespace, cronjob) (
-                kube_cronjob_info{namespace="backups", cronjob="offsite-backup"}
+                kube_cronjob_info{namespace="backups", cronjob=~"offsite-backup|offsite-backup-b2"}
               ) * 0
             )
           for: 10m
           labels:
             severity: warning
           annotations:
-            summary: The off-site backup to Google Drive failed.
+            summary: The off-site backup {{ $labels.cronjob }} failed.
             description: >-
-              The newest run of the offsite-backup CronJob failed (its
-              retry too). Read its logs:
+              The newest run of the {{ $labels.cronjob }} CronJob failed
+              (its retry too); offsite-backup is the copy to Google Drive,
+              offsite-backup-b2 the one to Backblaze B2. Read its logs:
               `kubectl -n backups logs job/<job> -c backups`, `-c scrap` and
-              `-c minecraft`
+              (Drive) `-c minecraft`
               (`kubectl -n backups get jobs` lists them). A run that fails
               only on its Minecraft size check uploaded the tarball but
               stopped pruning; see docs/how-to/backup-restore.md.
         - alert: OffsiteBackupStale
           expr: >-
             time()
-            - kube_cronjob_status_last_successful_time{namespace="backups", cronjob="offsite-backup"}
+            - kube_cronjob_status_last_successful_time{namespace="backups", cronjob=~"offsite-backup|offsite-backup-b2"}
             > 36 * 3600
           for: 30m
           labels:
             severity: warning
           annotations:
-            summary: No off-site backup has succeeded for over 36 hours.
+            summary: The off-site backup {{ $labels.cronjob }} has not succeeded for over 36 hours.
             description: >-
-              The offsite-backup CronJob last succeeded
+              The {{ $labels.cronjob }} CronJob last succeeded
               {{ $value | humanizeDuration }} ago.
         # kube_cronjob_status_last_successful_time is absent until the
         # first success.
@@ -72,7 +76,7 @@ spec:
           expr: >-
             (
               time()
-              - kube_cronjob_created{namespace="backups", cronjob="offsite-backup"}
+              - kube_cronjob_created{namespace="backups", cronjob=~"offsite-backup|offsite-backup-b2"}
               > 36 * 3600
             )
             unless on (namespace, cronjob)
@@ -81,10 +85,11 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: The off-site backup has never succeeded.
+            summary: The off-site backup {{ $labels.cronjob }} has never succeeded.
             description: >-
-              The offsite-backup CronJob has existed for over 36 hours
+              The {{ $labels.cronjob }} CronJob has existed for over 36 hours
               without a successful run. Check that its SealedSecret
-              (offsite-backup-rclone) decrypted
+              (offsite-backup-rclone for Drive, offsite-backup-b2 for B2)
+              decrypted
               (`kubectl -n backups get sealedsecret,secret`) and read the
               logs of its Jobs.

@@ -27,7 +27,9 @@ token (reseal it with `just cf-seal-tunnel-token` and restart cloudflared).
 
 The backups on the NAS, and the Minecraft data, also go off site: a nightly
 job copies them, age-encrypted, to Google Drive. Not everything in the table
-does; {ref}`offsite-backup` lists what does and does not.
+does; {ref}`offsite-backup` lists what does and does not. A second job
+copies the NAS backups to a Backblaze B2 bucket that nothing, not even a
+compromised cluster, can delete from for 30 days ({ref}`offsite-b2`).
 
 ## Nightly timetable
 
@@ -39,6 +41,7 @@ does; {ref}`offsite-backup` lists what does and does not.
 | 00:50 Europe/London | scrap's newest run, copied off the NAS | CronJob `scrap-backup-copy` in `scrap`, on nuc2 |
 | 01:45 Europe/London (weekly: Sunday 01:50) | Jellyfin | CronJobs `jellyfin-daily`, `jellyfin-weekly` in `backups`, on nuc2 |
 | 05:30 Europe/London | the backups on the NAS and the Minecraft data, to Google Drive | CronJob `offsite-backup` in `backups` |
+| 05:30 Europe/London | the backups on the NAS, to Backblaze B2 (once enabled) | CronJob `offsite-backup-b2` in `backups` |
 
 Every CronJob sets `timeZone: Europe/London`. The jobs before 01:00 run
 clear of the two maintenance windows that drain nodes (K3s upgrades from
@@ -545,7 +548,8 @@ changed under it (an autosave), the tarball is retried, up to 3 times.
 - **Least privilege.** rclone's token has the `drive.file` scope: it sees
   and changes only the files it created, nothing else in the Drive. That
   includes deleting them: someone who takes over the cluster cannot read
-  the off-site copy, but could delete it.
+  the off-site copy, but could delete it. The B2 copy
+  ({ref}`offsite-b2`) is the one they cannot delete.
 - **Add only.** The job never mirrors a deletion: a backup deleted on the
   NAS, by its own retention or by a wiped or encrypted NAS, stays on Drive.
   The only deletions are its own pruning, of files it made:
@@ -615,8 +619,10 @@ would need less: lower `prune_days` (30 gives about 7 GB of backups) and
 ### Alerts
 
 `kubernetes-services/additions/grafana/offsite-backup-rules.yaml` alerts
-from kube-state-metrics' CronJob and Job series, so nothing fires while the
-CronJob is disabled:
+from kube-state-metrics' CronJob and Job series, so nothing fires while a
+CronJob is disabled. Each alert is per CronJob: its `cronjob` label is
+`offsite-backup` (Drive) or `offsite-backup-b2` (B2), so a failure on one
+target shows as that target's:
 
 - `OffsiteBackupFailed`: the newest run failed. A finished Job is deleted
   after a day (`ttlSecondsAfterFinished`), and only the last failed one is
@@ -827,10 +833,283 @@ Then follow "Restore — Grafana sqlite" or "Restore scrap" with the
 `restore-scratch` volume their notes give. Once the restore is checked,
 remove the folder: `ssh -t nas "sudo rm -rf ${S:?}"`.
 
+(offsite-b2)=
+## Second off-site copy: Backblaze B2
+
+The Drive copy protects against a lost NAS, not against someone who takes
+over the cluster. With root on a node, an attacker (or a compromised agent)
+can read the Drive token from its Secret and delete everything the job
+uploaded, and delete the NAS backups too. The second copy is the answer: the
+`offsite-backup-b2` CronJob uploads the NAS backups to a
+[Backblaze B2](https://www.backblaze.com/cloud-storage) bucket made with
+**Object Lock in compliance mode**, with a default retention of 30 days.
+Every version uploaded there is then immutable for 30 days: no application
+key, not even the account owner's master key, can delete or overwrite it,
+or shorten its retention, until the 30 days are up. {doc}`ADR 14 </explanations/decisions/0014-immutable-offsite-copy>`
+records the decision.
+
+It is the same job as the Drive one (the same scripts, the same age key,
+the same names and layout under `backups/`, the same pruning rules), as a
+second CronJob with its own Secret. It is off until the owner has done the
+one-time setup below: `offsite_backup.b2.enabled` is `false`, and with it
+off nothing is rendered.
+
+### What goes to B2
+
+Only the NAS `backups/` tree (`offsite_backup.b2.include: [backups]`):
+scrap's runs, the Grafana and Jellyfin tarballs, the etcd bundles and the
+sealed-secrets key exports. The Minecraft nightly tarball and the world
+archive stay on Drive only; the archive has other copies. `include` takes
+the same three entries as the Drive job's `offsite_backup.include`
+(`backups`, `minecraft-nightly`, `minecraft-archive`), so either can be
+added to B2 later.
+
+### How it differs from Drive
+
+- **Its key cannot touch the locks.** The application key in the
+  `offsite-backup-b2` Secret is restricted to the one bucket, with only
+  `listBuckets`, `listFiles`, `readFiles`, `writeFiles` and `deleteFiles`.
+  It has none of `bypassGovernance`, `writeBucketRetentions`,
+  `writeFileRetentions`, `writeFileLegalHolds`, `writeBuckets` or
+  `deleteBuckets`, and no key capabilities. That is least privilege, not
+  the protection itself: compliance mode is what stops a deletion, and it
+  holds against a key with every capability.
+- **Deleting only hides.** On B2 rclone's `deletefile` hides a file (the
+  job never uses `--b2-hard-delete`; `RCLONE_B2_HARD_DELETE=false` is set
+  in the CronJob and `hard_delete = false` in its config). The job's
+  pruning keeps its Drive semantics: a hidden file is gone from the
+  listing, and the bucket's lifecycle rule deletes the hidden version a day
+  later, but only once its lock has expired. A prune touches only files
+  uploaded over `prune_days` (180) ago, long past their lock, so pruning
+  frees space as on Drive. An attacker's hide or overwrite, by contrast,
+  leaves the locked version in place for the rest of its 30 days.
+- **No temporary names.** On Drive a stream goes to a `.partial-` name and
+  is renamed once complete. On B2 a rename is a copy, and the temporary
+  version would be locked for 30 days too. So the stream goes straight to
+  its final name, and rclone reads it through a fifo that the script holds
+  open until the whole pipeline (tar, age) has finished: if anything
+  failed, rclone is killed before it sees the end of the stream, so a
+  cut-off upload never becomes a file. A large upload killed half-way is
+  an unfinished large file, which the lifecycle rule cancels after a day.
+- **No folders.** B2 has none, so there is no init container to make them.
+
+**What the lock protects.** Retention runs from each version's upload, so
+what is immutable at any moment is everything uploaded in the last 30 days.
+That always includes the newest backups of every kind, as long as the job
+runs nightly. An older file (a monthly scrap run from last year, say) is
+past its lock, so the job's key could delete it. 30 days is far longer than
+tampering would go unnoticed: a stopped or failing job raises
+`OffsiteBackupStale` or `OffsiteBackupFailed` within 36 hours. The residual
+risk is an attacker who silences both the job and the alerts and then waits
+over 30 days; there is no external dead-man switch.
+
+### Cost
+
+B2 charges $6 per TB-month for storage; the first 10 GB are free, uploads
+are free, and downloads are free up to three times what is stored. The
+job's listings fit in the free daily transaction allowance.
+
+What the bucket holds, at the default `prune_days` of 180:
+
+- the backups now on the NAS: about 3.3 GB (`backups/` today);
+- each backup deleted from the NAS in the last 180 days. About 240 MB of new
+  backups a day (etcd 50 MB, Jellyfin 70 MB, scrap 120 MB) means about
+  240 MB a day leaving the NAS too: about 43 GB once the job has run for
+  six months;
+- the lock adds almost nothing: a pruned file is over 180 days old, long
+  past its lock, so it goes a day after it is hidden. Only failed uploads
+  and anything an attacker hid or overwrote stay the extra 30 days.
+
+So about 3.3 GB at the start, growing by about 7 GB a month to about
+46 GB after six months. That is free for about the first month, then
+about (46 - 10) GB x $6/TB = $0.22 a month (about $2.60 a year) at the
+steady state. Setting `offsite_backup.b2.prune_days` to 30 keeps it at
+about 3.3 + 30 x 0.24 = 10.5 GB, inside the free tier, at the cost of
+keeping deleted backups for only 30 days on B2 (Drive still keeps them for
+180). Values under 30 save nothing, as every version is kept for its 30
+days anyway.
+
+For comparison, the Minecraft data B2 does not get would cost more than all
+of this: the archive is about 6 GB, and with the 30-day lock each nightly
+tarball (about 3.6 GB) would be kept for 30 days, not 7: about 108 GB, or
+about $0.65 a month.
+
+### Set it up
+
+The owner does this once. Have the age key pair of the other backups, and
+the devcontainer (it has rclone, `curl`, `jq`, `yq` and `kubeseal`).
+
+1. **Make a Backblaze account** for B2 Cloud Storage. Pick the region when
+   signing up (EU Central suits a UK cluster; the price is the same), and
+   turn on two-factor sign-in. The account's master application key is
+   only for these steps: it never goes in the cluster.
+2. **Install the B2 command-line tool** and sign in with the master key.
+   In a devcontainer terminal:
+
+   ```bash
+   uv tool install b2
+   b2 account authorize     # asks for the master keyID and key, not echoed
+   ```
+
+3. **Make the bucket**, private, with Object Lock enabled (it can only be
+   turned on when the bucket is made), a default retention of compliance
+   mode for 30 days, and a lifecycle rule that deletes hidden versions
+   after a day and cancels unfinished large uploads after a day. Bucket
+   names are global: pick one no one else has, e.g.
+   `tpi-k3s-offsite-<something of your own>`:
+
+   ```bash
+   BUCKET=tpi-k3s-offsite-<something of your own>
+   b2 bucket create --file-lock-enabled \
+       --lifecycle-rule '{"fileNamePrefix": "", "daysFromUploadingToHiding": null, "daysFromHidingToDeleting": 1, "daysFromStartingToCancelingUnfinishedLargeFiles": 1}' \
+       "$BUCKET" allPrivate
+   b2 bucket update --default-retention-mode compliance \
+       --default-retention-period "30 days" "$BUCKET"
+   b2 bucket get "$BUCKET"
+   ```
+
+   The last command shows the settings: check `isFileLockEnabled` is
+   `true`, the default retention is `compliance` for 30 days, and the
+   lifecycle rule. The same is under **Buckets** in the web UI (Object
+   Lock, Lifecycle Settings), where it can also be set by hand. These
+   flags are those of the B2 CLI version 4; if one is refused, `b2 bucket
+   create --help` gives its current name. Do not choose a longer retention
+   on a whim: in compliance mode it cannot be shortened, and everything
+   uploaded is paid for until it ends.
+4. **Make the job's key**, restricted to the bucket, with only the five
+   capabilities it needs:
+
+   ```bash
+   b2 key create --bucket "$BUCKET" offsite-backup-k3s \
+       listBuckets,listFiles,readFiles,writeFiles,deleteFiles
+   ```
+
+   It prints the new keyID and application key, once: leave them on the
+   screen for the next step. (The web UI's **Application Keys** page can
+   restrict a key to the bucket too, but its access choices add
+   capabilities the job must not have, which the next step refuses.)
+5. **Seal it.** Put the bucket's name in `offsite_backup.b2.bucket` in
+   `kubernetes-services/values.yaml` first, then:
+
+   ```bash
+   just seal-b2-offsite
+   ```
+
+   It asks for the keyID and the key (neither is echoed), checks with B2
+   that the key is restricted to that bucket, has the five capabilities and
+   nothing that writes retention, legal holds, buckets or keys, and that the
+   bucket's lifecycle rule deletes hidden versions; then it seals a `[b2]`
+   rclone remote into
+   `kubernetes-services/additions/backups/templates/offsite-backup-b2-secret.yaml`.
+   Nothing secret is printed or written to disk. Then sign the CLI out, so
+   the master key is not left on disk: `b2 account clear`.
+6. **Turn it on.** Set `offsite_backup.b2.enabled: true`, commit the sealed
+   file and `values.yaml`, open a PR and merge it.
+7. **Run it once now**, and prove a restore:
+
+   ```bash
+   just offsite-backup-now b2
+   just restore-test --target b2
+   ```
+
+   The first run uploads the whole `backups/` tree (about 3.3 GB).
+
+Optionally, under **Caps & Alerts** in the web UI, set an email alert on
+storage, so a sudden growth (someone filling the bucket) is seen.
+
+A rebuild keeps the key: `scripts/export-external-creds` exports it as
+`OFFSITE_BACKUP_B2_RCLONE_CONF_B64` and the rebuild reseals it
+({doc}`/how-to/manage-sealed-secrets`). To replace the key, make a new one
+as in step 4, run step 5 again and commit, then delete the old key
+(`b2 key delete <keyID>`, signed in with the master key).
+
+(offsite-b2-restore)=
+### Restore from B2
+
+Make an rclone config with a `[b2]` remote in RAM-backed `/dev/shm`, in
+one of these ways:
+
+- **From `.env`**, if `just export-external-creds` has written it:
+
+  ```bash
+  (umask 077; grep '^OFFSITE_BACKUP_B2_RCLONE_CONF_B64=' .env | cut -d= -f2- |
+      base64 -d >/dev/shm/rclone.conf)
+  ```
+
+- **A new read-only key**, which is safer anyway when the cluster may be
+  compromised: sign in to the B2 web UI, **Application Keys**, **Add a New
+  Application Key**, restricted to the bucket, **Read Only**. Then run
+  `(umask 077; rclone config --config /dev/shm/rclone.conf)` and answer: `n`
+  (new remote); name `b2`; storage `b2`; the keyID and key at their prompts;
+  `hard_delete` false; no advanced config; `y`; then `q`.
+
+The bucket holds `backups/` at its root, laid out as on Drive. The current
+files:
+
+```bash
+rclone --config /dev/shm/rclone.conf lsf -R b2:<bucket>/backups/grafana
+rclone --config /dev/shm/rclone.conf copy b2:<bucket>/backups/grafana/<file>.tar.gz.age .
+```
+
+Then decrypt and restore as in "Restore from Drive". The restore test
+works the same way: `just restore-test --target b2` (add
+`--rclone-config /dev/shm/rclone.conf --identity /dev/shm/age.key` without
+the cluster).
+
+**An older version.** B2 keeps every version for the 30 days of its lock,
+including those hidden by pruning or by an attacker, and those overwritten.
+Two rclone flags reach them:
+
+- `--b2-version-at TIME` shows the bucket as it was at `TIME` (a date and
+  time, e.g. `2026-11-10T00:00:00Z`, or an age, e.g. `7d`): every listing
+  and copy then sees the files that were current then.
+
+  ```bash
+  rclone --config /dev/shm/rclone.conf --b2-version-at 2026-11-10T00:00:00Z \
+      lsf -R b2:<bucket>/backups/scrap
+  just restore-test --target b2 --at 2026-11-10T00:00:00Z
+  ```
+
+- `--b2-versions` lists every version, the older ones with their upload
+  time in the name (`<name>-v2026-11-10-053012-000.tar.age`); copy one by
+  that name with the same flag.
+
+(restore-after-attack)=
+### After an attacker wiped Drive and the NAS
+
+Someone with root on the cluster has deleted the Drive copy and the NAS
+backups (and perhaps the live data). The B2 versions from the last 30
+days are still there.
+
+1. **Take the cluster's keys away**, from a machine outside the cluster:
+   delete the B2 key in the web UI (**Application Keys**) and revoke the
+   Drive token (the Google account's third-party access page). The
+   attacker can then neither hide more on B2 nor fill the bucket. Hidden
+   versions stay until their lock expires, so do not wait: the clock runs
+   from each upload, and the newest backups have up to 30 days left.
+2. **Find when it happened.** List with `--b2-versions` and with
+   `--b2-version-at` at a few times, and pick a time before the first
+   hide or overwrite, when the newest scrap run and etcd bundle were in
+   place.
+3. **Check that time's copy**:
+   `just restore-test --target b2 --at <time> --rclone-config /dev/shm/rclone.conf --identity /dev/shm/age.key`.
+4. **Rebuild** as in "Disaster recovery" below: rebuild the NAS directories
+   and the nodes (a compromised cluster is rebuilt, not cleaned), and
+   restore everything from B2 with `--b2-version-at <time>` in place of
+   Drive. The sealing keys are in the etcd folder's dated exports
+   (`backups/etcd/sealed-secrets-keys/`), so the SealedSecrets in Git
+   decrypt again ({ref}`sealed-secrets-key-backup`). Then seal new
+   credentials: a new B2 key (step 4 and 5 of "Set it up") and a new Drive
+   token (`just seal-rclone-drive`), and rotate everything else the
+   attacker could read.
+5. **The Minecraft data** is not on B2: restore the worlds from what is
+   left on Drive or the archive's other copies.
+
 ## Disaster recovery
 
 If only the control plane is lost, restore it from the nightly etcd backup
-instead: {doc}`/how-to/recover-control-plane`.
+instead: {doc}`/how-to/recover-control-plane`. If someone took over the
+cluster and deleted the backups, start with {ref}`restore-after-attack`.
 
 To rebuild the cluster from scratch (the full walk-through is
 {doc}`/tutorials/build-the-cluster`; a planned rebuild of the running

@@ -75,6 +75,7 @@ committed; none prints a secret unless the table says so
 | `just seal-ntfy [args]` | Seals ntfy's users and tokens, keeping the live values unless `--rotate <user>` | {doc}`/how-to/ntfy` |
 | `just ntfy-tokens` | Prints the phone's and the VPS's ntfy tokens from the live Secret | Prints secrets: run it yourself in a devcontainer terminal, not through Claude |
 | `just seal-rclone-drive <client_secret.json>` | Gets a Google Drive token through a browser consent and seals rclone's config for the off-site backup | Devcontainer terminal, with a browser on the same machine ({ref}`offsite-backup`) |
+| `just seal-b2-offsite` | Asks for the Backblaze B2 key (not echoed), checks with B2 that it is restricted to the off-site bucket with only the capabilities the job needs, and seals it | Devcontainer terminal ({ref}`offsite-b2`) |
 | `just set-admin-password` | Sets the `admin-auth` Secret that Grafana's built-in admin reads | Reads `ADMIN_PASSWORD` or prompts; writes to the cluster, not to Git |
 
 ### Backups
@@ -82,7 +83,7 @@ committed; none prints a secret unless the table says so
 | Recipe | What it does | Notes |
 |--------|--------------|-------|
 | `just etcd-backup-now` | Starts the encrypted etcd backup on `node02` and shows its log and metrics | Over SSH ({ref}`etcd-offsite-backup`) |
-| `just offsite-backup-now` | Starts the off-site backup to Google Drive as a one-off Job and follows its logs; refuses if one is already running | {ref}`offsite-backup` |
+| `just offsite-backup-now [drive\|b2]` | Starts the off-site backup to Google Drive (default) or Backblaze B2 as a one-off Job and follows its logs; refuses if one of that target is already running | {ref}`offsite-backup`, {ref}`offsite-b2` |
 
 ### Bootstrap and rebuild
 

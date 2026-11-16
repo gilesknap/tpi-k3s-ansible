@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck shell=busybox
 # Off-site copy of the NAS backups tree (backups/ of the cluster share) to
-# DRIVE_ROOT/backups, in one of two scopes (the first argument), each run by
+# DEST_ROOT/backups, in one of two scopes (the first argument), each run by
 # its own container as the uid that can read it:
 #
 #   runs    the subtrees of RUN_DIRS (scrap's backup runs, whose files are
@@ -14,20 +14,22 @@
 #           already ends .age (the etcd bundles and sealed-secrets key
 #           exports). It does not look inside RUN_DIRS at all.
 #
-# A backup goes up only if it is not on Drive yet, compared by name. Each
-# scope reads, cleans up and prunes only its own part of DRIVE_ROOT/backups
+# A backup goes up only if it is not on the target yet, compared by name.
+# Each scope reads, cleans up and prunes only its own part of
+# DEST_ROOT/backups
 # (the RUN_DIRS subtrees, or the rest), so the two never touch each other's
 # files.
 #
 # Dotfiles, files written in the last 10 minutes and EXCLUDE (paths of
 # files rewritten in place, such as etcd/LATEST) are skipped. A file
-# deleted on the NAS stays on Drive.
+# deleted on the NAS stays on the target.
 #
 # Then, when PRUNE_DAYS is above 0 and the run had no errors, a file on
-# Drive is deleted only if all of these hold: its source is no longer on
-# the NAS; it was uploaded over PRUNE_DAYS ago; and it is not one of the
-# KEEP_MIN newest of its series (the same folder and name but for the date
-# or time in it; a .sha256 sidecar counts with its bundle).
+# the target is deleted (on B2: hidden) only if all of these hold: its
+# source is no longer on the NAS; it was uploaded over PRUNE_DAYS ago; and
+# it is not one of the KEEP_MIN newest of its series (the same folder and
+# name but for the date or time in it; a .sha256 sidecar counts with its
+# bundle).
 #
 # Environment, besides offsite-lib.sh's: SRC (the backups tree, read-only),
 # RUN_DIRS and EXCLUDE (space-separated), PRUNE_DAYS, KEEP_MIN.
@@ -45,9 +47,9 @@ case $scope in
 esac
 setup
 
-dest=$DRIVE_ROOT/backups
+dest=$DEST_ROOT/backups
 remote=$WORK/remote
-# Every name on Drive that a backup now on the NAS maps to: never pruned.
+# Every name on the target that a backup now on the NAS maps to: never pruned.
 live=$WORK/live
 : >"$live"
 uploaded=0
@@ -74,7 +76,7 @@ in_run() {
 }
 
 # The RUN_DIRS not inside another of them: the subtrees that are the runs
-# scope's, on the NAS and on Drive.
+# scope's, on the NAS and on the target.
 roots=
 for _r in $RUN_DIRS; do
     _top=1
@@ -172,9 +174,7 @@ for parent in $RUN_DIRS; do
             log "skipping $run: no COMPLETE marker yet"
             continue
         fi
-        st=0
-        tar -cf - "$run" </dev/null | stream_to "$dest/$target" || st=$?
-        if finish "$dest/$target" "$st"; then
+        if send "$dest/$target" age tar -cf - "$run" </dev/null; then
             log "uploaded $target"
             uploaded=$((uploaded + 1))
         else
@@ -201,14 +201,12 @@ while IFS= read -r f <&3; do
         present=$((present + 1))
         continue
     fi
-    st=0
     case $f in
         # Already encrypted (to the same key): upload as it is.
-        *.age) stream_as_is_to "$dest/$target" <"$f" || st=$? ;;
-        *) stream_to "$dest/$target" <"$f" || st=$? ;;
+        *.age) mode=as-is ;;
+        *) mode=age ;;
     esac
-    if finish "$dest/$target" "$st"; then ok=1; else ok=; fi
-    if [ -n "$ok" ]; then
+    if send "$dest/$target" "$mode" cat "$f" </dev/null; then
         log "uploaded $target"
         uploaded=$((uploaded + 1))
     else
@@ -216,7 +214,7 @@ while IFS= read -r f <&3; do
     fi
 done 3<"$WORK/local"
 
-log "uploaded $uploaded, already on Drive $present, errors $failures"
+log "uploaded $uploaded, already there $present, errors $failures"
 
 # Pruning, of this scope's files (the filters are prune's arguments). Each
 # line of the listing becomes

@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# Seal the Backblaze B2 application key for the second off-site copy into
+# kubernetes-services/additions/backups/templates/offsite-backup-b2-secret.yaml
+# (Secret offsite-backup-b2, namespace backups, key rclone.conf: a [b2]
+# remote).
+#
+# Usage: scripts/seal-b2-offsite   (or: just seal-b2-offsite)
+#
+# Asks for the key's ID and the key itself (neither is echoed), then checks
+# with B2 (b2_authorize_account) that the key:
+#   - is restricted to the bucket offsite_backup.b2.bucket in
+#     kubernetes-services/values.yaml;
+#   - has listBuckets, listFiles, readFiles, writeFiles and deleteFiles;
+#   - has none of the capabilities that change retention, legal holds,
+#     buckets or keys (bypassGovernance, writeBucketRetentions,
+#     writeFileRetentions, writeFileLegalHolds, writeBuckets, deleteBuckets,
+#     writeKeys, deleteKeys, ...). Under compliance mode none of them could
+#     shorten a lock anyway; the check keeps the key to what the job needs.
+# and that the bucket's lifecycle rules delete hidden versions. It refuses
+# to seal a key that fails any check.
+#
+# Nothing secret is printed or written to disk: the key goes to curl on its
+# stdin (not its command line), B2's reply (holding an auth token) stays in
+# a shell variable, and the rclone.conf is piped through kubectl into
+# kubeseal. See docs/how-to/backup-restore.md ("Second off-site copy:
+# Backblaze B2").
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+. scripts/lib/seal.sh
+
+dest=kubernetes-services/additions/backups/templates/offsite-backup-b2-secret.yaml
+values=kubernetes-services/values.yaml
+
+for tool in curl jq yq kubectl kubeseal; do
+    command -v "$tool" >/dev/null || { echo "ERROR: $tool is not installed" >&2; exit 1; }
+done
+
+bucket=$(yq -r '.offsite_backup.b2.bucket // ""' "$values")
+if [[ -z $bucket ]]; then
+    echo "ERROR: set offsite_backup.b2.bucket in $values first" >&2
+    exit 1
+fi
+secret_name=$(yq -r '.offsite_backup.b2.secret_name // "offsite-backup-b2"' "$values")
+
+[[ -r /dev/tty ]] || { echo "ERROR: run this in a terminal: it asks for the key" >&2; exit 1; }
+read -rsp "B2 application key ID (keyID) for bucket $bucket: " key_id </dev/tty
+echo >&2
+read -rsp "B2 application key (applicationKey): " app_key </dev/tty
+echo >&2
+# keyIDs are hex; keys are base64-like. Neither holds a quote or newline,
+# which would break curl's config or rclone.conf.
+if [[ ! $key_id =~ ^[0-9a-fA-F]{12,40}$ ]] || [[ ! $app_key =~ ^[A-Za-z0-9+/=_-]{20,64}$ ]]; then
+    unset key_id app_key
+    echo "ERROR: that does not look like a B2 keyID and application key" >&2
+    exit 1
+fi
+
+echo "Checking the key with B2..." >&2
+if ! auth=$(printf 'user = "%s:%s"\n' "$key_id" "$app_key" |
+    curl -fsS --config - https://api.backblazeb2.com/b2api/v3/b2_authorize_account); then
+    unset key_id app_key
+    echo "ERROR: B2 refused the key (wrong ID or key, or the key was deleted)" >&2
+    exit 1
+fi
+
+need=(listBuckets listFiles readFiles writeFiles deleteFiles)
+# Read-only extras that B2 may add; anything else is refused.
+may=(readBuckets readBucketRetentions readFileRetentions readFileLegalHolds
+    readBucketEncryption readBucketReplications readBucketNotifications
+    readBucketLogging)
+report=$(printf '%s' "$auth" | jq -r --arg bucket "$bucket" \
+    --argjson need "$(printf '%s\n' "${need[@]}" | jq -R . | jq -s .)" \
+    --argjson may "$(printf '%s\n' "${may[@]}" | jq -R . | jq -s .)" '
+    .apiInfo.storageApi.allowed as $a
+    | ($a.buckets // []) as $b
+    | ($a.capabilities // []) as $c
+    | [ (if ($b | length) != 1 or $b[0].name != $bucket
+          then "the key must be restricted to the one bucket \($bucket) (it allows: \(if ($b | length) == 0 then "every bucket" else ($b | map(.name) | join(", ")) end))"
+          else empty end),
+        (if ($a.namePrefix // "") != "" then "the key must not be restricted to a name prefix" else empty end),
+        ($need - $c | if length > 0 then "missing capabilities: \(join(", "))" else empty end),
+        ($c - $need - $may | if length > 0 then "capabilities it must not have: \(join(", "))" else empty end)
+      ] | .[]')
+if [[ -n $report ]]; then
+    unset key_id app_key auth
+    echo "ERROR: the key is not right for the off-site backup:" >&2
+    printf '  - %s\n' "$report" >&2
+    echo "Make a new key as docs/how-to/backup-restore.md says, and delete this one." >&2
+    exit 1
+fi
+echo "  ok: restricted to $bucket, capabilities $(printf '%s' "$auth" |
+    jq -r '.apiInfo.storageApi.allowed.capabilities | join(",")')" >&2
+
+# The bucket's settings, as far as this key may read them.
+api=$(printf '%s' "$auth" | jq -r '.apiInfo.storageApi.apiUrl')
+bucket_id=$(printf '%s' "$auth" | jq -r '.apiInfo.storageApi.allowed.buckets[0].id')
+account_id=$(printf '%s' "$auth" | jq -r '.accountId')
+token=$(printf '%s' "$auth" | jq -r '.authorizationToken')
+unset auth
+if ! info=$(jq -n --arg a "$account_id" --arg b "$bucket_id" '{accountId: $a, bucketId: $b}' |
+    curl -fsS --config <(printf 'header = "Authorization: %s"\n' "$token") \
+        --data @- "$api/b2api/v3/b2_list_buckets"); then
+    unset token key_id app_key
+    echo "ERROR: could not read the bucket's settings" >&2
+    exit 1
+fi
+unset token
+if ! printf '%s' "$info" | jq -e '.buckets[0].lifecycleRules // [] |
+        any(.fileNamePrefix == "" and .daysFromHidingToDeleting != null)' >/dev/null; then
+    unset key_id app_key
+    echo "ERROR: bucket $bucket has no lifecycle rule (prefix \"\") that deletes hidden" >&2
+    echo "  versions: pruned files would be kept for ever. Add it first (see the docs)." >&2
+    exit 1
+fi
+echo "  ok: lifecycle rule deletes hidden versions" >&2
+lock=$(printf '%s' "$info" | jq -r '.buckets[0].fileLockConfiguration |
+    if .isClientAuthorizedToRead then
+        "\(.value.isFileLockEnabled) \(.value.defaultRetention.mode) \(.value.defaultRetention.period.duration) \(.value.defaultRetention.period.unit)"
+    else "unreadable" end')
+case $lock in
+    unreadable)
+        echo "  Object Lock: this key cannot read it (no readBucketRetentions):" >&2
+        echo "  check in the B2 web UI that it is on, compliance mode, 30 days." >&2
+        ;;
+    "true compliance 30 days") echo "  ok: Object Lock on, compliance mode, 30 days" >&2 ;;
+    *)
+        unset key_id app_key
+        echo "ERROR: bucket $bucket's Object Lock default is \"$lock\";" >&2
+        echo "  it must be: true compliance 30 days" >&2
+        exit 1
+        ;;
+esac
+
+echo "Sealing: $secret_name..."
+# hard_delete = false: a deletion only hides a file (also rclone's default).
+printf '[b2]\ntype = b2\naccount = %s\nkey = %s\nhard_delete = false\n' "$key_id" "$app_key" |
+    kubectl create secret generic "$secret_name" --namespace=backups \
+        --from-file=rclone.conf=/dev/stdin \
+        --dry-run=client -o yaml | seal_to "$dest"
+unset key_id app_key
+echo "  -> $dest"
+
+echo ""
+echo "Next: commit $dest and set offsite_backup.b2.enabled: true in"
+echo "$values, then open a PR and merge it."
+echo "To run it before the night's run, once ArgoCD has synced: just offsite-backup-now b2"
