@@ -273,6 +273,10 @@ kubeseal --recovery-unseal \
 This prints the Secret in plaintext: read the value you need, and don't
 save it to a file.
 
+To prove the off-site key export still opens the SealedSecrets in Git,
+without printing any value, run `just unseal-check`
+({ref}`unseal-check`).
+
 (sealing-key-renewal)=
 ## Sealing keys and renewal
 

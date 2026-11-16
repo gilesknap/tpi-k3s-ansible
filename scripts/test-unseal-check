@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# Tests scripts/unseal-check with throwaway keys and no cluster: a new RSA
+# sealing key and age key, Secrets sealed to that key offline, and a fake
+# off-site folder served by rclone's local backend under the remote name
+# `drive`. It checks that the script passes and prints the key names but
+# no value: from the remote, with --keys, with a pasted age key, with a
+# key List of several keys and with a bare key Secret, and with --all over
+# a copy of the repo layout. It checks that it fails with a sealing key
+# that did not seal the secret, a wrong age key, a sidecar that does not
+# match, a remote it cannot list, and a Secret missing a sealed key name;
+# and that a stale export exits 3. Run by `just check`.
+#
+# Usage: scripts/test-unseal-check   (VERBOSE=1 shows each run's output)
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+check=$here/scripts/unseal-check
+
+age_bin=$(command -v age || true)
+keygen=$(command -v age-keygen || true)
+if [ -z "$age_bin" ] && [ -x "$HOME/bin/age" ]; then age_bin=$HOME/bin/age; fi
+if [ -z "$keygen" ] && [ -x "$HOME/bin/age-keygen" ]; then keygen=$HOME/bin/age-keygen; fi
+for tool in kubeseal rclone openssl python3; do
+    if ! command -v "$tool" >/dev/null; then
+        echo "test-unseal-check: $tool not found, skipped" >&2
+        exit 0
+    fi
+done
+if [ -z "$age_bin" ]; then
+    echo "test-unseal-check: age not found (PATH or ~/bin/age), skipped" >&2
+    exit 0
+fi
+if [ -z "$keygen" ]; then
+    echo "test-unseal-check: age-keygen not found (PATH or ~/bin/age-keygen), skipped" >&2
+    exit 0
+fi
+# unseal-check directories already in /dev/shm (a run of the real check):
+# only new ones left by these runs count as a failure.
+shm_before=$(ls -d /dev/shm/unseal-check.* 2>/dev/null | sort || true)
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-unseal-check.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+cd "$tmp"
+mkdir -p bin remote/home-cluster-offsite/backups/etcd/sealed-secrets-keys
+# unseal-check looks for age on PATH: give it the one found here.
+ln -s "$age_bin" bin/age
+export PATH=$tmp/bin:$PATH
+export KUBECONFIG=$tmp/no-kubeconfig
+
+"$keygen" -o id.key 2>/dev/null
+"$keygen" -o other.key 2>/dev/null
+recipient=$("$keygen" -y id.key)
+
+keysecret() { # INDENT CERT KEY: one key Secret, as kubectl get secret -o yaml
+    sed "s/^/$1/" <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sealed-secrets-key-$(basename "$2" .crt)
+  namespace: kube-system
+  labels:
+    sealedsecrets.bitnami.com/sealed-secrets-key: active
+type: kubernetes.io/tls
+data:
+  tls.crt: $(base64 -w0 "$2")
+  tls.key: $(base64 -w0 "$3")
+EOF
+}
+keylist() { # NAME...: a List of the named keys, the export's shape
+    printf 'apiVersion: v1\nkind: List\nitems:\n'
+    for k in "$@"; do keysecret '  ' "$k.crt" "$k.pem" | sed '1s/^  /- /'; done
+}
+for k in good bad; do
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$k.pem" -out "$k.crt" \
+        -days 2 -subj /CN=sealed-secret 2>/dev/null
+    keylist "$k" | "$age_bin" -r "$recipient" -o "$k.yaml.age"
+done
+# Several keys in one List (the good one second), and a bare Secret.
+keylist bad good | "$age_bin" -r "$recipient" -o multi.yaml.age
+keysecret '' good.crt good.pem | "$age_bin" -r "$recipient" -o bare.yaml.age
+
+# Secrets sealed offline to the good key. Their values must never be printed.
+seal() { # NAME KEY=VALUE...
+    local name=$1 kv
+    shift
+    {
+        printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: testns\ndata:\n' "$name"
+        for kv in "$@"; do printf '  %s: %s\n' "${kv%%=*}" "$(printf '%s' "${kv#*=}" | base64 -w0)"; done
+    } | kubeseal --cert good.crt -o yaml
+}
+seal probe USERNAME=not-a-real-user PASSWORD=hunter2-sentinel >sealed.yaml
+# A second one with a plain spec.template.data key besides its sealed one.
+seal other TOKEN=hunter2-sentinel | python3 -I -c '
+import sys
+s = sys.stdin.read()
+sys.stdout.write(s.replace("  template:\n", "  template:\n    data:\n      PLAIN: aGVsbG8=\n", 1))
+' >other.yaml
+grep -q '^      PLAIN:' other.yaml || { echo "test-unseal-check: could not add template.data" >&2; exit 1; }
+
+# A copy of the repo layout for --all: two SealedSecrets and a plain file.
+mkdir -p repo/scripts repo/kubernetes-services/additions/a repo/kubernetes-services/additions/b/templates
+cp "$check" repo/scripts/
+cp sealed.yaml repo/kubernetes-services/additions/a/probe-secret.yaml
+cp other.yaml repo/kubernetes-services/additions/b/templates/other-secret.yaml
+printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n' >repo/kubernetes-services/additions/a/cm.yaml
+
+name=sealed-secrets-keys-$(date -u +%Y%m%dT%H%M%SZ).yaml.age
+old=sealed-secrets-keys-20200101T000000Z.yaml.age
+dir=remote/home-cluster-offsite/backups/etcd/sealed-secrets-keys
+put() { # KEYFILE [NAME]: an export on the remote, with a good sidecar
+    local n=${2:-$name}
+    cp "$1" "$dir/$n"
+    echo "$(sha256sum "$1" | cut -d' ' -f1)  $n" | "$age_bin" -r "$recipient" -o "$dir/$n.sha256.age"
+}
+# An older export with the wrong key: the script must take the newest.
+cp bad.yaml.age "$dir/$old"
+printf '[drive]\ntype = local\n' >rclone.conf
+
+secret_b64=$(printf 'hunter2-sentinel' | base64 -w0)
+user_b64=$(printf 'not-a-real-user' | base64 -w0)
+probe_line='PASS testns/probe: 2 key(s): PASSWORD, USERNAME'
+fails=0
+run() { # EXPECT-EXIT EXPECT-LINES(;-separated, may be empty) DESCRIPTION CMD...
+    local want=$1 lines=$2 what=$3 st l
+    shift 3
+    rm -f "$tmp/log.txt"
+    set +e
+    "$@" --log "$tmp/log.txt" >out.txt 2>&1
+    st=$?
+    set -e
+    if [ "$st" -ne "$want" ]; then
+        echo "FAIL $what: exit $st, wanted $want"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
+    fi
+    if grep -q -e hunter2-sentinel -e not-a-real-user -e "$secret_b64" -e "$user_b64" \
+        out.txt "$tmp/log.txt" 2>/dev/null; then
+        echo "FAIL $what: a value was printed"; fails=$((fails + 1)); return
+    fi
+    IFS=';' read -ra want_lines <<<"$lines"
+    for l in "${want_lines[@]}"; do
+        if ! grep -qF -- "$l" out.txt; then
+            echo "FAIL $what: no line '$l'"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
+        fi
+    done
+    echo "ok $what"
+    if [ -n "${VERBOSE:-}" ]; then sed 's/^/    /' out.txt; fi
+}
+
+ss=(--sealed-secret "$tmp/sealed.yaml")
+remote=(--rclone-config "$tmp/rclone.conf" --remote "drive:$tmp/remote/home-cluster-offsite")
+id=(--identity "$tmp/id.key")
+put good.yaml.age
+run 0 "$probe_line" "newest export on the remote opens the secret" "$check" "${ss[@]}" "${remote[@]}" "${id[@]}"
+run 0 "$probe_line" "--keys with a local export" "$check" "${ss[@]}" --keys "$tmp/good.yaml.age" "${id[@]}"
+run 0 "$probe_line" "age key pasted on stdin" "$check" "${ss[@]}" --keys "$tmp/good.yaml.age" \
+    < <(grep '^AGE-SECRET-KEY-1' id.key)
+run 0 "$probe_line;holds 2 key Secret(s)" "key List of several keys" "$check" "${ss[@]}" --keys "$tmp/multi.yaml.age" "${id[@]}"
+run 0 "$probe_line;holds 1 key Secret(s)" "a bare key Secret" "$check" "${ss[@]}" --keys "$tmp/bare.yaml.age" "${id[@]}"
+run 0 "$probe_line;PASS testns/other: 2 key(s): PLAIN, TOKEN;additions/a/probe-secret.yaml;additions/b/templates/other-secret.yaml" \
+    "--all finds every SealedSecret, with template.data" "$tmp/repo/scripts/unseal-check" --all --keys "$tmp/good.yaml.age" "${id[@]}"
+run 1 "" "wrong age key" "$check" "${ss[@]}" "${remote[@]}" --identity "$tmp/other.key"
+run 1 "no key could decrypt" "export with a key that did not seal it" "$check" "${ss[@]}" --keys "$tmp/bad.yaml.age" "${id[@]}"
+run 1 "could not list" "remote that cannot be listed" "$check" "${ss[@]}" --rclone-config "$tmp/rclone.conf" \
+    --remote "drive:$tmp/no-such-folder" "${id[@]}"
+put bad.yaml.age
+run 1 "" "newest export on the remote has the wrong key" "$check" "${ss[@]}" "${remote[@]}" "${id[@]}"
+put good.yaml.age
+echo "0000  $name" | "$age_bin" -r "$recipient" -o "$dir/$name.sha256.age"
+run 1 "the sidecar does not match" "sidecar does not match" "$check" "${ss[@]}" "${remote[@]}" "${id[@]}"
+rm -f "$dir/$name" "$dir/$name.sha256.age"
+put good.yaml.age sealed-secrets-keys-20210101T000000Z.yaml.age
+run 3 "$probe_line;ALL PASS, but WARN" "stale export exits 3" "$check" "${ss[@]}" "${remote[@]}" "${id[@]}"
+
+# A Secret missing a name the SealedSecret seals: a kubeseal stand-in that
+# drops PASSWORD from the real output.
+mkdir -p stub
+cat >stub/kubeseal <<EOF
+#!/bin/sh
+case "\$*" in *--recovery-unseal*) ;; *) exec "$(command -v kubeseal)" "\$@" ;; esac
+"$(command -v kubeseal)" "\$@" | python3 -I -c '
+import json, sys
+s = json.load(sys.stdin)
+s["data"].pop("PASSWORD")
+json.dump(s, sys.stdout)
+'
+EOF
+chmod +x stub/kubeseal
+run 1 "missing: PASSWORD" "a sealed key name missing from the Secret" \
+    env PATH="$tmp/stub:$PATH" "$check" "${ss[@]}" --keys "$tmp/good.yaml.age" "${id[@]}"
+
+shm_after=$(ls -d /dev/shm/unseal-check.* 2>/dev/null | sort || true)
+left=$(comm -13 <(printf '%s\n' "$shm_before") <(printf '%s\n' "$shm_after") | grep . || true)
+if [ -n "$left" ]; then
+    echo "FAIL: unseal-check left $left"; fails=$((fails + 1))
+fi
+[ "$fails" -eq 0 ] || { echo "test-unseal-check: $fails failed"; exit 1; }
+echo "test-unseal-check: all ok"

@@ -146,6 +146,78 @@ offsite-backup-now target="drive":
 restore-test *args:
     scripts/restore-test {{ args }}
 
+# kubeseal --recovery-unseal with no cluster; prints key names, never values.
+# --rclone-config or --keys make it work with the cluster dead (see --help).
+# Read-only check that the off-site sealing keys open the SealedSecrets in Git
+unseal-check *args:
+    scripts/unseal-check {{ args }}
+
+# One age key for all three: pasted when asked, or a file as the argument
+# (just drill-monthly /dev/shm/age.key). Adds a dated line to
+# build/restore-test/drill-log.txt (docs/how-to/backup-restore.md,
+# "Restore drills").
+# Monthly drill: restore-test of Drive and B2, then unseal-check --all
+drill-monthly identity="":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    dir=build/restore-test
+    mkdir -p "$dir" || exit 1
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    id={{ quote(identity) }}
+    # A relative path is the caller's, not the justfile's directory.
+    case $id in "" | /*) ;; *) id={{ quote(invocation_directory()) }}/$id ;; esac
+    key=
+    trap '[ -n "$key" ] && rm -f "$key"' EXIT
+    if [ -n "$id" ]; then
+        [ -r "$id" ] || { echo "cannot read $id" >&2; exit 1; }
+    else
+        # Pasted once, never echoed, into RAM-backed tmp where there is one;
+        # deleted on exit. Nothing runs if the file cannot be made.
+        tmpdir=/dev/shm
+        if [ ! -d "$tmpdir" ] || [ ! -w "$tmpdir" ]; then
+            tmpdir=${TMPDIR:-/tmp}
+            echo "warning: no writable /dev/shm; the key goes in $tmpdir" >&2
+        fi
+        key=$(umask 077; mktemp "$tmpdir/drill-age.XXXXXX") ||
+            { echo "cannot make a key file in $tmpdir" >&2; exit 1; }
+        printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
+        IFS= read -rs k </dev/tty; echo >/dev/tty
+        case $k in
+            AGE-SECRET-KEY-1*) ;;
+            *) unset k; echo "that is not an age private key" >&2; exit 1 ;;
+        esac
+        printf '%s\n' "$k" >"$key" || { unset k; echo "cannot write $key" >&2; exit 1; }
+        unset k
+        id=$key
+    fi
+    # restore-test's decrypted data in RAM when /dev/shm has room for it
+    # (it needs about 1 GB; 2 GiB leaves a margin), else on disk.
+    work=()
+    avail=$(df --output=avail -k /dev/shm 2>/dev/null | tail -n 1 | tr -d ' ')
+    if [ -w /dev/shm ] && [ "${avail:-0}" -ge 2097152 ]; then
+        work=(--work-dir /dev/shm)
+    else
+        echo "warning: under 2 GiB free in /dev/shm; restore-test's decrypted data goes to" \
+            "${TMPDIR:-/tmp}, on disk unless that is RAM-backed" >&2
+    fi
+    # Each run's output to the terminal; only PASS, WARN or FAIL captured.
+    # Only unseal-check's 3 means WARN (all passed, newest key export stale).
+    restore() { if scripts/restore-test "$@" >&2; then echo PASS; else echo FAIL; fi; }
+    unseal() {
+        scripts/unseal-check "$@" >&2
+        case $? in 0) echo PASS ;; 3) echo WARN ;; *) echo FAIL ;; esac
+    }
+    drive=$(restore --target drive --identity "$id" "${work[@]}" \
+        --log "$dir/drill-$stamp-drive.txt")
+    b2=$(restore --target b2 --identity "$id" "${work[@]}" \
+        --log "$dir/drill-$stamp-b2.txt")
+    unseal=$(unseal --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
+    line="$stamp drive=$drive b2=$b2 unseal=$unseal"
+    echo "$line" >>"$dir/drill-log.txt" ||
+        { echo "$line"; echo "could not add that line to $dir/drill-log.txt" >&2; exit 1; }
+    echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"
+    case "$drive $b2 $unseal" in *FAIL*) exit 1 ;; *WARN*) exit 3 ;; esac
+
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
