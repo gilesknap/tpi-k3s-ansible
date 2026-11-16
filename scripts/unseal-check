@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+# Read-only check that the sealing keys in the off-site copy still open the
+# SealedSecrets in Git, as they would after the cluster died: on Google
+# Drive (drive:home-cluster-offsite) or, with --target b2, in the Backblaze
+# B2 bucket.
+#
+# Downloads the newest dated sealing-key export
+# (backups/etcd/sealed-secrets-keys/sealed-secrets-keys-<UTC time>.yaml.age,
+# written by the nightly etcd backup on node02) and its .sha256 sidecar,
+# checks the sidecar, decrypts the export with the backup age key, and runs
+# `kubeseal --recovery-unseal` on one committed SealedSecret (or, with
+# --all, on every one). It prints each Secret's key names, never a value,
+# and checks they are the names in the SealedSecret. Everything it writes
+# (the downloads, the decrypted keys, a pasted age key, the copy of the
+# rclone config) is in one directory in RAM-backed /dev/shm, shredded and
+# deleted on exit. The unsealed Secret goes straight from kubeseal into the
+# name check through a pipe and is never stored.
+#
+# Nothing is changed on the remote, the NAS or the cluster. kubeseal runs
+# with an empty KUBECONFIG, so the check never talks to a cluster. The
+# only thing it reads from the cluster is rclone's config (the Secret
+# backups/offsite-backup-rclone, or offsite-backup-b2), and only when
+# neither --rclone-config nor --keys is given: with either, it works with
+# the cluster dead.
+#
+# Usage: scripts/unseal-check [options]   (or: just unseal-check [options])
+#   --target drive|b2     which copy (default drive)
+#   --rclone-config FILE  rclone config with the [drive] or [b2] remote (see
+#                         docs/how-to/backup-restore.md, "rclone without the
+#                         cluster" and "Restore from B2"); default: read the
+#                         Secret with kubectl
+#   --remote PATH         rclone path laid out like the Drive folder;
+#                         default drive:home-cluster-offsite, or for b2
+#                         b2:<offsite_backup.b2.bucket from values.yaml>
+#   --keys FILE           an age-encrypted key export you hold already (the
+#                         offline copy, or one downloaded by hand) in place
+#                         of the newest one on the remote: no rclone, no
+#                         cluster
+#   --identity FILE       age identity file (AGE-SECRET-KEY-1...); default:
+#                         paste the key when asked (it is not echoed)
+#   --sealed-secret FILE  the SealedSecret to open (default
+#                         kubernetes-services/additions/grafana/grafana-oauth-secret.yaml)
+#   --all                 open every SealedSecret under kubernetes-services/
+#   --max-age-hours N     warn when the newest export on the remote is
+#                         older than N hours (default 48)
+#   --log FILE            the summary log (default
+#                         build/restore-test/unseal-check-last-run.txt)
+set -euo pipefail
+
+usage() { sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'; }
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+target=drive
+rclone_config=
+remote=${UNSEAL_CHECK_REMOTE:-}
+keys_file=
+identity_file=
+sealed=()
+all=
+max_age_hours=48
+log=$here/build/restore-test/unseal-check-last-run.txt
+while [ $# -gt 0 ]; do
+    case $1 in
+        --all) all=1 ;;
+        --target | --rclone-config | --remote | --keys | --identity | --sealed-secret | --max-age-hours | --log)
+            [ $# -ge 2 ] && [ -n "$2" ] || { echo "$1 needs a value" >&2; exit 2; }
+            case $1 in
+                --target) target=$2 ;;
+                --rclone-config) rclone_config=$2 ;;
+                --remote) remote=$2 ;;
+                --keys) keys_file=$2 ;;
+                --identity) identity_file=$2 ;;
+                --sealed-secret) sealed+=("$2") ;;
+                --max-age-hours) max_age_hours=$2 ;;
+                --log) log=$2 ;;
+            esac
+            shift
+            ;;
+        -h | --help) usage; exit 0 ;;
+        *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+case $target in
+    drive) secret=offsite-backup-rclone ;;
+    b2) secret=offsite-backup-b2 ;;
+    *) echo "--target must be drive or b2" >&2; exit 2 ;;
+esac
+[[ $max_age_hours =~ ^[0-9]+$ ]] || { echo "--max-age-hours takes a whole number" >&2; exit 2; }
+if [ -n "$all" ] && [ ${#sealed[@]} -gt 0 ]; then
+    echo "--all and --sealed-secret together make no sense" >&2; exit 2
+fi
+if [ -n "$keys_file" ]; then
+    [ -z "$rclone_config" ] && [ -z "$remote" ] ||
+        { echo "--keys skips the remote: drop --rclone-config and --remote" >&2; exit 2; }
+    [ -r "$keys_file" ] || { echo "cannot read $keys_file" >&2; exit 1; }
+fi
+if [ -n "$rclone_config" ] && [ ! -r "$rclone_config" ]; then
+    echo "cannot read $rclone_config" >&2; exit 1
+fi
+if [ -n "$identity_file" ]; then
+    [ -r "$identity_file" ] || { echo "cannot read $identity_file" >&2; exit 1; }
+    grep -q '^AGE-SECRET-KEY-1' "$identity_file" ||
+        { echo "$identity_file holds no AGE-SECRET-KEY-1 line" >&2; exit 1; }
+fi
+if [ -n "$all" ]; then
+    mapfile -t sealed < <(grep -rlx --include='*.yaml' 'kind: SealedSecret' "$here/kubernetes-services" | sort)
+    [ ${#sealed[@]} -gt 0 ] || { echo "no SealedSecret found under kubernetes-services/" >&2; exit 1; }
+elif [ ${#sealed[@]} -eq 0 ]; then
+    sealed=("$here/kubernetes-services/additions/grafana/grafana-oauth-secret.yaml")
+fi
+for f in "${sealed[@]}"; do
+    [ -r "$f" ] || { echo "cannot read $f" >&2; exit 1; }
+    grep -qx 'kind: SealedSecret' "$f" || { echo "$f is not a SealedSecret" >&2; exit 1; }
+done
+if [ -z "$keys_file" ] && [ -z "$remote" ]; then
+    if [ "$target" = drive ]; then
+        remote=drive:home-cluster-offsite
+    else
+        command -v yq >/dev/null || { echo "yq not found: give --remote b2:<bucket>" >&2; exit 1; }
+        bucket=$(yq -r '.offsite_backup.b2.bucket // ""' "$here/kubernetes-services/values.yaml")
+        [ -n "$bucket" ] || { echo "offsite_backup.b2.bucket is not set: give --remote b2:<bucket>" >&2; exit 1; }
+        remote=b2:$bucket
+    fi
+fi
+
+umask 077
+age_bin=$(command -v age || true)
+if [ -z "$age_bin" ] && [ -x "$HOME/bin/age" ]; then age_bin=$HOME/bin/age; fi
+[ -n "$age_bin" ] || { echo "age not found (PATH or ~/bin/age)" >&2; exit 1; }
+tools=(kubeseal python3 sha256sum)
+[ -n "$keys_file" ] || tools+=(rclone)
+[ -n "$keys_file" ] || [ -n "$rclone_config" ] || tools+=(kubectl base64)
+for t in "${tools[@]}"; do
+    command -v "$t" >/dev/null || { echo "$t not found" >&2; exit 1; }
+done
+
+# Everything secret in one directory in RAM-backed tmp.
+shm=/dev/shm
+if [ ! -d "$shm" ] || [ ! -w "$shm" ]; then
+    shm=${TMPDIR:-/tmp}
+    echo "warning: no writable /dev/shm; the decrypted keys go in $shm (on disk unless RAM-backed)" >&2
+fi
+work=
+cleanup() {
+    local st=$?
+    # Only the directory this script made: never --keys, --identity or
+    # --rclone-config.
+    if [ -n "$work" ] && [ -d "$work" ]; then
+        if command -v shred >/dev/null; then
+            find "$work" -type f -exec shred -u {} + 2>/dev/null || true
+        fi
+        rm -rf "$work"
+    fi
+    exit "$st"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+work=$(mktemp -d "$shm/unseal-check.XXXXXX")
+
+mkdir -p "$(dirname "$log")"
+exec > >(tee "$log") 2>&1
+echo "Sealing-key unseal check, $(date -u +%Y-%m-%dT%H:%M:%SZ), ${keys_file:-$remote}"
+echo "age: $("$age_bin" --version), kubeseal: $(kubeseal --version 2>&1 | head -n 1)"
+[ -n "$keys_file" ] || echo "rclone config: ${rclone_config:-Secret backups/$secret}"
+
+fails=0
+warn=
+fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
+
+# 1. The key export: the newest dated one on the remote, or --keys.
+if [ -n "$keys_file" ]; then
+    enc=$keys_file
+    echo "key export: $keys_file (given with --keys)"
+else
+    rconf=$work/rclone.conf
+    if [ -n "$rclone_config" ]; then
+        cat "$rclone_config" >"$rconf"
+    else
+        kubectl -n backups get secret "$secret" \
+            -o jsonpath='{.data.rclone\.conf}' | base64 -d >"$rconf"
+    fi
+    case $remote in
+        drive:*) grep -q '^\[drive\]' "$rconf" || { echo "the rclone config has no [drive] remote" >&2; exit 1; } ;;
+        b2:*) grep -q '^\[b2\]' "$rconf" || { echo "the rclone config has no [b2] remote" >&2; exit 1; } ;;
+    esac
+    dir=backups/etcd/sealed-secrets-keys
+    name=$({ rclone --config "$rconf" lsf --files-only "$remote/$dir" |
+        grep -E '^sealed-secrets-keys-[0-9]{8}T[0-9]{6}Z\.yaml\.age$' | sort | tail -n 1; } || true)
+    [ -n "$name" ] || { echo "FAIL: no sealed-secrets-keys-<time>.yaml.age in $remote/$dir"; exit 1; }
+    enc=$work/$name
+    rclone --config "$rconf" copyto "$remote/$dir/$name" "$enc"
+    rclone --config "$rconf" copyto "$remote/$dir/$name.sha256.age" "$work/$name.sha256.age" ||
+        fail "no $name.sha256.age sidecar on the remote"
+    ts=${name#sealed-secrets-keys-}
+    ts=${ts%.yaml.age}
+    made=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2}T${ts:9:2}:${ts:11:2}:${ts:13:2}Z" +%s)
+    hours=$((($(date +%s) - made) / 3600))
+    echo "key export: $dir/$name ($(stat -c %s "$enc") bytes, ${hours} h old)"
+    if [ "$hours" -gt "$max_age_hours" ]; then
+        warn="the newest export is ${hours} h old (over $max_age_hours h): check the etcd backup and off-site jobs"
+        echo "WARN: $warn"
+    fi
+fi
+[ "$(head -c 21 "$enc")" = "age-encryption.org/v1" ] || { echo "FAIL: the key export is not an age file"; exit 1; }
+
+# 2. The age key: --identity, used where it is, or pasted once (never on
+#    argv) into the scratch directory.
+if [ -n "$identity_file" ]; then
+    key_file=$identity_file
+else
+    key_file=$work/age.key
+    if [ -t 0 ]; then
+        printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
+    fi
+    IFS= read -rs key || true
+    if [ -t 0 ]; then echo >/dev/tty; fi
+    case $key in
+        AGE-SECRET-KEY-1*) ;;
+        *) unset key; echo "that is not an age private key" >&2; exit 1 ;;
+    esac
+    printf '%s\n' "$key" >"$key_file"
+    unset key
+fi
+
+# 3. Check the sidecar, then decrypt the keys into the scratch directory.
+if [ -f "$enc.sha256.age" ]; then
+    side=$("$age_bin" -d -i "$key_file" "$enc.sha256.age") || side=
+    read -r want sname <<<"$side" || true
+    got=$(sha256sum "$enc" | cut -d' ' -f1)
+    if [ -z "$side" ]; then
+        fail "could not decrypt the sidecar with that age key"
+    elif [ "$want" = "$got" ] && [ "$sname" = "${enc##*/}" ]; then
+        echo "sidecar: sha256 matches (${got:0:12}...)"
+    else
+        fail "the sidecar does not match the export (names $sname, sha256 ${want:0:12}...; export ${got:0:12}...)"
+    fi
+fi
+keys=$work/keys.yaml
+if ! "$age_bin" -d -i "$key_file" -o "$keys" "$enc"; then
+    echo "FAIL: could not decrypt the key export with that age key"; exit 1
+fi
+n=$(grep -cE '^(  )?kind: Secret$' "$keys" || true)
+echo "key export holds $n key Secret(s)"
+[ "$n" -gt 0 ] || fail "no key Secret in the export"
+
+# 4. Unseal each SealedSecret. The plaintext Secret goes from kubeseal
+#    through a pipe into the check, which prints only key names.
+read -r -d '' PY_NAMES <<'PY' || true
+import json, re, sys
+sealed_file = sys.argv[1]
+want = set()
+section = False
+with open(sealed_file) as f:
+    for line in f:
+        if re.match(r"^  encryptedData:\s*$", line):
+            section = True
+            continue
+        if section:
+            m = re.match(r"^    ([^\s:#]+):", line)
+            if m:
+                want.add(m.group(1).strip("'\""))
+            elif line.strip() and not line.startswith("     "):
+                section = False
+try:
+    secret = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)  # kubeseal printed nothing: its error says why
+meta = secret.get("metadata", {})
+got = set(secret.get("data") or {}) | set(secret.get("stringData") or {})
+ok = bool(got) and got == want
+names = ", ".join(sorted(got)) or "none"
+line = f"{meta.get('namespace', '?')}/{meta.get('name', '?')}: {len(got)} key(s): {names}"
+if not ok:
+    line += f" (the SealedSecret has: {', '.join(sorted(want)) or 'none'})"
+print(("PASS " if ok else "FAIL ") + line)
+sys.exit(0 if ok else 1)
+PY
+
+echo
+echo "Unsealing with the exported keys (no cluster):"
+for f in "${sealed[@]}"; do
+    rel=${f#"$here/"}
+    set +e
+    out=$(KUBECONFIG=$work/no-kubeconfig kubeseal --recovery-unseal \
+        --recovery-private-key "$keys" -o json <"$f" 2>"$work/err" |
+        python3 -I -c "$PY_NAMES" "$f")
+    st=$?
+    set -e
+    if [ "$st" -eq 0 ]; then
+        echo "  $out  [$rel]"
+    else
+        # kubeseal's error names no value; the check's line names only keys.
+        fail "$rel: ${out:-$(tail -n 1 "$work/err")}"
+    fi
+done
+
+echo
+if [ "$fails" -gt 0 ]; then
+    echo "$fails FAILED"
+else
+    echo "ALL PASS${warn:+ (with a warning: $warn)}"
+fi
+echo "(downloads and decrypted keys deleted; this log: $log)"
+[ "$fails" -eq 0 ]

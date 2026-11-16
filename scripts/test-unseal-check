@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Tests scripts/unseal-check with throwaway keys and no cluster: a new RSA
+# sealing key and age key, a Secret sealed to that key offline, and a fake
+# off-site folder served by rclone's local backend under the remote name
+# `drive`. It checks that the script passes and prints the key names but
+# no value, from the remote and with --keys; and that it fails with a
+# sealing key that did not seal the secret, with a wrong age key, and with
+# a sidecar that does not match. Run by `just check`.
+#
+# Usage: scripts/test-unseal-check   (VERBOSE=1 shows each run's output)
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+check=$here/scripts/unseal-check
+
+age_bin=$(command -v age || true)
+keygen=$(command -v age-keygen || true)
+if [ -z "$age_bin" ] && [ -x "$HOME/bin/age" ]; then age_bin=$HOME/bin/age; fi
+if [ -z "$keygen" ] && [ -x "$HOME/bin/age-keygen" ]; then keygen=$HOME/bin/age-keygen; fi
+for tool in kubeseal rclone openssl python3; do
+    command -v "$tool" >/dev/null || { echo "test-unseal-check: $tool not found, skipped" >&2; exit 0; }
+done
+if [ -z "$age_bin" ] || [ -z "$keygen" ]; then
+    echo "test-unseal-check: age or age-keygen not found, skipped" >&2; exit 0
+fi
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-unseal-check.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+cd "$tmp"
+mkdir -p bin remote/home-cluster-offsite/backups/etcd/sealed-secrets-keys
+# unseal-check looks for age on PATH: give it the one found here.
+ln -s "$age_bin" bin/age
+export PATH=$tmp/bin:$PATH
+export KUBECONFIG=$tmp/no-kubeconfig
+
+"$keygen" -o id.key 2>/dev/null
+"$keygen" -o other.key 2>/dev/null
+recipient=$("$keygen" -y id.key)
+
+keylist() { # CERT KEY: the export's shape, as kubectl get secret -o yaml
+    cat <<EOF
+apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: sealed-secrets-key-test
+    namespace: kube-system
+    labels:
+      sealedsecrets.bitnami.com/sealed-secrets-key: active
+  type: kubernetes.io/tls
+  data:
+    tls.crt: $(base64 -w0 "$1")
+    tls.key: $(base64 -w0 "$2")
+EOF
+}
+for k in good bad; do
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$k.pem" -out "$k.crt" \
+        -days 2 -subj /CN=sealed-secret 2>/dev/null
+    keylist "$k.crt" "$k.pem" | "$age_bin" -r "$recipient" -o "$k.yaml.age"
+done
+
+# A Secret sealed offline to the good key. Its values must never be printed.
+printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: probe\n  namespace: testns\ndata:\n  USERNAME: %s\n  PASSWORD: %s\n' \
+    "$(printf 'not-a-real-user' | base64)" "$(printf 'hunter2-sentinel' | base64)" |
+    kubeseal --cert good.crt -o yaml >sealed.yaml
+
+name=sealed-secrets-keys-$(date -u +%Y%m%dT%H%M%SZ).yaml.age
+old=sealed-secrets-keys-20200101T000000Z.yaml.age
+dir=remote/home-cluster-offsite/backups/etcd/sealed-secrets-keys
+put() { # KEYFILE: the newest export on the remote, with a good sidecar
+    cp "$1" "$dir/$name"
+    echo "$(sha256sum "$1" | cut -d' ' -f1)  $name" | "$age_bin" -r "$recipient" -o "$dir/$name.sha256.age"
+}
+# An older export with the wrong key: the script must take the newest.
+cp bad.yaml.age "$dir/$old"
+printf '[drive]\ntype = local\n' >rclone.conf
+
+fails=0
+run() { # EXPECT(0|1) DESCRIPTION ARGS...
+    local want=$1 what=$2 st
+    shift 2
+    set +e
+    "$check" --log "$tmp/log.txt" --sealed-secret "$tmp/sealed.yaml" "$@" >out.txt 2>&1
+    st=$?
+    set -e
+    if [ "$want" = 0 ] && [ "$st" -ne 0 ]; then
+        echo "FAIL $what: exit $st"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
+    fi
+    if [ "$want" = 1 ] && [ "$st" -eq 0 ]; then
+        echo "FAIL $what: passed"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
+    fi
+    if grep -q -e hunter2-sentinel -e not-a-real-user -e "$(printf 'hunter2-sentinel' | base64)" out.txt log.txt; then
+        echo "FAIL $what: a value was printed"; fails=$((fails + 1)); return
+    fi
+    if [ "$want" = 0 ] && ! grep -q 'PASS testns/probe: 2 key(s): PASSWORD, USERNAME' out.txt; then
+        echo "FAIL $what: no key names line"; sed 's/^/    /' out.txt; fails=$((fails + 1)); return
+    fi
+    echo "ok $what"
+    if [ -n "${VERBOSE:-}" ]; then sed 's/^/    /' out.txt; fi
+}
+
+remote=(--rclone-config "$tmp/rclone.conf" --remote "drive:$tmp/remote/home-cluster-offsite" --identity "$tmp/id.key")
+put good.yaml.age
+run 0 "newest export on the remote opens the secret" "${remote[@]}"
+run 0 "--keys with a local export" --keys "$tmp/good.yaml.age" --identity "$tmp/id.key"
+run 0 "age key pasted on stdin" --keys "$tmp/good.yaml.age" < <(grep "^AGE-SECRET-KEY-1" id.key)
+run 1 "wrong age key" "${remote[@]/%id.key/other.key}"
+run 1 "export with a key that did not seal it" --keys "$tmp/bad.yaml.age" --identity "$tmp/id.key"
+put bad.yaml.age
+run 1 "newest export on the remote has the wrong key" "${remote[@]}"
+put good.yaml.age
+echo "0000  $name" | "$age_bin" -r "$recipient" -o "$dir/$name.sha256.age"
+run 1 "sidecar does not match" "${remote[@]}"
+
+if ls /dev/shm/unseal-check.* >/dev/null 2>&1; then
+    echo "FAIL: unseal-check left a directory in /dev/shm"; fails=$((fails + 1))
+fi
+[ "$fails" -eq 0 ] || { echo "test-unseal-check: $fails failed"; exit 1; }
+echo "test-unseal-check: all ok"

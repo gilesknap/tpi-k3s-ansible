@@ -146,6 +146,43 @@ offsite-backup-now target="drive":
 restore-test *args:
     scripts/restore-test {{ args }}
 
+# kubeseal --recovery-unseal with no cluster; prints key names, never values.
+# --rclone-config or --keys make it work with the cluster dead (see --help).
+# Read-only check that the off-site sealing keys open the SealedSecrets in Git
+unseal-check *args:
+    scripts/unseal-check {{ args }}
+
+# One age key for all three; adds a dated line to build/restore-test/drill-log.txt
+# (docs/how-to/backup-restore.md, "Restore drills").
+# Monthly drill: restore-test of Drive and B2, then unseal-check --all
+drill-monthly identity="":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    dir=build/restore-test
+    mkdir -p "$dir"
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    id="{{ identity }}"
+    key=
+    trap '[ -n "$key" ] && rm -f "$key"' EXIT
+    if [ -z "$id" ]; then
+        # Pasted once, never echoed, into RAM-backed tmp; deleted on exit.
+        key=$(mktemp /dev/shm/drill-age.XXXXXX)
+        printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
+        IFS= read -rs k </dev/tty; echo >/dev/tty
+        case $k in AGE-SECRET-KEY-1*) ;; *) echo "that is not an age private key" >&2; exit 1 ;; esac
+        printf '%s\n' "$k" >"$key"; unset k
+        id=$key
+    fi
+    # Each run's output to the terminal; only PASS or FAIL captured.
+    result() { if "$@" >&2; then echo PASS; else echo FAIL; fi; }
+    drive=$(result scripts/restore-test --target drive --identity "$id" --log "$dir/drill-$stamp-drive.txt")
+    b2=$(result scripts/restore-test --target b2 --identity "$id" --log "$dir/drill-$stamp-b2.txt")
+    unseal=$(result scripts/unseal-check --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
+    line="$stamp drive=$drive b2=$b2 unseal=$unseal"
+    echo "$line" >>"$dir/drill-log.txt"
+    echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"
+    [ "$drive$b2$unseal" = PASSPASSPASS ]
+
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
