@@ -152,36 +152,49 @@ restore-test *args:
 unseal-check *args:
     scripts/unseal-check {{ args }}
 
-# One age key for all three; adds a dated line to build/restore-test/drill-log.txt
-# (docs/how-to/backup-restore.md, "Restore drills").
+# One age key for all three: pasted when asked, or a file as the argument
+# (just drill-monthly /dev/shm/age.key). Adds a dated line to
+# build/restore-test/drill-log.txt (docs/how-to/backup-restore.md, "Restore drills").
 # Monthly drill: restore-test of Drive and B2, then unseal-check --all
 drill-monthly identity="":
     #!/usr/bin/env bash
     set -uo pipefail
     dir=build/restore-test
-    mkdir -p "$dir"
+    mkdir -p "$dir" || exit 1
     stamp=$(date -u +%Y%m%dT%H%M%SZ)
-    id="{{ identity }}"
+    id={{ quote(identity) }}
+    # A relative path is the caller's, not the justfile's directory.
+    case $id in "" | /*) ;; *) id={{ quote(invocation_directory()) }}/$id ;; esac
     key=
     trap '[ -n "$key" ] && rm -f "$key"' EXIT
-    if [ -z "$id" ]; then
-        # Pasted once, never echoed, into RAM-backed tmp; deleted on exit.
-        key=$(mktemp /dev/shm/drill-age.XXXXXX)
+    if [ -n "$id" ]; then
+        [ -r "$id" ] || { echo "cannot read $id" >&2; exit 1; }
+    else
+        # Pasted once, never echoed, into RAM-backed tmp where there is one;
+        # deleted on exit. Nothing runs if the file cannot be made.
+        tmpdir=/dev/shm
+        if [ ! -d "$tmpdir" ] || [ ! -w "$tmpdir" ]; then
+            tmpdir=${TMPDIR:-/tmp}
+            echo "warning: no writable /dev/shm; the key goes in $tmpdir" >&2
+        fi
+        key=$(umask 077; mktemp "$tmpdir/drill-age.XXXXXX") || { echo "cannot make a key file in $tmpdir" >&2; exit 1; }
         printf 'Paste the age private key (AGE-SECRET-KEY-1...), then Enter: ' >/dev/tty
         IFS= read -rs k </dev/tty; echo >/dev/tty
-        case $k in AGE-SECRET-KEY-1*) ;; *) echo "that is not an age private key" >&2; exit 1 ;; esac
-        printf '%s\n' "$k" >"$key"; unset k
+        case $k in AGE-SECRET-KEY-1*) ;; *) unset k; echo "that is not an age private key" >&2; exit 1 ;; esac
+        printf '%s\n' "$k" >"$key" || { unset k; echo "cannot write $key" >&2; exit 1; }
+        unset k
         id=$key
     fi
-    # Each run's output to the terminal; only PASS or FAIL captured.
-    result() { if "$@" >&2; then echo PASS; else echo FAIL; fi; }
+    # Each run's output to the terminal; only PASS, WARN or FAIL captured.
+    # unseal-check exits 3 when all passed but the newest key export is stale.
+    result() { "$@" >&2; case $? in 0) echo PASS ;; 3) echo WARN ;; *) echo FAIL ;; esac; }
     drive=$(result scripts/restore-test --target drive --identity "$id" --log "$dir/drill-$stamp-drive.txt")
     b2=$(result scripts/restore-test --target b2 --identity "$id" --log "$dir/drill-$stamp-b2.txt")
     unseal=$(result scripts/unseal-check --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
     line="$stamp drive=$drive b2=$b2 unseal=$unseal"
     echo "$line" >>"$dir/drill-log.txt"
     echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"
-    [ "$drive$b2$unseal" = PASSPASSPASS ]
+    case "$drive $b2 $unseal" in *FAIL*) exit 1 ;; *WARN*) exit 3 ;; esac
 
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:

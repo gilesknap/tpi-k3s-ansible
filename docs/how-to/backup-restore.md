@@ -368,18 +368,19 @@ after the cluster died. It is read-only. It:
 
 1. downloads the newest dated export,
    `backups/etcd/sealed-secrets-keys/sealed-secrets-keys-<UTC time>.yaml.age`,
-   and its `.sha256` sidecar, from Drive or, with `--target b2`, from B2;
+   and its `.sha256.age` sidecar, from Drive or, with `--target b2`, from B2;
 2. checks the sidecar and decrypts the export with the backup age key;
 3. runs `kubeseal --recovery-unseal` on one SealedSecret
    (`grafana-oauth-secret` by default; `--all` takes every one under
    `kubernetes-services/`);
-4. prints each Secret's key names, never a value, and checks they match
-   the names in the SealedSecret.
+4. prints each Secret's key names, never a value, and checks that every
+   name the SealedSecret gives (`encryptedData`, and `template.data` if
+   any) is there.
 
 The downloads, the decrypted keys and a pasted age key are kept in
-`/dev/shm` and shredded on exit. The unsealed Secret goes through a pipe
-and is never stored. kubeseal runs with an empty `KUBECONFIG`, so it never
-talks to a cluster. The result is in
+`/dev/shm` and deleted on exit. The unsealed Secret goes through a pipe
+and is never stored. kubeseal runs with `KUBECONFIG` set to a path that
+does not exist, so it never talks to a cluster. The result is in
 `build/restore-test/unseal-check-last-run.txt`.
 
 The only thing it reads from the cluster is rclone's config, from the
@@ -397,12 +398,14 @@ just unseal-check --rclone-config /dev/shm/rclone.conf --identity /dev/shm/age.k
 just unseal-check --keys ~/sealed-secrets-keys-<date>.yaml.age
 ```
 
-It warns when the newest export is over 48 hours old
-(`--max-age-hours`): the nightly etcd backup or the off-site job has
-stopped. A FAIL with `no key could decrypt secret` means the export no
-longer matches the SealedSecrets in Git, for example after a rebuild
-whose new key has not reached the off-site copy yet: run
-`just etcd-backup-now`, then `just offsite-backup-now`.
+When everything passes but the newest export is over 48 hours old
+(`--max-age-hours`), it says `WARN` and exits with status 3: the nightly
+etcd backup or the off-site job has stopped. A FAIL (status 1) with
+`no key could decrypt secret` means the export no longer matches the
+SealedSecrets in Git, for example after a rebuild whose new key has not
+reached the off-site copy yet. Run `just etcd-backup-now`, then
+`just offsite-backup-now` for Drive and `just offsite-backup-now b2` for
+B2.
 
 ## etcd backup and restore
 
@@ -1169,10 +1172,11 @@ down anything that breaks.
 | When | What | How |
 |------|------|-----|
 | Monthly | List and decrypt-check both off-site copies, and open the SealedSecrets with the off-site keys | `just drill-monthly` |
-| Quarterly | The monthly drill, plus a real scrap restore from Drive | `just drill-monthly`, then "Restore scrap" from a Drive run |
+| Quarterly | The monthly drill, plus a scrap restore from Drive into a throwaway pod | `just drill-monthly`, then "Quarterly: restore scrap into a throwaway pod" below |
 
-`just drill-monthly` asks for the age private key once (or takes
-`identity=<file>`), then runs, in turn:
+`just drill-monthly` asks for the age private key once, or takes a key
+file as its argument (`just drill-monthly /dev/shm/age.key`). Then it
+runs, in turn:
 
 - `scripts/restore-test --target drive` ({ref}`offsite-restore-test`);
 - `scripts/restore-test --target b2` ({ref}`offsite-b2-restore`);
@@ -1186,17 +1190,98 @@ and one line per drill is added to `build/restore-test/drill-log.txt`:
 20261205T101500Z drive=PASS b2=PASS unseal=PASS
 ```
 
+`unseal=WARN` means the keys opened every SealedSecret but the newest
+export is over 48 hours old ({ref}`unseal-check`). The recipe exits 1 on
+any FAIL, 3 on a WARN alone.
+
 With the cluster dead, run the three scripts by hand with
 `--rclone-config` and `--identity`, as in their sections.
 
-For the quarterly scrap restore, first stop writing to scrap (tell its
-users, and pause your own Claude sessions), note its page count, and take
-a backup (the `scrap-backup-now` Job in "scrap" above). Then
-`just offsite-backup-now`, so that run is on Drive. Download it, unpack it
-in the restore scratch folder ({ref}`restore-scratch`), and follow
-"Restore scrap" with the `restore-scratch` volume. As nothing was written
-after the backup, the restore loses nothing. Check the page count matches,
-then let writes start again.
+### Quarterly: restore scrap into a throwaway pod
+
+This proves a Drive run restores with `scrap restore`, without touching
+the live scrap: the restore goes into an `emptyDir`, deleted with the pod.
+A real restore over live scrap ("Restore scrap") is only for a planned
+full drill or a `/rebuild-cluster`.
+
+1. Run `just drill-monthly` first: its Drive log has the counts to compare
+   against, from the same run.
+2. Download the newest scrap run from Drive and unpack it in the restore
+   scratch folder ({ref}`restore-scratch`), as
+   `/bigdisk/k8s-cluster/restore-scratch/scrap/<run>/`.
+3. Save this as `restore-drill.yaml`, with `<run>` and the image of the
+   running scrap
+   (`kubectl -n scrap get deploy scrap -o jsonpath='{.spec.template.spec.containers[0].image}'`):
+
+   ```yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: scrap-restore-drill
+     namespace: scrap
+   spec:
+     restartPolicy: Never
+     automountServiceAccountToken: false
+     securityContext:
+       runAsNonRoot: true
+       runAsUser: 10001
+       runAsGroup: 10001
+       seccompProfile:
+         type: RuntimeDefault
+     containers:
+       - name: restore
+         image: ghcr.io/gilesknap/scrap:<version>
+         command: ["sh", "-c"]
+         args:
+           - |
+             set -e
+             # Into the empty /data ($SCRAP_DATA_DIR): no --stage, no --force.
+             scrap restore /backups/<run>
+             python - <<'PY'
+             import sqlite3
+             c = sqlite3.connect("file:/data/scrap.db?mode=ro", uri=True)
+             q = lambda sql: c.execute(sql).fetchone()[0]
+             print(f"pages={q('SELECT count(*) FROM page')} "
+                   f"(live {q('SELECT count(*) FROM page WHERE deleted_at IS NULL')}), "
+                   f"revisions={q('SELECT count(*) FROM page_rev')}")
+             PY
+         securityContext:
+           allowPrivilegeEscalation: false
+           readOnlyRootFilesystem: true
+           capabilities:
+             drop: [ALL]
+         volumeMounts:
+           - {name: data, mountPath: /data}
+           - {name: backups, mountPath: /backups, readOnly: true}
+           - {name: tmp, mountPath: /tmp}
+     volumes:
+       - name: data
+         emptyDir: {}
+       - name: backups
+         nfs:
+           server: 192.168.1.3   # nfs.server
+           path: /bigdisk/k8s-cluster/restore-scratch/scrap
+           readOnly: true
+       - name: tmp
+         emptyDir: {}
+   ```
+
+4. Run it and compare its last line with the drill's scrap row:
+
+   ```bash
+   kubectl apply -f restore-drill.yaml
+   kubectl -n scrap wait --for=jsonpath='{.status.phase}'=Succeeded pod/scrap-restore-drill --timeout=15m
+   kubectl -n scrap logs pod/scrap-restore-drill | tail -n 1
+   grep '^scrap ' build/restore-test/drill-<UTC time>-drive.txt
+   ```
+
+   The `pages=`, `(live ...)` and `revisions=` figures must be the same.
+   The `emptyDir` is on the node's disk and needs room for the whole run,
+   files included.
+   If the pod fails, `kubectl -n scrap logs pod/scrap-restore-drill` gives
+   scrap's reason.
+5. Clean up: `kubectl -n scrap delete pod scrap-restore-drill`, then remove
+   the scratch folder as in {ref}`restore-scratch`.
 
 ## Disaster recovery
 
@@ -1319,10 +1404,13 @@ it). Drive keeps the newest seven. The tarball is taken while the worlds
 run, so a world that was being saved at the time may need a second, older
 tarball. Changes since the tarball are lost.
 
-The steps below use `science-lab` as the world. Work in the stable share's
-`restore-scratch/` folder: it is on the same filesystem as the worlds (so
-the moves are instant), and the nightly tarball takes only `minecraft/`
-and `archived-minecraft/`, so it never uploads it.
+The steps below use `science-lab` as the world. They unpack into
+`minecraft-restore-scratch/` in the stable share, beside `minecraft/`, not
+into the cluster share's `restore-scratch/` ({ref}`restore-scratch`). On the
+Ubuntu NAS, `k8s-dynamic` is a ZFS dataset of its own, so a move from the
+cluster share would copy the whole world; from a folder on the same share,
+the moves below are renames. The nightly tarball takes only `minecraft/` and
+`archived-minecraft/` from that share, so it never uploads this folder.
 
 1. **Stop the world** on the dashboard (<https://minecraft.gkcluster.org>,
    **Stop**). Check it has no pod:
@@ -1346,7 +1434,7 @@ and `archived-minecraft/`, so it never uploads it.
 
    ```bash
    STABLE=/share/CACHEDEV1_DATA/k8s-dynamic/stable   # /k8s-dynamic/stable on the Ubuntu NAS
-   S=$STABLE/restore-scratch
+   S=$STABLE/minecraft-restore-scratch
    W=science-lab
    ssh -t nas "sudo mkdir -p $S && sudo chown \$(id -u) $S"
    rclone --config /dev/shm/rclone.conf cat \
@@ -1358,26 +1446,25 @@ and `archived-minecraft/`, so it never uploads it.
 
 4. **Swap the contents** on the NAS. The world's folder stays where it is,
    with its own owner and mode (made by the NFS CSI driver); only what is
-   inside it is replaced. The old contents are kept in `restore-scratch/`
+   inside it is replaced. The old contents are kept in `minecraft-restore-scratch/`
    until you are happy:
 
    ```bash
    ssh -t nas "set -e; cd $STABLE
-     sudo mkdir restore-scratch/$W-before
-     sudo find minecraft/$W-data -mindepth 1 -maxdepth 1 -exec mv {} restore-scratch/$W-before/ \;
-     sudo find restore-scratch/stable/minecraft/$W-data -mindepth 1 -maxdepth 1 -exec mv {} minecraft/$W-data/ \;
+     sudo mkdir minecraft-restore-scratch/$W-before
+     sudo find minecraft/$W-data -mindepth 1 -maxdepth 1 -exec mv {} minecraft-restore-scratch/$W-before/ \;
+     sudo find minecraft-restore-scratch/stable/minecraft/$W-data -mindepth 1 -maxdepth 1 -exec mv {} minecraft/$W-data/ \;
      sudo find minecraft/$W-data -mindepth 1 -exec chown 1000:1000 {} +
      ls -ln minecraft/$W-data/world/level.dat"
    ```
 
    The world's files must be owned by `1000:1000` (the Minecraft server's
-   uid and gid). The folder itself is left as the driver made it
-   (`root:1000`).
+   uid and gid). The folder itself keeps the owner and mode it has.
 
 5. **Start the world** on the dashboard (**Start**), follow its log
    (`kubectl -n minecraft logs -f deploy/science-lab`) until it is ready,
    and join it to check.
 
 6. **Clean up** once the world is right: `ssh -t nas "sudo rm -rf ${S:?}"`.
-   To go back instead, stop the world and swap `restore-scratch/$W-before`
+   To go back instead, stop the world and swap `minecraft-restore-scratch/$W-before`
    back in the same way.
