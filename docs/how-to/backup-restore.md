@@ -1428,7 +1428,7 @@ tarball. Changes since the tarball are lost.
 The steps below use `science-lab` as the world. They unpack into
 `minecraft-restore-scratch/` in the stable share, beside `minecraft/`, not
 into the cluster share's `restore-scratch/` ({ref}`restore-scratch`). On the
-Ubuntu NAS, `k8s-dynamic` is a ZFS dataset of its own, so a move from the
+NAS, `k8s-dynamic` is a ZFS dataset of its own, so a move from the
 cluster share would copy the whole world; from a folder on the same share,
 the moves below are renames. The nightly tarball takes only `minecraft/` and
 `archived-minecraft/` from that share, so it never uploads this folder.
@@ -1454,7 +1454,7 @@ the moves below are renames. The nightly tarball takes only `minecraft/` and
    3.7 GB):
 
    ```bash
-   STABLE=/share/CACHEDEV1_DATA/k8s-dynamic/stable   # /k8s-dynamic/stable on the Ubuntu NAS
+   STABLE=/k8s-dynamic/stable
    S=$STABLE/minecraft-restore-scratch
    W=science-lab
    ssh -t nas "sudo mkdir -p $S && sudo chown \$(id -u) $S"
