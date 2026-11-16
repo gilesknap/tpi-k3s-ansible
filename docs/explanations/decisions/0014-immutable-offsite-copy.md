@@ -32,8 +32,8 @@ default retention of **30 days**. Keep Drive as it is, as the first target.
   stopped or failing job. Longer would cost more for every upload and cannot be undone.
 - **Pruning hides.** rclone's deletions on B2 hide files (`hard_delete` stays false), and a
   lifecycle rule deletes a hidden version a day after hiding, once its lock has expired. So the
-  job's pruning frees space as on Drive, while anything hidden or overwritten in the last 30 days
-  stays recoverable.
+  job's pruning frees space as on Drive, while any version uploaded in the last 30 days stays
+  recoverable, whenever it was hidden or overwritten.
 - **A narrow key.** The job's application key is restricted to the bucket, with `listBuckets`,
   `listFiles`, `readFiles`, `writeFiles` and `deleteFiles` only. `scripts/seal-b2-offsite` checks
   that with B2 before sealing it.

@@ -43,7 +43,9 @@ if [[ -z $bucket ]]; then
     echo "ERROR: set offsite_backup.b2.bucket in $values first" >&2
     exit 1
 fi
-secret_name=$(yq -r '.offsite_backup.b2.secret_name // "offsite-backup-b2"' "$values")
+# Fixed, as for Drive's offsite-backup-rclone: export-external-creds,
+# generate-secrets, seal-from-json and restore-test all use this name.
+secret_name=offsite-backup-b2
 
 if [[ ${1:-} == --stdin ]]; then
     # From another program (e.g. `b2 key create` output): "<keyID> <key>"

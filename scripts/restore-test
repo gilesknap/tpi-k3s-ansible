@@ -29,7 +29,9 @@
 #                         b2:<offsite_backup.b2.bucket from values.yaml>
 #   --at TIME             b2 only: the files as they were at TIME (rclone
 #                         --b2-version-at: e.g. 2026-11-01T12:00:00Z, or 7d
-#                         for a week ago), hidden and overwritten ones too
+#                         for a week ago: N with s, m, h, d, w, M or y,
+#                         turned into a fixed time once at the start),
+#                         hidden and overwritten ones too
 #   --work-dir DIR        where the scratch directory is made (default
 #                         $TMPDIR or /tmp); it needs ~1 GB free, and the
 #                         decrypted scrap, Grafana and Jellyfin data sit
@@ -85,6 +87,18 @@ case $target in
 esac
 if [ -n "$at" ] && [ "$target" != b2 ]; then
     echo "--at needs --target b2 (Drive keeps no versions)" >&2; exit 2
+fi
+# A relative --at (7d) becomes one fixed UTC time now: rclone would resolve
+# it afresh on each call, moving the cutoff between listing and download.
+# Units as rclone's: M is 30 days, y 365.
+if [[ $at =~ ^([0-9]+)([smhdwMy])$ ]]; then
+    case ${BASH_REMATCH[2]} in
+        s) unit=1 ;; m) unit=60 ;; h) unit=3600 ;; d) unit=86400 ;;
+        w) unit=604800 ;; M) unit=2592000 ;; y) unit=31536000 ;;
+    esac
+    at=$(date -u -d "@$(($(date +%s) - 10#${BASH_REMATCH[1]} * unit))" +%Y-%m-%dT%H:%M:%SZ)
+elif [[ $at =~ ^[0-9.]+[a-zA-Z] ]]; then
+    echo "--at: give a time (2026-11-01T12:00:00Z) or N with one unit (7d)" >&2; exit 2
 fi
 if [ -z "$remote" ]; then
     if [ "$target" = drive ]; then

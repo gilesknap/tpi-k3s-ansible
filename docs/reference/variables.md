@@ -161,12 +161,12 @@ applies to that run only.
 | `jellyfin.uid` / `gid` | `122` / `124` | The node's `jellyfin` account; must match the `k8s_data_dirs` owner |
 | `jellyfin.render_gid` / `video_gid` | `992` / `44` | The node's `render` and `video` groups, for `/dev/dri` |
 | `jellyfin.media.nfs_path` / `mount_path` | `/bigdisk/media` / `/media/bigdisk/media` | The library's NFS export on `nfs.server`, and where the pod mounts it read-only |
-| `offsite_backup.enabled` | `true` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). It needs the sealed rclone credentials (`just seal-rclone-drive`), and its alerts fire only while it is on |
+| `offsite_backup.enabled` | `true` | Nightly off-site copy of the NAS backups to Google Drive ({ref}`offsite-backup`). It needs the sealed rclone credentials (`just seal-rclone-drive`), and its alerts fire only while it is on. It gates the B2 copy too: off, neither job exists |
 | `offsite_backup.schedule` / `time_zone` | `30 5 * * *` / `Europe/London` | When it runs: after the other nightly backups |
 | `offsite_backup.drive_root` | `home-cluster-offsite` | Folder in the Drive's root that everything goes into |
 | `offsite_backup.include` | `[backups, minecraft-nightly, minecraft-archive]` | What goes to Drive: the NAS `backups/` tree, the nightly Minecraft tarball, the world archive |
-| `offsite_backup.b2.enabled` | `false` | The second off-site copy, to a Backblaze B2 bucket with Object Lock ({ref}`offsite-b2`). Turn on only after the one-time B2 setup and `just seal-b2-offsite`; its alerts fire only while it is on |
-| `offsite_backup.b2.bucket` | `""` | The bucket's name; required when `b2.enabled` |
+| `offsite_backup.b2.enabled` | `true` | The second off-site copy, to a Backblaze B2 bucket with Object Lock ({ref}`offsite-b2`). Needs `offsite_backup.enabled` too. Turn on only after the one-time B2 setup and `just seal-b2-offsite`; its alerts fire only while it is on |
+| `offsite_backup.b2.bucket` | `gk-cluster-offsite` | The bucket's name; required when `b2.enabled` |
 | `offsite_backup.b2.secret_name` | `offsite-backup-b2` | The Secret holding rclone's `[b2]` remote |
 | `offsite_backup.b2.include` | `[backups]` | What goes to B2, from the same three as `include`: only the NAS backups, which keeps the bucket inside B2's free 10 GB |
 | `offsite_backup.age_recipient` | *(age public key)* | age public key every file is encrypted to. **SYNC:** `etcd_backup_age_recipient` |

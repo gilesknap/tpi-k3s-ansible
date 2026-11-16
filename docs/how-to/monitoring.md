@@ -174,8 +174,9 @@ API server, kubelet and so on). This cluster adds four rule files in
 
 The off-site and backup-job rules use kube-state-metrics' CronJob and Job
 series, which exist only while the CronJob does, so the off-site ones are
-silent for a target that is not enabled (`offsite_backup.enabled`,
-`offsite_backup.b2.enabled`). A new backup CronJob is
+silent for a target that is not enabled. The B2 CronJob needs both
+`offsite_backup.enabled` and `offsite_backup.b2.enabled`: with the first
+off, there is neither job, and so no off-site alert at all. A new backup CronJob is
 covered once its name is added to the lists in `backup-job-rules.yaml`. All of the above are `severity: warning` except the 7-day
 certificate alert.
 

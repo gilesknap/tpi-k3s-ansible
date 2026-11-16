@@ -895,8 +895,10 @@ added to B2 later.
 
 **What the lock protects.** Retention runs from each version's upload, so
 what is immutable at any moment is everything uploaded in the last 30 days.
-That always includes the newest backups of every kind, as long as the job
-runs nightly. An older file (a monthly scrap run from last year, say) is
+As long as the job runs nightly, that includes the newest daily and weekly
+backups. The newest monthly scrap run is the exception: it passes its 30
+days a day or two before the next one is made, so for that while its lock
+has expired (the daily scrap runs, all locked, hold newer data). An older file (a monthly scrap run from last year, say) is
 past its lock, so the job's key could delete it. 30 days is far longer than
 tampering would go unnoticed: a stopped or failing job raises
 `OffsiteBackupStale` or `OffsiteBackupFailed` within 36 hours. The residual
@@ -1092,6 +1094,9 @@ days are still there.
    attacker can then neither hide more on B2 nor fill the bucket. Hidden
    versions stay until their lock expires, so do not wait: the clock runs
    from each upload, and the newest backups have up to 30 days left.
+   An rclone config made from the cluster's key (`.env`) stops working
+   now: make one from a new read-only key, as in "Restore from B2" above,
+   before the steps below.
 2. **Find when it happened.** List with `--b2-versions` and with
    `--b2-version-at` at a few times, and pick a time before the first
    hide or overwrite, when the newest scrap run and etcd bundle were in
