@@ -905,9 +905,11 @@ over 30 days; there is no external dead-man switch.
 
 ### Cost
 
-B2 charges $6 per TB-month for storage; the first 10 GB are free, uploads
-are free, and downloads are free up to three times what is stored. The
-job's listings fit in the free daily transaction allowance.
+B2 charges $6.95 per TB-month for storage (November 2026; check
+[the pricing page](https://www.backblaze.com/cloud-storage/pricing)). The
+first 10 GB are always free, uploads are free, downloads are free up to
+three times what is stored, and the calls the job makes (uploads,
+listings, hides: Class A, B and C) are free.
 
 What the bucket holds, at the default `prune_days` of 180:
 
@@ -922,17 +924,19 @@ What the bucket holds, at the default `prune_days` of 180:
 
 So about 3.3 GB at the start, growing by about 7 GB a month to about
 46 GB after six months. That is free for about the first month, then
-about (46 - 10) GB x $6/TB = $0.22 a month (about $2.60 a year) at the
-steady state. Setting `offsite_backup.b2.prune_days` to 30 keeps it at
-about 3.3 + 30 x 0.24 = 10.5 GB, inside the free tier, at the cost of
-keeping deleted backups for only 30 days on B2 (Drive still keeps them for
-180). Values under 30 save nothing, as every version is kept for its 30
-days anyway.
+about (46 - 10) GB x $6.95/TB = $0.25 a month (about $3 a year) at the
+steady state. That is the default, and worth it: deleted backups stay on
+B2 as long as on Drive. To stay at about the free tier instead, set
+`offsite_backup.b2.prune_days` to 30: the bucket then holds about
+3.3 + 30 x 0.24 = 10.5 GB, just over the free 10 GB (about half a cent a
+month), but keeps deleted backups for only 30 days on B2 (Drive still
+keeps them for 180). Values under 30 save nothing, as every version is
+kept for its 30 days anyway.
 
 For comparison, the Minecraft data B2 does not get would cost more than all
 of this: the archive is about 6 GB, and with the 30-day lock each nightly
-tarball (about 3.6 GB) would be kept for 30 days, not 7: about 108 GB, or
-about $0.65 a month.
+tarball (about 3.6 GB) would be kept for 30 days, not 7: about 108 GB, so
+about 114 GB with the archive, or about $0.80 a month.
 
 ### Set it up
 
@@ -1071,8 +1075,9 @@ Two rclone flags reach them:
   ```
 
 - `--b2-versions` lists every version, the older ones with their upload
-  time in the name (`<name>-v2026-11-10-053012-000.tar.age`); copy one by
-  that name with the same flag.
+  time put in the name before its last extension (`<run>.tar.age` becomes
+  `<run>.tar-v2026-11-10-053012-000.age`); copy one by that name with the
+  same flag.
 
 (restore-after-attack)=
 ### After an attacker wiped Drive and the NAS

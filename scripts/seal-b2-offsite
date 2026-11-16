@@ -16,8 +16,9 @@
 #     writeFileRetentions, writeFileLegalHolds, writeBuckets, deleteBuckets,
 #     writeKeys, deleteKeys, ...). Under compliance mode none of them could
 #     shorten a lock anyway; the check keeps the key to what the job needs.
-# and that the bucket's lifecycle rules delete hidden versions. It refuses
-# to seal a key that fails any check.
+# and that the bucket's lifecycle rules delete hidden versions (and, a
+# warning only, cancel unfinished large uploads). It refuses to seal a key
+# that fails any of the other checks.
 #
 # Nothing secret is printed or written to disk: the key goes to curl on its
 # stdin (not its command line), B2's reply (holding an auth token) stays in
@@ -114,6 +115,14 @@ if ! printf '%s' "$info" | jq -e '.buckets[0].lifecycleRules // [] |
     exit 1
 fi
 echo "  ok: lifecycle rule deletes hidden versions" >&2
+if printf '%s' "$info" | jq -e '.buckets[0].lifecycleRules // [] |
+        any(.fileNamePrefix == "" and .daysFromStartingToCancelingUnfinishedLargeFiles != null)' >/dev/null; then
+    echo "  ok: lifecycle rule cancels unfinished large uploads" >&2
+else
+    echo "  WARNING: no lifecycle rule (prefix \"\") cancels unfinished large uploads:" >&2
+    echo "  a large upload cut off part-way keeps its parts, and is paid for, until" >&2
+    echo "  cancelled by hand. Add daysFromStartingToCancelingUnfinishedLargeFiles (see the docs)." >&2
+fi
 lock=$(printf '%s' "$info" | jq -r '.buckets[0].fileLockConfiguration |
     if .isClientAuthorizedToRead then
         "\(.value.isFileLockEnabled) \(.value.defaultRetention.mode) \(.value.defaultRetention.period.duration) \(.value.defaultRetention.period.unit)"

@@ -79,8 +79,8 @@ produce() {
 #     version would be kept for the whole retention too, so the stream goes
 #     straight to DEST. rclone reads it from a fifo whose write end this
 #     shell holds open until the pipeline's status is known: if it failed,
-#     rclone is killed before it sees the end of the stream, so a cut-off
-#     stream is never finished as a file (an unfinished large-file upload
+#     rclone is killed, and waited for, before the stream is closed, so a
+#     cut-off stream is never finished as a file (an unfinished large-file upload
 #     is cancelled by the bucket's lifecycle rule).
 send() {
     _dest=$1
@@ -96,10 +96,16 @@ send() {
         exec 4>"$_fifo"
         produce "$_mode" "$@" >&4 || _st=$?
         if [ "$_st" -ne 0 ]; then
+            # Wait for rclone to be gone before closing the stream: closed
+            # first, it could see the end of it while handling the signal
+            # and finish the cut-off stream as the file.
             kill "$_pid" 2>/dev/null || true
+            wait "$_pid" 2>/dev/null || true
+            exec 4>&-
+        else
+            exec 4>&-
+            wait "$_pid" || _st=$?
         fi
-        exec 4>&-
-        if ! wait "$_pid" && [ "$_st" -eq 0 ]; then _st=1; fi
         rm -f "$_fifo"
         return "$_st"
     fi
