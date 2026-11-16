@@ -800,6 +800,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
 </ul>
 </details></li>
 </ul>
@@ -877,7 +878,9 @@ runbook brings it back. The procedures themselves are in
 <section id="the-shape-of-it">
 <h2>The shape of it<a class="headerlink" href="#the-shape-of-it" title="Link to this heading">#</a></h2>
 <p>Backups move outwards in three steps, and every step that leaves the house
-is encrypted to a key the cluster does not have.</p>
+is encrypted to a key the cluster does not have. The NAS backups leave it
+twice: to Google Drive, and to a Backblaze B2 bucket where nothing, not
+even someone who has taken over the cluster, can delete them for 30 days.</p>
 <pre  class="mermaid">
         flowchart LR
     subgraph cluster[&quot;Cluster&quot;]
@@ -895,6 +898,7 @@ is encrypted to a key the cluster does not have.</p>
 
     nuc2[&quot;nuc2 local disk&lt;br/&gt;newest scrap run&quot;]
     drive[&quot;Google Drive&lt;br/&gt;home-cluster-offsite&quot;]
+    b2[&quot;Backblaze B2 bucket&lt;br/&gt;Object Lock, 30 days&quot;]
     key[&quot;age private key&lt;br/&gt;offline, with the owner&quot;]
 
     graf -- &quot;CronJobs&quot; --&gt; bk
@@ -904,8 +908,10 @@ is encrypted to a key the cluster does not have.</p>
     mc --&gt; live
     bk -- &quot;scrap-backup-copy&quot; --&gt; nuc2
     bk -- &quot;offsite-backup: age, rclone&quot; --&gt; drive
+    bk -- &quot;offsite-backup-b2: age, rclone&quot; --&gt; b2
     live -- &quot;Minecraft tarball: age, rclone&quot; --&gt; drive
     key -. &quot;decrypts&quot; .-&gt; drive
+    key -. &quot;decrypts&quot; .-&gt; b2
     key -. &quot;decrypts etcd bundles&quot; .-&gt; bk
     </pre><ol class="arabic simple">
 <li><p><strong>To the NAS.</strong> Each stateful workload has a job that writes a
@@ -913,12 +919,13 @@ consistent copy to <code class="docutils literal notranslate"><span class="pre">
 is a different machine from every node, so this covers a dead disk or a
 dead node.</p></li>
 <li><p><strong>Off the NAS.</strong> scrap’s newest backup is also copied to nuc2’s local
-disk, and everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> is uploaded to Google Drive. That
-covers a dead NAS.</p></li>
+disk, and everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> is uploaded to Google Drive and to
+Backblaze B2. That covers a dead NAS, and B2’s lock covers an attacker
+who deletes Drive and the NAS together.</p></li>
 <li><p><strong>Encrypted to an offline key.</strong> The etcd bundles are encrypted before
-they reach the NAS, and everything is encrypted before it reaches Drive,
-with <a class="reference external" href="https://github.com/FiloSottile/age">age</a> to one public key. The
-private key is not on the cluster, the NAS or Drive.</p></li>
+they reach the NAS, and everything is encrypted before it reaches Drive
+or B2, with <a class="reference external" href="https://github.com/FiloSottile/age">age</a> to one public key.
+The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 </ol>
 </section>
 <section id="what-is-not-in-git">
@@ -1053,7 +1060,16 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <td><p>Yes</p></td>
 <td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>OpenTofu state for Cloudflare</p></td>
+<tr class="row-odd"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS, again</p></td>
+<td><p>The NAS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">backups</span></code>), once <code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code>: rclone</p></td>
+<td><p>05:30 daily</p></td>
+<td><p>B2 bucket <code class="docutils literal notranslate"><span class="pre">backups/</span></code>, Object Lock in compliance mode</p></td>
+<td><p>As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does</p></td>
+<td><p>Yes</p></td>
+<td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>OpenTofu state for Cloudflare</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code> in the working copy (gitignored)</p></td>
 <td><p>By hand</p></td>
 <td><p>After a change</p></td>
@@ -1062,7 +1078,7 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <td><p>Yes, by OpenTofu with a passphrase</p></td>
 <td><p><a class="reference internal" href="../../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (Grafana’s built-in admin password)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (Grafana’s built-in admin password)</p></td>
 <td><p>A Secret in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
 <td><p>Not backed up</p></td>
 <td><p>n/a</p></td>
@@ -1071,7 +1087,7 @@ private key is not on the cluster, the NAS or Drive.</p></li>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>The age private key</p></td>
+<tr class="row-even"><td><p>The age private key</p></td>
 <td><p>Offline</p></td>
 <td><p>The owner, in two places</p></td>
 <td><p>n/a</p></td>
@@ -1101,12 +1117,15 @@ the backup matters. K3s also takes its own snapshots twice a day, but they
 stay on node02 and are lost with it.</p></li>
 </ul>
 </section>
-<section id="the-off-site-copy">
-<h2>The off-site copy<a class="headerlink" href="#the-off-site-copy" title="Link to this heading">#</a></h2>
+<section id="the-off-site-copies">
+<h2>The off-site copies<a class="headerlink" href="#the-off-site-copies" title="Link to this heading">#</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/</span></code>,
 settings in <code class="docutils literal notranslate"><span class="pre">offsite_backup</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>) uploads to the folder
-<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code> in a personal Google Drive with rclone. Its rules are
-what make it safe to leave running:</p>
+<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code> in a personal Google Drive with rclone. The
+<code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> CronJob runs the same scripts against a Backblaze B2
+bucket, for the NAS backups only (<code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.include</span></code>); each
+target’s <code class="docutils literal notranslate"><span class="pre">include</span></code> list says what it gets. Their rules are what make them
+safe to leave running:</p>
 <ul class="simple">
 <li><p><strong>Encrypted first.</strong> Each file is streamed through <code class="docutils literal notranslate"><span class="pre">age</span></code> straight into
 the upload, so nothing readable is staged anywhere. Files that are
@@ -1121,9 +1140,18 @@ missing mount, a wiped NAS) stops the job before it uploads or prunes.</p></li>
 <li><p><strong>A size check on Minecraft.</strong> A nightly tarball smaller than
 <code class="docutils literal notranslate"><span class="pre">min_size_percent</span></code> (50) of the largest one on Drive fails the run and
 stops pruning, so a wiped source cannot push the good copies out.</p></li>
-<li><p><strong>Least privilege.</strong> rclone’s token has the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> scope: it sees
-only files it created. It can delete those, which is an accepted risk
-(<a class="reference internal" href="security.html"><span class="doc">Security model</span></a>).</p></li>
+<li><p><strong>Least privilege.</strong> rclone’s Drive token has the <code class="docutils literal notranslate"><span class="pre">drive.file</span></code> scope: it
+sees only files it created. It can delete those, and someone with root
+on the cluster can read it and delete the NAS backups too. That used to
+be an accepted risk; the B2 copy now covers it. The B2 bucket was made
+with Object Lock in compliance mode and a 30-day default retention, so no
+key, not even the account owner’s, can delete or overwrite a version, or
+shorten its lock, within 30 days of its upload. The job’s own key is also
+narrow: restricted to the bucket, with no capability that touches
+retention, legal holds, buckets or keys. Its pruning only hides files,
+and the bucket’s lifecycle rule deletes a hidden version once its lock
+has expired (<a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html"><span class="doc">14. A Second, Immutable Off-site Copy on Backblaze B2</span></a>,
+<a class="reference internal" href="security.html"><span class="doc">Security model</span></a>).</p></li>
 <li><p><strong>Three identities.</strong> The NAS squashes root and no single user can read
 everything, so three containers run side by side: <code class="docutils literal notranslate"><span class="pre">backups</span></code> as <code class="docutils literal notranslate"><span class="pre">nobody</span></code>
 for the etcd bundles and tarballs, <code class="docutils literal notranslate"><span class="pre">scrap</span></code> as uid 10001 for scrap’s runs,
@@ -1159,7 +1187,7 @@ drain nodes, and the off-site copy after the last of them.</p>
 
     subgraph offnas[&quot;Off the NAS&quot;]
         copy[&quot;00:50&lt;br/&gt;scrap-backup-copy&quot;]
-        off[&quot;05:30&lt;br/&gt;offsite-backup&quot;]
+        off[&quot;05:30&lt;br/&gt;offsite-backup,&lt;br/&gt;offsite-backup-b2&quot;]
     end
 
     etcd --&gt; apt --&gt; scrap --&gt; graf --&gt; copy --&gt; k3s --&gt; kured --&gt; off
@@ -1207,7 +1235,7 @@ drain nodes, and the off-site copy after the last of them.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>05:30</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> to Drive, and <code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> to B2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code></p></td>
 </tr>
 </tbody>
@@ -1232,7 +1260,8 @@ older than 36 hours, no success ever, or missing metrics. Alertmanager
 pushes these to the phone through ntfy.</p></li>
 <li><p><strong>Off-site:</strong> <code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code> and
 <code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code> (<code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code>) fire from
-kube-state-metrics. They are warnings on the push list, so like the etcd
+kube-state-metrics, per CronJob, so a failure on Drive or on B2 alerts
+by its own name. They are warnings on the push list, so like the etcd
 alerts they reach the phone through ntfy.</p></li>
 <li><p><strong>The CronJobs to the NAS</strong> (Grafana, Jellyfin, scrap):
 <code class="docutils literal notranslate"><span class="pre">BackupJobFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">BackupJobStale</span></code> and <code class="docutils literal notranslate"><span class="pre">BackupJobNeverSucceeded</span></code>
@@ -1337,8 +1366,14 @@ local volumes and re-binds scrap’s NFS volumes and the worlds’
 makes its own, and the rebuild seals every secret again under that key
 (<a class="reference internal" href="../../how-to/reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a>). The reasoning is on
 the <a class="reference internal" href="storage.html"><span class="doc">storage page</span></a>.</p></li>
-<li><p><strong>Losing Drive</strong> loses only the third copy.</p></li>
+<li><p><strong>Losing Drive</strong> loses only the third copy: the NAS backups are on B2
+too.</p></li>
 </ul>
+<p>One loss needs a different start: <strong>an attacker who deleted Drive and the
+NAS backups</strong> (anyone with root on the cluster can). B2 still holds every
+version uploaded in the last 30 days: take the cluster’s keys away, read
+the bucket as it was before the attack, and rebuild from it
+(<a class="reference internal" href="../../how-to/backup-restore.html#restore-after-attack"><span class="std std-ref">After an attacker wiped Drive and the NAS</span></a>).</p>
 <p>The one loss with no recovery is the age private key together with the
 cluster: the encrypted backups then cannot be read. That is why the key is
 kept offline in two places, and why proving a bundle decrypts is part of the
@@ -1395,7 +1430,7 @@ setup in <a class="reference internal" href="../../how-to/backup-restore.html#et
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-shape-of-it">The shape of it</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-not-in-git">What is not in Git</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-off-site-copy">The off-site copy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-off-site-copies">The off-site copies</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#one-night">One night</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#knowing-when-a-backup-failed">Knowing when a backup failed</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recovery">Recovery</a></li>

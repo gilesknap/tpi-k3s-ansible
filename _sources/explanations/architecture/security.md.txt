@@ -306,7 +306,13 @@ These are known and left as they are.
 - **The Drive token can delete what it uploaded.** rclone's `drive.file`
   scope lets it see and change only its own files, but that includes
   deleting them. Someone who takes over the cluster cannot read the
-  off-site backups, but could destroy them. The NAS copies would remain.
+  off-site backups, but could destroy the Drive copy, and with root on the
+  cluster the NAS copies too. The second off-site copy covers this
+  ({ref}`offsite-b2`, {doc}`ADR 14 </explanations/decisions/0014-immutable-offsite-copy>`): the NAS backups also go to a Backblaze B2
+  bucket under Object Lock in compliance mode, where no key, the account
+  owner's included, can delete or overwrite a version for 30 days. The
+  Minecraft tarballs and archive stay on Drive only (the archive has other
+  copies). This holds once `offsite_backup.b2.enabled` is on.
 - **Pinned workloads go down with their node.** Grafana and Prometheus
   (node04), and Jellyfin and the Minecraft worlds (nuc2), have no replica.
   That is the price of not running replicated storage

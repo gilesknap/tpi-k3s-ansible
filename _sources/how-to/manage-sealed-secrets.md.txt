@@ -29,7 +29,8 @@ flowchart LR
 
 ## Existing SealedSecrets
 
-All thirteen are under `kubernetes-services/additions/`. Find them with
+All thirteen, and `offsite-backup-b2` once its key is sealed, are under
+`kubernetes-services/additions/`. Find them with
 `grep -rl '^kind: SealedSecret' kubernetes-services`.
 
 | Secret | Namespace | Holds | File under `additions/` | Sealed on the running cluster by |
@@ -48,8 +49,9 @@ All thirteen are under `kubernetes-services/additions/`. Find them with
 | `scrap-publish` | `scrap-public` | The same token, for the public-pages server | `scrap/templates/scrap-public-publish-secret.yaml` | By hand |
 | `vps-relay-credentials` | `vps-relay` | Tailscale OAuth client secret and the frp token | `vps-relay/templates/vps-relay-secret.yaml` | By hand ({doc}`vps-relay`) |
 | `offsite-backup-rclone` | `backups` | rclone's Google Drive OAuth client and token | `backups/templates/offsite-backup-rclone-secret.yaml` | `just seal-rclone-drive <client_secret.json>` ({ref}`offsite-backup`) |
+| `offsite-backup-b2` | `backups` | rclone's Backblaze B2 application key, restricted to the off-site bucket | `backups/templates/offsite-backup-b2-secret.yaml` (once sealed) | `just seal-b2-offsite` ({ref}`offsite-b2`) |
 
-On a rebuild all thirteen are sealed in one pass by
+On a rebuild all of them are sealed in one pass by
 `just generate-and-seal-all` ({ref}`below <reseal-after-rebuild>`; the
 scrap, VPS relay and off-site backup ones only when their values
 are present),
@@ -219,7 +221,7 @@ The rebuild (`/rebuild-cluster`) does that in three steps:
    into `.env` at the repo root (gitignored): the two GitHub OAuth apps,
    cert-manager's Cloudflare API token and the tunnel token, and, where
    they exist, the VPS relay's credentials, scrap's Claude API key and
-   the off-site backup's `rclone.conf`.
+   the off-site backup's two `rclone.conf` files (Drive and B2).
 2. `set -a && source .env && set +a`, then the playbook runs with
    `GENERATE_SECRETS=true`. Its `cluster` role installs the
    sealed-secrets controller, calls `just generate-and-seal-all`
@@ -248,6 +250,8 @@ token came from a browser consent, so `scripts/export-external-creds`
 exports the whole `rclone.conf`, base64-encoded, as
 `OFFSITE_BACKUP_RCLONE_CONF_B64`, and the rebuild reseals it as it is
 (skipped if unset). No new consent is needed ({ref}`offsite-backup`).
+The B2 key in `offsite-backup-b2` goes the same way, as
+`OFFSITE_BACKUP_B2_RCLONE_CONF_B64` ({ref}`offsite-b2`).
 
 A planned rebuild does not need the old sealing keys: it reads the
 plaintext values from the old cluster and reseals them. It does make a new

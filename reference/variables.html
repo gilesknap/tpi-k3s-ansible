@@ -923,7 +923,7 @@ applies to that run only.</p>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
-<td><p>Nightly off-site copy of the NAS backups to Google Drive (<a class="reference internal" href="../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). It needs the sealed rclone credentials (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-rclone-drive</span></code>), and its alerts fire only while it is on</p></td>
+<td><p>Nightly off-site copy of the NAS backups to Google Drive (<a class="reference internal" href="../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). It needs the sealed rclone credentials (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-rclone-drive</span></code>), and its alerts fire only while it is on. It gates the B2 copy too: off, neither job exists</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code> / <code class="docutils literal notranslate"><span class="pre">time_zone</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">*</span> <span class="pre">*</span></code> / <code class="docutils literal notranslate"><span class="pre">Europe/London</span></code></p></td>
@@ -933,127 +933,147 @@ applies to that run only.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code></p></td>
 <td><p>Folder in the Drive’s root that everything goes into</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.include</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[backups,</span> <span class="pre">minecraft-nightly,</span> <span class="pre">minecraft-archive]</span></code></p></td>
+<td><p>What goes to Drive: the NAS <code class="docutils literal notranslate"><span class="pre">backups/</span></code> tree, the nightly Minecraft tarball, the world archive</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>The second off-site copy, to a Backblaze B2 bucket with Object Lock (<a class="reference internal" href="../how-to/backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a>). Needs <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code> too. Turn on only after the one-time B2 setup and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-b2-offsite</span></code>; its alerts fire only while it is on</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.bucket</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gk-cluster-offsite</span></code></p></td>
+<td><p>The bucket’s name; required when <code class="docutils literal notranslate"><span class="pre">b2.enabled</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.secret_name</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code></p></td>
+<td><p>The Secret holding rclone’s <code class="docutils literal notranslate"><span class="pre">[b2]</span></code> remote</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.include</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[backups]</span></code></p></td>
+<td><p>What goes to B2, from the same three as <code class="docutils literal notranslate"><span class="pre">include</span></code>: only the NAS backups, which keeps the bucket inside B2’s free 10 GB</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
 <td><p>age public key every file is encrypted to. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.image</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.image</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">docker.io/rclone/rclone:1.75.2</span></code></p></td>
 <td><p>rclone image (Alpine, busybox) every container runs</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age.version</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.amd64</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.arm64</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age.version</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.amd64</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.arm64</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1.3.2</span></code> / <em>(checksums)</em></p></td>
 <td><p>age release an init container fetches, checked against these checksums; bump all three together</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.deadline_hours</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.deadline_hours</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">6</span></code></p></td>
 <td><p>A run is stopped after this long; the next carries on</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.uid</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.uid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">65534</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">backups</span></code> container runs as: the NAS’s squashed-root owner of the etcd bundles. It uploads everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> but the <code class="docutils literal notranslate"><span class="pre">run_dirs</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[scrap,</span> <span class="pre">scrap/monthly,</span> <span class="pre">scrap-curated]</span></code></p></td>
 <td><p>Folders under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> whose subfolders are runs, each uploaded by the <code class="docutils literal notranslate"><span class="pre">scrap</span></code> container as one tarball once complete (<code class="docutils literal notranslate"><span class="pre">&lt;run&gt;.incomplete.tar.age</span></code> if it has no <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker once its folder is two days old)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.exclude</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.exclude</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">etcd/LATEST</span></code>, <code class="docutils literal notranslate"><span class="pre">etcd/sealed-secrets-keys.yaml.age{,.sha256}</span></code></p></td>
 <td><p>Paths under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> rewritten in place, never uploaded</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.prune_days</span></code> / <code class="docutils literal notranslate"><span class="pre">keep_min</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.prune_days</span></code> / <code class="docutils literal notranslate"><span class="pre">keep_min</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">180</span></code> / <code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
 <td><p>Delete a file on Drive only once its source is gone from the NAS and it was uploaded over <code class="docutils literal notranslate"><span class="pre">prune_days</span></code> ago (<code class="docutils literal notranslate"><span class="pre">0</span></code>: never), always keeping the <code class="docutils literal notranslate"><span class="pre">keep_min</span></code> newest of each series</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.scrap.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.scrap.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10001</span></code> / <code class="docutils literal notranslate"><span class="pre">10001</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">scrap</span></code> container runs as: scrap’s, as hard-coded in <code class="docutils literal notranslate"><span class="pre">additions/scrap/templates</span></code> (<code class="docutils literal notranslate"><span class="pre">backup-copy.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">migrate-job.yaml</span></code>), which owns its backup runs’ files</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.enabled</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.enabled</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Also upload the Minecraft store, worlds and archive (only with <code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1000</span></code> / <code class="docutils literal notranslate"><span class="pre">1000</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> container runs as: the owner of the worlds’ files</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.worlds_path</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.worlds_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>)</p></td>
 <td><p>Share whose <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> (live worlds) and <code class="docutils literal notranslate"><span class="pre">archived-minecraft/</span></code> (deleted worlds) folders go in the nightly tarball</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">7</span></code></p></td>
 <td><p>Nightly Minecraft tarballs kept on Drive</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.min_size_percent</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.min_size_percent</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">50</span></code></p></td>
 <td><p>A nightly tarball smaller than this percentage of the largest on Drive fails the run and stops pruning</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.archive</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.archive</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Upload <code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code> (once, and again only if it changes)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy the Minecraft dashboard (<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">0.5.2</span></code></p></td>
 <td><p>Version of the <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> OCI chart (image tag follows the chart’s appVersion)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.image.repository</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.image.repository</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/k3s-minecraft</span></code></p></td>
 <td><p>The dashboard image</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
 <td><p>Read-only NFS path of the world archive on <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> (outside the cluster share)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.store_subdir</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.store_subdir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p>Writable store directory under <code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.dns_name</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.dns_name</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">mc</span></code></p></td>
 <td><p>Players connect to <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org</span></code>, a DNS-only record for the VPS relay</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
 <td><p>Node all worlds are pinned to: the VPS relay forward’s target</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">port_max</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">port_max</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30565</span></code> / <code class="docutils literal notranslate"><span class="pre">30584</span></code></p></td>
 <td><p>Inclusive NodePort range for game ports</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30600</span></code> / <code class="docutils literal notranslate"><span class="pre">30619</span></code></p></td>
 <td><p>Inclusive NodePort range for per-world RCON (LAN only; never relay it)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.0/24</span></code> except the other nodes, and <code class="docutils literal notranslate"><span class="pre">192.168.0.0/24</span></code></p></td>
 <td><p>Sources allowed to reach world RCON through the dashboard’s NetworkPolicy (CIDR or <code class="docutils literal notranslate"><span class="pre">{cidr,</span> <span class="pre">except}</span></code>); except every cluster node’s IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node’s IP</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy the VPS relay (<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>); needs the <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> SealedSecret</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
 <td><p><em>(tailnet address)</em></p></td>
 <td><p>The VPS’s tailnet IP or MagicDNS name, where frps listens</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">7000</span></code></p></td>
 <td><p>frps control port on the VPS’s tailnet address</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code>: tcp <code class="docutils literal notranslate"><span class="pre">30565-30584</span></code> to <code class="docutils literal notranslate"><span class="pre">192.168.1.92</span></code></p></td>
 <td><p>List of <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">protocol</span></code> (<code class="docutils literal notranslate"><span class="pre">tcp</span></code>/<code class="docutils literal notranslate"><span class="pre">udp</span></code>), <code class="docutils literal notranslate"><span class="pre">ports</span></code> (port or <code class="docutils literal notranslate"><span class="pre">min-max</span></code>) and <code class="docutils literal notranslate"><span class="pre">target</span></code>; each publishes <code class="docutils literal notranslate"><span class="pre">ports</span></code> on the VPS and relays them to the same ports on <code class="docutils literal notranslate"><span class="pre">target</span></code>. The VPS’s <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code> and firewall must match</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> / <code class="docutils literal notranslate"><span class="pre">3.9.1</span></code></p></td>
 <td><p>Kyverno is off: the app never settled to Synced on its CRDs, and no policies were in use</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code> and <code class="docutils literal notranslate"><span class="pre">prometheus</span></code> on <code class="docutils literal notranslate"><span class="pre">node04</span></code>; <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap_backup_copy</span></code> and <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
 <td><p>One static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV each: <code class="docutils literal notranslate"><span class="pre">node</span></code>, <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">capacity</span></code> and the <code class="docutils literal notranslate"><span class="pre">claim_namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">claim_name</span></code> it is pre-bound to (<a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a>). The <code class="docutils literal notranslate"><span class="pre">scrap</span></code> entry is the frozen pre-Litestream copy, kept so its PV is not pruned under a bound claim. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 </tr>
@@ -1148,31 +1168,35 @@ secret prompts for it when the variable is unset.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">generate-secrets</span></code></p></td>
 <td><p>The off-site backup’s <code class="docutils literal notranslate"><span class="pre">rclone.conf</span></code>, base64-encoded; resealed as given</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NTFY_&lt;USER&gt;_TOKEN</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">OFFSITE_BACKUP_B2_RCLONE_CONF_B64</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">generate-secrets</span></code></p></td>
+<td><p>The B2 off-site copy’s <code class="docutils literal notranslate"><span class="pre">rclone.conf</span></code> (its application key), base64-encoded; resealed as given</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NTFY_&lt;USER&gt;_TOKEN</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">generate-secrets</span></code></p></td>
 <td><p>One per ntfy user in <code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code> (for example <code class="docutils literal notranslate"><span class="pre">NTFY_PHONE_TOKEN</span></code>); kept as given, generated if unset</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TF_VAR_state_passphrase</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TF_VAR_state_passphrase</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scripts/cf-tofu</span></code></p></td>
 <td><p>OpenTofu state passphrase; else <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code>, else a prompt</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CF_PLAN_TOKEN</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CF_PLAN_TOKEN</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cf-tofu</span> <span class="pre">plan</span></code></p></td>
 <td><p>Read-only Cloudflare token; else <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code>, else a prompt</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CF_APPLY_TOKEN</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CF_APPLY_TOKEN</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cf-tofu</span> <span class="pre">apply</span></code>, <code class="docutils literal notranslate"><span class="pre">scripts/cf-tunnel-disconnect</span></code></p></td>
 <td><p>Edit token; else a prompt. Never read from a file</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">DRY_RUN</span></code>, <code class="docutils literal notranslate"><span class="pre">FORCE</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">DRY_RUN</span></code>, <code class="docutils literal notranslate"><span class="pre">FORCE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scripts/restore-control-plane</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">DRY_RUN=1</span></code> prints what would run; <code class="docutils literal notranslate"><span class="pre">FORCE=1</span></code> skips the second confirmation</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">IMAGE</span></code>, <code class="docutils literal notranslate"><span class="pre">BACKUP_DIR</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IMAGE</span></code>, <code class="docutils literal notranslate"><span class="pre">BACKUP_DIR</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scripts/nfs-stable-paths</span></code></p></td>
 <td><p>The Jobs’ image, and where the PVC and PV manifests are saved first</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FRP_PORT</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">FRP_PORT</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scripts/vps-relay-setup</span></code> (on the VPS)</p></td>
 <td><p>frps control port, default <code class="docutils literal notranslate"><span class="pre">7000</span></code>. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
 </tr>

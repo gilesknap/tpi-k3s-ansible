@@ -800,6 +800,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1284,7 +1285,13 @@ else.</p></li>
 <li><p><strong>The Drive token can delete what it uploaded.</strong> rclone’s <code class="docutils literal notranslate"><span class="pre">drive.file</span></code>
 scope lets it see and change only its own files, but that includes
 deleting them. Someone who takes over the cluster cannot read the
-off-site backups, but could destroy them. The NAS copies would remain.</p></li>
+off-site backups, but could destroy the Drive copy, and with root on the
+cluster the NAS copies too. The second off-site copy covers this
+(<a class="reference internal" href="../../how-to/backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a>, <a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html"><span class="doc">ADR 14</span></a>): the NAS backups also go to a Backblaze B2
+bucket under Object Lock in compliance mode, where no key, the account
+owner’s included, can delete or overwrite a version for 30 days. The
+Minecraft tarballs and archive stay on Drive only (the archive has other
+copies). This holds once <code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code> is on.</p></li>
 <li><p><strong>Pinned workloads go down with their node.</strong> Grafana and Prometheus
 (node04), and Jellyfin and the Minecraft worlds (nuc2), have no replica.
 That is the price of not running replicated storage

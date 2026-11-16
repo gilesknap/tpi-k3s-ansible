@@ -1096,15 +1096,15 @@ API server, kubelet and so on). This cluster adds four rule files in
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code></p></td>
-<td><p>The newest run of the <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob failed</p></td>
+<td><p>The newest run of an off-site CronJob failed: <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> (Google Drive) or <code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> (Backblaze B2), named in its <code class="docutils literal notranslate"><span class="pre">cronjob</span></code> label</p></td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code></p></td>
-<td><p>No off-site backup has succeeded for over 36 hours</p></td>
+<td><p>That CronJob has not succeeded for over 36 hours</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code></p></td>
-<td><p>The CronJob has existed for over 36 hours without a success</p></td>
+<td><p>That CronJob has existed for over 36 hours without a success</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backup-job-rules.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BackupJobFailed</span></code></p></td>
@@ -1127,7 +1127,9 @@ API server, kubelet and so on). This cluster adds four rule files in
 </div>
 <p>The off-site and backup-job rules use kube-state-metrics’ CronJob and Job
 series, which exist only while the CronJob does, so the off-site ones are
-silent when <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">false</span></code>. A new backup CronJob is
+silent for a target that is not enabled. The B2 CronJob needs both
+<code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code> and <code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code>: with the first
+off, there is neither job, and so no off-site alert at all. A new backup CronJob is
 covered once its name is added to the lists in <code class="docutils literal notranslate"><span class="pre">backup-job-rules.yaml</span></code>. All of the above are <code class="docutils literal notranslate"><span class="pre">severity:</span> <span class="pre">warning</span></code> except the 7-day
 certificate alert.</p>
 <p>The directory also holds two SealedSecrets: <code class="docutils literal notranslate"><span class="pre">grafana-oauth-secret.yaml</span></code>
@@ -1165,7 +1167,7 @@ The configuration is the <code class="docutils literal notranslate"><span class=
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">K3sEtcdBackup*</span></code> (the four etcd backup alerts)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code> (the three off-site backup alerts)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OffsiteBackup*</span></code> (the three off-site backup alerts, for either target)</p></td>
 <td><p>Yes, priority 3</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">BackupJob*</span></code> (the three alerts for the Grafana, Jellyfin and scrap CronJobs)</p></td>
