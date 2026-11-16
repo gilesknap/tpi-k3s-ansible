@@ -110,7 +110,10 @@ if [ -n "$identity_file" ]; then
         { echo "$identity_file holds no AGE-SECRET-KEY-1 line" >&2; exit 1; }
 fi
 if [ -n "$all" ]; then
-    mapfile -t sealed < <(grep -rlx --include='*.yaml' 'kind: SealedSecret' "$here/kubernetes-services" | sort)
+    # grep exits 1 for no match (checked below), 2 for a file it could not read.
+    found=$(grep -rlx --include='*.yaml' 'kind: SealedSecret' "$here/kubernetes-services") || grep_st=$?
+    [ "${grep_st:-0}" -le 1 ] || { echo "could not read every file under kubernetes-services/" >&2; exit 1; }
+    mapfile -t sealed < <(printf '%s\n' "$found" | grep . | sort)
     [ ${#sealed[@]} -gt 0 ] || { echo "no SealedSecret found under kubernetes-services/" >&2; exit 1; }
 elif [ ${#sealed[@]} -eq 0 ]; then
     sealed=("$here/kubernetes-services/additions/grafana/grafana-oauth-secret.yaml")
@@ -142,13 +145,15 @@ for t in "${tools[@]}"; do
 done
 
 # Everything secret in one directory in RAM-backed tmp.
+# No fallback to a disk-backed tmp: the decrypted keys must not reach a disk.
 shm=/dev/shm
 if [ ! -d "$shm" ] || [ ! -w "$shm" ]; then
-    shm=${TMPDIR:-/tmp}
-    echo "warning: no writable /dev/shm; the decrypted keys go in $shm (on disk unless RAM-backed)" >&2
+    echo "no writable /dev/shm: refusing to decrypt the sealing keys onto a disk" >&2
+    exit 1
 fi
 work=
 stale_exit=
+tee_pid=
 cleanup() {
     local st=$?
     # 3 means only "all passed, export stale": any other 3 (from a tool
@@ -160,6 +165,11 @@ cleanup() {
             # tmpfs: nothing reaches a disk, so a plain delete is enough.
         rm -rf "$work"
     fi
+    # Let tee finish the log before the script returns.
+    if [ -n "$tee_pid" ]; then
+        exec >&- 2>&-
+        wait "$tee_pid" 2>/dev/null || true
+    fi
     exit "$st"
 }
 trap cleanup EXIT
@@ -169,6 +179,7 @@ work=$(mktemp -d "$shm/unseal-check.XXXXXX")
 
 mkdir -p "$(dirname "$log")"
 exec > >(tee "$log") 2>&1
+tee_pid=$!
 echo "Sealing-key unseal check, $(date -u +%Y-%m-%dT%H:%M:%SZ), ${keys_file:-$remote}"
 echo "age: $("$age_bin" --version), kubeseal: $(kubeseal --version 2>&1 | head -n 1)"
 [ -n "$keys_file" ] || echo "rclone config: ${rclone_config:-Secret backups/$secret}"

@@ -378,7 +378,8 @@ after the cluster died. It is read-only. It:
    any) is there.
 
 The downloads, the decrypted keys and a pasted age key are kept in
-`/dev/shm` and deleted on exit. The unsealed Secret goes through a pipe
+`/dev/shm` and deleted on exit; without a writable `/dev/shm` it refuses
+to run. The unsealed Secret goes through a pipe
 and is never stored. kubeseal runs with `KUBECONFIG` set to a path that
 does not exist, so it never talks to a cluster. The result is in
 `build/restore-test/unseal-check-last-run.txt`.
@@ -1461,6 +1462,17 @@ the moves below are renames. The nightly tarball takes only `minecraft/` and
    with its own owner and mode (made by the NFS CSI driver); only what is
    inside it is replaced. The old contents are kept in `minecraft-restore-scratch/`
    until you are happy:
+
+   If the world's folder itself is gone, make it first, with the owner and
+   mode of another world's folder (here `animal-world-data`):
+
+   ```bash
+   ssh -t nas "cd $STABLE/minecraft && sudo mkdir $W-data &&
+     sudo chown --reference=animal-world-data $W-data &&
+     sudo chmod --reference=animal-world-data $W-data"
+   ```
+
+   Then swap:
 
    ```bash
    ssh -t nas "set -e; cd $STABLE

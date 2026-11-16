@@ -213,7 +213,8 @@ drill-monthly identity="":
         --log "$dir/drill-$stamp-b2.txt")
     unseal=$(unseal --all --identity "$id" --log "$dir/drill-$stamp-unseal.txt")
     line="$stamp drive=$drive b2=$b2 unseal=$unseal"
-    echo "$line" >>"$dir/drill-log.txt"
+    echo "$line" >>"$dir/drill-log.txt" ||
+        { echo "$line"; echo "could not add that line to $dir/drill-log.txt" >&2; exit 1; }
     echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"
     case "$drive $b2 $unseal" in *FAIL*) exit 1 ;; *WARN*) exit 3 ;; esac
 
