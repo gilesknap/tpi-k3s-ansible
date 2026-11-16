@@ -869,7 +869,7 @@ with this cluster’s own rules and Secrets in
     ksm[&quot;kube-state-metrics&quot;]
     apps[&quot;ServiceMonitors:&lt;br/&gt;cert-manager, kured, ...&quot;]
     subgraph node04[&quot;node04 (local-nvme PVs)&quot;]
-        prom[&quot;Prometheus&lt;br/&gt;40Gi, 10 days&quot;]
+        prom[&quot;Prometheus&lt;br/&gt;40Gi, 60 days&quot;]
         graf[&quot;Grafana&lt;br/&gt;30Gi&quot;]
     end
     am[&quot;Alertmanager&quot;]
@@ -992,19 +992,17 @@ else can mount their volumes. <a class="reference internal" href="node-operation
 moving one.</p>
 <p>Grafana’s database is backed up to the NAS by the <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code> and
 <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> CronJobs (<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>). Prometheus’s data
-is not backed up: it is ten days of metrics.</p>
+is not backed up: it is 60 days of metrics.</p>
 </section>
 <section id="retention">
 <h2>Retention<a class="headerlink" href="#retention" title="Link to this heading">#</a></h2>
-<p>Prometheus keeps <strong>10 days</strong>, the chart’s default: <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code> sets no
-<code class="docutils literal notranslate"><span class="pre">retention</span></code> or <code class="docutils literal notranslate"><span class="pre">retentionSize</span></code>. To change it, add to <code class="docutils literal notranslate"><span class="pre">prometheus.prometheusSpec</span></code>
-in the template:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">prometheus</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">prometheusSpec</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30d</span>
-<span class="w">    </span><span class="nt">retentionSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">35GB</span><span class="w">     </span><span class="c1"># below the 40Gi volume</span>
-</pre></div>
-</div>
+<p>Prometheus keeps <strong>60 days</strong>, capped at <strong>35 GB</strong>: <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code> sets
+<code class="docutils literal notranslate"><span class="pre">retention:</span> <span class="pre">60d</span></code> and <code class="docutils literal notranslate"><span class="pre">retentionSize:</span> <span class="pre">35GB</span></code> under <code class="docutils literal notranslate"><span class="pre">prometheus.prometheusSpec</span></code>.
+It writes about 0.5 GB a day (about 4.2 GB for 8.5 days in November 2026),
+so 60 days is about 30 GB. If it ever grows faster, the size cap drops the
+oldest blocks first, so the 40Gi volume on node04 never fills; with a cap
+hit, the history shown is simply shorter than 60 days. A rebuild still
+starts the history again (see <a class="reference internal" href="../explanations/architecture/backups.html"><span class="doc">Backups and disaster recovery</span></a>).</p>
 </section>
 <section id="how-scraping-is-wired">
 <h2>How scraping is wired<a class="headerlink" href="#how-scraping-is-wired" title="Link to this heading">#</a></h2>
