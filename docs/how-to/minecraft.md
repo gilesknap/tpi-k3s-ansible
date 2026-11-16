@@ -120,8 +120,9 @@ helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <version>
 
 ## The NAS directories
 
-The archive directory and the store tree are created by hand on the NAS,
-which Ansible never manages: {ref}`minecraft-nas-directories`. World data needs
+The archive directory and the store tree are created by hand on the NAS
+while it runs QTS, and by the `nas` role after its switchover:
+{ref}`minecraft-nas-directories`. World data needs
 the `nfs-stable` share root: {ref}`nfs-csi-nas-share`.
 
 ### Ingest the world archive

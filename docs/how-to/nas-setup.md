@@ -11,12 +11,12 @@ procedure.
 
 The NAS is a QNAP at 192.168.1.3. Everything the cluster keeps on it lives
 in a handful of directories, and creating them is the one part of the
-system done by hand: Ansible has no access to the NAS, and none is wanted.
+system done by hand while the NAS runs QTS: Ansible has no access to QTS.
 The NAS also holds unrelated personal data (the media library and other
-shares), and a playbook that can create and delete directories there
-is one typo away from that data. So this page is a runbook to run on the
-NAS itself, once per directory, and the cluster only ever mounts what
-exists.
+shares), so this page is a runbook to run on the NAS itself, once per
+directory, and the cluster only ever mounts what exists. The `nas` role
+that replaces it creates directories but never deletes anything, which
+`just check` enforces ({doc}`/how-to/nas-ubuntu-zfs`).
 
 It has been run for every directory below; it is needed again only for a
 new workload or a replaced NAS. The concepts (which workload uses which

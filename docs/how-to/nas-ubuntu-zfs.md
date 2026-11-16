@@ -151,6 +151,11 @@ when told, and checks first. It refuses unless:
 - the disks are blank: no partition table, partitions or filesystem signature,
   unless `-e nas_force=true` is also given.
 
+Nothing else in the role destroys data: no task destroys a pool, dataset or
+snapshot (sanoid prunes only snapshots past their retention).
+`scripts/check-no-destroy`, run by `just check`, fails if one does, if this
+gating is removed, or if a cluster playbook targets the NAS.
+
 ```bash
 # The main pool. Disks from QTS carry its RAID, so they need nas_force.
 ansible-playbook pb_nas.yml -e nas_create_pool=true -e nas_force=true

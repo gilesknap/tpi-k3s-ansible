@@ -365,7 +365,7 @@ Pruning does not remove everything, mostly on purpose:
 | The namespace | `CreateNamespace=true` creates it but ArgoCD does not own it | Harmless when empty; `kubectl delete namespace <name>` if wanted |
 | Data on a `local-nvme` volume | The PV has `Retain`, and is defined by the `local_storage` entry, not by the service | Remove the `local_storage` and `k8s_data_dirs` entries. The directory on the node is never deleted by any playbook except `pb_decommission.yml -e wipe_local_data=true`; on an RK1 leave it alone |
 | Data on `nfs-stable` | Deleting the claim moves its folder to `archived-<namespace>/<pvc-name>` on the share | Delete the archived folder on the NAS by hand when sure |
-| Static NFS directories and backups on the NAS | Ansible and ArgoCD never touch the NAS | Delete by hand on the NAS when sure |
+| Static NFS directories and backups on the NAS | Nothing automated deletes on the NAS: ArgoCD and the cluster playbooks never touch it, and the `nas` role leaves a directory or dataset removed from its lists | Delete by hand on the NAS when sure |
 | Files already on Google Drive | The off-site job only adds; it prunes its own old uploads later, by age | Nothing |
 | The `sourceRepos` line | The AppProject is applied by Ansible | Remove the line and run `--tags cluster` |
 | The Cloudflare route and DNS record | The edge is not ArgoCD's | The `tunnel_services` change in step 2 |

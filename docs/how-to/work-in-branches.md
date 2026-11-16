@@ -57,7 +57,8 @@ just check
 ```
 
 `scripts/check` verifies that the age public key is the same in both files
-that hold it, then runs `ansible-lint` and the Sphinx build side by side.
+that hold it and that no Ansible destroys stored data
+(`scripts/check-no-destroy`), then runs `ansible-lint` and the Sphinx build side by side.
 Both must finish with no warnings. A warning is fixed, not silenced: no
 `# noqa`, no `warn_list` entries, no Sphinx suppressions.
 
