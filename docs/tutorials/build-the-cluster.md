@@ -21,7 +21,7 @@ Two neighbouring procedures have their own pages:
 | The hardware | The Turing Pi board `turingpi` with three RK1s (each with an NVMe drive), `nuc1`, `nuc2` and `ws03`, as on {doc}`/explanations/architecture/hardware`. The board's BMC has an ext4 SD card mounted at `/mnt/sdcard`, where OS images are staged |
 | Names and addresses | The OpenWrt router at 192.168.1.1 gives every machine a fixed DHCP lease and resolves its name (`node02`, `node02.lan`). The inventory holds names, not addresses |
 | Ubuntu on the amd64 machines | `nuc1`, `nuc2` and `ws03` are installed by hand (Ubuntu, 26.04 today), with a login that can `sudo`. Only the RK1s are flashed by Ansible |
-| The NAS | The QNAP at 192.168.1.3 with the cluster's directories made by hand, per {doc}`/how-to/nas-setup`: `/bigdisk/k8s-cluster/` ({ref}`scrap-nas-directories`, {ref}`minecraft-nas-directories`) and `/k8s-dynamic/stable` ({ref}`nfs-csi-nas-share`). The cluster playbooks never touch the NAS; after its switchover to Ubuntu Server and ZFS, `pb_nas.yml` configures it ({doc}`/how-to/nas-ubuntu-zfs`) |
+| The NAS | The QNAP at 192.168.1.3, on Ubuntu Server and ZFS, built and configured by `pb_nas.yml` ({doc}`/how-to/nas-ubuntu-zfs`), which creates the cluster's directories ({doc}`/how-to/nas-setup`): `/bigdisk/k8s-cluster/` ({ref}`scrap-nas-directories`, {ref}`minecraft-nas-directories`) and `/k8s-dynamic/stable` ({ref}`nfs-csi-nas-share`). The cluster playbooks never touch the NAS |
 | The Cloudflare zone | `gkcluster.org` on Cloudflare, with Zero Trust enabled and its two login methods (GitHub and one-time PIN) added in the dashboard ({doc}`/how-to/cloudflare-as-code`) |
 | Two GitHub OAuth apps | One for Dex (ArgoCD, Grafana, argocd-monitor) and one for oauth2-proxy ({doc}`/how-to/oauth-setup`) |
 | The tailnet and the VPS | A Tailscale OAuth client for the relay pod, and frps running on the VPS ({doc}`/how-to/vps-relay`) |
@@ -465,7 +465,8 @@ borrowing from it would need to change at least:
 - The `local_storage` and `k8s_data_dirs` pair, which pins each
   `local-nvme` volume to a named node and path.
 - `nfs` and `nfs_csi` in `values.yaml`: the NFS server and its paths, and
-  the directory layout made by hand on the NAS.
+  the directory layout the `nas` role makes on the NAS (`nas_directories`,
+  `nas_nfs_exports` and `nas_nfs_clients` in `roles/nas/defaults/main.yml`).
 - Every SealedSecret: they can only be decrypted by this cluster, so each
   must be sealed again from your own values.
 - `cloudflare/live.auto.tfvars` (from `live.auto.tfvars.example`): the

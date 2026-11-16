@@ -49,7 +49,9 @@ and confirm each row. Most are by hand, outside the repo:
   `/mnt/sdcard`; `nuc1`, `nuc2` and `ws03` with Ubuntu installed by hand
   and a login that can `sudo`;
 - the router's fixed DHCP leases and names;
-- the NAS directories (`docs/how-to/nas-setup.md`);
+- the NAS on Ubuntu + ZFS, built with `pb_nas.yml`, which makes the
+  cluster's directories (`docs/how-to/nas-ubuntu-zfs.md`,
+  `docs/how-to/nas-setup.md`);
 - the Cloudflare zone with Zero Trust and its login methods
   (`docs/how-to/cloudflare-as-code.md`);
 - the two GitHub OAuth apps (`docs/how-to/oauth-setup.md`);

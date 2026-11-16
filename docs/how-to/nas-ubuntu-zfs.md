@@ -1,15 +1,15 @@
 # Build or rebuild the NAS (Ubuntu Server + ZFS)
 
 The NAS, `gknas` at 192.168.1.3, is a QNAP TS-253D (Celeron J4125, 32 GB
-RAM, two bays, two 2.5GbE ports). It is moving from QTS, QNAP's own OS, to
+RAM, two bays, two 2.5GbE ports). It moved from QTS, QNAP's own OS, to
 Ubuntu Server 26.04 with ZFS, configured by Ansible like the rest of the
 estate. It is **not** a cluster node: `pb_nas.yml` configures it, separately
 from `pb_all.yml`, and nothing in `pb_all.yml` reaches it.
 
 :::{note}
-Until the switchover, the NAS still runs QTS, and
-{doc}`/how-to/nas-setup` describes it as it is. This page describes the NAS
-after the switchover, and how to build it again from bare metal.
+This page describes the NAS and how to build it again from bare metal.
+{doc}`/how-to/nas-setup` lists the directories the cluster mounts on it.
+Its notes on QTS describe the move from it.
 :::
 
 ## What is on it
@@ -65,7 +65,7 @@ still reach `/bigdisk/k8s-cluster` and `/bigdisk/media` without `/bigdisk`
 itself being exported to them: the server's NFSv4 pseudo-root shows them the
 path down to the exports they are given, and nothing else in it.
 
-On QTS the backup directories are `0777`, because several uids write them.
+On QTS the backup directories were `0777`, because several uids write them.
 Here each is owned by its one writer, mode `0755`: Grafana's backups by
 `472`, Jellyfin's by `122:124`, and `etcd/` (with `pre-upgrade/`) by `65534`,
 which node02's root-run job is squashed to. Only that writer can add or

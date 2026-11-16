@@ -167,10 +167,10 @@ part of a rebuild. Moving a volume to another node is a runbook:
 
 ## The NAS
 
-The NAS is a QNAP, `gknas` at `192.168.1.3`, and the cluster is only ever
-an NFS client of it. It also holds personal data. Until its switchover from
-QTS, its directories are created once by hand ({doc}`/how-to/nas-setup`);
-after it, the `nas` role creates them, run by `pb_nas.yml` only
+The NAS is a QNAP running Ubuntu Server and ZFS, `gknas` at
+`192.168.1.3`, and the cluster is only ever an NFS client of it. It also
+holds personal data. The `nas` role creates its datasets, exports and the
+cluster's directories ({doc}`/how-to/nas-setup`), run by `pb_nas.yml` only
 ({doc}`/how-to/nas-ubuntu-zfs`). That role never destroys data: no task
 destroys a pool, dataset or snapshot (`scripts/check-no-destroy`, run by
 `just check`), pool creation is opt-in and refuses an existing pool, and

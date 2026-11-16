@@ -438,8 +438,8 @@ for good, see {ref}`fence-a-dead-node` and {ref}`move-a-local-nvme-pv`.
 
 ### Restoring from a backup
 
-The backups are under `/bigdisk/k8s-cluster/backups/` on the NAS (on the
-NAS itself, `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/`), and
+The backups are under `/bigdisk/k8s-cluster/backups/` on the NAS (the
+same path on the NAS itself), and
 encrypted on Google Drive. The restore recipes are in
 {doc}`/how-to/backup-restore`.
 
@@ -621,9 +621,10 @@ or its pod stays in `ContainerCreating` with a mount error.
    kubectl run nfs-test --rm -it --restart=Never --image=busybox:1.37 -- ping -c 3 192.168.1.3
    ```
 2. **Directory exists on the NAS?** The cluster creates none of the
-   directories it mounts under `/bigdisk`, nor `/k8s-dynamic/stable`: they
-   are made by hand ({doc}`/how-to/nas-setup`), with the owner the workload
-   runs as. A missing directory fails the mount; a wrong owner shows up
+   directories it mounts under `/bigdisk`, nor `/k8s-dynamic/stable`: the
+   `nas` role makes them, run by `pb_nas.yml` ({doc}`/how-to/nas-setup`),
+   with the owner the workload runs as. A new node must also be in
+   `nas_nfs_clients`, or the NAS refuses its mounts. A missing directory fails the mount; a wrong owner shows up
    later as `Permission denied` in the pod.
 3. **Static or dynamic?** Static NFS PVs (`k8s-cluster-nfs`, scrap's two,
    `jellyfin-media-nfs`, the Minecraft dashboard's three) have no

@@ -21,7 +21,8 @@ scrap's live data is on static NFS PVs (`/bigdisk/k8s-cluster/scrap-data`,
 
 NFS-backed data on the NAS (nightly
 backup CronJob outputs under `/bigdisk/k8s-cluster/backups/*`) is also
-preserved — Ansible never touches the NAS.
+preserved — this command never touches the NAS (only `pb_nas.yml`
+configures it, and the rebuild does not run that).
 
 Minecraft worlds live on the `nfs-stable` class, in
 `<nfs_csi.stable_share>/minecraft/<world>-data` on the NAS. The dashboard
@@ -40,19 +41,28 @@ Grafana/Prometheus come up empty.
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
 
-### One-time NAS prerequisite
+### NAS prerequisite
 
-Before the FIRST rebuild on this plan, the user must run
-`docs/how-to/nas-setup.md` on the NAS by hand. This creates
-`/bigdisk/k8s-cluster/` with the `backups/*` subtree
-that the backup CronJobs mount, scrap's `scrap-data/` and
-`backups/scrap/`, and (with Minecraft) the `nfs-stable` share root.
-**This command does NOT touch the NAS** —
-Ansible has zero trust boundary with it. If the setup has already been
-done (check with `showmount -e <nas>`, and, with Minecraft, that the
-`stable/` folder exists in the dynamic volume share, e.g.
-`ls -ld /share/CACHEDEV1_DATA/k8s-dynamic/stable` on the NAS), no action
-is needed.
+The NAS (`gknas`, Ubuntu + ZFS) must already serve the directories the
+cluster mounts: `/bigdisk/k8s-cluster/` with the `backups/*` subtree that
+the backup CronJobs mount, scrap's `scrap-data/` and `backups/scrap/`, the
+Minecraft store, and `/k8s-dynamic/stable` (the `nfs-stable` share root).
+The `nas` role creates them all (`docs/how-to/nas-setup.md` lists them),
+run by `pb_nas.yml`. **This command does NOT touch the NAS**: it never runs
+`pb_nas.yml`. Check before starting:
+
+```bash
+showmount -e 192.168.1.3   # /bigdisk/k8s-cluster, /bigdisk/media,
+                           # /bigdisk/minecraft-archive, /k8s-dynamic, ...
+ssh -i /root/.config/claude-ssh/id_ed25519 ansible@192.168.1.3 \
+  ls -ldn /bigdisk/k8s-cluster/backups/{grafana,jellyfin,etcd,scrap} \
+  /bigdisk/k8s-cluster/scrap-data /bigdisk/k8s-cluster/minecraft \
+  /k8s-dynamic/stable
+```
+
+If an export or directory is missing, stop and tell the user: the fix is
+`ansible-playbook pb_nas.yml --tags nas_datasets,nas_nfs`
+(`docs/how-to/nas-ubuntu-zfs.md`), which is theirs to run.
 
 ## Important rules
 

@@ -65,7 +65,7 @@ flowchart TB
     K3S["K3s: one server with embedded etcd, five agents<br/><b>Ansible</b> installs, system-upgrade-controller patches"]
     OS["Ubuntu 26.04, packages, local PV directories<br/><b>Ansible</b> installs, unattended-upgrades and kured maintain"]
     HW["Hardware: Turing Pi and RK1s, NUCs, ws03<br/><b>Ansible</b> flashes the RK1s; NUCs and ws03 are installed by hand"]
-    EXT["Off-cluster: the NAS, router DNS, Cloudflare, the VPS<br/><b>By hand</b>, OpenTofu for Cloudflare, <b>Ansible</b> (pb_nas.yml) for the NAS after its switchover"]
+    EXT["Off-cluster: the NAS, router DNS, Cloudflare, the VPS<br/><b>By hand</b>, OpenTofu for Cloudflare, <b>Ansible</b> (pb_nas.yml) for the NAS"]
 
     APPS --> PLAT --> ARGO --> K3S --> OS --> HW
     PLAT -.-> EXT
@@ -130,10 +130,8 @@ The decisions with a longer history are recorded in
 
 Some things are left out of the automation on purpose.
 
-- **The NAS on QTS.** Until its switchover to Ubuntu Server and ZFS,
-  Ansible has no access to it, and the exports and directories the cluster
-  uses are created by hand ({doc}`/how-to/nas-setup`). After it,
-  `pb_nas.yml` manages the NAS but never destroys data: no task destroys a
+- **The NAS is outside the cluster playbooks.** `pb_nas.yml` manages it
+  (Ubuntu Server and ZFS) on its own, and never destroys data: no task destroys a
   pool, dataset or snapshot (enforced by `just check`), pool creation is
   opt-in and refuses an existing pool, and the cluster playbooks never
   touch it ({doc}`/how-to/nas-ubuntu-zfs`).

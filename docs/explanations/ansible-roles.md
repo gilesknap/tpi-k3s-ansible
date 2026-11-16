@@ -555,8 +555,8 @@ thing that creates or changes anything under `/var/lib/k8s-data` on an RK1.
 To move a PV to another node, see {ref}`move-a-local-nvme-pv`;
 {doc}`/explanations/architecture/storage` explains the storage design.
 
-The directories on the NAS are not Ansible's: they are created once, by
-hand ({doc}`/how-to/nas-setup`).
+The directories on the NAS are not this role's: the `nas` role creates
+them, from `pb_nas.yml` ({doc}`/how-to/nas-setup`).
 
 ---
 

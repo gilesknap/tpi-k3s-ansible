@@ -256,7 +256,8 @@ If the path and the node in steps 1 and 2 differ, the claim stays
 mounted with a static NFS PersistentVolume in the service's `additions/`,
 as Jellyfin does for `/bigdisk/media`, read-only
 (`additions/jellyfin/templates/media-nfs.yaml`). The directory itself is
-made by hand on the NAS ({doc}`/how-to/nas-setup`).
+created by the `nas` role, or is a dataset of its own there
+({doc}`/how-to/nas-setup`).
 
 ### Secrets
 
@@ -316,7 +317,8 @@ Data on `nfs-stable` or elsewhere on the NAS is already off the node. Data
 on a `local-nvme` volume exists in one place only, so it needs a CronJob
 that copies it to `/bigdisk/k8s-cluster/backups/<service>/` on the NAS.
 The jobs live in `kubernetes-services/additions/backups/` (Grafana's and
-Jellyfin's are the models). Create the destination directory on the NAS first
+Jellyfin's are the models). Add the destination directory to the `nas` role's
+`nas_directories`, owned by the job's uid, and run `pb_nas.yml` first
 ({doc}`/how-to/nas-setup`). Everything under `backups/` is then picked up
 by the nightly encrypted copy to Google Drive with no further change
 ({ref}`offsite-backup`).

@@ -197,11 +197,12 @@ The scheduling rules behind the picture:
 
 ## Off-cluster kit
 
-**The NAS** (QNAP, 192.168.1.3) exports `/bigdisk` (holding
-`k8s-cluster/`, `media/` and `minecraft-archive/`) and `/k8s-dynamic`
-(holding `stable/`) over NFS. It stores application data, the media library
-and every backup. Ansible never manages it
-({doc}`/how-to/nas-setup`).
+**The NAS** (QNAP TS-253D, 192.168.1.3, Ubuntu Server and ZFS) exports
+`/bigdisk/k8s-cluster`, `/bigdisk/media`, `/bigdisk/minecraft-archive` and
+`/k8s-dynamic` (holding `stable/`) to the cluster over NFS. It stores
+application data, the media library and every backup. `pb_nas.yml`
+manages it, apart from the cluster playbooks
+({doc}`/how-to/nas-ubuntu-zfs`).
 
 **The router** (OpenWrt, 192.168.1.1) resolves the `.lan` node names and
 serves `k3s.lan`, the name of the Kubernetes API, which currently points at

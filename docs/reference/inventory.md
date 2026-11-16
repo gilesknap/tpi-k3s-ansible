@@ -59,7 +59,7 @@ control plane is not an inventory setting: `control_plane` and
 | `ws03` | `extra_nodes` | 192.168.1.10 | | | | `nvidia_gpu_node`, `workstation` | Worker, tainted |
 | `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `flannel_iface: enp3s0`, `intel_gpu_node` | Worker |
 | `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
-| `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` once it runs Ubuntu |
+| `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` |
 
 The addresses are not in `hosts.yml`; they are the ones the router hands out,
 and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.

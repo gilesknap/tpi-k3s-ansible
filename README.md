@@ -29,7 +29,7 @@ Documentation   | <https://gilesknap.github.io/tpi-k3s-ansible>
 
 Around the nodes:
 
-- **The NAS.** A QNAP, moving from QTS to Ubuntu Server and ZFS, that serves
+- **The NAS.** A QNAP running Ubuntu Server and ZFS, that serves
   application data and backups over NFS. Ansible manages it but never
   destroys data: no task destroys a pool, dataset or snapshot (enforced by
   `just check`), pool creation is opt-in and refuses an existing pool, the
