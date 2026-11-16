@@ -79,6 +79,11 @@ spec:
             annotations:
               argocd.argoproj.io/skip-health-check: "true"
             prometheusSpec:
+              # About 0.5 GB of metrics a day: 60 days is about 30 GB.
+              # retentionSize drops the oldest blocks first if it grows
+              # faster, well before the 40Gi volume fills.
+              retention: 60d
+              retentionSize: 35GB
               storageSpec:
                 volumeClaimTemplate:
                   spec:

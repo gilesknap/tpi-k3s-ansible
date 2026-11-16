@@ -18,7 +18,7 @@ flowchart LR
     ksm["kube-state-metrics"]
     apps["ServiceMonitors:<br/>cert-manager, kured, ..."]
     subgraph node04["node04 (local-nvme PVs)"]
-        prom["Prometheus<br/>40Gi, 10 days"]
+        prom["Prometheus<br/>40Gi, 60 days"]
         graf["Grafana<br/>30Gi"]
     end
     am["Alertmanager"]
@@ -91,20 +91,17 @@ moving one.
 
 Grafana's database is backed up to the NAS by the `grafana-daily` and
 `grafana-weekly` CronJobs ({doc}`/how-to/backup-restore`). Prometheus's data
-is not backed up: it is ten days of metrics.
+is not backed up: it is 60 days of metrics.
 
 ## Retention
 
-Prometheus keeps **10 days**, the chart's default: `grafana.yaml` sets no
-`retention` or `retentionSize`. To change it, add to `prometheus.prometheusSpec`
-in the template:
-
-```yaml
-prometheus:
-  prometheusSpec:
-    retention: 30d
-    retentionSize: 35GB     # below the 40Gi volume
-```
+Prometheus keeps **60 days**, capped at **35 GB**: `grafana.yaml` sets
+`retention: 60d` and `retentionSize: 35GB` under `prometheus.prometheusSpec`.
+It writes about 0.5 GB a day (about 4.2 GB for 8.5 days in November 2026),
+so 60 days is about 30 GB. If it ever grows faster, the size cap drops the
+oldest blocks first, so the 40Gi volume on node04 never fills; with a cap
+hit, the history shown is simply shorter than 60 days. A rebuild still
+starts the history again (see {doc}`/explanations/architecture/backups`).
 
 ## How scraping is wired
 
