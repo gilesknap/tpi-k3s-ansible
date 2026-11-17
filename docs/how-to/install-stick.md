@@ -18,8 +18,10 @@ Each host's entry is data in `hosts.yml`, as host vars:
 | `install_machine_macs` | The host's network ports' MAC addresses, in lower case (`cat /sys/class/net/*/address`). The install runs only on a machine that has one of them. |
 | `install_ansible_uid` | Optional. The `ansible` account's uid, when its home is on a disk the install keeps. |
 
-A host needs `install_profile`, `install_disk_serial` and
-`install_machine_macs` to get an entry. Without the serial or the MACs, the
+Never list a USB network dongle's MAC in `install_machine_macs`: a dongle
+moves between machines, so it does not identify one. A host needs
+`install_profile`, `install_disk_serial` and `install_machine_macs` to get
+an entry. Without the serial or the MACs, the
 build warns and leaves the host out.
 
 | Host | Profile | OS disk | Other disks, never touched |

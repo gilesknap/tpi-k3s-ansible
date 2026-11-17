@@ -31,6 +31,8 @@ if [ ! -d "${INSTALL_EFI_DIR:-/sys/firmware/efi}" ]; then
     say "booted in legacy BIOS mode: boot the stick's UEFI entry; refusing to install"
     exit 1
 fi
+# Let udev finish naming the disks and ports before they are read.
+udevadm settle -t 30 || true
 here=$(cat "${INSTALL_NET_DIR:-/sys/class/net}"/*/address 2>/dev/null | tr 'A-F' 'a-f' | tr '\n' ' ')
 mine=""
 for mac in $macs; do
@@ -42,8 +44,6 @@ if [ -z "$mine" ]; then
     say "none of this machine's MACs ($here) is in hosts.yml ($macs): wrong machine or wrong entry; refusing to install"
     exit 1
 fi
-# Let udev finish naming the disks before they are counted.
-udevadm settle -t 30 || true
 found=""
 n=0
 for dev in $(lsblk -dnpo NAME,TYPE | awk '$2 == "disk" {print $1}'); do

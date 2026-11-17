@@ -295,8 +295,8 @@ router, since the `known_hosts` role looks it up as `<node>.lan`. A node
 outside the Turing Pi also needs Ubuntu installed (24.04 or later). Install
 an x86 node from the install stick ({doc}`/how-to/install-stick`): give it
 `install_profile`, `install_disk_serial` and `install_machine_macs` in
-step 1, rebuild the stick and install it. The stick creates the `ansible` account with both keys, so the
-node skips steps 3 and 5. A node installed some other way needs a login
+step 1, rebuild the stick and install it. The stick creates the `ansible`
+account with both keys, so the node skips steps 3 and 5. A node installed some other way needs a login
 with sudo for step 3. A new RK1 needs neither: the flash in step 4 installs
 Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
 

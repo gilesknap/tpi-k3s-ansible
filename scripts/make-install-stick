@@ -114,7 +114,7 @@ if [ ! -b "$dev" ] || [ "$(lsblk -dno TYPE "$dev")" != "disk" ]; then
     exit 1
 fi
 size=$(lsblk -dbno SIZE "$dev")
-if [ "$(lsblk -dno TRAN "$dev")" != "usb" ] || [ "$size" -ge 512000000000 ]; then
+if [ "$(lsblk -dno TRAN "$dev")" != "usb" ] || [ -z "$size" ] || [ "$size" -ge 512000000000 ]; then
     echo "$dev is not a USB disk under 512 GB, so not an install stick: refusing" >&2
     lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN "$dev" >&2
     exit 1
