@@ -163,7 +163,7 @@ applies to that run only.
 | `admin_emails` | *(list)* | GitHub-linked addresses with admin rights: Grafana Admin, and the only addresses oauth2-proxy lets through. ArgoCD admin comes from the copy in `group_vars/all.yml`. **SYNC:** that copy |
 | `nfs.server` | `192.168.1.3` | The NAS: NFS server for the static backup, Minecraft, scrap and media volumes |
 | `nfs.cluster_share_path` | `/bigdisk/k8s-cluster` | The cluster-owned directory on the NAS ({doc}`/how-to/nas-setup`) |
-| `nas.monitoring.enabled` / `nas.monitoring.targets` | `false` / `[192.168.1.3:9100]` | Scrape the NAS's node-exporter (job `nas`) and load the NAS alerts. Turn on once the NAS runs Ubuntu ({doc}`/how-to/nas-ubuntu-zfs`) |
+| `nas.monitoring.enabled` / `nas.monitoring.targets` | `true` / `[192.168.1.3:9100]` | Scrape the NAS's node-exporter (job `nas`) and load the NAS alerts ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nfs_csi.server` | `192.168.1.3` | NFS server for the dynamic StorageClasses (the NAS again) |
 | `nfs_csi.share` | `/k8s-dynamic` | Export for `nfs-rwx` scratch volumes (a new folder per PV) |
 | `nfs_csi.stable_share` | `/k8s-dynamic/stable` | Folder for `nfs-stable` volumes (one fixed folder per PVC); keep it a subfolder of `share` |

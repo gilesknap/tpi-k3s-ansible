@@ -186,10 +186,12 @@ change.
 
 From the backup pool or Drive: see {ref}`nas-recovery`.
 
-### 6. Turn on monitoring
+### 6. Monitoring
 
-Set `nas.monitoring.enabled: true` in `kubernetes-services/values.yaml`
-({ref}`nas-monitoring`) and merge it.
+`nas.monitoring.enabled` is `true` in `kubernetes-services/values.yaml`
+({ref}`nas-monitoring`), so Prometheus scrapes the NAS as soon as
+node-exporter answers on it. Set it to `false` while the NAS is down for
+longer than `NasDown` should report.
 
 ## Running it
 
@@ -291,6 +293,15 @@ alerts:
 
 All of them reach ntfy ({doc}`/how-to/ntfy`): the critical ones by severity,
 the warnings by name.
+
+Some start working later than the rest, because their metrics are absent
+until there is something to measure (an absent metric fires nothing):
+
+- `NasZfsScrubErrors` and `NasZfsScrubOverdue`, after a pool's first scrub
+  (`zpool status` reports no scan until then); `tank`'s first is due on
+  1 December 2026.
+- `NasBackupPoolCopyStale`, once the backup pool exists and
+  `nas-replicate.timer` has run once.
 
 (nas-fans)=
 ## Fans and the embedded controller
