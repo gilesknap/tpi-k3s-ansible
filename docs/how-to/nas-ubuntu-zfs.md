@@ -327,13 +327,14 @@ alerts:
 | `NasZfsPoolErrors` | a pool has read, write or checksum errors | warning |
 | `NasZfsScrubErrors` | the last scrub found errors | warning |
 | `NasZfsScrubOverdue` | no scrub has finished for 40 days | warning |
+| `NasZfsNeverScrubbed` | a pool over 40 days old has never finished a scrub | warning |
 | `NasDiskSmartUnhealthy` | a disk fails its SMART health check | warning |
 | `NasPoolFillingUp` | a pool's allocated space is over 85% of its size (from `zpool list`: the free space a dataset reports stays near 100% however full the pool is) | warning |
 | `NasBackupPoolCopyStale` | the copy to the backup pool has not succeeded for 36 hours | warning |
 | `NasBackupPoolCopyFailed` | the last copy to the backup pool failed | warning |
 | `NasZfsHoldStale` | a dataset has no held snapshot, or its held weekly is over 8 days old (a new dataset gets 8 days from its creation) | warning |
 | `NasZfsHoldFailed` | the last `nas-hold` run failed | warning |
-| `NasMetricsStale` | `nas_zpool.prom` or `smartmon.prom` has not been rewritten for 2 hours, or `nas_hold.prom` for 26 (stale files keep their last, healthy-looking values) | warning |
+| `NasMetricsStale` | `nas_zpool.prom` or `smartmon.prom` has not been rewritten for 2 hours, or `nas_hold.prom` for 26 (stale files keep their last, healthy-looking values), or one is missing or unreadable | warning |
 
 All of them reach ntfy ({doc}`/how-to/ntfy`): the critical ones by severity,
 the warnings by name. While the NAS is down, `NasDown` mutes the chart's

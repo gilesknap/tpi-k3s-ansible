@@ -132,9 +132,11 @@ Some things are left out of the automation on purpose.
 
 - **The NAS is outside the cluster playbooks.** `pb_nas.yml` manages it
   (Ubuntu Server and ZFS) on its own, and never destroys data: no task destroys a
-  pool, dataset or snapshot (enforced by `just check`), pool creation is
-  opt-in and refuses an existing pool, and the cluster playbooks never
-  touch it ({doc}`/how-to/nas-ubuntu-zfs`).
+  pool, dataset or snapshot (checked by `just check`; sanoid's timer does
+  prune snapshots past their retention), pool creation is opt-in and refuses
+  an existing pool (with `nas_force` it does wipe the named disks, which is
+  its purpose), and the cluster playbooks never touch it
+  ({doc}`/how-to/nas-ubuntu-zfs`).
 - **Cloudflare login methods.** The Access identity providers are set up
   once in the dashboard; everything else at Cloudflare is code
   ({doc}`/how-to/cloudflare-as-code`).

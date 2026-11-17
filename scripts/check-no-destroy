@@ -58,7 +58,8 @@ PATTERNS = {
     "zfs destroy": r"\bzfs\W+destroy\b",
     "zfs rollback": r"\bzfs\W+rollback\b",
     # wipefs --no-act (-n) only lists the signatures; any other wipefs erases.
-    "wipefs": r"\bwipefs\b(?![^\n]*(--no-act|\s-n\b))",
+    # The option must belong to the same invocation (before ; | & or a newline).
+    "wipefs": r"\bwipefs\b(?![^\n;|&]*(--no-act|\s-n\b))",
     "sgdisk zap": r"\bsgdisk\b[^\n]*(--zap|\s-Z\b)",
     "blkdiscard": r"\bblkdiscard\b",
     "mkfs": r"\bmkfs\b",
@@ -256,6 +257,22 @@ def gated(task, key):
     return False
 
 
+def logical_lines(text):
+    """(first line number, line), with shell line continuations joined."""
+    out, start, buf = [], None, ""
+    for n, line in enumerate(text.splitlines(), 1):
+        if start is None:
+            start = n
+        if line.endswith("\\") and not re.match(r"\s*#", line):
+            buf += line[:-1] + " "
+            continue
+        out.append((start, buf + line))
+        start, buf = None, ""
+    if start is not None:
+        out.append((start, buf))
+    return out
+
+
 def check_commands(files, pool_create_lines):
     used = set()
 
@@ -273,7 +290,7 @@ def check_commands(files, pool_create_lines):
         errors.append(f"{path}:{n}: destructive `{name}`: {text.strip()[:200]}")
 
     for path in files:
-        for n, line in enumerate((REPO / path).read_text(errors="replace").splitlines(), 1):
+        for n, line in logical_lines((REPO / path).read_text(errors="replace")):
             if re.match(r"\s*(#|\{#)", line):
                 continue
             for name, pattern in PATTERNS.items():
@@ -344,6 +361,8 @@ def check_cluster_playbooks():
         errors.append("group_vars/all.yml: control_plane is a NAS host")
 
     def targets_nas(pattern):
+        if isinstance(pattern, list):  # hosts: [a, b]
+            return any(targets_nas(p) for p in pattern)
         if "{{" in str(pattern):
             return True  # unknown until run time
         for tok in re.split(r"[,:]", str(pattern)):
@@ -383,11 +402,36 @@ def check_cluster_playbooks():
                 roles.add(dep["role"] if isinstance(dep, dict) else dep)
 
 
-def check_tasks(path, data, roles, targets_nas):
+TASK_INCLUDES = (
+    "ansible.builtin.import_tasks",
+    "ansible.builtin.include_tasks",
+    "import_tasks",
+    "include_tasks",
+)
+
+
+def check_tasks(path, data, roles, targets_nas, seen=None):
+    seen = set() if seen is None else seen
+    seen.add(path)
     for d in walk(data):
         for key in ("ansible.builtin.include_role", "ansible.builtin.import_role", "include_role", "import_role"):
             if isinstance(d.get(key), dict):
                 roles.add(d[key]["name"])
+        # Follow a literal task file (relative to the including file, or to
+        # its role's tasks/), so a play cannot reach the NAS through one.
+        for key in TASK_INCLUDES:
+            ref = d.get(key)
+            ref = ref.get("file") if isinstance(ref, dict) else ref
+            if not isinstance(ref, str) or "{{" in ref:
+                continue
+            here = Path(path).parent
+            for cand in (here / ref, here.parent / "tasks" / ref):
+                full = (REPO / cand).resolve()
+                inside = full.is_relative_to(REPO.resolve())
+                cand = str(full.relative_to(REPO.resolve())) if inside and full.is_file() else None
+                if cand and cand not in seen:
+                    check_tasks(cand, load_yaml(cand), roles, targets_nas, seen)
+                    break
         if "delegate_to" in d and targets_nas(d["delegate_to"]) and d["delegate_to"] != "{{ control_plane }}":
             errors.append(f"{path}: delegates to the NAS: {d['delegate_to']}")
 

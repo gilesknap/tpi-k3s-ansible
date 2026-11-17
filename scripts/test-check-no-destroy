@@ -6,7 +6,8 @@
 # state absent on a data path (also through a literal loop), zfs receive
 # -F, the filesystem module with force, scripts a role ships in files/ and
 # templates/, rm -r of a data path, and the opt-in wipe of
-# pb_decommission.yml losing its gate. Run by `just check`.
+# pb_decommission.yml losing its gate, a chained wipefs, a hosts list naming
+# the NAS and an imported task file delegating to it. Run by `just check`.
 #
 # Usage: scripts/test-check-no-destroy   (VERBOSE=1 shows each run's output)
 set -euo pipefail
@@ -19,7 +20,7 @@ trap 'rm -rf "$work"' EXIT
 # The copy: every file git would list, in a fresh repository (the check
 # lists files with git ls-files, untracked ones included).
 (cd "$here" && git ls-files -z --cached --others --exclude-standard \
-    | xargs -0 -I{} sh -c 'test -f "{}" && printf "%s\0" "{}"' \
+    | xargs -0 -I{} sh -c 'if test -f "{}"; then printf "%s\0" "{}"; fi' \
     | tar --null -T - -cf -) | (cd "$work" && tar -xf -)
 git -C "$work" init -q
 
@@ -124,11 +125,49 @@ wipefs -a {{ disk }}'
 expect_fail "rm -r of a data path" "rm -r of a data path" roles/zz_test/files/clean.sh '#!/bin/sh
 rm -rf /bigdisk/media/old'
 
+expect_fail "wipefs -a followed by a read-only wipefs" "wipefs" "$tasks" '
+- name: T
+  ansible.builtin.shell: wipefs -a /dev/sdb; wipefs --no-act /dev/sdc'
+
+expect_fail "rm -r of a data path split by a continuation in a script" "rm -r of a data path" roles/zz_test/files/split.sh '#!/bin/sh
+rm -rf \
+  /bigdisk/media/old'
+
 expect_fail "the zfs module with state absent" "with state absent" "$tasks" '
 - name: T
   community.general.zfs:
     name: tank/x
     state: absent'
+
+# A cluster playbook whose hosts list names the NAS.
+cat >"$work/pb_zz_test.yml" <<'EOF2'
+- name: T
+  hosts: [all_nodes, nas]
+  tasks: []
+EOF2
+if run; then echo "FAIL: hosts list naming the NAS: the check passed"; fails=$((fails + 1))
+elif grep -qF "targets the NAS" "$work/.out"; then echo "ok   a hosts list naming the NAS"; show
+else echo "FAIL: hosts list: unexpected errors:"; sed 's/^/    /' "$work/.out"; fails=$((fails + 1)); fi
+rm -f "$work/pb_zz_test.yml"
+
+# A cluster playbook that imports a task file delegating to the NAS.
+mkdir -p "$work/zz_tasks"
+cat >"$work/pb_zz_test.yml" <<'EOF2'
+- name: T
+  hosts: node02
+  tasks:
+    - name: T
+      ansible.builtin.import_tasks: zz_tasks/t.yml
+EOF2
+cat >"$work/zz_tasks/t.yml" <<'EOF2'
+- name: T
+  ansible.builtin.command: "true"
+  delegate_to: gknas
+EOF2
+if run; then echo "FAIL: imported tasks delegating to the NAS: the check passed"; fails=$((fails + 1))
+elif grep -qF "delegates to the NAS" "$work/.out"; then echo "ok   imported tasks delegating to the NAS"; show
+else echo "FAIL: imported tasks: unexpected errors:"; sed 's/^/    /' "$work/.out"; fails=$((fails + 1)); fi
+rm -rf "$work/pb_zz_test.yml" "$work/zz_tasks"
 
 # The opt-in wipe of the nodes' local PV roots without its gate.
 cp "$work/pb_decommission.yml" "$work/.pb"

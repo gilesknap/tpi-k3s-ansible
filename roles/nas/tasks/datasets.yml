@@ -35,8 +35,11 @@
   register: nas_datasets_mounted
   changed_when: false
   check_mode: false
+  # In check mode a dataset the play would create does not exist yet.
   failed_when: >-
-    nas_datasets_mounted.rc != 0
+    (nas_datasets_mounted.rc != 0
+     and not (ansible_check_mode
+              and nas_datasets_mounted.stderr_lines | reject('search', 'dataset does not exist') | list | length == 0))
     or nas_datasets_mounted.stdout_lines | reject('match', '.*\tyes$') | list | length > 0
   when: nas_pools_present[nas_pool] | default(false)
 

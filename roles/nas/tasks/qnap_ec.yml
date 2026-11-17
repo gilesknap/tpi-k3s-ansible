@@ -43,7 +43,14 @@
   when: nas_qnap_ec_status.stdout | trim | length == 0
   changed_when: true
 
-- name: Build and install the module
+# A new commit with the same version: build it again from the checkout,
+# or DKMS would reinstall its cached build of the old source.
+- name: Build the module
+  ansible.builtin.command: dkms build --force -m qnap8528 -v {{ nas_qnap_ec_version }} -k {{ ansible_facts['kernel'] }}
+  when: nas_qnap_ec_src is changed or 'installed' not in nas_qnap_ec_status.stdout
+  changed_when: true
+
+- name: Install the module
   ansible.builtin.command: dkms install --force -m qnap8528 -v {{ nas_qnap_ec_version }} -k {{ ansible_facts['kernel'] }}
   when: nas_qnap_ec_src is changed or 'installed' not in nas_qnap_ec_status.stdout
   changed_when: true

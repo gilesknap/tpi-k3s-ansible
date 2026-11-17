@@ -14,6 +14,8 @@
 # pool's first scrub the scrub metrics are absent, and so are the alerts
 # on them.
 set -euo pipefail
+# A failure inside $(...) fails the script, leaving the old file in place.
+shopt -s inherit_errexit
 prom={{ nas_textfile_dir }}/nas_zpool.prom
 tmp=$(mktemp "$prom.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
@@ -27,7 +29,9 @@ samples() {
     zpool list -Hp -o name,size,alloc | while read -r pool size alloc; do
         echo "nas_zpool_size_bytes{zpool=\"$pool\"} $size"
         echo "nas_zpool_allocated_bytes{zpool=\"$pool\"} $alloc"
-    done
+        # The pool's root dataset's creation time: a scrub is due from then.
+        echo "nas_zpool_created_timestamp_seconds{zpool=\"$pool\"} $(zfs get -Hp -o value creation "$pool")"
+    done || return 1
     jq -r '
       def labels($p): "{zpool=\"" + $p + "\"}";
       .pools // {} | to_entries[] | .key as $p | .value as $v |
@@ -64,6 +68,7 @@ family() { # name, help: the family's HELP, TYPE and samples together
 {
     family nas_zpool_size_bytes "Size of the pool (zpool list SIZE)."
     family nas_zpool_allocated_bytes "Space allocated in the pool (zpool list ALLOC)."
+    family nas_zpool_created_timestamp_seconds "When the pool was created (its root dataset's creation)."
     family nas_zpool_errors "Read, write and checksum errors summed over every device of the pool."
     family nas_zpool_scrub_errors "Errors found by the last finished scrub."
     family nas_zpool_scrub_end_timestamp_seconds "When the last finished scrub ended."

@@ -94,8 +94,11 @@ The listing shows the `backups` subtree.
 
 ## Adding a new directory
 
-Add an entry to `nas_directories` (path, owner and mode: the uid of the
-workload that will write it) and re-run
+Add an entry to `nas_directories` with all four fields, `path`, `owner`
+and `group` (the uid and gid of the workload that will write it) and
+`mode`, for example
+`{ path: /bigdisk/k8s-cluster/backups/foo, owner: "1234", group: "1234", mode: "0755" }`,
+and re-run
 `ansible-playbook pb_nas.yml --tags nas_datasets`. A directory under
 `/bigdisk/k8s-cluster/` needs no export change: everything the cluster
 writes on `/bigdisk` is inside that one dataset. A new dataset is a new

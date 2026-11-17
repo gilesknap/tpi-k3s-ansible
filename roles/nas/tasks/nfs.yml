@@ -74,6 +74,16 @@
   loop_control:
     label: "{{ item.path }}"
 
+# nfs-server's ExecStartPre runs the check only when it starts; a running
+# server picks up a new export list through the handler's exportfs, so
+# check here (and in the handler) too.
+- name: Check every export is a mounted ZFS dataset
+  ansible.builtin.command: /usr/local/sbin/nas-check-exports
+  changed_when: false
+  when:
+    - nas_pools_present[nas_pool] | default(false)
+    - not ansible_check_mode
+
 - name: Write the exports
   ansible.builtin.template:
     src: nas.exports.j2

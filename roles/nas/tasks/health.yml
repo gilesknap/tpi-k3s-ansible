@@ -83,6 +83,16 @@
     state: started
   loop: "{{ nas_present_pools }}"
 
+# node-exporter reads its package's default directory; the role does not
+# reconfigure it, so the writers must use the same one.
+- name: Check the textfile directory is node-exporter's
+  ansible.builtin.assert:
+    that: nas_textfile_dir == '/var/lib/prometheus/node-exporter'
+    fail_msg: >-
+      nas_textfile_dir must stay /var/lib/prometheus/node-exporter, the
+      directory Ubuntu's node-exporter reads.
+    quiet: true
+
 - name: Create node-exporter's textfile directory
   ansible.builtin.file:
     path: "{{ nas_textfile_dir }}"

@@ -61,8 +61,10 @@ ssh -i /root/.config/claude-ssh/id_ed25519 ansible@192.168.1.3 \
 ```
 
 If an export or directory is missing, stop and tell the user: the fix is
-`ansible-playbook pb_nas.yml --tags nas_datasets,nas_nfs`
-(`docs/how-to/nas-ubuntu-zfs.md`), which is theirs to run.
+`ansible-playbook pb_nas.yml --tags nas_datasets,nas_nfs`, or the whole
+`ansible-playbook pb_nas.yml` if the NAS's OS was reinstalled (the tagged
+run skips `nas_os`, which installs ZFS and the NFS server;
+`docs/how-to/nas-ubuntu-zfs.md`). It is theirs to run.
 
 ## Important rules
 

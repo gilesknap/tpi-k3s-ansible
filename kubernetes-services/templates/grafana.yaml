@@ -190,7 +190,7 @@ spec:
                   # `for`), and ignores cordoned nodes.
                   - receiver: ntfy
                     matchers:
-                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale|NasBackupPoolCopyFailed|NasZfsHoldStale|NasZfsHoldFailed|NasMetricsStale"
+                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasZfsNeverScrubbed|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale|NasBackupPoolCopyFailed|NasZfsHoldStale|NasZfsHoldFailed|NasMetricsStale"
               inhibit_rules:
                 # Chart defaults: a critical mutes its own warning/info, a
                 # warning its own info; InfoInhibitor mutes info alerts in its
@@ -418,6 +418,18 @@ spec:
                       annotations:
                         summary: A ZFS pool on the NAS has not been scrubbed for 40 days.
                         description: Check the zfs-scrub-monthly@ timers on gknas.
+                    # A pool with no finished scrub at all has no scrub metric
+                    # for the rule above: fire once it is 40 days old.
+                    - alert: NasZfsNeverScrubbed
+                      expr: >-
+                        (time() - nas_zpool_created_timestamp_seconds{job="nas"} > 40 * 86400)
+                        unless on(zpool) nas_zpool_scrub_end_timestamp_seconds{job="nas"}
+                      for: 1h
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A ZFS pool on the NAS has never finished a scrub in 40 days.
+                        description: Check the zfs-scrub-monthly@ timers and `zpool status` on gknas.
                     - alert: NasDiskSmartUnhealthy
                       expr: smartmon_device_smart_healthy{job="nas"} == 0
                       for: 15m
@@ -490,11 +502,20 @@ spec:
                     # keeps its last values, which then look healthy for
                     # ever: nas_zpool.prom is rewritten every 5 minutes and
                     # smartmon.prom every 15, nas_hold.prom daily at 02:00.
+                    # Also fires when one is missing or unreadable (no mtime
+                    # then) while node-exporter answers.
                     - alert: NasMetricsStale
                       expr: >-
                         (time() - node_textfile_mtime_seconds{job="nas", file=~".*/(nas_zpool|smartmon)\\.prom"} > 2 * 3600)
                         or
                         (time() - node_textfile_mtime_seconds{job="nas", file=~".*/nas_hold\\.prom"} > 26 * 3600)
+                        or
+                        node_textfile_scrape_error{job="nas"} > 0
+                        or
+                        ((absent(node_textfile_mtime_seconds{job="nas", file=~".*/nas_zpool\\.prom"})
+                          or absent(node_textfile_mtime_seconds{job="nas", file=~".*/smartmon\\.prom"})
+                          or absent(node_textfile_mtime_seconds{job="nas", file=~".*/nas_hold\\.prom"}))
+                         and on() up{job="nas"} == 1)
                       for: 15m
                       labels:
                         severity: warning
