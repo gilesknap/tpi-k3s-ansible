@@ -16,10 +16,13 @@ The data comes from host vars in hosts.yml (see docs/how-to/install-stick.md):
   install_profile:     server | desktop (ubuntu-desktop-minimal on top of server)
   install_disk_serial: the OS disk's serial (lsblk -o NAME,SERIAL)
   install_disk_model:  optional; the OS disk's model as lsblk shows it
+  install_machine_macs: the host's NIC MAC addresses (lower case); the
+                       install refuses unless one of them is present
   install_ansible_uid: optional; the ansible account's uid, to match its
                        home directory on a disk the install keeps
 
-A host with install_profile but no usable install_disk_serial gets no entry:
+A host with install_profile but no usable install_disk_serial or
+install_machine_macs gets no entry:
 the build warns and leaves it out.
 """
 
@@ -37,6 +40,7 @@ NEW = "new"
 NEW_HOSTNAME = "new-host"
 SERIAL_RE = re.compile(r"^[A-Za-z0-9._-]{6,}$")
 HOST_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
 
 
 class Literal(str):
@@ -89,6 +93,17 @@ def install_hosts(hosts):
                 " leaving its entry off the stick"
             )
             continue
+        macs = hvars.get("install_machine_macs")
+        if (
+            not isinstance(macs, list)
+            or not macs
+            or not all(isinstance(m, str) and MAC_RE.match(m) for m in macs)
+        ):
+            warnings.append(
+                f"{name}: no usable install_machine_macs ({macs!r}) in hosts.yml;"
+                " leaving its entry off the stick"
+            )
+            continue
         uid = hvars.get("install_ansible_uid")
         if uid is not None and (type(uid) is not int or uid < 1000):
             raise SystemExit(f"{name}: install_ansible_uid must be a number from 1000")
@@ -136,8 +151,11 @@ def target_user_data(hostname, account, keys, uid=None):
     return {"hostname": hostname, "preserve_hostname": False, **data}
 
 
-def guard_command(serial, model):
-    head = f"INSTALL_DISK_SERIAL='{serial}'\nINSTALL_DISK_MODEL='{model}'\n"
+def guard_command(serial, model, macs):
+    head = (
+        f"INSTALL_DISK_SERIAL='{serial}'\nINSTALL_DISK_MODEL='{model}'\n"
+        f"INSTALL_MACHINE_MACS='{' '.join(macs)}'\n"
+    )
     return Literal(head + GUARD.read_text())
 
 
@@ -149,6 +167,9 @@ DESKTOP_LATE = [
     " > /target/etc/netplan/01-network-manager-all.yaml",
     "chmod 600 /target/etc/netplan/01-network-manager-all.yaml",
     "curtin in-target -- systemctl set-default graphical.target",
+    # networkd no longer runs any link: stop boot waiting for it.
+    "curtin in-target -- systemctl disable systemd-networkd.service"
+    " systemd-networkd.socket systemd-networkd-wait-online.service",
 ]
 
 
@@ -163,7 +184,13 @@ def autoinstall(hostname, hvars, account, keys):
     }
     if hostname:
         serial = hvars["install_disk_serial"]
-        ai["early-commands"] = [guard_command(serial, hvars.get("install_disk_model", ""))]
+        ai["early-commands"] = [
+            guard_command(
+                serial,
+                hvars.get("install_disk_model", ""),
+                hvars["install_machine_macs"],
+            )
+        ]
         # The whole disk: a 1 GB ESP and an ext4 root (UEFI).
         ai["storage"] = {
             "layout": {"name": "direct", "match": {"serial": f"*{serial}*"}}
@@ -203,7 +230,7 @@ def entry_title(name, hvars):
     )
 
 
-def render_grub(text, hosts, default):
+def render_grub(text, hosts):
     """Add the stick's entries to the ISO's grub.cfg."""
     lines = text.splitlines()
     first = next(
@@ -221,14 +248,14 @@ def render_grub(text, hosts, default):
     words = linux.split()
     kernel, rest = words[1], " ".join(words[2:])
 
-    head = [ln for ln in lines[:first] if not ln.startswith("set timeout")]
-    if default:
-        if default not in hosts:
-            raise SystemExit(f"--default {default}: no such entry on the stick")
-        head[:0] = ["set timeout=10", f"set default=install-{default}"]
-    else:
-        # No timeout: an entry runs only when someone picks it.
-        head[:0] = ["set timeout=-1"]
+    # No timeout and no default: an entry runs only when someone picks it,
+    # so a stick left in never starts an install by itself.
+    head = [
+        ln
+        for ln in lines[:first]
+        if not ln.startswith(("set timeout", "set default"))
+    ]
+    head[:0] = ["set timeout=-1"]
 
     entries = ["grub_platform", 'if [ "$grub_platform" = "efi" ]; then']
     for name in [NEW] + sorted(hosts):
@@ -253,7 +280,6 @@ def main():
     ap.add_argument("--out", required=True, help="directory for the seeds")
     ap.add_argument("--grub-in", help="the ISO's /boot/grub/grub.cfg")
     ap.add_argument("--grub-out", help="where to write the stick's grub.cfg")
-    ap.add_argument("--default", help="host whose entry boots after 10 s")
     args = ap.parse_args()
 
     keys = read_keys(args.key)
@@ -269,10 +295,8 @@ def main():
         write_seed(out, name, autoinstall(name, hvars, account, keys))
     write_seed(out, NEW, autoinstall(None, {}, account, keys))
     if args.grub_in and args.grub_out:
-        grub = render_grub(Path(args.grub_in).read_text(), hosts, args.default)
+        grub = render_grub(Path(args.grub_in).read_text(), hosts)
         Path(args.grub_out).write_text(grub)
-    elif args.default:
-        raise SystemExit("--default needs --grub-in and --grub-out")
     print("entries: " + " ".join([NEW] + sorted(hosts)))
 
 

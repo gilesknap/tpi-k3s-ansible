@@ -8,7 +8,6 @@
 #
 #   scripts/make-install-stick                      # build the ISO only
 #   scripts/make-install-stick --write /dev/sdX     # build it and write the stick
-#   scripts/make-install-stick --default gknas ...  # gknas's entry boots after 10 s
 #
 # Steps:
 #   1. Download the newest Ubuntu 26.04 live-server ISO and check its SHA256.
@@ -17,7 +16,11 @@
 #      `autoinstall ds=nocloud;s=/cdrom/install/<host>/`. The new-hardware
 #      entry has no `autoinstall`: its storage and network screens are
 #      interactive.
-#   3. Write it to the stick, after you type the device name a second time.
+#   3. Write it to the stick, after you type the device name a second time
+#      and the stick's serial. Only a USB disk under 512 GB is accepted.
+#
+# The menu has no default and no timeout: an install starts only when
+# someone picks its entry at the console.
 #
 # The ansible account gets pub_keys/ansible_rsa.pub, plus the Claude sandbox
 # key when one is found (--claude-key FILE, else
@@ -31,12 +34,10 @@ usage() {
 }
 
 dev=""
-default=""
 claude_key=""
 while [ $# -gt 0 ]; do
     case "$1" in
     --write) dev=${2:?--write needs a device}; shift 2 ;;
-    --default) default=${2:?--default needs a host}; shift 2 ;;
     --claude-key) claude_key=${2:?--claude-key needs a file}; shift 2 ;;
     -h | --help) usage 0 ;;
     *) usage ;;
@@ -94,8 +95,7 @@ chmod u+w "$work/grub.iso.cfg"
 python3 -I "$repo/install/render.py" \
     --inventory "$repo/hosts.yml" --group-vars "$repo/group_vars/all.yml" \
     "${keys[@]}" --out "$work/install" \
-    --grub-in "$work/grub.iso.cfg" --grub-out "$work/grub.cfg" \
-    ${default:+--default "$default"}
+    --grub-in "$work/grub.iso.cfg" --grub-out "$work/grub.cfg"
 
 out="$work/install-stick.iso"
 rm -f "$out"
@@ -109,13 +109,27 @@ if [ -z "$dev" ]; then
     echo "to write it: $0 --write /dev/sdX  (check the device with lsblk first)"
     exit 0
 fi
-if [ ! -b "$dev" ] || { [ "$(lsblk -dno RM "$dev")" != "1" ] && [ "$(lsblk -dno TRAN "$dev")" != "usb" ]; }; then
-    echo "$dev is not a removable USB disk: refusing" >&2
+if [ ! -b "$dev" ] || [ "$(lsblk -dno TYPE "$dev")" != "disk" ]; then
+    echo "$dev is not a whole disk: refusing" >&2
     exit 1
 fi
-lsblk -o NAME,SIZE,MODEL,TRAN,MOUNTPOINTS "$dev"
-read -r -p "Erase everything on $dev? Type the device name again: " again
-if [ "$again" != "$dev" ]; then
+size=$(lsblk -dbno SIZE "$dev")
+if [ "$(lsblk -dno TRAN "$dev")" != "usb" ] || [ "$size" -ge 512000000000 ]; then
+    echo "$dev is not a USB disk under 512 GB, so not an install stick: refusing" >&2
+    lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN "$dev" >&2
+    exit 1
+fi
+id=$(lsblk -dno SERIAL "$dev" | sed 's/[[:space:]]*$//')
+what=serial
+if [ -z "$id" ]; then
+    id=$(lsblk -dno MODEL "$dev" | sed 's/[[:space:]]*$//')
+    what=model
+fi
+echo "This erases everything on:"
+lsblk -o NAME,SIZE,MODEL,SERIAL,TRAN,MOUNTPOINTS "$dev"
+read -r -p "Type the device name again ($dev): " again
+read -r -p "Type its $what as shown above: " again_id
+if [ "$again" != "$dev" ] || [ -z "$id" ] || [ "$again_id" != "$id" ]; then
     echo "not writing" >&2
     exit 1
 fi

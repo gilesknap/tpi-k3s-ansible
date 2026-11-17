@@ -1,10 +1,14 @@
 # The disk guard: the first of a host's autoinstall early-commands.
-# install/render.py embeds this file in each host's user-data after two
-# lines that set INSTALL_DISK_SERIAL and INSTALL_DISK_MODEL from hosts.yml.
+# install/render.py embeds this file in each host's user-data after lines
+# that set INSTALL_DISK_SERIAL, INSTALL_DISK_MODEL and INSTALL_MACHINE_MACS
+# from hosts.yml.
 #
 # It runs in the installer, before Subiquity touches any disk, and fails
 # (which stops the install) unless:
 #   - the machine booted in UEFI mode, and
+#   - one of its network ports has a MAC in INSTALL_MACHINE_MACS (this is
+#     the machine: a disk serial alone is not enough, since a USB
+#     enclosure reports its own serial, whatever drive is in it), and
 #   - exactly one disk carries the serial, and
 #   - that disk's model is INSTALL_DISK_MODEL, when that is set.
 # A disk carries the serial when lsblk's SERIAL, or the udev property
@@ -20,11 +24,26 @@ say() {
 }
 serial=${INSTALL_DISK_SERIAL:?}
 model=${INSTALL_DISK_MODEL:-}
-# INSTALL_EFI_DIR is for scripts/test-make-install-stick only.
+macs=${INSTALL_MACHINE_MACS:?}
+# INSTALL_EFI_DIR and INSTALL_NET_DIR are for scripts/test-make-install-stick
+# only.
 if [ ! -d "${INSTALL_EFI_DIR:-/sys/firmware/efi}" ]; then
     say "booted in legacy BIOS mode: boot the stick's UEFI entry; refusing to install"
     exit 1
 fi
+here=$(cat "${INSTALL_NET_DIR:-/sys/class/net}"/*/address 2>/dev/null | tr 'A-F' 'a-f' | tr '\n' ' ')
+mine=""
+for mac in $macs; do
+    case " $here " in
+    *" $mac "*) mine=$mac ;;
+    esac
+done
+if [ -z "$mine" ]; then
+    say "none of this machine's MACs ($here) is in hosts.yml ($macs): wrong machine or wrong entry; refusing to install"
+    exit 1
+fi
+# Let udev finish naming the disks before they are counted.
+udevadm settle -t 30 || true
 found=""
 n=0
 for dev in $(lsblk -dnpo NAME,TYPE | awk '$2 == "disk" {print $1}'); do
@@ -53,4 +72,4 @@ if [ -n "$model" ]; then
         exit 1
     fi
 fi
-say "installing onto $dev (serial $serial)"
+say "installing onto $dev (serial $serial) on the machine with MAC $mine"

@@ -8,14 +8,29 @@
 #   opts:   the fstab options; with noauto the entry is written to fstab
 #           only, not mounted
 # This writes fstab lines and mounts: it never formats or wipes a disk.
+# A noauto entry goes in with lineinfile: the mount module would warn about
+# noauto in opts, or (with boot: false) move noauto to the end of the
+# options and so rewrite a line that is already right.
 
-- name: Add the extra mounts to fstab, mounting those not marked noauto
+- name: Add the extra mounts to fstab and mount them
   ansible.posix.mount:
     path: "{{ item.path }}"
     src: "{{ item.src }}"
     fstype: "{{ item.fstype }}"
     opts: "{{ item.opts }}"
-    state: "{{ 'present' if 'noauto' in item.opts.split(',') else 'mounted' }}"
-  loop: "{{ extra_mounts | default([]) }}"
+    state: mounted
+  loop: "{{ extra_mounts | default([]) | rejectattr('opts', 'search', '(^|,)noauto(,|$)') }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Add the noauto extra mounts to fstab, without mounting them
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\S+\s+{{ item.path | regex_escape }}\s'
+    line: "{{ item.src }} {{ item.path }} {{ item.fstype }} {{ item.opts }} 0 0"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ extra_mounts | default([]) | selectattr('opts', 'search', '(^|,)noauto(,|$)') }}"
   loop_control:
     label: "{{ item.path }}"

@@ -45,6 +45,7 @@ commented-out sketch of one).
 | `install_profile` | x86 hosts, optional | `server`, `desktop` | Gives the host an entry on the install stick ({doc}`/how-to/install-stick`); `desktop` adds `ubuntu-desktop-minimal` and NetworkManager |
 | `install_disk_serial` | With `install_profile` | Disk serial | The OS disk the install erases. The install refuses unless exactly one disk has this serial |
 | `install_disk_model` | With `install_profile`, optional | Disk model | Also checked against the OS disk's model, as `lsblk` shows it |
+| `install_machine_macs` | With `install_profile`, required | List of MACs, lower case | The host's network ports. The install refuses unless one is present, so the entry runs on this machine only |
 | `install_ansible_uid` | With `install_profile`, optional | Number | The `ansible` account's uid on the new install, so it still owns its home on a disk the install keeps (`nuc2`: 1001) |
 | `extra_mounts` | Optional | List of `path`, `src`, `fstype`, `opts` | fstab entries for the node's other disks. The `k8s_data_dirs` role (`--tags servers`) writes them and mounts each one not marked `noauto`. It never formats a disk. `nuc2` lists `/home` and `/mnt/backup` |
 

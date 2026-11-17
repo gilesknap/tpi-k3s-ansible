@@ -3,13 +3,15 @@
 # seeds and GRUB menu from hosts.yml (install/render.py) into a temp dir
 # and checks that
 #   - each user-data parses as YAML and has the autoinstall keys;
-#   - each host's entry has the disk guard with its own serial, and a
-#     storage match on that serial;
+#   - each host's entry has the disk guard with its own serial and MACs,
+#     and a storage match on that serial;
 #   - the new-hardware entry has no guard, no storage and no `autoinstall`
 #     on its kernel line, and each host's entry has it;
-#   - the guard itself, run with stand-ins for lsblk and udevadm, installs
-#     only when exactly one disk has the serial (and the model, when set);
-#   - a host with install_profile but no serial is left off, with a warning.
+#   - each host's guard, run with stand-ins for lsblk, udevadm and the
+#     network ports, installs only when one of the host's MACs is present
+#     and exactly one disk has the serial (and the model, when set);
+#   - a host with install_profile but no serial or MACs is left off, with a
+#     warning, and a private key given as a key is refused.
 # Run by `just check` (under uv run, for PyYAML).
 #
 # Usage: scripts/test-make-install-stick
@@ -87,7 +89,8 @@ entries = {}
 for m in re.finditer(r'menuentry "[^"]*" --id install-(\S+) \{\n(.*?)\n\}', grub, re.S):
     entries[m.group(1)] = m.group(2)
 check(set(entries) == set(want) | {"new"}, f"grub entries {sorted(entries)}")
-check("set timeout=-1" in grub and "set timeout=30" not in grub, "grub waits for a choice")
+check("set timeout=-1" in grub and "set timeout=30" not in grub
+      and "set default" not in grub, "grub waits for a choice, with no default")
 
 for host in sorted(want) + ["new"]:
     path = seeds / host / "user-data"
@@ -119,6 +122,9 @@ for host in sorted(want) + ["new"]:
     guard = ai["early-commands"][0]
     check(f"INSTALL_DISK_SERIAL='{serial}'" in guard and "exactly one disk" in guard,
           f"{host}: guard for serial {serial}")
+    macs = " ".join(v["install_machine_macs"])
+    check(f"INSTALL_MACHINE_MACS='{macs}'" in guard and "udevadm settle" in guard,
+          f"{host}: guard for MACs {macs}")
     check(ai["storage"]["layout"] == {"name": "direct", "match": {"serial": f"*{serial}*"}},
           f"{host}: storage matches the serial")
     check(ud["hostname"] == host, f"{host}: hostname")
@@ -126,12 +132,15 @@ for host in sorted(want) + ["new"]:
     check(ai["shutdown"] == "poweroff", f"{host}: powers off when done")
     desktop = v["install_profile"] == "desktop"
     check(("ubuntu-desktop-minimal" in ai.get("packages", [])) == desktop, f"{host}: {v['install_profile']} profile")
+    late = " ".join(ai.get("late-commands", []))
+    check(("disable systemd-networkd.service" in late) == desktop, f"{host}: networkd off only on a desktop")
     (seeds.parent / f"guard-{host}.sh").write_text(guard)
 sys.exit(1 if fail else 0)
 EOF
 
-# Run gknas's rendered guard against fake disks (and a fake EFI dir): lsblk and udevadm
-# stand-ins read $FAKE (lines of: name serial id_serial model...).
+# Run each host's rendered guard against fake disks, a fake EFI dir and
+# fake network ports. The lsblk and udevadm stand-ins read $FAKE (lines of:
+# name serial id_serial model...); the ports are $tmp/net/*/address.
 mkdir -p "$tmp/bin"
 cat >"$tmp/bin/lsblk" <<'EOF'
 #!/bin/sh
@@ -145,65 +154,115 @@ esac
 EOF
 cat >"$tmp/bin/udevadm" <<'EOF'
 #!/bin/sh
+case "$1" in settle) exit 0 ;; esac
 d=${*##*--name=}
 awk -v d="$d" '"/dev/" $1 == d {print "ID_SERIAL=" $3; print "ID_SERIAL_SHORT=" $2}' "$FAKE"
 EOF
 chmod +x "$tmp/bin/lsblk" "$tmp/bin/udevadm"
 
-guard_case() { # want-exit description, disks on stdin
-    local want=$1 desc=$2 rc=0
+# Usage: guard_case <host> <want-exit> <description> <MAC...>, disks on stdin
+guard_case() {
+    local host=$1 want=$2 desc=$3 rc=0 i=0 mac
+    shift 3
     cat >"$tmp/fake"
+    rm -rf "$tmp/net"
+    mkdir -p "$tmp/net/lo"
+    echo 00:00:00:00:00:00 >"$tmp/net/lo/address"
+    for mac in "$@"; do
+        i=$((i + 1))
+        mkdir -p "$tmp/net/en$i"
+        echo "$mac" >"$tmp/net/en$i/address"
+    done
     FAKE=$tmp/fake PATH="$tmp/bin:$PATH" INSTALL_EFI_DIR=${efi:-$tmp} \
-        sh "$tmp/guard-gknas.sh" >/dev/null 2>&1 || rc=$?
+        INSTALL_NET_DIR=$tmp/net sh "$tmp/guard-$host.sh" >/dev/null 2>&1 || rc=$?
     if [ "$rc" -eq "$want" ] || { [ "$want" -ne 0 ] && [ "$rc" -ne 0 ]; }; then
-        ok "guard: $desc"
+        ok "guard $host: $desc"
     else
-        bad "guard: $desc (exit $rc)"
+        bad "guard $host: $desc (exit $rc)"
     fi
 }
-guard_case 0 "one matching disk installs" <<'EOF'
+nas_mac=24:5e:be:47:a3:05
+guard_case gknas 0 "one matching disk installs" $nas_mac <<'EOF'
 sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
 sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
 mmcblk0 0x8cdbed67 0x8cdbed67 DOM
 EOF
-guard_case 0 "a disk whose serial is only in udev's ID_SERIAL installs" <<'EOF'
+guard_case gknas 0 "an upper-case MAC still matches" 24:5E:BE:47:A3:04 <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+EOF
+guard_case gknas 1 "the disk on another machine (no MAC matches) refuses" 54:b2:03:fd:53:1c <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+EOF
+guard_case gknas 0 "a disk whose serial is only in udev's ID_SERIAL installs" $nas_mac <<'EOF'
 sdc XXXX 1JMicron_Tech_DD564198838AA Tech
 EOF
-guard_case 1 "two disks, one matching only in ID_SERIAL, refuse" <<'EOF'
+guard_case gknas 1 "two disks, one matching only in ID_SERIAL, refuse" $nas_mac <<'EOF'
 sdc XXXX 1JMicron_Tech_DD564198838AA Tech
 sdd DD564198838AA 1JMicron_Tech_DD564198838AA Tech
 EOF
-guard_case 1 "no matching disk refuses" <<'EOF'
+guard_case gknas 1 "no matching disk refuses" $nas_mac <<'EOF'
 sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
 EOF
-guard_case 1 "two matching disks refuse" <<'EOF'
+guard_case gknas 1 "two matching disks refuse" $nas_mac <<'EOF'
 sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
 sdf DD564198838AA 1JMicron_Tech_DD564198838AA Tech
 EOF
-guard_case 1 "the serial on the wrong model refuses" <<'EOF'
+guard_case gknas 1 "the serial on the wrong model refuses" $nas_mac <<'EOF'
 sdc DD564198838AA 1JMicron_Tech_DD564198838AA Other
 EOF
-efi=$tmp/no-such-dir guard_case 1 "a legacy BIOS boot refuses" <<'EOF'
+efi=$tmp/no-such-dir guard_case gknas 1 "a legacy BIOS boot refuses" $nas_mac <<'EOF'
 sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
 EOF
+# nuc2: the 980 PRO among the 870 QVO and the Crucial X6.
+nuc2_disks='sda S5RRNF0RC38740V Samsung_SSD_870_QVO_1TB_S5RRNF0RC38740V Samsung SSD 870 QVO 1TB
+sdc 2143E4A033DD Micron_Crucial_X6_SSD_2143E4A033DD Crucial X6 SSD
+nvme0n1 S5GXNF0RA03936L Samsung_SSD_980_PRO_1TB_S5GXNF0RA03936L_1 Samsung SSD 980 PRO 1TB'
+guard_case nuc2 0 "the 980 PRO installs" 48:21:0b:31:f0:89 <<<"$nuc2_disks"
+guard_case nuc2 1 "without the 980 PRO refuses" 54:b2:03:fd:53:1c <<<"${nuc2_disks%$'\n'*}"
+guard_case nuc2 1 "on nuc1 (wrong MACs) refuses" 1c:69:7a:61:65:d4 <<<"$nuc2_disks"
+# nuc1: its one SATA SSD.
+guard_case nuc1 0 "the 860 EVO installs" 1c:69:7a:61:65:d4 <<'EOF'
+sda S5GFNG0N302036V Samsung_SSD_860_EVO_M.2_250GB_S5GFNG0N302036V Samsung SSD 860 EVO M.2 250GB
+EOF
+guard_case nuc1 1 "another disk refuses" 1c:69:7a:61:65:d4 <<'EOF'
+sda S5GFNG0N999999X Samsung_SSD_860_EVO_M.2_250GB_S5GFNG0N999999X Samsung SSD 860 EVO M.2 250GB
+EOF
 
-# A host with install_profile but no serial is left off, with a warning.
+# A host with install_profile but no serial, or no MACs, is left off, with
+# a warning.
 cat >"$tmp/hosts.yml" <<'EOF'
 all_nodes:
   hosts:
     box1:
       install_profile: server
+      install_machine_macs: ["02:00:00:00:00:01"]
     box2:
       install_profile: server
       install_disk_serial: ABC123456
+      install_machine_macs: ["02:00:00:00:00:02"]
+    box3:
+      install_profile: server
+      install_disk_serial: ABC123457
 EOF
 if python3 "$repo/install/render.py" --inventory "$tmp/hosts.yml" --key "$tmp/test.pub" \
     --out "$tmp/install2" 2>"$tmp/warn" >"$tmp/out2" &&
     grep -q "box1: no usable install_disk_serial" "$tmp/warn" &&
-    grep -qx "entries: new box2" "$tmp/out2" && [ ! -e "$tmp/install2/box1" ]; then
-    ok "a host with no serial is left off, with a warning"
+    grep -q "box3: no usable install_machine_macs" "$tmp/warn" &&
+    grep -qx "entries: new box2" "$tmp/out2" &&
+    [ ! -e "$tmp/install2/box1" ] && [ ! -e "$tmp/install2/box3" ]; then
+    ok "a host with no serial or no MACs is left off, with a warning"
 else
-    bad "a host with no serial is left off, with a warning"
+    bad "a host with no serial or no MACs is left off, with a warning"
+fi
+
+# A private key given as a key is refused, and nothing is written.
+printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----\n' >"$tmp/id_test"
+if ! python3 "$repo/install/render.py" --inventory "$tmp/hosts.yml" --key "$tmp/id_test" \
+    --out "$tmp/install3" >/dev/null 2>"$tmp/err3" &&
+    grep -q "holds a private key" "$tmp/err3" && [ ! -e "$tmp/install3" ]; then
+    ok "a private key is refused"
+else
+    bad "a private key is refused"
 fi
 
 exit $fail
