@@ -12,9 +12,10 @@ Each host's entry is data in `hosts.yml`, as host vars:
 
 | Variable | Meaning |
 |----------|---------|
-| `install_profile` | `server`, or `desktop`: Ubuntu Server plus `ubuntu-desktop`, with NetworkManager |
+| `install_profile` | `server`, or `desktop`: Ubuntu Server plus `ubuntu-desktop-minimal`, with NetworkManager |
 | `install_disk_serial` | The OS disk's serial, as `lsblk -o NAME,SERIAL` shows it. The install erases this whole disk. |
 | `install_disk_model` | Optional. The OS disk's model, as `lsblk -o NAME,MODEL` shows it, checked as well. |
+| `install_ansible_uid` | Optional. The `ansible` account's uid, when its home is on a disk the install keeps. |
 
 | Host | Profile | OS disk | Other disks, never touched |
 |------|---------|---------|-----------------------------|
@@ -41,10 +42,15 @@ Every install:
 The stick holds public keys only: no passwords and no secrets.
 
 `nuc1`'s disk also holds an old Windows data partition; its install erases
-it. `nuc2`'s `/home` is the 870 QVO, which holds `/home/k8s-data`; the
-install leaves that disk alone but does not mount it. After a reinstall,
-add its `/etc/fstab` line back (by UUID, from `sudo blkid /dev/sda1`)
-before the node rejoins the cluster.
+it.
+
+`nuc2`'s `/home` is the 870 QVO, which holds `/home/k8s-data`. The install
+leaves that disk alone and does not mount it. The playbook mounts it again:
+its `extra_mounts` host var lists `/home` and `/mnt/backup` (the Crucial
+X6), and the `servers` tag restores them before it creates the data
+directories. `/home/ansible` on the 870 QVO belongs to uid 1001, so
+`nuc2`'s install gives the `ansible` account that uid
+(`install_ansible_uid`). The owner's own login on `nuc2` is not recreated.
 
 ## Build the stick
 

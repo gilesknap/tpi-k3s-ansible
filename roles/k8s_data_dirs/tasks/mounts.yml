@@ -1,0 +1,21 @@
+# Mount the extra disks a node keeps in its fstab (host var extra_mounts),
+# so a node reinstalled from the install stick gets them back. They come
+# first because some hold the data directories (nuc2's /home holds
+# /home/k8s-data). Each entry:
+#   path:   the mount point
+#   src:    the device, by a stable name (/dev/disk/by-uuid/... or by-id)
+#   fstype: e.g. ext4, or auto
+#   opts:   the fstab options; with noauto the entry is written to fstab
+#           only, not mounted
+# This writes fstab lines and mounts: it never formats or wipes a disk.
+
+- name: Add the extra mounts to fstab, mounting those not marked noauto
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: "{{ item.fstype }}"
+    opts: "{{ item.opts }}"
+    state: "{{ 'present' if 'noauto' in item.opts.split(',') else 'mounted' }}"
+  loop: "{{ extra_mounts | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"

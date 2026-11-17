@@ -122,9 +122,10 @@ for host in sorted(want) + ["new"]:
     check(ai["storage"]["layout"] == {"name": "direct", "match": {"serial": f"*{serial}*"}},
           f"{host}: storage matches the serial")
     check(ud["hostname"] == host, f"{host}: hostname")
+    check(user.get("uid") == v.get("install_ansible_uid"), f"{host}: ansible uid {user.get('uid')}")
     check(ai["shutdown"] == "poweroff", f"{host}: powers off when done")
     desktop = v["install_profile"] == "desktop"
-    check(("ubuntu-desktop" in ai.get("packages", [])) == desktop, f"{host}: {v['install_profile']} profile")
+    check(("ubuntu-desktop-minimal" in ai.get("packages", [])) == desktop, f"{host}: {v['install_profile']} profile")
     (seeds.parent / f"guard-{host}.sh").write_text(guard)
 sys.exit(1 if fail else 0)
 EOF

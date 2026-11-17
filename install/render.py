@@ -13,9 +13,11 @@ of its own entries.
 
 The data comes from host vars in hosts.yml (see docs/how-to/install-stick.md):
 
-  install_profile:     server | desktop (ubuntu-desktop on top of server)
+  install_profile:     server | desktop (ubuntu-desktop-minimal on top of server)
   install_disk_serial: the OS disk's serial (lsblk -o NAME,SERIAL)
   install_disk_model:  optional; the OS disk's model as lsblk shows it
+  install_ansible_uid: optional; the ansible account's uid, to match its
+                       home directory on a disk the install keeps
 
 A host with install_profile but no usable install_disk_serial gets no entry:
 the build warns and leaves it out.
@@ -87,6 +89,9 @@ def install_hosts(hosts):
                 " leaving its entry off the stick"
             )
             continue
+        uid = hvars.get("install_ansible_uid")
+        if uid is not None and (type(uid) is not int or uid < 1000):
+            raise SystemExit(f"{name}: install_ansible_uid must be a number from 1000")
         model = hvars.get("install_disk_model", "")
         if not isinstance(model, str) or "'" in model or "\n" in model:
             raise SystemExit(f"{name}: install_disk_model must be a plain string")
@@ -109,7 +114,7 @@ def read_keys(paths):
     return keys
 
 
-def target_user_data(hostname, account, keys):
+def target_user_data(hostname, account, keys, uid=None):
     """The cloud-config the installed system runs on its first boot."""
     data = {
         "users": [
@@ -126,6 +131,8 @@ def target_user_data(hostname, account, keys):
         "disable_root": True,
         "ssh_pwauth": False,
     }
+    if uid is not None:
+        data["users"][0]["uid"] = uid
     return {"hostname": hostname, "preserve_hostname": False, **data}
 
 
@@ -167,10 +174,12 @@ def autoinstall(hostname, hvars, account, keys):
     }
     ai["ssh"] = {"install-server": True, "allow-pw": False}
     if hvars.get("install_profile") == "desktop":
-        ai["packages"] = ["ubuntu-desktop"]
+        ai["packages"] = ["ubuntu-desktop-minimal"]
         ai["late-commands"] = list(DESKTOP_LATE)
     # The new-hardware install is named new-host: rename it afterwards.
-    ai["user-data"] = target_user_data(hostname or NEW_HOSTNAME, account, keys)
+    ai["user-data"] = target_user_data(
+        hostname or NEW_HOSTNAME, account, keys, hvars.get("install_ansible_uid")
+    )
     if hostname:
         # Power off, not reboot: a stick left in would install again.
         ai["shutdown"] = "poweroff"
