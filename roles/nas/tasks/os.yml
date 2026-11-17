@@ -45,10 +45,16 @@
 # cabled (the router's reservation for 192.168.1.3 is by its MAC), and
 # systemd-networkd-wait-online waits for every port netplan configures,
 # so each boot spent 2 minutes waiting for enp2s0 and then failed. Name
-# the ports instead, with DHCP on both as before (so either works if the
-# cable moves), and mark the ones not cabled optional. netplan regenerates
-# the networkd and wait-online configuration at boot, so this takes effect
-# on the next boot, without touching the network now.
+# the ports instead, each matched by its MAC address (so a rename cannot
+# leave the headless NAS with no configured port), with DHCP on both as
+# before (so either works if the cable moves), and mark the ones not
+# cabled optional. The role never runs `netplan apply`: netplan is a
+# systemd generator, so the new configuration reaches networkd at the next
+# daemon-reload followed by a networkd restart or reload, or the next
+# boot. enp3s0's configuration is equivalent to the old one, so at most
+# its DHCP lease is renegotiated. The file is checked with
+# `netplan generate` on a scratch root (with the live /sys, which netplan
+# reads to resolve the MAC matches) before it replaces anything.
 - name: Configure the network ports
   ansible.builtin.copy:
     content: |
@@ -58,6 +64,10 @@
     owner: root
     group: root
     mode: "0600"
+    validate: >-
+      sh -c 'd=$(mktemp -d) && mkdir -p "$d/etc/netplan" && ln -s /sys "$d/sys"
+      && install -m 0600 "$1" "$d/etc/netplan/50-nas.yaml"
+      && netplan generate --root-dir "$d"; rc=$?; rm -rf "$d"; exit $rc' sh %s
 
 - name: Remove the installer's netplan, which the ports above replace
   ansible.builtin.file:

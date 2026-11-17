@@ -33,9 +33,10 @@ Around the nodes:
   application data and backups over NFS. Ansible manages it but never
   destroys data: no task destroys a pool, dataset or snapshot (`just check`
   fails on the destructive commands and modules it knows, though not on one
-  built from variables at run time), pool creation is opt-in and refuses an existing pool, the
-  cluster playbooks never touch the NAS, and ZFS snapshots plus
-  age-encrypted off-site backups cover the rest.
+  built from variables at run time; the nightly copy may roll back its own
+  replica on the backup pool, by design), pool creation is opt-in and
+  refuses an existing pool, the cluster playbooks never touch the NAS, and
+  ZFS snapshots plus age-encrypted off-site backups cover the rest.
 - **Cloudflare.** DNS, a Cloudflare Tunnel that carries every web hostname,
   and Cloudflare Access as a login wall in front of all but the two that are
   public on purpose. It is managed as OpenTofu code in `cloudflare/`, and

@@ -131,8 +131,14 @@ on whichever is cabled. The router's reservation for 192.168.1.3 is by
 each port's name and MAC). The installer's netplan configures both ports
 under one `en*` match, so every boot waits two minutes for the port with no
 cable and then logs `systemd-networkd-wait-online` as failed; `nas_os`
-replaces it with one entry per port (`nas_netplan_ethernets`), both on DHCP,
-the one not cabled `optional`. That takes effect at the next boot.
+replaces it with one entry per port (`nas_netplan_ethernets`), each matched
+by its MAC address (so a renamed port still gets its configuration), both on
+DHCP, the one not cabled `optional`. The role never runs `netplan apply`:
+netplan is a systemd generator, so the new configuration reaches networkd at
+the next daemon-reload followed by a networkd restart or reload, or at the
+next boot. `enp3s0`'s configuration is equivalent to the installer's, so at
+most its DHCP lease is renegotiated. On other hardware, set the MAC
+addresses first.
 
 ### 2. Configure the OS, before the data disks go in
 
@@ -335,6 +341,11 @@ generic `TargetDown` for job `nas`.
 
 Some start working later than the rest, because their metrics are absent
 until there is something to measure (an absent metric fires nothing):
+
+- `NasPoolFillingUp`, once the NAS runs the version of `nas-zpool-metrics`
+  that exports pool size and allocation: re-apply `pb_nas.yml` after a
+  change to the role's metrics, as the rules and the metrics ship
+  separately.
 
 - `NasZfsScrubErrors` and `NasZfsScrubOverdue`, after a pool's first scrub
   (`zpool status` reports no scan until then); `tank`'s first is due on
