@@ -72,6 +72,17 @@ ansible node03 -a "/sbin/shutdown now" --become
 ansible node03 -m reboot --become
 ```
 
+### The power button on nuc1 and nuc2
+
+A short press of the power button on `nuc1` or `nuc2` does nothing, so a
+button knocked while swapping cables no longer shuts the node down. Holding
+it for about 4 seconds still cuts the power, with no drain and no clean
+shutdown: shut a node down with the commands above instead. This is
+`power_key_ignore: true` in `hosts.yml`, applied by `update_packages`
+(`--tags servers`, or `--tags power_key` alone); see
+{doc}`/explanations/ansible-roles`. `gknas` has the same setting
+({doc}`/how-to/nas-ubuntu-zfs`). `ws03` and the RK1s are left alone.
+
 ## Shut down or reboot the whole cluster
 
 For a power cut or moving the hardware. The pattern leaves `ws03` out:

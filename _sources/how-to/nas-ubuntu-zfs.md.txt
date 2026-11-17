@@ -250,6 +250,11 @@ longer than `NasDown` should report.
   not know at all. smartd scans for disks when it starts, so a disk plugged
   in later is watched from its next restart. By hand:
   `sudo smartctl -a -d sntjmicron /dev/disk/by-id/usb-JMicron_Tech_DD564198838AA-0:0`.
+- **The power button** ignores a short press, so knocking it no longer shuts
+  the NAS down (`power_key_ignore: true` on `gknas` in `hosts.yml`; a logind
+  drop-in, `/etc/systemd/logind.conf.d/90-power-key.conf`). To shut it down
+  from the button, hold it for about 4 seconds, which cuts the power without a
+  clean shutdown; prefer `sudo poweroff` over SSH.
 - **IPMI**: `openipmi`, pulled in by node-exporter's collectors through
   `ipmitool`, is masked (and its failed state cleared): the TS-253D has no
   BMC, so it only failed at boot.

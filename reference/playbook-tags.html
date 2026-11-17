@@ -445,37 +445,43 @@ Run it in the devcontainer, from the repo root.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 <td><p>Only the <code class="docutils literal notranslate"><span class="pre">net.mptcp.enabled=0</span></code> sysctl, which reaches the tainted nodes that the <code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code> DaemonSet cannot</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">power_key</span></code></p></td>
+<td><p>Update all nodes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> (its power button tasks)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
+<td><p>Only the power button setting: a short press does nothing on nodes with <code class="docutils literal notranslate"><span class="pre">power_key_ignore:</span> <span class="pre">true</span></code> (<code class="docutils literal notranslate"><span class="pre">nuc1</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>); elsewhere its files are removed. In <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>, the same for <code class="docutils literal notranslate"><span class="pre">gknas</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 <td><p>Update all nodes</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 <td><p>Only the local PV host directories from <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>; never deletes data</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
 <td><p>Install K3s</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code>, <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 <td><p>Installs or updates the K3s control plane and workers, and the control plane’s nightly etcd backup timer</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">apparmor</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">apparmor</span></code></p></td>
 <td><p>Install K3s</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code> (<code class="docutils literal notranslate"><span class="pre">apparmor.yml</span></code> only)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 <td><p>Only the corrected containerd AppArmor profile (see <a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting</span></a>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p></td>
 <td><p>Install K3s</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code> (the control plane)</p></td>
 <td><p>Only the nightly encrypted etcd backup timer (<a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
 <td><p>Deploy services</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
 <td><p>localhost</p></td>
 <td><p>Installs ArgoCD and its root Application, and sets the control plane and standby taints</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">claude_key</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">claude_key</span></code></p></td>
 <td><p>Manage Claude sandbox’s pub key</p></td>
 <td><p>(task)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
@@ -574,7 +580,7 @@ NVMe, so for an RK1 run the whole playbook (or at least
 <td><p><code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">&lt;node&gt;</span> <span class="pre">-e</span> <span class="pre">ansible_user=&lt;existing</span> <span class="pre">user&gt;</span> <span class="pre">-K</span></code>. It must be <code class="docutils literal notranslate"><span class="pre">-e</span></code>, not <code class="docutils literal notranslate"><span class="pre">-u</span></code>: the inventory sets <code class="docutils literal notranslate"><span class="pre">ansible_user</span></code> to an account that does not exist on the machine yet</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code></p></td>
-<td><p>Configures the NAS (<code class="docutils literal notranslate"><span class="pre">gknas</span></code>, Ubuntu Server + ZFS): imports or, only when asked, creates its pools, then its datasets, NFS exports, snapshots, the nightly copy to the backup pool and health checks (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). Runs only on the <code class="docutils literal notranslate"><span class="pre">nas</span></code> group. Tags: <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">nas</span></code>, and within it <code class="docutils literal notranslate"><span class="pre">nas_os</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_fan</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_pool</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_snapshots</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_health</span></code></p></td>
+<td><p>Configures the NAS (<code class="docutils literal notranslate"><span class="pre">gknas</span></code>, Ubuntu Server + ZFS): imports or, only when asked, creates its pools, then its datasets, NFS exports, snapshots, the nightly copy to the backup pool and health checks (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). Runs only on the <code class="docutils literal notranslate"><span class="pre">nas</span></code> group. Tags: <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">nas</span></code>, and within it <code class="docutils literal notranslate"><span class="pre">nas_os</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_fan</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_pool</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_snapshots</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_health</span></code>, <code class="docutils literal notranslate"><span class="pre">power_key</span></code></p></td>
 <td><p>None for a normal run, which never creates a pool. <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">nas_create_pool=true</span></code> / <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">nas_create_backup_pool=true</span></code> create one (destroying its disks’ contents), and <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">nas_force=true</span></code> allows disks that are not blank</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code></p></td>
