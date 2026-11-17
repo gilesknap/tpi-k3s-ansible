@@ -8,14 +8,35 @@
       {{ nas_pools_present | default({}) | dict2items | selectattr('value')
          | map(attribute='key') | list }}
 
+# The OS disk's USB enclosure (152d:0562) is an NVMe bridge, but
+# smartmontools' drive database lists that USB ID as a SATA bridge (-d sat),
+# so smartd's DEVICESCAN fails on it and exits with no disk to watch.
+# smartctl and smartd read /etc/smart_drivedb.h before the packaged
+# database, so this entry fixes smartd and node-exporter's smartmon
+# collector, without naming the disk.
+- name: Tell smartmontools the OS disk's enclosure is an NVMe bridge
+  ansible.builtin.copy:
+    content: |
+      /* Managed by Ansible (roles/nas). */
+      { "USB: ; JMicron NVMe bridge (the NAS's OS disk enclosure)",
+        "0x152d:0x0562",
+        "",
+        "",
+        "-d sntjmicron"
+      },
+    dest: /etc/smart_drivedb.h
+    owner: root
+    group: root
+    mode: "0644"
+  register: nas_smart_drivedb
+
 - name: Configure smartd
   ansible.builtin.copy:
     content: |
       # Managed by Ansible (roles/nas).
       # Every disk smartd finds: all attributes, a short self-test daily at
       # 02:00 and a long one on Saturdays at 03:00, temperature warnings.
-      # TODO(trial): check `smartctl -a` reads the NVMe through its USB
-      # enclosure (JMicron, may need -d sntjmicron) and the LaCie (-d sat).
+      # TODO(trial): check `smartctl -a` reads the LaCie (-d sat).
       DEVICESCAN -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,45,55
     dest: /etc/smartd.conf
     owner: root
@@ -27,7 +48,9 @@
   ansible.builtin.systemd_service:
     name: smartmontools
     enabled: true
-    state: "{{ 'restarted' if nas_smartd_conf is changed else 'started' }}"
+    state: >-
+      {{ 'restarted' if nas_smartd_conf is changed or nas_smart_drivedb is changed
+         else 'started' }}
 
 # Ubuntu's zfsutils-linux also scrubs every pool from cron
 # (/etc/cron.d/zfsutils-linux, second Sunday of the month). Its script
