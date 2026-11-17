@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Build the Ubuntu install stick: one ISO with a GRUB entry per host in
+# hosts.yml that sets install_profile (gknas, nuc1, nuc2), plus a
+# "new hardware" entry. See docs/how-to/install-stick.md.
+#
+# Run it on ws03, from the repo: it needs the internet, sudo (to write the
+# stick), xorriso, curl and python3 with PyYAML.
+#
+#   scripts/make-install-stick                      # build the ISO only
+#   scripts/make-install-stick --write /dev/sdX     # build it and write the stick
+#   scripts/make-install-stick --default gknas ...  # gknas's entry boots after 10 s
+#
+# Steps:
+#   1. Download the newest Ubuntu 26.04 live-server ISO and check its SHA256.
+#   2. Render a NoCloud seed per host (install/render.py) into /install/<host>/
+#      on the ISO, and a GRUB entry per host that boots with
+#      `autoinstall ds=nocloud;s=/cdrom/install/<host>/`. The new-hardware
+#      entry has no `autoinstall`: its storage and network screens are
+#      interactive.
+#   3. Write it to the stick, after you type the device name a second time.
+#
+# The ansible account gets pub_keys/ansible_rsa.pub, plus the Claude sandbox
+# key when one is found (--claude-key FILE, else
+# ~/.config/claude-ssh/id_ed25519.pub, else _claude/claude-sandbox.pub).
+# Build output goes to build/install-stick/ (gitignored).
+set -euo pipefail
+
+usage() {
+    sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' >&2
+    exit "${1:-2}"
+}
+
+dev=""
+default=""
+claude_key=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+    --write) dev=${2:?--write needs a device}; shift 2 ;;
+    --default) default=${2:?--default needs a host}; shift 2 ;;
+    --claude-key) claude_key=${2:?--claude-key needs a file}; shift 2 ;;
+    -h | --help) usage 0 ;;
+    *) usage ;;
+    esac
+done
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work="$repo/build/install-stick"
+mkdir -p "$work"
+
+for tool in xorriso curl sha256sum python3; do
+    if ! command -v "$tool" >/dev/null; then
+        echo "missing $tool: sudo apt install xorriso curl coreutils python3-yaml" >&2
+        exit 1
+    fi
+done
+if ! python3 -c 'import yaml' 2>/dev/null; then
+    echo "python3 has no yaml module: sudo apt install python3-yaml" >&2
+    exit 1
+fi
+
+keys=(--key "$repo/pub_keys/ansible_rsa.pub")
+if [ -z "$claude_key" ]; then
+    for f in "$HOME/.config/claude-ssh/id_ed25519.pub" "$repo/_claude/claude-sandbox.pub"; do
+        if [ -f "$f" ]; then
+            claude_key=$f
+            break
+        fi
+    done
+fi
+if [ -n "$claude_key" ]; then
+    keys+=(--key "$claude_key")
+    echo "Claude sandbox key: $claude_key"
+else
+    echo "WARNING: no Claude sandbox key found; only pub_keys/ansible_rsa.pub is authorised" >&2
+fi
+
+base=https://releases.ubuntu.com/26.04
+curl -fsSL "$base/SHA256SUMS" -o "$work/SHA256SUMS"
+iso=$(grep -o 'ubuntu-26\.04[.0-9]*-live-server-amd64\.iso' "$work/SHA256SUMS" | sort -V | tail -1)
+if [ -z "$iso" ]; then
+    echo "no live-server ISO listed in $base/SHA256SUMS" >&2
+    exit 1
+fi
+echo "ISO: $iso"
+if [ ! -f "$work/$iso" ]; then
+    curl -fL --progress-bar "$base/$iso" -o "$work/$iso.part"
+    mv "$work/$iso.part" "$work/$iso"
+fi
+(cd "$work" && grep " \*\?$iso\$" SHA256SUMS | sha256sum -c -)
+
+rm -rf "$work/install" "$work/grub.iso.cfg" "$work/grub.cfg"
+xorriso -osirrox on -indev "$work/$iso" -extract /boot/grub/grub.cfg "$work/grub.iso.cfg" 2>/dev/null
+chmod u+w "$work/grub.iso.cfg"
+python3 -I "$repo/install/render.py" \
+    --inventory "$repo/hosts.yml" --group-vars "$repo/group_vars/all.yml" \
+    "${keys[@]}" --out "$work/install" \
+    --grub-in "$work/grub.iso.cfg" --grub-out "$work/grub.cfg" \
+    ${default:+--default "$default"}
+
+out="$work/install-stick.iso"
+rm -f "$out"
+xorriso -indev "$work/$iso" -outdev "$out" \
+    -map "$work/install" /install \
+    -map "$work/grub.cfg" /boot/grub/grub.cfg \
+    -boot_image any replay 2>&1 | tail -3
+echo "built $out"
+
+if [ -z "$dev" ]; then
+    echo "to write it: $0 --write /dev/sdX  (check the device with lsblk first)"
+    exit 0
+fi
+if [ ! -b "$dev" ] || { [ "$(lsblk -dno RM "$dev")" != "1" ] && [ "$(lsblk -dno TRAN "$dev")" != "usb" ]; }; then
+    echo "$dev is not a removable USB disk: refusing" >&2
+    exit 1
+fi
+lsblk -o NAME,SIZE,MODEL,TRAN,MOUNTPOINTS "$dev"
+read -r -p "Erase everything on $dev? Type the device name again: " again
+if [ "$again" != "$dev" ]; then
+    echo "not writing" >&2
+    exit 1
+fi
+sudo umount "$dev"?* 2>/dev/null || true
+sudo dd if="$out" of="$dev" bs=4M conv=fsync status=progress
+sync
+echo "stick ready: $dev"

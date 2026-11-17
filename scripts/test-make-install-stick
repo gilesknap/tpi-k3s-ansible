@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# Tests the install stick's generated files, without the ISO: renders the
+# seeds and GRUB menu from hosts.yml (install/render.py) into a temp dir
+# and checks that
+#   - each user-data parses as YAML and has the autoinstall keys;
+#   - each host's entry has the disk guard with its own serial, and a
+#     storage match on that serial;
+#   - the new-hardware entry has no guard, no storage and no `autoinstall`
+#     on its kernel line, and each host's entry has it;
+#   - the guard itself, run with stand-ins for lsblk and udevadm, installs
+#     only when exactly one disk has the serial (and the model, when set);
+#   - a host with install_profile but no serial is left off, with a warning.
+# Run by `just check` (under uv run, for PyYAML).
+#
+# Usage: scripts/test-make-install-stick
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-make-install-stick.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+fail=0
+ok() { echo "ok $*"; }
+bad() {
+    echo "FAIL $*"
+    fail=1
+}
+
+# A stand-in for the ISO's grub.cfg (Ubuntu 26.04 live server's layout).
+cat >"$tmp/grub.iso.cfg" <<'EOF'
+set timeout=30
+
+loadfont unicode
+
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
+
+menuentry "Try or Install Ubuntu Server" {
+	set gfxpayload=keep
+	linux	/casper/vmlinuz  ---
+	initrd	/casper/initrd
+}
+grub_platform
+if [ "$grub_platform" = "efi" ]; then
+menuentry 'Boot from next volume' {
+	exit 1
+}
+menuentry 'UEFI Firmware Settings' {
+	fwsetup
+}
+fi
+EOF
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeyOnly test@example" >"$tmp/test.pub"
+
+python3 "$repo/install/render.py" --inventory "$repo/hosts.yml" \
+    --group-vars "$repo/group_vars/all.yml" \
+    --key "$repo/pub_keys/ansible_rsa.pub" --key "$tmp/test.pub" \
+    --out "$tmp/install" --grub-in "$tmp/grub.iso.cfg" --grub-out "$tmp/grub.cfg" \
+    >"$tmp/render.out"
+
+# YAML structure, per host, against hosts.yml.
+python3 - "$repo/hosts.yml" "$tmp/install" "$tmp/grub.cfg" <<'EOF' || fail=1
+import re, sys
+from pathlib import Path
+import yaml
+
+inv, seeds, grub = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]).read_text()
+fail = False
+def check(cond, msg):
+    global fail
+    print(("ok " if cond else "FAIL ") + msg)
+    fail |= not cond
+
+hosts = {}
+def walk(g):
+    if not isinstance(g, dict):
+        return
+    for h, v in (g.get("hosts") or {}).items():
+        hosts.setdefault(h, {}).update(v or {})
+    for c in (g.get("children") or {}).values():
+        walk(c)
+for g in yaml.safe_load(Path(inv).read_text()).values():
+    walk(g)
+want = {h: v for h, v in hosts.items() if "install_profile" in v}
+check({"gknas", "nuc1", "nuc2"} <= set(want), "gknas, nuc1 and nuc2 have install_profile")
+
+entries = {}
+for m in re.finditer(r'menuentry "[^"]*" --id install-(\S+) \{\n(.*?)\n\}', grub, re.S):
+    entries[m.group(1)] = m.group(2)
+check(set(entries) == set(want) | {"new"}, f"grub entries {sorted(entries)}")
+check("set timeout=-1" in grub and "set timeout=30" not in grub, "grub waits for a choice")
+
+for host in sorted(want) + ["new"]:
+    path = seeds / host / "user-data"
+    text = path.read_text()
+    check(text.startswith("#cloud-config\n"), f"{host}: #cloud-config header")
+    ai = yaml.safe_load(text)["autoinstall"]
+    check((seeds / host / "meta-data").is_file(), f"{host}: meta-data")
+    ud = ai["user-data"]
+    user = ud["users"][0]
+    check(user["name"] == "ansible" and user["lock_passwd"] is True
+          and user["sudo"] == ["ALL=(ALL) NOPASSWD:ALL"], f"{host}: ansible account, locked, sudo")
+    check(len(user["ssh_authorized_keys"]) == 2
+          and all(k.startswith("ssh-") for k in user["ssh_authorized_keys"]), f"{host}: public keys")
+    check("PRIVATE" not in text and "passwd:" not in text.replace("lock_passwd:", ""), f"{host}: no secrets")
+    check(ai["ssh"]["install-server"] is True and ai["ssh"]["allow-pw"] is False, f"{host}: openssh-server")
+    check(ai["timezone"] == "Europe/London" and ai["locale"] == "en_GB.UTF-8", f"{host}: locale, timezone")
+    kernel = next(l for l in entries[host].splitlines() if l.strip().startswith("linux"))
+    check(f"ds=nocloud\\;s=/cdrom/install/{host}/" in kernel, f"{host}: kernel line points at its seed")
+    if host == "new":
+        check(" autoinstall" not in kernel, "new: no autoinstall on the kernel line")
+        check("early-commands" not in ai and "storage" not in ai
+              and "storage" in ai["interactive-sections"], "new: storage is interactive")
+        check(ud["hostname"] == "new-host", "new: hostname new-host")
+        continue
+    v = want[host]
+    serial = v["install_disk_serial"]
+    check(" autoinstall " in kernel, f"{host}: autoinstall on the kernel line")
+    check(ai["interactive-sections"] == [], f"{host}: no interactive sections")
+    guard = ai["early-commands"][0]
+    check(f"INSTALL_DISK_SERIAL='{serial}'" in guard and "exactly one disk" in guard,
+          f"{host}: guard for serial {serial}")
+    check(ai["storage"]["layout"] == {"name": "direct", "match": {"serial": f"*{serial}*"}},
+          f"{host}: storage matches the serial")
+    check(ud["hostname"] == host, f"{host}: hostname")
+    check(ai["shutdown"] == "poweroff", f"{host}: powers off when done")
+    desktop = v["install_profile"] == "desktop"
+    check(("ubuntu-desktop" in ai.get("packages", [])) == desktop, f"{host}: {v['install_profile']} profile")
+    (seeds.parent / f"guard-{host}.sh").write_text(guard)
+sys.exit(1 if fail else 0)
+EOF
+
+# Run gknas's rendered guard against fake disks (and a fake EFI dir): lsblk and udevadm
+# stand-ins read $FAKE (lines of: name serial id_serial model...).
+mkdir -p "$tmp/bin"
+cat >"$tmp/bin/lsblk" <<'EOF'
+#!/bin/sh
+# Only the calls the guard makes.
+case "$*" in
+*NAME,TYPE*) awk '{print "/dev/" $1 " disk"}' "$FAKE" ;;
+*-o\ NAME,SIZE*) cat "$FAKE" ;;
+*SERIAL*) awk -v d="${*##* }" '"/dev/" $1 == d {print $2}' "$FAKE" ;;
+*MODEL*) awk -v d="${*##* }" '"/dev/" $1 == d {$1 = $2 = $3 = ""; sub(/^ +/, ""); print $0 "  "}' "$FAKE" ;;
+esac
+EOF
+cat >"$tmp/bin/udevadm" <<'EOF'
+#!/bin/sh
+d=${*##*--name=}
+awk -v d="$d" '"/dev/" $1 == d {print "ID_SERIAL=" $3; print "ID_SERIAL_SHORT=" $2}' "$FAKE"
+EOF
+chmod +x "$tmp/bin/lsblk" "$tmp/bin/udevadm"
+
+guard_case() { # want-exit description, disks on stdin
+    local want=$1 desc=$2 rc=0
+    cat >"$tmp/fake"
+    FAKE=$tmp/fake PATH="$tmp/bin:$PATH" INSTALL_EFI_DIR=${efi:-$tmp} \
+        sh "$tmp/guard-gknas.sh" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq "$want" ] || { [ "$want" -ne 0 ] && [ "$rc" -ne 0 ]; }; then
+        ok "guard: $desc"
+    else
+        bad "guard: $desc (exit $rc)"
+    fi
+}
+guard_case 0 "one matching disk installs" <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+mmcblk0 0x8cdbed67 0x8cdbed67 DOM
+EOF
+guard_case 0 "a disk whose serial is only in udev's ID_SERIAL installs" <<'EOF'
+sdc XXXX 1JMicron_Tech_DD564198838AA Tech
+EOF
+guard_case 1 "two disks, one matching only in ID_SERIAL, refuse" <<'EOF'
+sdc XXXX 1JMicron_Tech_DD564198838AA Tech
+sdd DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+EOF
+guard_case 1 "no matching disk refuses" <<'EOF'
+sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+EOF
+guard_case 1 "two matching disks refuse" <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+sdf DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+EOF
+guard_case 1 "the serial on the wrong model refuses" <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Other
+EOF
+efi=$tmp/no-such-dir guard_case 1 "a legacy BIOS boot refuses" <<'EOF'
+sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+EOF
+
+# A host with install_profile but no serial is left off, with a warning.
+cat >"$tmp/hosts.yml" <<'EOF'
+all_nodes:
+  hosts:
+    box1:
+      install_profile: server
+    box2:
+      install_profile: server
+      install_disk_serial: ABC123456
+EOF
+if python3 "$repo/install/render.py" --inventory "$tmp/hosts.yml" --key "$tmp/test.pub" \
+    --out "$tmp/install2" 2>"$tmp/warn" >"$tmp/out2" &&
+    grep -q "box1: no usable install_disk_serial" "$tmp/warn" &&
+    grep -qx "entries: new box2" "$tmp/out2" && [ ! -e "$tmp/install2/box1" ]; then
+    ok "a host with no serial is left off, with a warning"
+else
+    bad "a host with no serial is left off, with a warning"
+fi
+
+exit $fail
