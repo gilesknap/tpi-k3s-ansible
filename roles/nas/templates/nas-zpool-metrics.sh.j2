@@ -2,8 +2,12 @@
 # {{ ansible_managed }} (roles/nas).
 # Pool error counts and scrub results for node-exporter's textfile
 # collector (its own zfs collector has pool state but neither of these).
-# Reads `zpool status -j` (OpenZFS 2.3 and later).
-# TODO(trial): check the JSON field names against the NAS's OpenZFS.
+# Reads `zpool status -j` (OpenZFS 2.3 and later; the NAS runs 2.4.1). Each
+# pool has nested `vdevs` with read/write/checksum_errors on every level
+# (root, mirror, disk). `scan_stats` (function SCRUB or RESILVER, state
+# SCANNING, FINISHED or CANCELED, end_time, errors) appears only once the
+# pool has been scrubbed or resilvered: until then the scrub metrics are
+# absent, and so are the alerts on them.
 set -euo pipefail
 prom={{ nas_textfile_dir }}/nas_zpool.prom
 tmp=$(mktemp "$prom.XXXXXX")

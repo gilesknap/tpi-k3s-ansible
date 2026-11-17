@@ -235,6 +235,9 @@ nas_hold_on_calendar: "*-*-* 02:00:00 Europe/London"
 # node-exporter's textfile collector directory (Ubuntu's default for the
 # prometheus-node-exporter package).
 nas_textfile_dir: /var/lib/prometheus/node-exporter
+# The SMART collector that prometheus-node-exporter-collectors ships. The
+# role runs an edited copy of it (tasks/health.yml).
+nas_smartmon_packaged: /usr/share/prometheus-node-exporter-collectors/smartmon.sh
 # Monthly scrubs, by zfsutils-linux's zfs-scrub-monthly@<pool>.timer.
 nas_scrub_timer: monthly
 
@@ -262,9 +265,11 @@ nas_qnap_ec_repo: https://github.com/0xGiddi/qnap8528.git
 nas_qnap_ec_commit: 1358ddcad0de2db5ac17e13f762ddb12519ea527
 nas_qnap_ec_version: "1.27"
 nas_qnap_ec_options: skip_hw_check=true
-# The module only exposes the fans (hwmon pwm/fan inputs); it does not
-# drive them. A fan curve needs fancontrol: TODO(trial) run `pwmconfig` on
-# the NAS, check the fans respond, then paste the resulting
-# /etc/fancontrol here to have the role install and enable it. Empty
-# leaves the fans as the EC runs them.
+# The module only exposes the fans (hwmon pwm1 and fan1_input); it does not
+# drive them. The EC runs the fan by itself (38% PWM, about 1,170 RPM, with
+# the SSDs at 26 to 41 C, on the first evening). A fan curve of our own
+# needs fancontrol, and pwmconfig, which writes one, is interactive: run it
+# on the NAS by hand if the EC's speed ever proves wrong, then paste the
+# /etc/fancontrol it writes here to have the role install and enable it.
+# Empty leaves the fans as the EC runs them.
 nas_fancontrol_config: ""
