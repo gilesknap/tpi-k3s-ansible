@@ -331,7 +331,8 @@ These are known and left as they are.
   node, or a privileged pod on one, reaches every service's files on the
   NAS, backups included. The `nas` role admits only the nodes and `ws03`,
   gives the nodes only the exports the cluster mounts (the media library
-  read-only), and owns each backup directory by its one writer
+  read-only), keeps `ws03`'s desktop mount out of the cluster's data
+  (`/bigdisk/k8s-cluster` is the nodes' alone), and owns each backup directory by its one writer
   ({doc}`/how-to/nas-ubuntu-zfs`).
 - **Viewer rules are only as narrow as their values.** The guard detects an
   open policy, not a wide one, such as a public email domain in

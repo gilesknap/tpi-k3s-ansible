@@ -161,18 +161,27 @@ nas_nfs_options_dynamic: rw,async,insecure,no_subtree_check,no_root_squash
 # The cluster mounts only /bigdisk/k8s-cluster, /bigdisk/media (Jellyfin,
 # read-only), /bigdisk/minecraft-archive (read-only) and /k8s-dynamic, so
 # the rest is ws03's alone and the nodes cannot write the media library.
+# ws03's desktop mounts /bigdisk (on /media/private/bigdisk) for the media
+# library and the photo archive; it is never given the cluster's own data:
+# /bigdisk/k8s-cluster is the nodes' alone (ws03, a node too, runs no pod
+# that mounts it: its workstation taint keeps them off), so ws03 sees only
+# the parent dataset's empty mountpoint directory there. Read or copy the
+# cluster's files on the NAS (ssh nas). The photo archive is read-only to
+# ws03 too: it changes only by hand, on the NAS.
 nas_nfs_exports:
   - path: /bigdisk
     options: "{{ nas_nfs_options_bigdisk }}"
     clients: [ws03]
   - path: /bigdisk/k8s-cluster
     options: "{{ nas_nfs_options_bigdisk }}"
+    clients: [node02, node03, node04, nuc1, nuc2]
   - path: /bigdisk/media
     options: "{{ nas_nfs_options_bigdisk }}"
     read_only_for: [node02, node03, node04, nuc1, nuc2]
   - path: /bigdisk/Photos-Archive
     options: "{{ nas_nfs_options_bigdisk }}"
     clients: [ws03]
+    read_only_for: [ws03]
   # Read-only here too: the second of three locks on the archive.
   - path: /bigdisk/minecraft-archive
     options: "{{ nas_nfs_options_bigdisk | replace('rw,', 'ro,') }}"

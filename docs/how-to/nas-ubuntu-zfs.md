@@ -29,10 +29,10 @@ no PersistentVolume changes:
 | Dataset | Mountpoint | Exported | Used by |
 |---------|------------|----------|---------|
 | `tank/bigdisk` | `/bigdisk` | read-write, `ws03` only | parent of the four below |
-| `tank/bigdisk/k8s-cluster` | `/bigdisk/k8s-cluster` | read-write | the backups, scrap's data and the Minecraft store ({doc}`/how-to/nas-setup` lists each directory) |
+| `tank/bigdisk/k8s-cluster` | `/bigdisk/k8s-cluster` | read-write, the nodes only (not `ws03`) | the backups, scrap's data and the Minecraft store ({doc}`/how-to/nas-setup` lists each directory) |
 | `tank/bigdisk/media` | `/bigdisk/media` | read-write to `ws03`, **read-only** to the nodes | the Jellyfin library |
 | `tank/bigdisk/minecraft-archive` | `/bigdisk/minecraft-archive` | **read-only** | the Minecraft dashboard's archive |
-| `tank/bigdisk/Photos-Archive` | `/bigdisk/Photos-Archive` | read-write, `ws03` only | the photo archive |
+| `tank/bigdisk/Photos-Archive` | `/bigdisk/Photos-Archive` | **read-only**, `ws03` only | the photo archive |
 | `tank/k8s-dynamic` | `/k8s-dynamic` | read-write, root not squashed | the NFS CSI driver's `nfs-rwx` and `nfs-stable` volumes (the Minecraft worlds) |
 | `tank/Minecraft` | `/Minecraft` | read-write, `ws03` only | the pre-cluster Minecraft share |
 
@@ -50,7 +50,7 @@ difference.
 
 | | QTS | Ubuntu |
 |---|-----|--------|
-| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` Only the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else. The nodes get only what the cluster mounts (`k8s-cluster`, `k8s-dynamic`, and `media` and `minecraft-archive` read-only); `/bigdisk`, `Photos-Archive` and `/Minecraft` are `ws03`'s alone |
+| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` Only the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else. The nodes get only what the cluster mounts (`k8s-cluster`, `k8s-dynamic`, and `media` and `minecraft-archive` read-only); `/bigdisk`, `Photos-Archive` (read-only) and `/Minecraft` are `ws03`'s alone, and `k8s-cluster` is the nodes' alone |
 | Root | `bigdisk`: `root_squash` to 65534; `k8s-dynamic`: `no_root_squash` | The same |
 | Other uids | Not squashed | Not squashed: a pod's writes keep its uid (scrap's 10001, the dashboard's 1000, Grafana's 472, Jellyfin's 122) |
 | Writes | `bigdisk`: `sync`; `k8s-dynamic`: `async` | The same |
@@ -64,6 +64,16 @@ playbook re-run) before its pods can mount anything from the NAS. The nodes
 still reach `/bigdisk/k8s-cluster` and `/bigdisk/media` without `/bigdisk`
 itself being exported to them: the server's NFSv4 pseudo-root shows them the
 path down to the exports they are given, and nothing else in it.
+
+`ws03`'s desktop mounts `gknas:/bigdisk` on `/media/private/bigdisk`, for
+the media library and the photo archive. It is not given the cluster's own
+data: `/bigdisk/k8s-cluster` is exported to the nodes alone (`ws03` is a node
+too, but its workstation taint keeps every pod that mounts it off `ws03`), so
+`/media/private/bigdisk/k8s-cluster` on `ws03` is only the empty directory
+the dataset mounts over on the NAS. Read or copy the cluster's files on the
+NAS itself (`ssh nas`, with `sudo` for scrap's), as
+{doc}`/how-to/backup-restore` does. The photo archive is read-only to
+`ws03`: it changes only by hand, on the NAS.
 
 On QTS the backup directories were `0777`, because several uids write them.
 Here each is owned by its one writer, mode `0755`: Grafana's backups by
