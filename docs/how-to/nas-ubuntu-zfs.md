@@ -18,10 +18,10 @@ Its notes on QTS describe the move from it.
 |------|-------|-------|
 | Fanxiang 256 GB NVMe, in a JMicron USB enclosure on the rear blue (USB 3) port | The OS disk, for now: it is to move to an x4 PCIe adapter (the same disk, so no reinstall; only the boot order changes) | Ubuntu Server |
 | Two Samsung 870 QVO 4 TB SSDs, in the bays | ZFS pool `tank`, a mirror | Everything the NAS serves |
-| LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk | A nightly copy of every dataset of `tank` |
+| LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk: **not yet created**, as the LaCie still holds the migration's tar copies | A nightly copy of every dataset of `tank`, once the pool exists |
 | The internal DOM | Not used | QTS's firmware (still there: see the migration's back-out) |
 
-Both pools have `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`,
+`tank` has (and `backup` will have) `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`,
 `acltype=posixacl` and `overlay=off` (a dataset never mounts over a directory
 with files in it). The datasets keep the paths the cluster already mounts, so
 no PersistentVolume changes:
@@ -50,7 +50,7 @@ difference.
 
 | | QTS | Ubuntu |
 |---|-----|--------|
-| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` Only the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else. The nodes get only what the cluster mounts (`k8s-cluster`, `k8s-dynamic`, and `media` and `minecraft-archive` read-only); `/bigdisk`, `Photos-Archive` (read-only) and `/Minecraft` are `ws03`'s alone, and `k8s-cluster` is the nodes' alone |
+| Who may mount | `bigdisk`: read-write to `192.168.1.0/24`, read-only to everyone (`*`); `k8s-dynamic`: read-write to `192.168.1.0/24` | Only the six cluster hosts, by IP: `ws03` (.10), `node02` to `node04` (.82 to .84), `nuc1` (.91), `nuc2` (.92); nothing to anyone else. The nodes get only what the cluster mounts (`k8s-cluster`, `k8s-dynamic`, and `media` and `minecraft-archive` read-only); `/bigdisk`, `Photos-Archive` (read-only) and `/Minecraft` are `ws03`'s alone, and `k8s-cluster` is the nodes' alone |
 | Root | `bigdisk`: `root_squash` to 65534; `k8s-dynamic`: `no_root_squash` | The same |
 | Other uids | Not squashed | Not squashed: a pod's writes keep its uid (scrap's 10001, the dashboard's 1000, Grafana's 472, Jellyfin's 122) |
 | Writes | `bigdisk`: `sync`; `k8s-dynamic`: `async` | The same |
@@ -245,7 +245,8 @@ longer than `NasDown` should report.
   in later is watched from its next restart. By hand:
   `sudo smartctl -a -d sntjmicron /dev/disk/by-id/usb-JMicron_Tech_DD564198838AA-0:0`.
 - **IPMI**: `openipmi`, pulled in by node-exporter's collectors through
-  `ipmitool`, is masked: the TS-253D has no BMC, so it only failed at boot.
+  `ipmitool`, is masked (and its failed state cleared): the TS-253D has no
+  BMC, so it only failed at boot.
 - **The off-site copy** to Google Drive is unchanged: the cluster's
   `offsite-backup` CronJob reads the NAS over NFS ({ref}`offsite-backup`).
 

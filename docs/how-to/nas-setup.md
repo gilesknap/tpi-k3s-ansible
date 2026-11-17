@@ -35,6 +35,7 @@ mounted at the paths the cluster's volumes name.
 | `/bigdisk/k8s-cluster/scrap-data/` | `additions/scrap` (`storage.data_dir`) | the `scrap-data-nfs` PV | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/scrap/` | `additions/scrap` (`storage.backups_dir`) | the `scrap-backups-nfs` PV | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/scrap-curated/` | `offsite_backup.backups.run_dirs` | the off-site backup, read-only (scrap backup runs kept by hand) | `10001:10001`, `0750` |
+| `/bigdisk/k8s-cluster/backups/config/cloudflare/` (with its parent) | none | dated copies of the Cloudflare OpenTofu state (encrypted) and `live.auto.tfvars`, copied in over ssh as `ansible` after each `just cf-apply`; read by the off-site backup | `1000:1000`, `0755` |
 | `/bigdisk/k8s-cluster/minecraft/` (with `backups/`, `snapshots/`, `dashboard/`) | `minecraft.store_subdir` | the Minecraft dashboard's store PV | `1000:1000`, `0755` |
 | `/bigdisk/minecraft-archive/` | `minecraft.archive_path` | the dashboard's archive PV, read-only | `0:0`, `0555`, its files with no write bit at all |
 | `/bigdisk/media/` | `jellyfin.media.nfs_path` | the `jellyfin-media-nfs` PV, read-only | as it was: the library predates the cluster |
