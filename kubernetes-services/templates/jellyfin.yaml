@@ -45,6 +45,11 @@ spec:
           # local PV's nodeAffinity pins it too; this makes it explicit.
           nodeSelector:
             kubernetes.io/hostname: {{ $pv.node }}
+            {{- if .Values.nas_paused.jellyfin }}
+            # nas_paused.jellyfin: no node has this label, so the pod stays
+            # Pending.
+            nas-switchover: paused
+            {{- end }}
 
           # hostNetwork: listens on every host interface, with UDP 7359
           # client discovery. Off for a trial beside a host install

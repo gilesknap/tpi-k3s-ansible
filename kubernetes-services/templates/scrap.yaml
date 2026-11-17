@@ -65,6 +65,12 @@ spec:
           # the pod restarts on another node and restores the replica.
           persistence:
             existingClaim: scrap-data-nfs
+          {{- if .Values.nas_paused.scrap }}
+          # nas_paused.scrap: no node has this label, so the pod (and any
+          # backup Job that fires) stays Pending until it is false again.
+          nodeSelector:
+            nas-switchover: paused
+          {{- end }}
           # The chart default since 1.9.0 (scrap ADR 47); kept explicit so
           # the deprecated non-Litestream mode can never come back.
           litestream:
@@ -141,6 +147,10 @@ spec:
       helm:
         valuesObject:
           cluster_domain: {{ .Values.cluster_domain }}
+          {{- if .Values.nas_paused.scrap }}
+          # nas_paused.scrap: suspend scrap-backup-copy.
+          paused: true
+          {{- end }}
           nfs:
             server: {{ .Values.nfs.server | quote }}
             cluster_share_path: {{ .Values.nfs.cluster_share_path | quote }}
