@@ -31,8 +31,9 @@ Around the nodes:
 
 - **The NAS.** A QNAP running Ubuntu Server and ZFS, that serves
   application data and backups over NFS. Ansible manages it but never
-  destroys data: no task destroys a pool, dataset or snapshot (enforced by
-  `just check`), pool creation is opt-in and refuses an existing pool, the
+  destroys data: no task destroys a pool, dataset or snapshot (`just check`
+  fails on the destructive commands and modules it knows, though not on one
+  built from variables at run time), pool creation is opt-in and refuses an existing pool, the
   cluster playbooks never touch the NAS, and ZFS snapshots plus
   age-encrypted off-site backups cover the rest.
 - **Cloudflare.** DNS, a Cloudflare Tunnel that carries every web hostname,

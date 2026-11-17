@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Tests scripts/check-no-destroy on a copy of the repo: the copy as it is
+# passes; each case below, added to it, must fail (or, for the safe ones,
+# still pass). Covers what a line-by-line match alone misses: block-style
+# argv lists, shell blocks with line continuations, the file module with
+# state absent on a data path (also through a literal loop), zfs receive
+# -F, the filesystem module with force, scripts a role ships in files/ and
+# templates/, rm -r of a data path, and the opt-in wipe of
+# pb_decommission.yml losing its gate. Run by `just check`.
+#
+# Usage: scripts/test-check-no-destroy   (VERBOSE=1 shows each run's output)
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+check=$here/scripts/check-no-destroy
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# The copy: every file git would list, in a fresh repository (the check
+# lists files with git ls-files, untracked ones included).
+(cd "$here" && git ls-files -z --cached --others --exclude-standard \
+    | xargs -0 -I{} sh -c 'test -f "{}" && printf "%s\0" "{}"' \
+    | tar --null -T - -cf -) | (cd "$work" && tar -xf -)
+git -C "$work" init -q
+
+fails=0
+run() {
+    CHECK_NO_DESTROY_REPO=$work python3 "$check" >"$work/.out" 2>&1
+}
+show() { [ -n "${VERBOSE:-}" ] && sed 's/^/    /' "$work/.out" || true; }
+
+# expect_fail <description> <text the error must contain> <file> <content>
+expect_fail() {
+    local desc=$1 want=$2 file=$3 content=$4
+    mkdir -p "$(dirname "$work/$file")"
+    printf '%s\n' "$content" >"$work/$file"
+    if run; then
+        echo "FAIL: $desc: the check passed"; fails=$((fails + 1))
+    elif ! grep -qF -- "$want" "$work/.out"; then
+        echo "FAIL: $desc: no \`$want\` in the errors:"; sed 's/^/    /' "$work/.out"; fails=$((fails + 1))
+    else
+        echo "ok   $desc"; show
+    fi
+    rm -f "$work/$file"
+}
+
+# expect_pass <description> <file> <content>
+expect_pass() {
+    local desc=$1 file=$2 content=$3
+    mkdir -p "$(dirname "$work/$file")"
+    printf '%s\n' "$content" >"$work/$file"
+    if run; then
+        echo "ok   $desc"; show
+    else
+        echo "FAIL: $desc: the check failed:"; sed 's/^/    /' "$work/.out"; fails=$((fails + 1))
+    fi
+    rm -f "$work/$file"
+}
+
+tasks=roles/zz_test/tasks/main.yml
+
+if run; then echo "ok   the repo as it is passes"; else
+    echo "FAIL: the repo as it is fails:"; sed 's/^/    /' "$work/.out"; exit 1
+fi
+
+expect_fail "zfs destroy as a block-style argv list" "zfs destroy" "$tasks" '
+- name: T
+  ansible.builtin.command:
+    argv:
+      - zfs
+      - destroy
+      - tank/x'
+
+expect_fail "zpool destroy split by a line continuation" "zpool destroy" "$tasks" '
+- name: T
+  ansible.builtin.shell: |
+    set -e
+    zpool \
+      destroy tank'
+
+expect_fail "zfs destroy -r in a folded shell block" "zfs destroy" "$tasks" '
+- name: T
+  ansible.builtin.shell:
+    cmd: >-
+      zfs
+      destroy -r tank/x'
+
+expect_fail "file absent on a data path" "file absent on a data path" "$tasks" '
+- name: T
+  ansible.builtin.file:
+    path: /bigdisk/k8s-cluster/backups
+    state: absent'
+
+expect_fail "file absent on a data path through a literal loop" "file absent on a data path" "$tasks" '
+- name: T
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/x
+    - /srv/backup/tank'
+
+expect_fail "zfs receive -F" "zfs receive -F" "$tasks" '
+- name: T
+  ansible.builtin.shell: zfs send -R tank@s | zfs receive -F backup/tank'
+
+expect_fail "zfs recv -Fu" "zfs receive -F" "$tasks" '
+- name: T
+  ansible.builtin.command: zfs recv -Fu backup/tank'
+
+expect_fail "filesystem with force" "filesystem with force" "$tasks" '
+- name: T
+  community.general.filesystem:
+    dev: /dev/sdb
+    fstype: ext4
+    force: true'
+
+expect_fail "a script in a role's files/" "zfs destroy" roles/zz_test/files/prune.sh '#!/bin/sh
+zfs destroy -r tank/old'
+
+expect_fail "a script template in a role's templates/" "wipefs" roles/zz_test/templates/reset.sh.j2 '#!/bin/sh
+wipefs -a {{ disk }}'
+
+expect_fail "rm -r of a data path" "rm -r of a data path" roles/zz_test/files/clean.sh '#!/bin/sh
+rm -rf /bigdisk/media/old'
+
+expect_fail "the zfs module with state absent" "with state absent" "$tasks" '
+- name: T
+  community.general.zfs:
+    name: tank/x
+    state: absent'
+
+# The opt-in wipe of the nodes' local PV roots without its gate.
+cp "$work/pb_decommission.yml" "$work/.pb"
+sed -i '/when: wipe_local_data | default(false) | bool/d' "$work/pb_decommission.yml"
+if run; then
+    echo "FAIL: the ungated wipe in pb_decommission.yml: the check passed"; fails=$((fails + 1))
+elif grep -qF "must keep \`when: wipe_local_data" "$work/.out"; then
+    echo "ok   the wipe in pb_decommission.yml must stay gated"; show
+else
+    echo "FAIL: the ungated wipe: unexpected errors:"; sed 's/^/    /' "$work/.out"; fails=$((fails + 1))
+fi
+mv "$work/.pb" "$work/pb_decommission.yml"
+
+expect_pass "safe: file absent elsewhere, wipefs --no-act, zfs receive -u, rm -rf /tmp" "$tasks" '
+- name: T
+  ansible.builtin.file:
+    path: /etc/netplan/00-installer-config.yaml
+    state: absent
+- name: T
+  ansible.builtin.command:
+    argv: [wipefs, --no-act, /dev/sdb]
+- name: T
+  ansible.builtin.shell: |
+    zfs send tank@s | zfs receive -u backup/tank
+    rm -rf /tmp/scratch'
+
+if [ "$fails" -ne 0 ]; then
+    echo "test-check-no-destroy: $fails failed" >&2
+    exit 1
+fi
+echo "test-check-no-destroy: all passed"

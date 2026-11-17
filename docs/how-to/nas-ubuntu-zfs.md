@@ -175,7 +175,12 @@ Nothing else in the role destroys data: no task destroys a pool, dataset or
 snapshot (sanoid prunes only snapshots past their retention, and never the
 held weekly, {ref}`nas-snapshot-hold`).
 `scripts/check-no-destroy`, run by `just check`, fails if one does, if this
-gating is removed, or if a cluster playbook targets the NAS.
+gating is removed, or if a cluster playbook targets the NAS. It reads every
+task's whole command (argv lists and shell blocks included), the zfs, zpool,
+filesystem and file modules, and the scripts the roles install; it cannot
+see a command or path built from variables at run time (`rm -rf "$dir"`),
+so it catches mistakes rather than proving the negative.
+`scripts/test-check-no-destroy` checks that it catches each case it should.
 
 ```bash
 # The main pool. Disks from QTS carry its RAID, so they need nas_force.

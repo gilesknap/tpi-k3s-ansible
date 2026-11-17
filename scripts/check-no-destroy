@@ -3,12 +3,23 @@
 
 The guarantee the README makes about the NAS (gknas), enforced:
 
-1. No Ansible YAML or Jinja file runs a destructive storage command
-   (zpool destroy/labelclear, zfs destroy/rollback, wipefs, sgdisk --zap,
-   blkdiscard, mkfs, dd to a device, syncoid --force-delete, zpool create)
-   or uses the zfs/zpool modules with any state but present. The few
-   legitimate uses, all in the RK1 flash role, are in ALLOWLIST below with
-   their reason; nothing of roles/nas or pb_nas.yml is allowlisted.
+1. No Ansible YAML or Jinja file, and no file a role ships to a host
+   (roles/*/files, roles/*/templates: its scripts), runs a destructive
+   storage command (zpool destroy/labelclear, zfs destroy/rollback,
+   zfs receive -F, wipefs, sgdisk --zap, blkdiscard, mkfs, dd to a device,
+   syncoid --force-delete, zpool create, rm -r of a data path), uses the
+   zfs/zpool modules with any state but present, the filesystem module
+   with force, or the file module with state absent on a data path
+   (DATA_PATHS). The few legitimate uses, in the RK1 flash role and the
+   opt-in wipe of pb_decommission.yml, are in ALLOWLIST below with their
+   reason; nothing of roles/nas or pb_nas.yml is allowlisted.
+
+   Each file is matched line by line, and each task's command (a shell
+   block, a free-form command, an argv list joined, line continuations
+   joined) as a whole. What it cannot see: a command or path built at run
+   time from variables (`rm -rf "$dir"`, `path: "{{ some_var }}"`, unless
+   the task loops over a literal list), and modules beyond those named
+   here. It catches mistakes, not a determined author.
 2. The one exception in the nas role, `zpool create`, is allowed only in
    the task of roles/nas/tasks/pool.yml that is gated as checked in
    check_pool_create(): opt-in (nas_create_pool / nas_create_backup_pool,
@@ -28,7 +39,9 @@ from pathlib import Path
 
 import yaml
 
-REPO = Path(__file__).resolve().parent.parent
+import os
+
+REPO = Path(os.environ.get("CHECK_NO_DESTROY_REPO") or Path(__file__).resolve().parent.parent)
 SKIP_DIRS = ("docs/", ".claude/", "_claude/")
 NAS_FILES = ("roles/nas/", "pb_nas.yml")
 POOL_TASKS = "roles/nas/tasks/pool.yml"
@@ -49,7 +62,16 @@ PATTERNS = {
     # dd onto a device, or onto a target only known at run time.
     "dd to a device": r"\bdd\b[^\n]*\bof=(/dev/(?!null\b|zero\b)|\{\{|\$)",
     "syncoid --force-delete": r"\bsyncoid\b[^\n]*--force-delete",
+    # -F rolls the target back and destroys its snapshots (and with -R
+    # sends, datasets) that the source lacks.
+    "zfs receive -F": r"\bzfs\W+rec(v|eive)\b[^\n]*\s-[A-Za-z]*F",
 }
+
+# Paths that hold data: the NAS's datasets and backup pool, and the local
+# PV roots of the nodes (CLAUDE.md).
+DATA_PATHS = ("/bigdisk", "/k8s-dynamic", "/Minecraft", "/srv/backup", "/var/lib/k8s-data", "/home/k8s-data")
+_data = "|".join(re.escape(p) for p in DATA_PATHS)
+PATTERNS["rm -r of a data path"] = r"\brm\b[^\n]*\s-[A-Za-z]*[rR][^\n]*\s['\"]?(" + _data + r")(/|['\"\s]|$)"
 
 # (file, pattern): why it is legitimate. Only the RK1 flash role, which
 # installs Ubuntu onto a node's own NVMe and eMMC (never the NAS): see
@@ -67,10 +89,24 @@ ALLOWLIST = {
         "text of a fail message telling the user how to keep an RK1's NVMe"
         " install; runs nothing"
     ),
+    ("pb_decommission.yml", "file absent on a data path"): (
+        "the documented opt-in wipe of the nodes' local PV roots"
+        " (-e wipe_local_data=true; CLAUDE.md), checked to stay gated"
+    ),
+}
+# An allowlisted task's `when` must still hold these.
+ALLOWLIST_GATES = {
+    ("pb_decommission.yml", "file absent on a data path"): "wipe_local_data | default(false) | bool",
 }
 
 # The zfs/zpool modules; any state but present destroys.
 ZFS_MODULES = {"community.general.zfs", "community.general.zpool", "zfs", "zpool"}
+# Modules that run a command, whose whole command is matched.
+COMMAND_MODULES = {
+    f"{p}{m}" for p in ("", "ansible.builtin.") for m in ("command", "shell", "raw", "script")
+}
+FILE_MODULES = {"ansible.builtin.file", "file"}
+FILESYSTEM_MODULES = {"community.general.filesystem", "filesystem"}
 
 errors = []
 
@@ -84,6 +120,7 @@ def is_nas(path):
 
 
 def ansible_files():
+    """The Ansible YAML and Jinja files, and every file a role ships."""
     out = subprocess.run(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=REPO,
@@ -94,7 +131,7 @@ def ansible_files():
     return sorted(
         f
         for f in set(out)
-        if re.search(r"\.(ya?ml|j2)$", f)
+        if (re.search(r"\.(ya?ml|j2)$", f) or re.match(r"roles/[^/]+/(files|templates)/", f))
         and not f.startswith(SKIP_DIRS)
         and (REPO / f).is_file()
     )
@@ -161,31 +198,114 @@ def check_pool_create():
     return (sub.start_mark.line + 1, sub.end_mark.line)
 
 
+class LineLoader(yaml.SafeLoader):
+    """Records each mapping's first and last line as __line__ / __end__."""
+
+    def construct_mapping(self, node, deep=False):
+        mapping = super().construct_mapping(node, deep=deep)
+        mapping["__line__"] = node.start_mark.line + 1
+        mapping["__end__"] = node.end_mark.line + 1
+        return mapping
+
+
+def load_lines(path):
+    try:
+        return yaml.load((REPO / path).read_text(), Loader=LineLoader)
+    except yaml.YAMLError:
+        return None
+
+
+def command_text(args):
+    """A command module's whole command, as one string."""
+    if isinstance(args, dict):
+        if isinstance(args.get("argv"), list):
+            return " ".join(str(a) for a in args["argv"])
+        args = args.get("argv") or args.get("cmd") or args.get("_raw_params") or ""
+    text = str(args)
+    # Join shell line continuations (a backslash ending a line).
+    return re.sub(r"\\\n\s*", " ", text)
+
+
+def task_paths(task, args):
+    """The paths a file task names, with a literal loop's items put in."""
+    path = str(args.get("path") or args.get("dest") or args.get("name") or "")
+    loop = task.get("loop") or task.get("with_items")
+    if re.fullmatch(r"\{\{\s*item\s*\}\}", path) and isinstance(loop, list):
+        return [str(i) for i in loop]
+    return [path]
+
+
+def is_data_path(path):
+    return any(
+        re.search(r"(^|\s|\{\{|['\"])" + re.escape(p) + r"(/|$|['\"\s}])", path) for p in DATA_PATHS
+    )
+
+
+def gated(task, key):
+    need = ALLOWLIST_GATES.get(key)
+    if need is None:
+        return True
+    when = task.get("when") or []
+    when = [when] if isinstance(when, str) else when
+    if need in [str(w) for w in when]:
+        return True
+    errors.append(f"{key[0]}:{task.get('__line__')}: an allowlisted `{key[1]}` must keep `when: {need}`")
+    return False
+
+
 def check_commands(files, pool_create_lines):
     used = set()
+
+    def hit(path, n, name, text):
+        if (
+            name == "zpool create"
+            and path == POOL_TASKS
+            and pool_create_lines
+            and pool_create_lines[0] <= n <= pool_create_lines[1]
+        ):
+            return
+        if (path, name) in ALLOWLIST:
+            used.add((path, name))
+            return
+        errors.append(f"{path}:{n}: destructive `{name}`: {text.strip()[:200]}")
+
     for path in files:
-        for n, line in enumerate((REPO / path).read_text().splitlines(), 1):
+        for n, line in enumerate((REPO / path).read_text(errors="replace").splitlines(), 1):
             if re.match(r"\s*(#|\{#)", line):
                 continue
             for name, pattern in PATTERNS.items():
-                if not re.search(pattern, line):
-                    continue
-                if (
-                    name == "zpool create"
-                    and path == POOL_TASKS
-                    and pool_create_lines
-                    and pool_create_lines[0] <= n <= pool_create_lines[1]
-                ):
-                    continue
-                if (path, name) in ALLOWLIST:
-                    used.add((path, name))
-                    continue
-                errors.append(f"{path}:{n}: destructive `{name}`: {line.strip()}")
-        for d in walk(load_yaml(path)):
+                if re.search(pattern, line):
+                    hit(path, n, name, line)
+        if not re.search(r"\.ya?ml$", path):
+            continue
+        for d in walk(load_lines(path)):
+            n = d.get("__line__")
             for mod in ZFS_MODULES & d.keys():
                 args = d[mod] if isinstance(d[mod], dict) else {}
                 if args.get("state", "present") != "present":
-                    errors.append(f"{path}: {mod} with state {args.get('state')}: {args.get('name')}")
+                    errors.append(f"{path}:{n}: {mod} with state {args.get('state')}: {args.get('name')}")
+            for mod in COMMAND_MODULES & d.keys():
+                # The whole command, without its comment lines.
+                text = "\n".join(
+                    line for line in command_text(d[mod]).splitlines() if not re.match(r"\s*#", line)
+                )
+                for name, pattern in PATTERNS.items():
+                    if re.search(pattern, text):
+                        hit(path, n, name, text)
+            for mod in FILESYSTEM_MODULES & d.keys():
+                args = d[mod] if isinstance(d[mod], dict) else {}
+                if str(args.get("force", False)).lower() in ("true", "yes", "1"):
+                    hit(path, n, "filesystem with force", f"{mod}: {args.get('dev')}")
+            for mod in FILE_MODULES & d.keys():
+                args = d[mod] if isinstance(d[mod], dict) else {}
+                if args.get("state") != "absent":
+                    continue
+                for p in task_paths(d, args):
+                    if is_data_path(p):
+                        key = (path, "file absent on a data path")
+                        if key in ALLOWLIST and not gated(d, key):
+                            continue
+                        hit(path, n, "file absent on a data path", p)
     for key in ALLOWLIST:
         if is_nas(key[0]):
             errors.append(f"ALLOWLIST: nothing of the NAS may be allowlisted: {key}")
