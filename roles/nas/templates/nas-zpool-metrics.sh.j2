@@ -30,7 +30,10 @@ samples() {
         echo "nas_zpool_size_bytes{zpool=\"$pool\"} $size"
         echo "nas_zpool_allocated_bytes{zpool=\"$pool\"} $alloc"
         # The pool's root dataset's creation time: a scrub is due from then.
-        echo "nas_zpool_created_timestamp_seconds{zpool=\"$pool\"} $(zfs get -Hp -o value creation "$pool")"
+        # Its own assignment, so a failed zfs get stops the run (errexit
+        # does not see a failure inside an echo's command substitution).
+        created=$(zfs get -Hp -o value creation "$pool")
+        echo "nas_zpool_created_timestamp_seconds{zpool=\"$pool\"} $created"
     done || return 1
     jq -r '
       def labels($p): "{zpool=\"" + $p + "\"}";

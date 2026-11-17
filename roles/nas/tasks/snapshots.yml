@@ -104,3 +104,16 @@
     name: nas-hold.timer
     enabled: true
     state: started
+
+- name: Check whether the hold has written its metrics yet
+  ansible.builtin.stat:
+    path: "{{ nas_textfile_dir }}/nas_hold.prom"
+  register: nas_hold_prom
+
+# On a new install the timer's first run is at 02:00; until then the
+# metrics file is missing and NasMetricsStale would fire. Run it once now.
+- name: Run the snapshot hold once so its metrics exist
+  ansible.builtin.systemd_service:
+    name: nas-hold.service
+    state: started
+  when: not nas_hold_prom.stat.exists
