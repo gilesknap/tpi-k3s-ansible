@@ -665,7 +665,7 @@ takes. See {doc}`/explanations/architecture/backups` and
 **Tags:** `nas`, `nas_os`, `nas_fan`, `nas_pool`, `nas_datasets`, `nas_nfs`,
 `nas_snapshots`, `nas_health`
 
-Configures the NAS once it runs Ubuntu Server: packages and automatic updates
+Configures the NAS, which runs Ubuntu Server: packages and automatic updates
 (never an automatic reboot), fewer writes to its USB OS disk, the `qnap8528`
 driver for the QNAP's embedded controller, the ZFS pools and datasets, the NFS
 exports the cluster mounts, sanoid snapshots (with a hold on each dataset's

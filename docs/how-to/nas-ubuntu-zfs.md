@@ -1,9 +1,9 @@
 # Build or rebuild the NAS (Ubuntu Server + ZFS)
 
 The NAS, `gknas` at 192.168.1.3, is a QNAP TS-253D (Celeron J4125, 32 GB
-RAM, two bays, two 2.5GbE ports). It moved from QTS, QNAP's own OS, to
-Ubuntu Server 26.04 with ZFS, configured by Ansible like the rest of the
-estate. It is **not** a cluster node: `pb_nas.yml` configures it, separately
+RAM, two bays, two 2.5GbE ports). On 17 November 2026 it moved from QTS,
+QNAP's own OS, to Ubuntu Server 26.04 with ZFS, configured by Ansible like
+the rest of the estate. It is **not** a cluster node: `pb_nas.yml` configures it, separately
 from `pb_all.yml`, and nothing in `pb_all.yml` reaches it.
 
 :::{note}
@@ -16,7 +16,7 @@ Its notes on QTS describe the move from it.
 
 | Disk | Where | Holds |
 |------|-------|-------|
-| Fanxiang 256 GB NVMe, in a USB enclosure on a rear USB 2 port | The OS disk (later moved to an x4 PCIe adapter: the same disk, so no reinstall; only the boot order changes) | Ubuntu Server |
+| Fanxiang 256 GB NVMe, in a JMicron USB enclosure on the rear blue (USB 3) port | The OS disk, for now: it is to move to an x4 PCIe adapter (the same disk, so no reinstall; only the boot order changes) | Ubuntu Server |
 | Two Samsung 870 QVO 4 TB SSDs, in the bays | ZFS pool `tank`, a mirror | Everything the NAS serves |
 | LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk | A nightly copy of every dataset of `tank` |
 | The internal DOM | Not used | QTS's firmware (still there: see the migration's back-out) |
@@ -112,12 +112,18 @@ The install is unattended. The autoinstall stick
   enclosure) as the OS disk. It refuses to install if any disk over 2 TB is
   attached, so the drive trays and the LaCie must be out.
 
+The rear panel has one blue USB 3 port and two black USB 2 ports; the front
+port is USB 3. The firmware setup opens with **Del** at power-on.
+
 1. Power the NAS off. Pull both drive trays and unplug the LaCie.
-2. Plug in the NVMe enclosure (rear USB 2) and the install stick, power on,
-   and choose the stick in the boot menu. The install runs on its own and
+2. Plug the NVMe enclosure into the rear blue (USB 3) port and the install
+   stick into another, power on, and boot the stick in **UEFI** mode (its
+   `UEFI:` entry in the boot menu). Its legacy entry also boots, but installs
+   a BIOS-booting system: the first install, from that entry, had to be
+   done again. The install runs on its own and
    reboots.
-3. Remove the stick. In the firmware setup, put the NVMe first in the boot
-   order, before the DOM (QTS).
+3. Remove the stick. In the firmware setup, put the NVMe's UEFI entry
+   first in the boot order, before the DOM (QTS).
 
 The NAS has two 2.5GbE ports; the install takes DHCP on whichever is cabled.
 The router's reservation for 192.168.1.3 is by MAC address, so cable the port
@@ -133,8 +139,12 @@ ansible-playbook pb_nas.yml --tags nas_os,nas_fan
 ```
 
 `nas_os` stops Ubuntu assembling the Linux RAID it would find on disks that
-come from QTS (`AUTO -all` in `/etc/mdadm/mdadm.conf`), so do it before the
-trays go in. `nas_fan` builds the `qnap8528` driver (see {ref}`nas-fans`).
+come from QTS, so do it before the trays go in. udev assembles an array as
+its disks appear (`mdadm --incremental`); `AUTO -all` in
+`/etc/mdadm/mdadm.conf` stops that. The initramfs plays no part: Ubuntu 26.04
+builds it with dracut, whose host-only image has no mdadm at all while the
+root is not on md, so it cannot assemble an array before the root is
+mounted. `nas_fan` builds the `qnap8528` driver (see {ref}`nas-fans`).
 
 ### 3. Put the disks in and name them
 
@@ -216,7 +226,16 @@ longer than `NasDown` should report.
   (Ubuntu's own cron scrub is turned off per pool with the
   `org.debian:periodic-scrub=disable` property).
 - **SMART**: smartd watches every disk, with a short self-test daily and a
-  long one on Saturdays.
+  long one on Saturdays: the SSDs as plain SATA, and the two USB disks
+  through entries the role adds to `/etc/smart_drivedb.h`, by USB ID. The OS
+  disk's JMicron enclosure (152d:0562) is an NVMe bridge (`-d sntjmicron`),
+  which smartmontools' own database takes for a SATA bridge; the LaCie
+  (059f:1106) is a SATA disk behind a SAT bridge (`-d sat`), which it does
+  not know at all. smartd scans for disks when it starts, so a disk plugged
+  in later is watched from its next restart. By hand:
+  `sudo smartctl -a -d sntjmicron /dev/disk/by-id/usb-JMicron_Tech_DD564198838AA-0:0`.
+- **IPMI**: `openipmi`, pulled in by node-exporter's collectors through
+  `ipmitool`, is masked: the TS-253D has no BMC, so it only failed at boot.
 - **The off-site copy** to Google Drive is unchanged: the cluster's
   `offsite-backup` CronJob reads the NAS over NFS ({ref}`offsite-backup`).
 
@@ -268,7 +287,11 @@ out for good, take it out of `nas_hold_datasets`.
 
 node-exporter runs on the NAS on port 9100, with its ZFS collector (pool
 states), the `smartmon` collector, and three textfile metrics files the role
-adds: `nas_zpool.prom` (error counts and the last scrub, every 5 minutes),
+adds (below). The packaged `smartmon.sh` stops at the first disk type it does not
+know, and the OS disk's `sntjmicron` comes first, so on its own it reported
+only that disk; the role runs an edited copy, `/usr/local/sbin/nas-smartmon`,
+that reports every disk (`smartmon_device_smart_healthy` for each). The
+role's own files are `nas_zpool.prom` (error counts and the last scrub, every 5 minutes),
 `nas_replicate.prom` (the last copy to the backup pool) and `nas_hold.prom`
 (`nas_zfs_held_snapshot_timestamp_seconds{dataset}`, the creation time of
 each dataset's held weekly snapshot, and whether `nas-hold` last
@@ -314,10 +337,15 @@ at least two weeks old), loads it with `skip_hw_check=true` (the TS-253D's EC
 reports another chip ID) and DKMS rebuilds it for every new kernel.
 `nas_qnap_ec_driver: false` leaves it out.
 
-The module does not decide fan speeds. Check `sensors` after a boot: if the EC
-keeps the fans at a sensible speed by itself, nothing more is needed. If not,
-run `pwmconfig` on the NAS, and put the `/etc/fancontrol` it writes into
-`nas_fancontrol_config`: the role then installs and enables `fancontrol`.
+The module does not decide fan speeds, and on this NAS nothing else needs
+to: `sensors` shows the EC running the one fan by itself (`qnap8528-isa-0000`:
+`fan1` about 1,170 RPM at `pwm1` 38%, with two EC temperatures), so the role
+installs no fan curve. Should the EC's speed ever prove wrong, a curve of
+our own is a follow-up: `pwmconfig`, which writes `/etc/fancontrol`, is
+interactive, so run it on the NAS by hand and put what it writes into
+`nas_fancontrol_config`; the role then installs and enables `fancontrol`.
+The module is unsigned, which is fine here: the NAS's firmware has no
+Secure Boot.
 
 (nas-recovery)=
 ## Recovery
