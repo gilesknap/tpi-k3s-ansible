@@ -19,3 +19,14 @@
     path: /var/run/reboot-required
     state: touch
     mode: "0644"
+
+# logind is Type=notify-reload: a reload re-reads logind.conf.d and leaves
+# every session alone. Never restart it, which can end desktop sessions.
+- name: Reload logind
+  ansible.builtin.systemd_service:
+    name: systemd-logind
+    state: reloaded
+
+- name: Compile the GSettings schemas
+  ansible.builtin.command: glib-compile-schemas /usr/share/glib-2.0/schemas
+  changed_when: true

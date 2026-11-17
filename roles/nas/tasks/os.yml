@@ -186,3 +186,41 @@
     path: /etc/modprobe.d/zfs-nas.conf
     state: absent
   when: nas_zfs_arc_max | int == 0
+
+# The power button: with power_key_ignore: true in hosts.yml (gknas), logind
+# ignores a short press, so knocking the button no longer shuts the NAS
+# down. Holding it for about 4 seconds still cuts the power in the firmware.
+# The NAS has no desktop, so logind is all that handles the key; it reloads
+# the drop-in at once. Without the variable, the drop-in is removed.
+- name: Create the logind drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: power_key_ignore | default(false) | bool
+  tags: power_key
+
+- name: Ignore a short press of the power button
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas): power_key_ignore.
+      [Login]
+      HandlePowerKey=ignore
+      HandlePowerKeyLongPress=poweroff
+    dest: /etc/systemd/logind.conf.d/90-power-key.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: power_key_ignore | default(false) | bool
+  notify: Reload logind
+  tags: power_key
+
+- name: Remove the logind power button drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d/90-power-key.conf
+    state: absent
+  when: not (power_key_ignore | default(false) | bool)
+  notify: Reload logind
+  tags: power_key

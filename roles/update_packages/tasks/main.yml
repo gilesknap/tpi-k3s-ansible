@@ -165,6 +165,75 @@
   when: nvidia_gpu_node | default(false)
   notify: Restart k3s-agent
 
+# The power button: hosts with power_key_ignore: true in hosts.yml (nuc1
+# and nuc2, whose buttons get pressed by accident when cables are swapped)
+# ignore a short press. Holding the button for about 4 seconds still cuts
+# the power in the firmware. Two things handle the key: logind, and on a
+# GNOME desktop (or at its gdm login screen) gnome-settings-daemon, which
+# takes the key over from logind while it runs. logind reloads its drop-in
+# at once; GNOME reads its default at the next login or boot. Without the
+# variable, both files are removed. Run alone with --tags power_key.
+- name: Create the logind drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    mode: "0755"
+  when: power_key_ignore | default(false) | bool
+  tags: power_key
+
+- name: Ignore a short press of the power button in logind
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/update_packages): power_key_ignore.
+      [Login]
+      HandlePowerKey=ignore
+      HandlePowerKeyLongPress=poweroff
+    dest: /etc/systemd/logind.conf.d/90-power-key.conf
+    mode: "0644"
+  when: power_key_ignore | default(false) | bool
+  notify: Reload logind
+  tags: power_key
+
+- name: Remove the logind power button drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d/90-power-key.conf
+    state: absent
+  when: not (power_key_ignore | default(false) | bool)
+  notify: Reload logind
+  tags: power_key
+
+- name: Look for GNOME's power settings schema
+  ansible.builtin.stat:
+    path: /usr/share/glib-2.0/schemas/org.gnome.settings-daemon.plugins.power.gschema.xml
+  register: update_packages_gnome_power_schema
+  tags: power_key
+
+# Ubuntu's own override (10_ubuntu-settings) sets 'interactive', which at
+# the gdm login screen powers off at once. A later file wins.
+- name: Ignore a short press of the power button in GNOME
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/update_packages): power_key_ignore.
+      [org.gnome.settings-daemon.plugins.power]
+      power-button-action='nothing'
+    dest: /usr/share/glib-2.0/schemas/90_power-key.gschema.override
+    mode: "0644"
+  when:
+    - power_key_ignore | default(false) | bool
+    - update_packages_gnome_power_schema.stat.exists
+  notify: Compile the GSettings schemas
+  tags: power_key
+
+- name: Remove the GNOME power button override
+  ansible.builtin.file:
+    path: /usr/share/glib-2.0/schemas/90_power-key.gschema.override
+    state: absent
+  when: >-
+    not (power_key_ignore | default(false) | bool)
+    or not update_packages_gnome_power_schema.stat.exists
+  notify: Compile the GSettings schemas
+  tags: power_key
+
 # Last, so everything above is in place when a fresh node reboots, and
 # after the handlers, which may ask for a reboot.
 - name: Run the handlers before deciding whether to reboot
