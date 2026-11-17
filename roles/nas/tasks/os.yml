@@ -1,0 +1,188 @@
+# The operating system: packages, automatic updates without reboots, and
+# fewer writes to the OS disk (an NVMe in a USB enclosure for now).
+
+- name: Install the NAS packages
+  ansible.builtin.apt:
+    pkg:
+      - zfsutils-linux
+      - nfs-kernel-server
+      - sanoid
+      - smartmontools
+      - nvme-cli
+      - lm-sensors
+      - ethtool
+      - jq
+      - unattended-upgrades
+      - prometheus-node-exporter
+      - prometheus-node-exporter-collectors
+    update_cache: true
+    cache_valid_time: 3600
+
+# prometheus-node-exporter-collectors recommends ipmitool, which pulls in
+# openipmi. Its init script loads the IPMI drivers at boot and fails, as
+# the TS-253D has no BMC. Mask it rather than remove the packages, which
+# the next install of the recommends would bring back.
+- name: Mask openipmi, as the NAS has no BMC
+  ansible.builtin.systemd_service:
+    name: openipmi
+    masked: true
+
+# Masking does not clear the failure of the boot's attempt, which leaves
+# the system "degraded" in systemctl until the next boot.
+- name: Read openipmi's state
+  ansible.builtin.systemd_service:
+    name: openipmi
+  register: nas_openipmi
+  check_mode: false
+
+- name: Clear openipmi's failed state
+  ansible.builtin.command: systemctl reset-failed openipmi
+  when: nas_openipmi.status.ActiveState | default('') == 'failed'
+  changed_when: true
+
+# The installer's netplan (00-installer-config.yaml) matches both ports,
+# enp2s0 and enp3s0, by `en*` under one id, with DHCP. Only enp3s0 is
+# cabled (the router's reservation for 192.168.1.3 is by its MAC), and
+# systemd-networkd-wait-online waits for every port netplan configures,
+# so each boot spent 2 minutes waiting for enp2s0 and then failed. Name
+# the ports instead, each matched by its MAC address (so a rename cannot
+# leave the headless NAS with no configured port), with DHCP on both as
+# before (so either works if the cable moves), and mark the ones not
+# cabled optional. The role never runs `netplan apply`: netplan is a
+# systemd generator, so the new configuration reaches networkd at the next
+# daemon-reload followed by a networkd restart or reload, or the next
+# boot. enp3s0's configuration is equivalent to the old one, so at most
+# its DHCP lease is renegotiated. The file is checked with
+# `netplan generate` on a scratch root (with the live /sys, which netplan
+# reads to resolve the MAC matches) before it replaces anything.
+- name: Configure the network ports
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      {{ {'network': {'version': 2, 'ethernets': nas_netplan_ethernets}} | to_nice_yaml(indent=2) }}
+    dest: /etc/netplan/50-nas.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    validate: >-
+      sh -c 'd=$(mktemp -d) && mkdir -p "$d/etc/netplan" && ln -s /sys "$d/sys"
+      && install -m 0600 "$1" "$d/etc/netplan/50-nas.yaml"
+      && netplan generate --root-dir "$d"; rc=$?; rm -rf "$d"; exit $rc' sh %s
+
+- name: Remove the installer's netplan, which the ports above replace
+  ansible.builtin.file:
+    path: /etc/netplan/00-installer-config.yaml
+    state: absent
+
+# The SSDs come from QTS with Linux RAID (md) superblocks on them. udev
+# would assemble those arrays as the disks appear (mdadm --incremental),
+# which writes to the disks. Never assemble an array automatically: this NAS
+# has none of its own (ZFS does the mirroring). The running system's mdadm.conf
+# is all that matters: Ubuntu 26.04 builds its initramfs with dracut, and a
+# host-only dracut image leaves mdadm out entirely while the root is not on
+# md, so the initramfs cannot assemble an array and needs no rebuild.
+- name: Stop mdadm assembling arrays it finds
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas). ZFS mirrors the data disks; never
+      # auto-assemble the QTS md arrays found on them.
+      AUTO -all
+    dest: /etc/mdadm/mdadm.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable automatic package updates
+  ansible.builtin.copy:
+    content: |
+      // Managed by Ansible (roles/nas).
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+# Kernel updates arrive this way too; DKMS rebuilds the EC driver for them.
+# The NAS is not a cluster node, so kured never reboots it: reboot it by
+# hand (cluster NFS volumes hang until it is back).
+- name: Install from -updates and never reboot automatically
+  ansible.builtin.copy:
+    content: |
+      // Managed by Ansible (roles/nas).
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}-updates";
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+    dest: /etc/apt/apt.conf.d/52unattended-upgrades-nas
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the journald drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The journal is kept in RAM only, so it is lost on a reboot.
+- name: Keep the journal in RAM
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas): spare the USB OS disk.
+      [Journal]
+      Storage=volatile
+      RuntimeMaxUse={{ nas_journal_runtime_max_use }}
+    dest: /etc/systemd/journald.conf.d/90-nas-volatile.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+
+- name: Mount the root filesystem with noatime
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(\S+\s+/\s+\S+\s+)(?!\S*noatime)(\S+)(\s.*)$'
+    replace: '\1\2,noatime\3'
+  notify: Remount the root filesystem
+
+- name: Read the active swap areas
+  ansible.builtin.command: swapon --show=NAME --noheadings
+  register: nas_swap
+  changed_when: false
+  check_mode: false
+
+- name: Turn off swap
+  ansible.builtin.command: swapoff --all
+  when: nas_swap.stdout | trim | length > 0
+  changed_when: true
+
+- name: Remove swap from fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\S+\s+\S+\s+swap\s'
+    state: absent
+
+- name: Remove the installer's swap file
+  ansible.builtin.file:
+    path: /swap.img
+    state: absent
+
+- name: Set the ZFS ARC cap
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      options zfs zfs_arc_max={{ nas_zfs_arc_max }}
+    dest: /etc/modprobe.d/zfs-nas.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: nas_zfs_arc_max | int > 0
+
+- name: Remove the ZFS ARC cap
+  ansible.builtin.file:
+    path: /etc/modprobe.d/zfs-nas.conf
+    state: absent
+  when: nas_zfs_arc_max | int == 0

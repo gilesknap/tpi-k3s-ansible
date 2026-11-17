@@ -1,0 +1,85 @@
+# Configure the NAS (gknas): Ubuntu Server + ZFS, NFS exports for the
+# cluster, snapshots, a nightly copy to the backup pool, and health checks.
+# Run by pb_nas.yml only; see docs/how-to/nas-ubuntu-zfs.md.
+#
+# Order matters: the OS tasks (which stop Ubuntu assembling the QTS RAID
+# found on the SSDs) come before anything touches a pool, and the exports
+# come after the datasets they share are mounted.
+
+- name: Check this is the NAS host
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in groups['nas']
+      - inventory_hostname not in groups['all_nodes']
+    fail_msg: >-
+      The nas role only runs on the hosts of the nas group, which must not
+      also be cluster nodes ({{ inventory_hostname }}).
+    quiet: true
+  tags: always
+
+# The play's own fact gathering inherits the play's `nas` tag, so a run with
+# --tags nas_fan (say) skips it. The EC driver needs the running kernel.
+- name: Gather the facts the role needs
+  ansible.builtin.setup:
+    gather_subset: [min]
+  when: ansible_facts['kernel'] is not defined
+  tags: always
+
+- name: Configure the operating system
+  ansible.builtin.import_tasks: os.yml
+  tags: nas_os
+
+- name: Install the QNAP embedded controller driver
+  ansible.builtin.import_tasks: qnap_ec.yml
+  when: nas_qnap_ec_driver | bool
+  tags: nas_fan
+
+# The pool tasks also run with each tag whose tasks need to know which
+# pools exist. They only ever create a pool when asked to.
+- name: Create or import the main pool
+  ansible.builtin.include_tasks:
+    file: pool.yml
+    apply:
+      tags: [nas_pool, nas_datasets, nas_nfs, nas_snapshots, nas_health]
+  vars:
+    nas_pool_name: "{{ nas_pool }}"
+    nas_pool_devices: "{{ nas_pool_disks }}"
+    nas_pool_vdev_type: "{{ nas_pool_vdev }}"
+    nas_pool_create: "{{ nas_create_pool | bool }}"
+    nas_pool_required: true
+    nas_pool_root_properties: "{{ nas_pool_fs_properties }}"
+  tags: [nas_pool, nas_datasets, nas_nfs, nas_snapshots, nas_health]
+
+- name: Create or import the backup pool
+  ansible.builtin.include_tasks:
+    file: pool.yml
+    apply:
+      tags: [nas_pool, nas_datasets, nas_nfs, nas_snapshots, nas_health]
+  vars:
+    nas_pool_name: "{{ nas_backup_pool }}"
+    nas_pool_devices: "{{ nas_backup_pool_disks }}"
+    nas_pool_vdev_type: ""
+    nas_pool_create: "{{ nas_create_backup_pool | bool }}"
+    nas_pool_required: false
+    # Received datasets are read-only and mounted under one directory, never
+    # over the live paths.
+    nas_pool_root_properties: >-
+      {{ nas_pool_fs_properties | combine({'mountpoint': nas_backup_pool_mountpoint,
+         'readonly': 'on'}) }}
+  tags: [nas_pool, nas_datasets, nas_nfs, nas_snapshots, nas_health]
+
+- name: Create the datasets and the cluster's directories
+  ansible.builtin.import_tasks: datasets.yml
+  tags: nas_datasets
+
+- name: Configure the NFS server
+  ansible.builtin.import_tasks: nfs.yml
+  tags: nas_nfs
+
+- name: Configure snapshots and the copy to the backup pool
+  ansible.builtin.import_tasks: snapshots.yml
+  tags: nas_snapshots
+
+- name: Configure health checks and monitoring
+  ansible.builtin.import_tasks: health.yml
+  tags: nas_health

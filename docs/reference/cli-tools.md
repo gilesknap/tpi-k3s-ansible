@@ -25,7 +25,7 @@ is not always the section of the `justfile` they sit in.
 | Recipe | What it does | Notes |
 |--------|--------------|-------|
 | `just setup` | Checks the forwarded SSH agent and logs `gh` in | Devcontainer terminal, once after the container is created ({doc}`/how-to/claude-code`) |
-| `just check` | Checks the two age recipients match, then runs `lint` and `docs` in parallel | Required before every push ({doc}`/how-to/work-in-branches`) |
+| `just check` | Checks the two age recipients match and that no Ansible destroys stored data, then runs `lint` and `docs` in parallel | Required before every push ({doc}`/how-to/work-in-branches`) |
 | `just lint` | `ansible-lint` | Zero warnings; no `# noqa` |
 | `just docs` | Builds these pages into `build/html`; any warning fails the build | |
 | `just docs-watch` | Rebuilds and serves the pages on every change | |
@@ -187,4 +187,6 @@ Most files in `scripts/` sit behind a recipe above. These do not:
 | `scripts/generate-secrets` | Generates every cluster secret into a JSON file, taking the external credentials from the environment | Normally through `just generate-and-seal-all` |
 | `scripts/derive-argocd-client-secret` | Prints the Dex `argo-cd` client secret that ArgoCD derives from its `server.secretkey` | Called by the `cluster` role, `generate-secrets` and `seal-argocd-dex` |
 | `scripts/check-age-recipient` | Fails if `etcd_backup_age_recipient` and `offsite_backup.age_recipient` differ | Called by `just check` and a pre-commit hook |
+| `scripts/check-no-destroy` | Fails if any Ansible, or a script a role installs, runs a destructive storage command (`zfs destroy`, `zfs receive -F`, `wipefs`, `mkfs`, `dd` to a device, `rm -r` of a data path and the like; argv lists and shell blocks are read whole) or removes a data path with the file module, outside its short allowlist (the RK1 flash role, the opt-in wipe in `pb_decommission.yml`), if `zpool create` loses its opt-in gating in the `nas` role, or if a cluster playbook targets the NAS. It cannot see commands or paths built from variables at run time | Called by `just check` and a pre-commit hook |
+| `scripts/test-check-no-destroy` | Runs `check-no-destroy` on a copy of the repo with each case it must catch added, and a few it must let through | Called by `just check` |
 | `scripts/lib/` | Shared helpers: `seal.sh` (kubeseal wrapper), `cf-secrets.sh` (secret prompt), `ntfy_auth.py` (ntfy's users) | Sourced or imported, never run directly |

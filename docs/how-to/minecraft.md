@@ -120,8 +120,8 @@ helm pull oci://ghcr.io/gilesknap/charts/minecraft-dashboard --version <version>
 
 ## The NAS directories
 
-The archive directory and the store tree are created by hand on the NAS,
-which Ansible never manages: {ref}`minecraft-nas-directories`. World data needs
+The archive directory and the store tree are created by the `nas` role
+(`pb_nas.yml`): {ref}`minecraft-nas-directories`. World data needs
 the `nfs-stable` share root: {ref}`nfs-csi-nas-share`.
 
 ### Ingest the world archive
@@ -133,14 +133,16 @@ zips **flat, keeping their original filenames**, checks each one (`unzip -t`
 plus a `world/level.dat` entry), and is idempotent, so re-run it later to add
 more files.
 
-Run it on the NAS, or on a host with the NAS share mounted read-write:
+Run it on the NAS itself: the archive's export is read-only to every host.
+Unlock the directory first:
 
 ```bash
 git clone https://github.com/gilesknap/k3s-minecraft.git
 cd k3s-minecraft
 
+sudo chmod u+w /bigdisk/minecraft-archive
 # <dest> first, then every downloaded wrapper zip
-scripts/ingest-archive.sh /share/CACHEDEV1_DATA/bigdisk/minecraft-archive \
+sudo scripts/ingest-archive.sh /bigdisk/minecraft-archive \
   ~/Downloads/minecraft-k8s-backup-*.zip
 ```
 
@@ -151,7 +153,7 @@ world name and date from them.
 Then lock the archive so nothing can modify it, on the NAS:
 
 ```bash
-chmod -R a-w /share/CACHEDEV1_DATA/bigdisk/minecraft-archive
+sudo chmod -R a-w /bigdisk/minecraft-archive
 ```
 
 To add files later, restore write access to the directory (`chmod u+w`),

@@ -1,0 +1,209 @@
+# Disk and pool health: smartd, monthly scrubs, and node-exporter (with
+# its ZFS collector and textfile metrics for SMART, pool errors, scrubs and
+# the backup pool copy) for the cluster's Prometheus to scrape on :9100.
+
+- name: List the pools that exist
+  ansible.builtin.set_fact:
+    nas_present_pools: >-
+      {{ nas_pools_present | default({}) | dict2items | selectattr('value')
+         | map(attribute='key') | list }}
+
+# smartctl and smartd read /etc/smart_drivedb.h before the packaged drive
+# database, so entries there, by USB ID, tell them how to reach a disk
+# behind a USB bridge, for smartd's DEVICESCAN and node-exporter's smartmon
+# collector alike, without naming the disk:
+# - The OS disk's enclosure (152d:0562) is a JMicron NVMe bridge, but the
+#   packaged database lists that ID as a SATA bridge (-d sat), so smartd's
+#   DEVICESCAN failed on it and exited with no disk to watch.
+# - The LaCie (059f:1106) is not in the packaged database at all ("Unknown
+#   USB bridge"), so DEVICESCAN skipped it. It is a SATA disk (a Seagate
+#   ST4000LM024) behind a SAT bridge: -d sat reads it.
+- name: Tell smartmontools how to reach the disks behind USB bridges
+  ansible.builtin.copy:
+    content: |
+      /* Managed by Ansible (roles/nas). */
+      { "USB: ; JMicron NVMe bridge (the NAS's OS disk enclosure)",
+        "0x152d:0x0562",
+        "",
+        "",
+        "-d sntjmicron"
+      },
+      { "USB: LaCie Mobile Drive; (the NAS's backup pool disk)",
+        "0x059f:0x1106",
+        "",
+        "",
+        "-d sat"
+      },
+    dest: /etc/smart_drivedb.h
+    owner: root
+    group: root
+    mode: "0644"
+  register: nas_smart_drivedb
+
+- name: Configure smartd
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      # Every disk smartd finds (the SSDs, the OS disk and the LaCie, through
+      # /etc/smart_drivedb.h): all attributes, a short self-test daily at
+      # 02:00 and a long one on Saturdays at 03:00, temperature warnings.
+      # smartd scans only when it starts: a disk plugged in later is watched
+      # from its next restart (or the NAS's next boot).
+      DEVICESCAN -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,45,55
+    dest: /etc/smartd.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: nas_smartd_conf
+
+- name: Enable smartd
+  ansible.builtin.systemd_service:
+    name: smartmontools
+    enabled: true
+    state: >-
+      {{ 'restarted' if nas_smartd_conf is changed or nas_smart_drivedb is changed
+         else 'started' }}
+
+# Ubuntu's zfsutils-linux also scrubs every pool from cron
+# (/etc/cron.d/zfsutils-linux, second Sunday of the month). Its script
+# skips a pool whose org.debian:periodic-scrub is "disable", which leaves
+# the timers below in charge without editing the package's cron file.
+- name: Leave scrubs to the timers, not cron
+  community.general.zfs:
+    name: "{{ item }}"
+    state: present
+    extra_zfs_properties:
+      "org.debian:periodic-scrub": disable
+  loop: "{{ nas_present_pools }}"
+
+- name: Enable the scrub timer for each pool
+  ansible.builtin.systemd_service:
+    name: zfs-scrub-{{ nas_scrub_timer }}@{{ item }}.timer
+    enabled: true
+    state: started
+  loop: "{{ nas_present_pools }}"
+
+# node-exporter reads its package's default directory; the role does not
+# reconfigure it, so the writers must use the same one.
+- name: Check the textfile directory is node-exporter's
+  ansible.builtin.assert:
+    that: nas_textfile_dir == '/var/lib/prometheus/node-exporter'
+    fail_msg: >-
+      nas_textfile_dir must stay /var/lib/prometheus/node-exporter, the
+      directory Ubuntu's node-exporter reads.
+    quiet: true
+
+- name: Create node-exporter's textfile directory
+  ansible.builtin.file:
+    path: "{{ nas_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pool metrics script
+  ansible.builtin.template:
+    src: nas-zpool-metrics.sh.j2
+    dest: /usr/local/sbin/nas-zpool-metrics
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pool metrics units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nas-zpool-metrics.service
+    - nas-zpool-metrics.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the metrics units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the pool metrics timer
+  ansible.builtin.systemd_service:
+    name: nas-zpool-metrics.timer
+    enabled: true
+    state: started
+
+# The packaged smartmon.sh collector stops at the first disk whose smartctl
+# type it does not know (`exit` in its catch-all case): the OS disk comes
+# first, as sntjmicron, so it reported that disk alone and none of the SSDs
+# or the LaCie. The role installs a copy that reads sntjmicron like the
+# other NVMe types and skips (continue) an unknown type instead of stopping,
+# and points the package's timer at the copy. Both edits must match, so a
+# changed upstream script fails here rather than quietly dropping disks.
+- name: Read the packaged smartmon collector
+  ansible.builtin.slurp:
+    src: "{{ nas_smartmon_packaged }}"
+  register: nas_smartmon_src
+
+# The edits, as regular expressions and their replacements (single-quoted
+# YAML, so the backslashes reach Python's re as written).
+- name: Edit the smartmon collector for every disk
+  vars:
+    nas_smartmon_text: "{{ nas_smartmon_src.content | b64decode }}"
+    nas_smartmon_nvme_re: '(?m)^(\s*)nvme\*\)'
+    nas_smartmon_nvme_to: '\1nvme*|sntjmicron)'
+    nas_smartmon_exit_re: '(?m)(disk type is not sat.*\n\s*)exit$'
+    nas_smartmon_exit_to: '\1continue'
+  block:
+    - name: Check the smartmon collector still has the lines the copy edits
+      ansible.builtin.assert:
+        that:
+          - nas_smartmon_text is search(nas_smartmon_nvme_re)
+          - nas_smartmon_text is search(nas_smartmon_exit_re)
+        fail_msg: >-
+          {{ nas_smartmon_packaged }} has changed: update the edits in
+          roles/nas/tasks/health.yml.
+        quiet: true
+
+    - name: Install the NAS's copy of the smartmon collector
+      ansible.builtin.copy:
+        content: >-
+          {{ nas_smartmon_text
+             | regex_replace(nas_smartmon_nvme_re, nas_smartmon_nvme_to)
+             | regex_replace(nas_smartmon_exit_re, nas_smartmon_exit_to) }}
+        dest: /usr/local/sbin/nas-smartmon
+        owner: root
+        group: root
+        mode: "0755"
+
+- name: Create the smartmon service's drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-node-exporter-smartmon.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Run the NAS's copy of the smartmon collector
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas): every disk, not only the first.
+      [Service]
+      ExecStart=
+      ExecStart=/bin/sh -o pipefail -c "/usr/local/sbin/nas-smartmon | sponge {{ nas_textfile_dir }}/smartmon.prom"
+    dest: /etc/systemd/system/prometheus-node-exporter-smartmon.service.d/nas.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the smartmon drop-in
+  ansible.builtin.meta: flush_handlers
+
+# prometheus-node-exporter-collectors runs smartmon and nvme textfile
+# collectors from its own timers.
+- name: Enable node-exporter and its SMART collector
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - prometheus-node-exporter
+    - prometheus-node-exporter-smartmon.timer

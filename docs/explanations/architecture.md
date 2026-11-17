@@ -65,7 +65,7 @@ flowchart TB
     K3S["K3s: one server with embedded etcd, five agents<br/><b>Ansible</b> installs, system-upgrade-controller patches"]
     OS["Ubuntu 26.04, packages, local PV directories<br/><b>Ansible</b> installs, unattended-upgrades and kured maintain"]
     HW["Hardware: Turing Pi and RK1s, NUCs, ws03<br/><b>Ansible</b> flashes the RK1s; NUCs and ws03 are installed by hand"]
-    EXT["Off-cluster: the NAS, router DNS, Cloudflare, the VPS<br/><b>By hand</b>, or OpenTofu for Cloudflare"]
+    EXT["Off-cluster: the NAS, router DNS, Cloudflare, the VPS<br/><b>By hand</b>, OpenTofu for Cloudflare, <b>Ansible</b> (pb_nas.yml) for the NAS"]
 
     APPS --> PLAT --> ARGO --> K3S --> OS --> HW
     PLAT -.-> EXT
@@ -130,9 +130,13 @@ The decisions with a longer history are recorded in
 
 Some things are left out of the automation on purpose.
 
-- **The NAS.** Ansible has no access to it. Exports and the directories the
-  cluster uses are created by hand ({doc}`/how-to/nas-setup`), so no
-  playbook can ever delete what is on it.
+- **The NAS is outside the cluster playbooks.** `pb_nas.yml` manages it
+  (Ubuntu Server and ZFS) on its own, and never destroys data: no task destroys a
+  pool, dataset or snapshot (checked by `just check`; sanoid's timer does
+  prune snapshots past their retention), pool creation is opt-in and refuses
+  an existing pool (with `nas_force` it does wipe the named disks, which is
+  its purpose), and the cluster playbooks never touch it
+  ({doc}`/how-to/nas-ubuntu-zfs`).
 - **Cloudflare login methods.** The Access identity providers are set up
   once in the dashboard; everything else at Cloudflare is code
   ({doc}`/how-to/cloudflare-as-code`).

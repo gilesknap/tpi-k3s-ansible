@@ -85,6 +85,27 @@ described, with the values each node has, in {doc}`/reference/inventory`.
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
 
+### `nas` role (`roles/nas/defaults/main.yml`)
+
+Used by `pb_nas.yml` only ({doc}`/how-to/nas-ubuntu-zfs`). The defaults file
+documents each one; these are the ones a rebuild touches.
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `nas_pool` / `nas_pool_disks` | `tank` / by-id paths of the two SSDs | The main pool, a mirror. The disks must be `/dev/disk/by-id/` paths |
+| `nas_backup_pool` / `nas_backup_pool_disks` | `backup` / by-id path of the LaCie | The backup pool, which receives a nightly copy of every dataset; optional |
+| `nas_create_pool`, `nas_create_backup_pool`, `nas_force` | `false` | Command-line only. Create the pool (destroying the disks' contents); `nas_force` also allows disks that are not blank |
+| `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
+| `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, `0755` ({doc}`/how-to/nas-ubuntu-zfs`) |
+| `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
+| `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS). Optional `clients` narrows the hosts, `read_only_for` makes it read-only to some (`/bigdisk`, `Photos-Archive` (read-only), `/Minecraft`: `ws03` only; `k8s-cluster`: the nodes only; `media`: read-only to the nodes) |
+| `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 8 weekly, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool. `weekly` on the main pool must be at least 1 while any dataset is held |
+| `nas_hold_tag` / `nas_hold_datasets` | `nas-keep` / every dataset of `tank` in `nas_datasets` | The ZFS hold kept on the newest weekly snapshot of each dataset, against an accidental destroy ({doc}`/how-to/nas-ubuntu-zfs`) |
+| `nas_hold_on_calendar` | `*-*-* 02:00:00 Europe/London` | When `nas-hold` moves the holds to the newest weeklies (daily; sanoid takes them Mondays at 23:30) |
+| `nas_replicate_on_calendar` | `*-*-* 06:30:00 Europe/London` | When the nightly copy to the backup pool runs |
+| `nas_netplan_ethernets` | `enp3s0` and `enp2s0`, both DHCP, `enp2s0` optional | The NAS's network ports, as netplan `ethernets`; the port not cabled is `optional`, so boot does not wait for it |
+| `nas_qnap_ec_driver` | `true` | Build the community `qnap8528` EC driver (fans, temperatures) with DKMS, at `nas_qnap_ec_commit` |
+
 ### `update_packages` and `node_reboot` roles (`defaults/main.yml`)
 
 | Variable | Value | Description |
@@ -143,6 +164,7 @@ applies to that run only.
 | `admin_emails` | *(list)* | GitHub-linked addresses with admin rights: Grafana Admin, and the only addresses oauth2-proxy lets through. ArgoCD admin comes from the copy in `group_vars/all.yml`. **SYNC:** that copy |
 | `nfs.server` | `192.168.1.3` | The NAS: NFS server for the static backup, Minecraft, scrap and media volumes |
 | `nfs.cluster_share_path` | `/bigdisk/k8s-cluster` | The cluster-owned directory on the NAS ({doc}`/how-to/nas-setup`) |
+| `nas.monitoring.enabled` / `nas.monitoring.targets` | `true` / `[192.168.1.3:9100]` | Scrape the NAS's node-exporter (job `nas`) and load the NAS alerts ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nfs_csi.server` | `192.168.1.3` | NFS server for the dynamic StorageClasses (the NAS again) |
 | `nfs_csi.share` | `/k8s-dynamic` | Export for `nfs-rwx` scratch volumes (a new folder per PV) |
 | `nfs_csi.stable_share` | `/k8s-dynamic/stable` | Folder for `nfs-stable` volumes (one fixed folder per PVC); keep it a subfolder of `share` |

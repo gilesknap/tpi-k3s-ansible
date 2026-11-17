@@ -1,0 +1,30 @@
+# The NAS (gknas): Ubuntu Server + ZFS, NFS exports for the cluster,
+# snapshots, the nightly copy to the backup pool and health checks.
+#
+# Separate from pb_all.yml on purpose: the NAS is not a k3s node, and this
+# is run rarely (after an install, or to change the NAS). Only the hosts of
+# the `nas` group are touched; no cluster node is.
+#
+#   ansible-playbook pb_nas.yml                      # configure; never creates a pool
+#   ansible-playbook pb_nas.yml --check --diff       # show what would change
+#   ansible-playbook pb_nas.yml -e nas_create_pool=true  # DESTRUCTIVE: new main pool
+#
+# See docs/how-to/nas-ubuntu-zfs.md, including the guards on pool creation.
+
+- name: Make sure known_hosts has the NAS
+  hosts: nas
+  gather_facts: false
+  roles:
+    - role: known_hosts
+  tags: known_hosts
+
+- name: Configure the NAS
+  hosts: nas
+  # Run the handlers (journald restart, root remount, systemd reload) even
+  # when a later task fails, so a failed first run does not leave the
+  # changes it made written but not in effect.
+  force_handlers: true
+  roles:
+    - role: nas
+  become: true
+  tags: nas

@@ -1,0 +1,13 @@
+#!/bin/sh
+# {{ ansible_managed }} (roles/nas).
+# Refuse to start the NFS server unless every exported path is a mounted
+# ZFS dataset, so no client ever writes into a bare mount point on the OS
+# disk (after a pool failed to import, say).
+fail=0
+{% for e in nas_nfs_exports %}
+if [ "$(findmnt -n -o FSTYPE --mountpoint {{ e.path }})" != zfs ]; then
+    echo "nas-check-exports: {{ e.path }} is not a mounted ZFS dataset" >&2
+    fail=1
+fi
+{% endfor %}
+exit $fail

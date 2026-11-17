@@ -1,0 +1,119 @@
+# sanoid takes and prunes snapshots of the main pool (hourly, daily,
+# weekly, monthly) and prunes the copies on the backup pool. A nightly timer
+# sends every dataset of the main pool to the backup pool with syncoid (zfs
+# send/receive, incremental after the first run). A daily timer keeps a
+# ZFS hold on the newest weekly snapshot of each dataset
+# (docs/how-to/nas-ubuntu-zfs.md).
+
+# Before sanoid's configuration, which sets the weekly retention. sanoid
+# prunes weeklies oldest first, and only while more than `weekly` of them
+# remain, so with weekly >= 1 it never tries to prune the newest, the held
+# one. (If it ever met a held snapshot, its destroy would fail: sanoid
+# warns "could not remove" and carries on with the rest.)
+- name: Check the held datasets keep weekly snapshots
+  ansible.builtin.assert:
+    that:
+      - nas_hold_datasets | length == 0 or nas_snapshot_retention.weekly | default(0) | int >= 1
+      - nas_hold_datasets | reject('match', '^' ~ nas_pool ~ '/') | list | length == 0
+      - nas_hold_tag is match('^[A-Za-z0-9_.:-]+$')
+    fail_msg: >-
+      nas_hold_datasets must be datasets under {{ nas_pool }} (sanoid snapshots
+      only its children), nas_snapshot_retention.weekly at least 1 so sanoid
+      keeps the held weekly, and nas_hold_tag a plain word.
+    quiet: true
+
+- name: Create the sanoid configuration directory
+  ansible.builtin.file:
+    path: /etc/sanoid
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure sanoid
+  ansible.builtin.template:
+    src: sanoid.conf.j2
+    dest: /etc/sanoid/sanoid.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# The sanoid package runs `sanoid --cron` from this timer every 15 minutes.
+- name: Enable sanoid
+  ansible.builtin.systemd_service:
+    name: sanoid.timer
+    enabled: true
+    state: started
+
+- name: Install the backup pool copy script
+  ansible.builtin.template:
+    src: nas-replicate.sh.j2
+    dest: /usr/local/sbin/nas-replicate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the backup pool copy units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nas-replicate.service
+    - nas-replicate.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the new units
+  ansible.builtin.meta: flush_handlers
+
+# Only once the backup pool exists: until then its disk holds the
+# migration's copies (docs/how-to/nas-ubuntu-zfs.md).
+- name: Enable or disable the nightly copy to the backup pool
+  ansible.builtin.systemd_service:
+    name: nas-replicate.timer
+    enabled: "{{ nas_pools_present[nas_backup_pool] | default(false) }}"
+    state: "{{ 'started' if nas_pools_present[nas_backup_pool] | default(false) else 'stopped' }}"
+
+- name: Install the snapshot hold script
+  ansible.builtin.template:
+    src: nas-hold.sh.j2
+    dest: /usr/local/sbin/nas-hold
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the snapshot hold units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - nas-hold.service
+    - nas-hold.timer
+  notify: Reload systemd
+
+- name: Flush handlers so systemd sees the hold units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the snapshot hold timer
+  ansible.builtin.systemd_service:
+    name: nas-hold.timer
+    enabled: true
+    state: started
+
+- name: Check whether the hold has written its metrics yet
+  ansible.builtin.stat:
+    path: "{{ nas_textfile_dir }}/nas_hold.prom"
+  register: nas_hold_prom
+
+# On a new install the timer's first run is at 02:00; until then the
+# metrics file is missing and NasMetricsStale would fire. Run it once now.
+- name: Run the snapshot hold once so its metrics exist
+  ansible.builtin.systemd_service:
+    name: nas-hold.service
+    state: started
+  when: not nas_hold_prom.stat.exists

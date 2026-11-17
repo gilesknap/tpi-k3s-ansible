@@ -221,8 +221,9 @@ can build a fresh cluster. It is written around what it must not destroy:
   The rebuilt cluster binds the same static volumes and the applications
   come back with their data. Only `-e wipe_local_data=true` removes them.
 
-The NAS is never touched. `/rebuild-cluster` drives decommission and
-rebuild end to end and is the test for any change that affects this path.
+The NAS is never touched: `just check` fails if a cluster playbook targets
+it. `/rebuild-cluster` drives decommission and rebuild end to end and is
+the test for any change that affects this path.
 
 ## Configuration: three files
 

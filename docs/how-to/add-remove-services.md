@@ -256,7 +256,8 @@ If the path and the node in steps 1 and 2 differ, the claim stays
 mounted with a static NFS PersistentVolume in the service's `additions/`,
 as Jellyfin does for `/bigdisk/media`, read-only
 (`additions/jellyfin/templates/media-nfs.yaml`). The directory itself is
-made by hand on the NAS ({doc}`/how-to/nas-setup`).
+created by the `nas` role, or is a dataset of its own there
+({doc}`/how-to/nas-setup`).
 
 ### Secrets
 
@@ -316,7 +317,8 @@ Data on `nfs-stable` or elsewhere on the NAS is already off the node. Data
 on a `local-nvme` volume exists in one place only, so it needs a CronJob
 that copies it to `/bigdisk/k8s-cluster/backups/<service>/` on the NAS.
 The jobs live in `kubernetes-services/additions/backups/` (Grafana's and
-Jellyfin's are the models). Create the destination directory on the NAS first
+Jellyfin's are the models). Add the destination directory to the `nas` role's
+`nas_directories`, owned by the job's uid, and run `pb_nas.yml` first
 ({doc}`/how-to/nas-setup`). Everything under `backups/` is then picked up
 by the nightly encrypted copy to Google Drive with no further change
 ({ref}`offsite-backup`).
@@ -365,7 +367,7 @@ Pruning does not remove everything, mostly on purpose:
 | The namespace | `CreateNamespace=true` creates it but ArgoCD does not own it | Harmless when empty; `kubectl delete namespace <name>` if wanted |
 | Data on a `local-nvme` volume | The PV has `Retain`, and is defined by the `local_storage` entry, not by the service | Remove the `local_storage` and `k8s_data_dirs` entries. The directory on the node is never deleted by any playbook except `pb_decommission.yml -e wipe_local_data=true`; on an RK1 leave it alone |
 | Data on `nfs-stable` | Deleting the claim moves its folder to `archived-<namespace>/<pvc-name>` on the share | Delete the archived folder on the NAS by hand when sure |
-| Static NFS directories and backups on the NAS | Ansible and ArgoCD never touch the NAS | Delete by hand on the NAS when sure |
+| Static NFS directories and backups on the NAS | Nothing automated deletes on the NAS: ArgoCD and the cluster playbooks never touch it, and the `nas` role leaves a directory or dataset removed from its lists | Delete by hand on the NAS when sure |
 | Files already on Google Drive | The off-site job only adds; it prunes its own old uploads later, by age | Nothing |
 | The `sourceRepos` line | The AppProject is applied by Ansible | Remove the line and run `--tags cluster` |
 | The Cloudflare route and DNS record | The edge is not ArgoCD's | The `tunnel_services` change in step 2 |

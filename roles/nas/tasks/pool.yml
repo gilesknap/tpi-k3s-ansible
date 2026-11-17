@@ -1,0 +1,178 @@
+# Make sure one ZFS pool is imported. Included once per pool, with:
+#   nas_pool_name, nas_pool_devices, nas_pool_vdev_type, nas_pool_create,
+#   nas_pool_required, nas_pool_root_properties
+#
+# An imported pool is left alone. A pool that exists on its disks but is
+# not imported (after an OS reinstall) is imported, which changes no data.
+# Creating a pool destroys everything on its disks, so it happens only
+# with nas_pool_create (-e nas_create_pool=true or
+# -e nas_create_backup_pool=true), only on /dev/disk/by-id paths, never on
+# a disk with a mounted filesystem, and only on blank disks unless
+# nas_force=true.
+
+- name: "Check whether the pool is imported: {{ nas_pool_name }}"
+  ansible.builtin.command: zpool list -H -o name {{ nas_pool_name }}
+  register: nas_pool_list
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: "Look for the pool on the disks: {{ nas_pool_name }}"
+  ansible.builtin.command: zpool import
+  register: nas_pool_importable
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: nas_pool_list.rc != 0
+
+- name: "Import the pool: {{ nas_pool_name }}"
+  ansible.builtin.command: zpool import {{ nas_pool_name }}
+  when:
+    - nas_pool_list.rc != 0
+    - nas_pool_importable.stdout is search('(?m)^\s*pool:\s*' ~ nas_pool_name ~ '\s*$')
+  register: nas_pool_imported
+  changed_when: true
+
+- name: "Create the pool: {{ nas_pool_name }}"
+  when:
+    - nas_pool_list.rc != 0
+    - nas_pool_imported is skipped
+    - nas_pool_create | bool
+  block:
+    - name: "Check the pool's disks are given by id: {{ nas_pool_name }}"
+      ansible.builtin.assert:
+        that:
+          - nas_pool_devices | length > 0
+          - nas_pool_devices | reject('match', '^/dev/disk/by-id/') | list | length == 0
+          - nas_pool_vdev_type != 'mirror' or nas_pool_devices | length >= 2
+          - nas_pool_vdev_type == 'mirror' or nas_pool_devices | length == 1
+        fail_msg: >-
+          Pool {{ nas_pool_name }} needs its whole disks listed by
+          /dev/disk/by-id path (two for a mirror, one otherwise); got
+          {{ nas_pool_devices }}.
+        quiet: true
+
+    - name: "Resolve the pool's disks: {{ nas_pool_name }}"
+      ansible.builtin.command: readlink -e {{ item }}
+      loop: "{{ nas_pool_devices }}"
+      register: nas_pool_real
+      changed_when: false
+      check_mode: false
+
+    - name: "Read the block devices on the pool's disks: {{ nas_pool_name }}"
+      ansible.builtin.command: lsblk -rno NAME {{ item.stdout }}
+      loop: "{{ nas_pool_real.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: nas_pool_lsblk
+      changed_when: false
+      check_mode: false
+
+    - name: "Read the mount points on the pool's disks: {{ nas_pool_name }}"
+      ansible.builtin.command: lsblk -rno MOUNTPOINTS {{ item.stdout }}
+      loop: "{{ nas_pool_real.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: nas_pool_mounts
+      changed_when: false
+      check_mode: false
+
+    - name: "Read the signatures on the pool's disks: {{ nas_pool_name }}"
+      ansible.builtin.command: wipefs --no-act --noheadings {{ item.stdout }}
+      loop: "{{ nas_pool_real.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: nas_pool_wipefs
+      changed_when: false
+      check_mode: false
+
+    # Even nas_force never allows this: it would be the OS disk or a disk
+    # in use.
+    - name: "Check none of the pool's disks is mounted: {{ nas_pool_name }}"
+      ansible.builtin.assert:
+        that:
+          - item.stdout | trim | length == 0
+        fail_msg: >-
+          {{ item.item.item }} has a mounted filesystem or swap: refusing to
+          put it in pool {{ nas_pool_name }}. Mounted at: {{ item.stdout }}
+        quiet: true
+      loop: "{{ nas_pool_mounts.results }}"
+      loop_control:
+        label: "{{ item.item.item }}"
+
+    - name: "Check the pool's disks are blank: {{ nas_pool_name }}"
+      ansible.builtin.assert:
+        that:
+          - nas_force | bool or item.0.stdout | trim | length == 0
+          - nas_force | bool or item.1.stdout_lines | length <= 1
+        fail_msg: >-
+          {{ item.0.item.item }} is not blank (it has a partition table,
+          partitions or a filesystem signature), so creating pool
+          {{ nas_pool_name }} would destroy what is on it. Signatures:
+          {{ item.0.stdout | default('') }} Block devices:
+          {{ item.1.stdout | default('') }} Check it is the right disk and
+          that its data is safe elsewhere, then re-run with -e nas_force=true.
+        quiet: true
+      loop: "{{ nas_pool_wipefs.results | zip(nas_pool_lsblk.results) | list }}"
+      loop_control:
+        label: "{{ item.0.item.item }}"
+
+    - name: "Run zpool create: {{ nas_pool_name }}"
+      ansible.builtin.command:
+        argv: >-
+          {{ ['zpool', 'create']
+             + (['-f'] if nas_force | bool else [])
+             + (['-o'] | product(nas_pool_o) | flatten)
+             + (['-O'] | product(nas_pool_big_o) | flatten)
+             + [nas_pool_name]
+             + ([nas_pool_vdev_type] if nas_pool_vdev_type | length > 0 else [])
+             + nas_pool_devices }}
+      vars:
+        # ["ashift=12", ...] from the property dicts.
+        nas_pool_o: >-
+          {{ nas_pool_properties.keys() | zip(nas_pool_properties.values())
+             | map('join', '=') | list }}
+        nas_pool_big_o: >-
+          {{ nas_pool_root_properties.keys() | zip(nas_pool_root_properties.values())
+             | map('join', '=') | list }}
+      changed_when: true
+
+- name: "Check whether the pool is now imported: {{ nas_pool_name }}"
+  ansible.builtin.command: zpool list -H -o name,health {{ nas_pool_name }}
+  register: nas_pool_after
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: "Fail without the pool: {{ nas_pool_name }}"
+  ansible.builtin.fail:
+    msg: >-
+      Pool {{ nas_pool_name }} is not imported and was not found on the
+      disks. To create it (destroying what is on its disks), set its disks
+      by /dev/disk/by-id path in the nas role's variables and re-run with
+      -e nas_create_pool=true (see docs/how-to/nas-ubuntu-zfs.md).
+  when:
+    - nas_pool_required | bool
+    - nas_pool_after.rc != 0
+    - not ansible_check_mode
+
+- name: "Warn that the pool is missing: {{ nas_pool_name }}"
+  ansible.builtin.debug:
+    msg: >-
+      Pool {{ nas_pool_name }} does not exist yet, so nothing is copied to
+      it. Create it with -e nas_create_backup_pool=true once its disk is free
+      (docs/how-to/nas-ubuntu-zfs.md).
+  when:
+    - not nas_pool_required | bool
+    - nas_pool_after.rc != 0
+
+- name: "Warn that the pool is not healthy: {{ nas_pool_name }}"
+  ansible.builtin.debug:
+    msg: "WARNING: pool {{ nas_pool_name }} is {{ nas_pool_after.stdout.split() | last }}: check `zpool status {{ nas_pool_name }}`."
+  when:
+    - nas_pool_after.rc == 0
+    - nas_pool_after.stdout.split() | last != 'ONLINE'
+
+- name: "Record whether the pool is present: {{ nas_pool_name }}"
+  ansible.builtin.set_fact:
+    nas_pools_present: "{{ nas_pools_present | default({}) | combine({nas_pool_name: nas_pool_after.rc == 0}) }}"
