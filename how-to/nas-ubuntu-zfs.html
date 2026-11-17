@@ -1,0 +1,1104 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Build or rebuild the NAS (Ubuntu Server + ZFS) &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/nas-ubuntu-zfs';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Run Jellyfin" href="jellyfin.html" />
+    <link rel="prev" title="The cluster’s directories on the NAS" href="nas-setup.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="build-or-rebuild-the-nas-ubuntu-server-zfs">
+<h1>Build or rebuild the NAS (Ubuntu Server + ZFS)<a class="headerlink" href="#build-or-rebuild-the-nas-ubuntu-server-zfs" title="Link to this heading">#</a></h1>
+<p>The NAS, <code class="docutils literal notranslate"><span class="pre">gknas</span></code> at 192.168.1.3, is a QNAP TS-253D (Celeron J4125, 32 GB
+RAM, two bays, two 2.5GbE ports). On 17 November 2026 it moved from QTS,
+QNAP’s own OS, to Ubuntu Server 26.04 with ZFS, configured by Ansible like
+the rest of the estate. It is <strong>not</strong> a cluster node: <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> configures it, separately
+from <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>, and nothing in <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> reaches it.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This page describes the NAS and how to build it again from bare metal.
+<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a> lists the directories the cluster mounts on it.
+Its notes on QTS describe the move from it.</p>
+</div>
+<section id="what-is-on-it">
+<h2>What is on it<a class="headerlink" href="#what-is-on-it" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Disk</p></th>
+<th class="head"><p>Where</p></th>
+<th class="head"><p>Holds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Fanxiang 256 GB NVMe, in a JMicron USB enclosure on the rear blue (USB 3) port</p></td>
+<td><p>The OS disk, for now: it is to move to an x4 PCIe adapter (the same disk, so no reinstall; only the boot order changes)</p></td>
+<td><p>Ubuntu Server</p></td>
+</tr>
+<tr class="row-odd"><td><p>Two Samsung 870 QVO 4 TB SSDs, in the bays</p></td>
+<td><p>ZFS pool <code class="docutils literal notranslate"><span class="pre">tank</span></code>, a mirror</p></td>
+<td><p>Everything the NAS serves</p></td>
+</tr>
+<tr class="row-even"><td><p>LaCie 4 TB USB drive, front USB 3 port</p></td>
+<td><p>ZFS pool <code class="docutils literal notranslate"><span class="pre">backup</span></code>, one disk: <strong>not yet created</strong>, as the LaCie still holds the migration’s tar copies</p></td>
+<td><p>A nightly copy of every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code>, once the pool exists</p></td>
+</tr>
+<tr class="row-odd"><td><p>The internal DOM</p></td>
+<td><p>Not used</p></td>
+<td><p>QTS’s firmware (still there: see the migration’s back-out)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">tank</span></code> has (and <code class="docutils literal notranslate"><span class="pre">backup</span></code> will have) <code class="docutils literal notranslate"><span class="pre">ashift=12</span></code>, <code class="docutils literal notranslate"><span class="pre">compression=lz4</span></code>, <code class="docutils literal notranslate"><span class="pre">atime=off</span></code>, <code class="docutils literal notranslate"><span class="pre">xattr=sa</span></code>,
+<code class="docutils literal notranslate"><span class="pre">acltype=posixacl</span></code> and <code class="docutils literal notranslate"><span class="pre">overlay=off</span></code> (a dataset never mounts over a directory
+with files in it). The datasets keep the paths the cluster already mounts, so
+no PersistentVolume changes:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Dataset</p></th>
+<th class="head"><p>Mountpoint</p></th>
+<th class="head"><p>Exported</p></th>
+<th class="head"><p>Used by</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code></p></td>
+<td><p>read-write, <code class="docutils literal notranslate"><span class="pre">ws03</span></code> only</p></td>
+<td><p>parent of the four below</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk/k8s-cluster</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code></p></td>
+<td><p>read-write, the nodes only (not <code class="docutils literal notranslate"><span class="pre">ws03</span></code>)</p></td>
+<td><p>the backups, scrap’s data and the Minecraft store (<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a> lists each directory)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk/media</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code></p></td>
+<td><p>read-write to <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, <strong>read-only</strong> to the nodes</p></td>
+<td><p>the Jellyfin library</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk/minecraft-archive</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
+<td><p><strong>read-only</strong></p></td>
+<td><p>the Minecraft dashboard’s archive</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk/Photos-Archive</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/Photos-Archive</span></code></p></td>
+<td><p><strong>read-only</strong>, <code class="docutils literal notranslate"><span class="pre">ws03</span></code> only</p></td>
+<td><p>the photo archive</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tank/k8s-dynamic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code></p></td>
+<td><p>read-write, root not squashed</p></td>
+<td><p>the NFS CSI driver’s <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> and <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volumes (the Minecraft worlds)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tank/Minecraft</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/Minecraft</span></code></p></td>
+<td><p>read-write, <code class="docutils literal notranslate"><span class="pre">ws03</span></code> only</p></td>
+<td><p>the pre-cluster Minecraft share</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The list is <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>
+(<a class="reference internal" href="../reference/variables.html"><span class="doc">Variables reference</span></a>). Adding an entry and re-running the playbook
+creates the dataset; removing one never destroys anything.</p>
+</section>
+<section id="how-the-exports-differ-from-qts">
+<h2>How the exports differ from QTS<a class="headerlink" href="#how-the-exports-differ-from-qts" title="Link to this heading">#</a></h2>
+<p>Every consumer mounts NFS 4.1 by the paths above (<code class="docutils literal notranslate"><span class="pre">vers=4.1</span></code> or <code class="docutils literal notranslate"><span class="pre">nfsvers=4.1</span></code>
+on each PV and storage class, and on <code class="docutils literal notranslate"><span class="pre">node02</span></code>’s etcd backup mount). QTS served
+those paths from an NFSv4 pseudo-root (<code class="docutils literal notranslate"><span class="pre">/share/NFSv=4/bigdisk</span></code>); Ubuntu
+exports the real directories, which are the same paths, so the clients see no
+difference.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p></p></th>
+<th class="head"><p>QTS</p></th>
+<th class="head"><p>Ubuntu</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Who may mount</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bigdisk</span></code>: read-write to <code class="docutils literal notranslate"><span class="pre">192.168.1.0/24</span></code>, read-only to everyone (<code class="docutils literal notranslate"><span class="pre">*</span></code>); <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code>: read-write to <code class="docutils literal notranslate"><span class="pre">192.168.1.0/24</span></code></p></td>
+<td><p>Only the six cluster hosts, by IP: <code class="docutils literal notranslate"><span class="pre">ws03</span></code> (.10), <code class="docutils literal notranslate"><span class="pre">node02</span></code> to <code class="docutils literal notranslate"><span class="pre">node04</span></code> (.82 to .84), <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> (.91), <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (.92); nothing to anyone else. The nodes get only what the cluster mounts (<code class="docutils literal notranslate"><span class="pre">k8s-cluster</span></code>, <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code>, and <code class="docutils literal notranslate"><span class="pre">media</span></code> and <code class="docutils literal notranslate"><span class="pre">minecraft-archive</span></code> read-only); <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code>, <code class="docutils literal notranslate"><span class="pre">Photos-Archive</span></code> (read-only) and <code class="docutils literal notranslate"><span class="pre">/Minecraft</span></code> are <code class="docutils literal notranslate"><span class="pre">ws03</span></code>’s alone, and <code class="docutils literal notranslate"><span class="pre">k8s-cluster</span></code> is the nodes’ alone</p></td>
+</tr>
+<tr class="row-odd"><td><p>Root</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bigdisk</span></code>: <code class="docutils literal notranslate"><span class="pre">root_squash</span></code> to 65534; <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code>: <code class="docutils literal notranslate"><span class="pre">no_root_squash</span></code></p></td>
+<td><p>The same</p></td>
+</tr>
+<tr class="row-even"><td><p>Other uids</p></td>
+<td><p>Not squashed</p></td>
+<td><p>Not squashed: a pod’s writes keep its uid (scrap’s 10001, the dashboard’s 1000, Grafana’s 472, Jellyfin’s 122)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Writes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bigdisk</span></code>: <code class="docutils literal notranslate"><span class="pre">sync</span></code>; <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code>: <code class="docutils literal notranslate"><span class="pre">async</span></code></p></td>
+<td><p>The same</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft-archive</span></code></p></td>
+<td><p>Read-write over NFS (read-only only by mode and the PV)</p></td>
+<td><p>Read-only in the export too</p></td>
+</tr>
+<tr class="row-odd"><td><p>One filesystem?</p></td>
+<td><p>Yes: <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> were one ext4 volume</p></td>
+<td><p>No: each dataset is its own filesystem and its own export. A move between datasets is a copy, not a rename</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code> in the role’s defaults holds the client list, and each
+entry of <code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code> can narrow it (<code class="docutils literal notranslate"><span class="pre">clients</span></code>) or make it read-only to
+some hosts (<code class="docutils literal notranslate"><span class="pre">read_only_for</span></code>). A new node must be added there (and the
+playbook re-run) before its pods can mount anything from the NAS. The nodes
+still reach <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> and <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code> without <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code>
+itself being exported to them: the server’s NFSv4 pseudo-root shows them the
+path down to the exports they are given, and nothing else in it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ws03</span></code>’s desktop mounts <code class="docutils literal notranslate"><span class="pre">gknas:/bigdisk</span></code> on <code class="docutils literal notranslate"><span class="pre">/media/private/bigdisk</span></code>, for
+the media library and the photo archive. It is not given the cluster’s own
+data: <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> is exported to the nodes alone (<code class="docutils literal notranslate"><span class="pre">ws03</span></code> is a node
+too, but its workstation taint keeps every pod that mounts it off <code class="docutils literal notranslate"><span class="pre">ws03</span></code>), so
+<code class="docutils literal notranslate"><span class="pre">/media/private/bigdisk/k8s-cluster</span></code> on <code class="docutils literal notranslate"><span class="pre">ws03</span></code> is only the empty directory
+the dataset mounts over on the NAS. Read or copy the cluster’s files on the
+NAS itself (<code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">nas</span></code>, with <code class="docutils literal notranslate"><span class="pre">sudo</span></code> for scrap’s), as
+<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a> does. The photo archive is read-only to
+<code class="docutils literal notranslate"><span class="pre">ws03</span></code>: it changes only by hand, on the NAS.</p>
+<p>On QTS the backup directories were <code class="docutils literal notranslate"><span class="pre">0777</span></code>, because several uids write them.
+Here each is owned by its one writer, mode <code class="docutils literal notranslate"><span class="pre">0755</span></code>: Grafana’s backups by
+<code class="docutils literal notranslate"><span class="pre">472</span></code>, Jellyfin’s by <code class="docutils literal notranslate"><span class="pre">122:124</span></code>, and <code class="docutils literal notranslate"><span class="pre">etcd/</span></code> (with <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code>) by <code class="docutils literal notranslate"><span class="pre">65534</span></code>,
+which node02’s root-run job is squashed to. Only that writer can add or
+delete backups there (pruning older files of other owners included), and the
+off-site copy, which reads <code class="docutils literal notranslate"><span class="pre">backups/</span></code> as <code class="docutils literal notranslate"><span class="pre">65534</span></code>, can still read them all.
+<code class="docutils literal notranslate"><span class="pre">backups/scrap-curated/</span></code> becomes <code class="docutils literal notranslate"><span class="pre">0750</span></code>, scrap’s alone, like its other
+directories.</p>
+<p>Two things follow from moving NAS:</p>
+<ul class="simple">
+<li><p><strong>File handles change.</strong> A pod that held an NFS mount across the switchover
+has a stale handle and must be restarted. The migration stops every NFS
+user first, so this only matters for anything missed.</p></li>
+<li><p><strong>The NAS must keep its IPv4 address.</strong> Every consumer names <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code>
+and the exports admit clients by IPv4 address. A client that reaches the NAS
+by name over IPv6 (<code class="docutils literal notranslate"><span class="pre">gknas.lan</span></code> may get an AAAA record once Ubuntu takes a
+SLAAC address) is refused: use the address.</p></li>
+</ul>
+</section>
+<section id="build-the-nas-from-bare-metal">
+<h2>Build the NAS from bare metal<a class="headerlink" href="#build-the-nas-from-bare-metal" title="Link to this heading">#</a></h2>
+<p>You need: the NAS, a USB stick, the OS NVMe in its enclosure and the
+devcontainer on <code class="docutils literal notranslate"><span class="pre">ws03</span></code>.</p>
+<section id="install-ubuntu">
+<h3>1. Install Ubuntu<a class="headerlink" href="#install-ubuntu" title="Link to this heading">#</a></h3>
+<p>The install is unattended. The autoinstall stick
+(Ubuntu Server 26.04 live ISO plus an <code class="docutils literal notranslate"><span class="pre">autoinstall.yaml</span></code>) creates:</p>
+<ul class="simple">
+<li><p>hostname <code class="docutils literal notranslate"><span class="pre">gknas</span></code>, DHCP (the router reserves 192.168.1.3 for it);</p></li>
+<li><p>the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account with passwordless sudo, no password, and the keys in
+<code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> plus the Claude sandbox’s key;</p></li>
+<li><p>the packages <code class="docutils literal notranslate"><span class="pre">smartmontools</span> <span class="pre">nvme-cli</span> <span class="pre">lm-sensors</span> <span class="pre">ethtool</span> <span class="pre">zfsutils-linux</span></code>;</p></li>
+<li><p>the whole of the 200 to 300 GB disk with model <code class="docutils literal notranslate"><span class="pre">Tech</span></code> (the NVMe’s USB
+enclosure) as the OS disk. It refuses to install if any disk over 2 TB is
+attached, so the drive trays and the LaCie must be out.</p></li>
+</ul>
+<p>The rear panel has one blue USB 3 port and two black USB 2 ports; the front
+port is USB 3. The firmware setup opens with <strong>Del</strong> at power-on.</p>
+<ol class="arabic simple">
+<li><p>Power the NAS off. Pull both drive trays and unplug the LaCie.</p></li>
+<li><p>Plug the NVMe enclosure into the rear blue (USB 3) port and the install
+stick into another, power on, and boot the stick in <strong>UEFI</strong> mode (its
+<code class="docutils literal notranslate"><span class="pre">UEFI:</span></code> entry in the boot menu). Its legacy entry also boots, but installs
+a BIOS-booting system: the first install, from that entry, had to be
+done again. The install runs on its own and
+reboots.</p></li>
+<li><p>Remove the stick. In the firmware setup, put the NVMe’s UEFI entry
+first in the boot order, before the DOM (QTS).</p></li>
+</ol>
+<p>The NAS has two 2.5GbE ports, <code class="docutils literal notranslate"><span class="pre">enp2s0</span></code> and <code class="docutils literal notranslate"><span class="pre">enp3s0</span></code>; the install takes DHCP
+on whichever is cabled. The router’s reservation for 192.168.1.3 is by
+<code class="docutils literal notranslate"><span class="pre">enp3s0</span></code>’s MAC address, so cable that port (<code class="docutils literal notranslate"><span class="pre">ip</span> <span class="pre">-br</span> <span class="pre">link</span></code> on the NAS shows
+each port’s name and MAC). The installer’s netplan configures both ports
+under one <code class="docutils literal notranslate"><span class="pre">en*</span></code> match, so every boot waits two minutes for the port with no
+cable and then logs <code class="docutils literal notranslate"><span class="pre">systemd-networkd-wait-online</span></code> as failed; <code class="docutils literal notranslate"><span class="pre">nas_os</span></code>
+replaces it with one entry per port (<code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code>), each matched
+by its MAC address (so a renamed port still gets its configuration), both on
+DHCP, the one not cabled <code class="docutils literal notranslate"><span class="pre">optional</span></code>. The role never runs <code class="docutils literal notranslate"><span class="pre">netplan</span> <span class="pre">apply</span></code>:
+netplan is a systemd generator, so the new configuration reaches networkd at
+the next daemon-reload followed by a networkd restart or reload, or at the
+next boot. <code class="docutils literal notranslate"><span class="pre">enp3s0</span></code>’s configuration is equivalent to the installer’s, so at
+most its DHCP lease is renegotiated. On other hardware, set the MAC
+addresses first.</p>
+</section>
+<section id="configure-the-os-before-the-data-disks-go-in">
+<h3>2. Configure the OS, before the data disks go in<a class="headerlink" href="#configure-the-os-before-the-data-disks-go-in" title="Link to this heading">#</a></h3>
+<p>From the devcontainer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>known_hosts
+ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_os,nas_fan
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">nas_os</span></code> stops Ubuntu assembling the Linux RAID it would find on disks that
+come from QTS, so do it before the trays go in. udev assembles an array as
+its disks appear (<code class="docutils literal notranslate"><span class="pre">mdadm</span> <span class="pre">--incremental</span></code>); <code class="docutils literal notranslate"><span class="pre">AUTO</span> <span class="pre">-all</span></code> in
+<code class="docutils literal notranslate"><span class="pre">/etc/mdadm/mdadm.conf</span></code> stops that. The initramfs plays no part: Ubuntu 26.04
+builds it with dracut, whose host-only image has no mdadm at all while the
+root is not on md, so it cannot assemble an array before the root is
+mounted. <code class="docutils literal notranslate"><span class="pre">nas_fan</span></code> builds the <code class="docutils literal notranslate"><span class="pre">qnap8528</span></code> driver (see <a class="reference internal" href="#nas-fans"><span class="std std-ref">Fans and the embedded controller</span></a>).</p>
+</section>
+<section id="put-the-disks-in-and-name-them">
+<h3>3. Put the disks in and name them<a class="headerlink" href="#put-the-disks-in-and-name-them" title="Link to this heading">#</a></h3>
+<p>Power off, insert both trays (and the LaCie, if it is to become the backup
+pool), and power on. Then, on the NAS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-l<span class="w"> </span>/dev/disk/by-id/<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span>--<span class="w"> </span>-part
+</pre></div>
+</div>
+<p>Set <code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code> (the two <code class="docutils literal notranslate"><span class="pre">ata-Samsung_SSD_870_QVO_4TB_&lt;serial&gt;</span></code> paths)
+and <code class="docutils literal notranslate"><span class="pre">nas_backup_pool_disks</span></code> (the LaCie’s <code class="docutils literal notranslate"><span class="pre">usb-...</span></code> path) in
+<code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>, through a pull request as usual.</p>
+</section>
+<section id="create-the-pools">
+<h3>4. Create the pools<a class="headerlink" href="#create-the-pools" title="Link to this heading">#</a></h3>
+<p>Creating a pool destroys everything on its disks, so the role does it only
+when told, and checks first. It refuses unless:</p>
+<ul class="simple">
+<li><p>the pool does not already exist, imported or on the disks (an existing pool
+is imported instead, which changes nothing);</p></li>
+<li><p>the disks are given by <code class="docutils literal notranslate"><span class="pre">/dev/disk/by-id/</span></code> path (two for the mirror);</p></li>
+<li><p>no partition of the disks is mounted or used as swap (never overridable);</p></li>
+<li><p>the disks are blank: no partition table, partitions or filesystem signature,
+unless <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">nas_force=true</span></code> is also given.</p></li>
+</ul>
+<p>Nothing else in the role destroys data: no task destroys a pool, dataset or
+snapshot (sanoid prunes only snapshots past their retention, and never the
+held weekly, <a class="reference internal" href="#nas-snapshot-hold"><span class="std std-ref">The hold on the newest weekly snapshot</span></a>).
+<code class="docutils literal notranslate"><span class="pre">scripts/check-no-destroy</span></code>, run by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>, fails if one does, if this
+gating is removed, or if a cluster playbook targets the NAS. It reads every
+task’s whole command (argv lists and shell blocks included), the zfs, zpool,
+filesystem and file modules, and the scripts the roles install; it cannot
+see a command or path built from variables at run time (<code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">&quot;$dir&quot;</span></code>),
+so it catches mistakes rather than proving the negative.
+<code class="docutils literal notranslate"><span class="pre">scripts/test-check-no-destroy</span></code> checks that it catches each case it should.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># The main pool. Disks from QTS carry its RAID, so they need nas_force.</span>
+ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_pool</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_force</span><span class="o">=</span><span class="nb">true</span>
+
+<span class="c1"># The backup pool, once the LaCie holds nothing that is needed.</span>
+ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_backup_pool</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_force</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>Then the same run creates the datasets, the cluster’s directories
+(<code class="docutils literal notranslate"><span class="pre">nas_directories</span></code>: the directories of <a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>, the backup
+directories owned by their writers as above),
+the exports, the snapshot schedule and the health checks. Every later run is
+plain <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_nas.yml</span></code>; <code class="docutils literal notranslate"><span class="pre">--check</span> <span class="pre">--diff</span></code> shows what it would
+change.</p>
+</section>
+<section id="put-the-data-back">
+<h3>5. Put the data back<a class="headerlink" href="#put-the-data-back" title="Link to this heading">#</a></h3>
+<p>From the backup pool or Drive: see <a class="reference internal" href="#nas-recovery"><span class="std std-ref">Recovery</span></a>.</p>
+</section>
+<section id="monitoring">
+<h3>6. Monitoring<a class="headerlink" href="#monitoring" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">nas.monitoring.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>
+(<a class="reference internal" href="#nas-monitoring"><span class="std std-ref">Monitoring</span></a>), so Prometheus scrapes the NAS as soon as
+node-exporter answers on it. Set it to <code class="docutils literal notranslate"><span class="pre">false</span></code> while the NAS is down for
+longer than <code class="docutils literal notranslate"><span class="pre">NasDown</span></code> should report.</p>
+</section>
+</section>
+<section id="running-it">
+<h2>Running it<a class="headerlink" href="#running-it" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Updates</strong> install every night (unattended-upgrades, from <code class="docutils literal notranslate"><span class="pre">-security</span></code> and
+<code class="docutils literal notranslate"><span class="pre">-updates</span></code>), kernels included. The NAS never reboots itself, and kured does
+not manage it. When <code class="docutils literal notranslate"><span class="pre">/var/run/reboot-required</span></code> exists, reboot it by hand at
+a quiet time: the cluster’s NFS volumes hang (<code class="docutils literal notranslate"><span class="pre">hard</span></code> mounts) until it is
+back, and then carry on.</p></li>
+<li><p><strong>The OS disk</strong> is spared writes: the journal is in RAM only (lost on a
+reboot; capped at 128 MB), <code class="docutils literal notranslate"><span class="pre">/</span></code> is mounted <code class="docutils literal notranslate"><span class="pre">noatime</span></code>, and there is no swap.</p></li>
+<li><p><strong>Snapshots</strong>: sanoid snapshots every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code> hourly (kept 48),
+daily (30), weekly (8, on Mondays at 23:30) and monthly (12). A file can be
+read back from <code class="docutils literal notranslate"><span class="pre">&lt;mountpoint&gt;/.zfs/snapshot/&lt;snapshot&gt;/</span></code> on the NAS. The
+newest weekly snapshot of each dataset is held (<a class="reference internal" href="#nas-snapshot-hold"><span class="std std-ref">The hold on the newest weekly snapshot</span></a>).</p></li>
+<li><p><strong>The copy to the backup pool</strong>: <code class="docutils literal notranslate"><span class="pre">nas-replicate.timer</span></code> runs <code class="docutils literal notranslate"><span class="pre">syncoid</span></code> at
+06:30, after the cluster’s nightly backups, sending every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code>
+to <code class="docutils literal notranslate"><span class="pre">backup/tank</span></code> (incrementally). The copies are read-only, mounted under
+<code class="docutils literal notranslate"><span class="pre">/srv/backup</span></code>, and sanoid keeps 60 daily and 24 monthly snapshots of them
+(and prunes the weeklies that arrive).
+<code class="docutils literal notranslate"><span class="pre">journalctl</span> <span class="pre">-u</span> <span class="pre">nas-replicate</span></code> shows the last run.</p></li>
+<li><p><strong>Scrubs</strong>: <code class="docutils literal notranslate"><span class="pre">zfs-scrub-monthly&#64;tank.timer</span></code> and <code class="docutils literal notranslate"><span class="pre">zfs-scrub-monthly&#64;backup.timer</span></code>
+(Ubuntu’s own cron scrub is turned off per pool with the
+<code class="docutils literal notranslate"><span class="pre">org.debian:periodic-scrub=disable</span></code> property).</p></li>
+<li><p><strong>SMART</strong>: smartd watches every disk, with a short self-test daily and a
+long one on Saturdays: the SSDs as plain SATA, and the two USB disks
+through entries the role adds to <code class="docutils literal notranslate"><span class="pre">/etc/smart_drivedb.h</span></code>, by USB ID. The OS
+disk’s JMicron enclosure (152d:0562) is an NVMe bridge (<code class="docutils literal notranslate"><span class="pre">-d</span> <span class="pre">sntjmicron</span></code>),
+which smartmontools’ own database takes for a SATA bridge; the LaCie
+(059f:1106) is a SATA disk behind a SAT bridge (<code class="docutils literal notranslate"><span class="pre">-d</span> <span class="pre">sat</span></code>), which it does
+not know at all. smartd scans for disks when it starts, so a disk plugged
+in later is watched from its next restart. By hand:
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">smartctl</span> <span class="pre">-a</span> <span class="pre">-d</span> <span class="pre">sntjmicron</span> <span class="pre">/dev/disk/by-id/usb-JMicron_Tech_DD564198838AA-0:0</span></code>.</p></li>
+<li><p><strong>IPMI</strong>: <code class="docutils literal notranslate"><span class="pre">openipmi</span></code>, pulled in by node-exporter’s collectors through
+<code class="docutils literal notranslate"><span class="pre">ipmitool</span></code>, is masked (and its failed state cleared): the TS-253D has no
+BMC, so it only failed at boot.</p></li>
+<li><p><strong>The off-site copy</strong> to Google Drive is unchanged: the cluster’s
+<code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob reads the NAS over NFS (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>).</p></li>
+</ul>
+<section id="the-hold-on-the-newest-weekly-snapshot">
+<span id="nas-snapshot-hold"></span><h3>The hold on the newest weekly snapshot<a class="headerlink" href="#the-hold-on-the-newest-weekly-snapshot" title="Link to this heading">#</a></h3>
+<p>Each dataset sanoid snapshots (<code class="docutils literal notranslate"><span class="pre">nas_hold_datasets</span></code>: every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code>
+in <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code>, <code class="docutils literal notranslate"><span class="pre">Photos-Archive</span></code> included) keeps a ZFS <em>hold</em>, tag
+<code class="docutils literal notranslate"><span class="pre">nas-keep</span></code> (<code class="docutils literal notranslate"><span class="pre">nas_hold_tag</span></code>), on its newest weekly snapshot. ZFS refuses to
+destroy a held snapshot, so a mistyped <code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">destroy</span></code> of that snapshot fails,
+and so does a <code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">destroy</span> <span class="pre">-r</span></code> of the dataset: ZFS destroys a dataset’s
+snapshots in one all-or-nothing batch before the dataset itself, so neither
+the dataset nor any of its snapshots goes. (A child dataset with no held
+snapshot, made by hand or too new to have a weekly, is not protected.) It
+guards against accidents only. Root can release the
+hold and then destroy (and <code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">destroy</span> <span class="pre">-d</span></code> marks a held snapshot to go as
+soon as it is released); <code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">destroy</span></code> ignores holds altogether. The
+backup pool, and the off-site copy, are what cover a deliberate attack.</p>
+<p><code class="docutils literal notranslate"><span class="pre">nas-hold.timer</span></code> runs <code class="docutils literal notranslate"><span class="pre">/usr/local/sbin/nas-hold</span></code> daily at 02:00
+(<code class="docutils literal notranslate"><span class="pre">nas_hold_on_calendar</span></code>), after sanoid’s Monday 23:30 weekly: it holds the
+newest weekly first, then releases the tag from older snapshots, so a dataset
+never goes without a held snapshot. Other tags are left alone, and running it
+again changes nothing. The hold costs no space: sanoid keeps that snapshot
+anyway. The received copies on the backup pool are not held (<code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">send</span></code> does
+not carry holds).</p>
+<p>sanoid prunes weeklies oldest first and only while more than <code class="docutils literal notranslate"><span class="pre">weekly</span></code> remain,
+so it never tries to prune the newest one; the role refuses a weekly
+retention below 1 for a held dataset. If sanoid ever met a held snapshot, its
+destroy would fail and it would log <code class="docutils literal notranslate"><span class="pre">could</span> <span class="pre">not</span> <span class="pre">remove</span> <span class="pre">&lt;snapshot&gt;</span></code> and carry
+on with the rest, trying again on each run.</p>
+<p>To see or lift the holds by hand, on the NAS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Every snapshot of a dataset with its hold count, then the holds on one.</span>
+zfs<span class="w"> </span>list<span class="w"> </span>-t<span class="w"> </span>snapshot<span class="w"> </span>-d<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>name,userrefs<span class="w"> </span>tank/bigdisk/k8s-cluster
+zfs<span class="w"> </span>holds<span class="w"> </span>tank/bigdisk/k8s-cluster@autosnap_&lt;date&gt;_weekly
+<span class="c1"># Release it, e.g. to destroy that snapshot on purpose.</span>
+sudo<span class="w"> </span>zfs<span class="w"> </span>release<span class="w"> </span>nas-keep<span class="w"> </span>tank/bigdisk/k8s-cluster@autosnap_&lt;date&gt;_weekly
+</pre></div>
+</div>
+<p>The next run of <code class="docutils literal notranslate"><span class="pre">nas-hold</span></code> holds the newest weekly again: to keep a dataset
+out for good, take it out of <code class="docutils literal notranslate"><span class="pre">nas_hold_datasets</span></code>.</p>
+</section>
+</section>
+<section id="nas-monitoring">
+<span id="id1"></span><h2>Monitoring<a class="headerlink" href="#nas-monitoring" title="Link to this heading">#</a></h2>
+<p>node-exporter runs on the NAS on port 9100, with its ZFS collector (pool
+states), the <code class="docutils literal notranslate"><span class="pre">smartmon</span></code> collector, and three textfile metrics files the role
+adds (below). The packaged <code class="docutils literal notranslate"><span class="pre">smartmon.sh</span></code> stops at the first disk type it does not
+know, and the OS disk’s <code class="docutils literal notranslate"><span class="pre">sntjmicron</span></code> comes first, so on its own it reported
+only that disk; the role runs an edited copy, <code class="docutils literal notranslate"><span class="pre">/usr/local/sbin/nas-smartmon</span></code>,
+that reports every disk (<code class="docutils literal notranslate"><span class="pre">smartmon_device_smart_healthy</span></code> for each). The
+role’s own files are <code class="docutils literal notranslate"><span class="pre">nas_zpool.prom</span></code> (every 5 minutes: each pool’s size
+and allocated bytes from <code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">list</span></code>, its error counts, and its last
+finished scrub, kept through a resilver or a scrub in progress),
+<code class="docutils literal notranslate"><span class="pre">nas_replicate.prom</span></code> (the last copy to the backup pool) and <code class="docutils literal notranslate"><span class="pre">nas_hold.prom</span></code>
+(<code class="docutils literal notranslate"><span class="pre">nas_zfs_held_snapshot_timestamp_seconds{dataset}</span></code>, the creation time of
+each dataset’s held weekly snapshot, and whether <code class="docutils literal notranslate"><span class="pre">nas-hold</span></code> last
+succeeded).</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">nas.monitoring.enabled:</span> <span class="pre">true</span></code>, Prometheus scrapes it as job <code class="docutils literal notranslate"><span class="pre">nas</span></code>
+(a static target, <code class="docutils literal notranslate"><span class="pre">nas.monitoring.targets</span></code>, like <code class="docutils literal notranslate"><span class="pre">kube-etcd</span></code>) and loads these
+alerts:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Alert</p></th>
+<th class="head"><p>Fires when</p></th>
+<th class="head"><p>Severity</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasDown</span></code></p></td>
+<td><p>the NAS has not been scraped for 10 minutes</p></td>
+<td><p>critical</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsPoolNotOnline</span></code></p></td>
+<td><p>a pool is degraded, faulted or unavailable</p></td>
+<td><p>critical</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsPoolErrors</span></code></p></td>
+<td><p>a pool has read, write or checksum errors</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsScrubErrors</span></code></p></td>
+<td><p>the last scrub found errors</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsScrubOverdue</span></code></p></td>
+<td><p>no scrub has finished for 40 days</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsNeverScrubbed</span></code></p></td>
+<td><p>a pool over 40 days old has never finished a scrub</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasDiskSmartUnhealthy</span></code></p></td>
+<td><p>a disk fails its SMART health check</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasPoolFillingUp</span></code></p></td>
+<td><p>a pool’s allocated space is over 85% of its size (from <code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">list</span></code>: the free space a dataset reports stays near 100% however full the pool is)</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasBackupPoolCopyStale</span></code></p></td>
+<td><p>the copy to the backup pool has not succeeded for 36 hours</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasBackupPoolCopyFailed</span></code></p></td>
+<td><p>the last copy to the backup pool failed</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsHoldStale</span></code></p></td>
+<td><p>a dataset has no held snapshot, or its held weekly is over 8 days old (a new dataset gets 8 days from its creation)</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NasZfsHoldFailed</span></code></p></td>
+<td><p>the last <code class="docutils literal notranslate"><span class="pre">nas-hold</span></code> run failed</p></td>
+<td><p>warning</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NasMetricsStale</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nas_zpool.prom</span></code> or <code class="docutils literal notranslate"><span class="pre">smartmon.prom</span></code> has not been rewritten for 2 hours, or <code class="docutils literal notranslate"><span class="pre">nas_hold.prom</span></code> for 26 (stale files keep their last, healthy-looking values), or one is missing or unreadable</p></td>
+<td><p>warning</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>All of them reach ntfy (<a class="reference internal" href="ntfy.html"><span class="doc">Push notifications with ntfy</span></a>): the critical ones by severity,
+the warnings by name. While the NAS is down, <code class="docutils literal notranslate"><span class="pre">NasDown</span></code> mutes the chart’s
+generic <code class="docutils literal notranslate"><span class="pre">TargetDown</span></code> for job <code class="docutils literal notranslate"><span class="pre">nas</span></code>.</p>
+<p>Some start working later than the rest, because their metrics are absent
+until there is something to measure (an absent metric fires nothing):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">NasPoolFillingUp</span></code>, once the NAS runs the version of <code class="docutils literal notranslate"><span class="pre">nas-zpool-metrics</span></code>
+that exports pool size and allocation: re-apply <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> after a
+change to the role’s metrics, as the rules and the metrics ship
+separately.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NasZfsScrubErrors</span></code> and <code class="docutils literal notranslate"><span class="pre">NasZfsScrubOverdue</span></code>, after a pool’s first scrub
+(<code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">status</span></code> reports no scan until then); <code class="docutils literal notranslate"><span class="pre">tank</span></code>’s first is due on
+1 December 2026.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NasBackupPoolCopyStale</span></code> and <code class="docutils literal notranslate"><span class="pre">NasBackupPoolCopyFailed</span></code>, once the backup
+pool exists and <code class="docutils literal notranslate"><span class="pre">nas-replicate.timer</span></code> has run once.</p></li>
+</ul>
+</section>
+<section id="fans-and-the-embedded-controller">
+<span id="nas-fans"></span><h2>Fans and the embedded controller<a class="headerlink" href="#fans-and-the-embedded-controller" title="Link to this heading">#</a></h2>
+<p>QTS drives the fans through the TS-253D’s embedded controller. On Ubuntu, the
+community <a class="reference external" href="https://github.com/0xGiddi/qnap8528">qnap8528</a> kernel module
+exposes it through hwmon: fan speeds, PWM, temperatures, LEDs and buttons. The
+role builds it with DKMS at a pinned commit (<code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_commit</span></code>, a release
+at least two weeks old), loads it with <code class="docutils literal notranslate"><span class="pre">skip_hw_check=true</span></code> (the TS-253D’s EC
+reports another chip ID) and DKMS rebuilds it for every new kernel.
+<code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver:</span> <span class="pre">false</span></code> leaves it out.</p>
+<p>The module does not decide fan speeds, and on this NAS nothing else needs
+to: <code class="docutils literal notranslate"><span class="pre">sensors</span></code> shows the EC running the one fan by itself (<code class="docutils literal notranslate"><span class="pre">qnap8528-isa-0000</span></code>:
+<code class="docutils literal notranslate"><span class="pre">fan1</span></code> about 1,170 RPM at <code class="docutils literal notranslate"><span class="pre">pwm1</span></code> 38%, with two EC temperatures), so the role
+installs no fan curve. Should the EC’s speed ever prove wrong, a curve of
+our own is a follow-up: <code class="docutils literal notranslate"><span class="pre">pwmconfig</span></code>, which writes <code class="docutils literal notranslate"><span class="pre">/etc/fancontrol</span></code>, is
+interactive, so run it on the NAS by hand and put what it writes into
+<code class="docutils literal notranslate"><span class="pre">nas_fancontrol_config</span></code>; the role then installs and enables <code class="docutils literal notranslate"><span class="pre">fancontrol</span></code>.
+The module is unsigned, which is fine here: the NAS’s firmware has no
+Secure Boot.</p>
+</section>
+<section id="recovery">
+<span id="nas-recovery"></span><h2>Recovery<a class="headerlink" href="#recovery" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>What failed</p></th>
+<th class="head"><p>Data lost</p></th>
+<th class="head"><p>What to do</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>One SSD</p></td>
+<td><p>Nothing</p></td>
+<td><p>Replace it: <code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">replace</span> <span class="pre">tank</span> <span class="pre">&lt;old-by-id&gt;</span> <span class="pre">&lt;new-by-id&gt;</span></code>, then update <code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>The OS disk</p></td>
+<td><p>Nothing</p></td>
+<td><p>Install again (steps 1 and 2), insert the disks, run <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_nas.yml</span></code>: it imports both pools and configures the rest</p></td>
+</tr>
+<tr class="row-even"><td><p>Both SSDs, or the NAS</p></td>
+<td><p>Up to a day, since the last copy to the backup pool</p></td>
+<td><p>A new pool, then restore from the backup pool, below</p></td>
+</tr>
+<tr class="row-odd"><td><p>The NAS and the LaCie</p></td>
+<td><p>Up to a day of the cluster’s backups and worlds; anything not sent off site</p></td>
+<td><p>A new pool, then restore from Drive (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="restore-from-the-backup-pool">
+<h3>Restore from the backup pool<a class="headerlink" href="#restore-from-the-backup-pool" title="Link to this heading">#</a></h3>
+<p>On new hardware (or new SSDs), install and configure as in steps 1 to 3 with
+the LaCie plugged in, then create only the main pool, so that the datasets do
+not exist yet:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_pool<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_pool</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_force</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>On the NAS, send each top-level dataset back from the backup pool, with every
+snapshot:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>ds<span class="w"> </span><span class="k">in</span><span class="w"> </span>bigdisk<span class="w"> </span>k8s-dynamic<span class="w"> </span>Minecraft<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>sudo<span class="w"> </span>syncoid<span class="w"> </span>--recursive<span class="w"> </span>--no-sync-snap<span class="w"> </span><span class="s2">&quot;backup/tank/</span><span class="nv">$ds</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;tank/</span><span class="nv">$ds</span><span class="s2">&quot;</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>At USB 3 speeds (100 to 150 MB/s from the LaCie), 1.8 TB takes about four
+hours; <code class="docutils literal notranslate"><span class="pre">k8s-cluster</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code>, which the cluster needs first, are
+small, so send <code class="docutils literal notranslate"><span class="pre">bigdisk/k8s-cluster</span></code> and <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> first if the cluster
+is waiting. Then run the whole playbook, which sets the datasets’ mountpoints
+and properties, mounts them and starts the NFS server:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml
+</pre></div>
+</div>
+<p>The nightly copy then carries on incrementally from the snapshots both pools
+share.</p>
+</section>
+<section id="restore-from-drive">
+<h3>Restore from Drive<a class="headerlink" href="#restore-from-drive" title="Link to this heading">#</a></h3>
+<p>With no backup pool either, run the playbook with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">nas_create_pool=true</span></code>:
+it creates the datasets and the cluster’s empty directory tree with the right
+owners. Then restore the backups, the Minecraft store and worlds, and scrap
+from Drive as <a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a> describes. The media library, the photo
+archive and the other shares are not in the cluster’s off-site copy (the
+photo archive has its own copy on Drive).</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="nas-setup.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">The cluster’s directories on the NAS</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jellyfin.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Run Jellyfin</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-on-it">What is on it</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-exports-differ-from-qts">How the exports differ from QTS</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-the-nas-from-bare-metal">Build the NAS from bare metal</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#install-ubuntu">1. Install Ubuntu</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-the-os-before-the-data-disks-go-in">2. Configure the OS, before the data disks go in</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#put-the-disks-in-and-name-them">3. Put the disks in and name them</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-the-pools">4. Create the pools</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#put-the-data-back">5. Put the data back</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#monitoring">6. Monitoring</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-it">Running it</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-hold-on-the-newest-weekly-snapshot">The hold on the newest weekly snapshot</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nas-monitoring">Monitoring</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fans-and-the-embedded-controller">Fans and the embedded controller</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recovery">Recovery</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-the-backup-pool">Restore from the backup pool</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-drive">Restore from Drive</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/nas-ubuntu-zfs.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/nas-ubuntu-zfs.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Set up the cluster’s directories on the NAS &#8212; gkcluster K3s homelab  documentation</title>
+    <title>The cluster’s directories on the NAS &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -51,7 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Run Jellyfin" href="jellyfin.html" />
+    <link rel="next" title="Build or rebuild the NAS (Ubuntu Server + ZFS)" href="nas-ubuntu-zfs.html" />
     <link rel="prev" title="Manage Sealed Secrets" href="manage-sealed-secrets.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -330,7 +330,8 @@
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="nav bd-sidenav">
@@ -398,7 +399,7 @@
     
     <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Set up the cluster’s directories on the NAS</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">The cluster’s directories on the NAS</span></li>
   </ul>
 </nav>
 </div>
@@ -415,25 +416,32 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="set-up-the-cluster-s-directories-on-the-nas">
-<h1>Set up the cluster’s directories on the NAS<a class="headerlink" href="#set-up-the-cluster-s-directories-on-the-nas" title="Link to this heading">#</a></h1>
-<p>The NAS is a QNAP at 192.168.1.3. Everything the cluster keeps on it lives
-in a handful of directories, and creating them is the one part of the
-system done by hand: Ansible has no access to the NAS, and none is wanted.
-The NAS also holds unrelated personal data (the media library and other
-shares), and a playbook that can create and delete directories there
-is one typo away from that data. So this page is a runbook to run on the
-NAS itself, once per directory, and the cluster only ever mounts what
-exists.</p>
-<p>It has been run for every directory below; it is needed again only for a
-new workload or a replaced NAS. The concepts (which workload uses which
-kind of volume, and why) are in <a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a>.</p>
+  <section id="the-cluster-s-directories-on-the-nas">
+<h1>The cluster’s directories on the NAS<a class="headerlink" href="#the-cluster-s-directories-on-the-nas" title="Link to this heading">#</a></h1>
+<p>The NAS, <code class="docutils literal notranslate"><span class="pre">gknas</span></code> at 192.168.1.3, runs Ubuntu Server with ZFS, configured by
+<code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). Everything the cluster keeps
+on it lives in a handful of directories, and the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role creates every
+one of them (<code class="docutils literal notranslate"><span class="pre">nas_directories</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>), with the
+owner and mode below. Nothing here is made by hand: to create them, or to
+put back an owner or mode that has drifted, run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_datasets
+</pre></div>
+</div>
+<p>The role creates directories but never empties or removes one, which
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> enforces (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). The cluster
+playbooks never touch the NAS, and the cluster only ever mounts what
+exists. The NAS also holds unrelated personal data (the media library and
+the photo archive), which the cluster does not mount or only reads.</p>
+<p>This page lists each directory and why it has its owner. The concepts
+(which workload uses which kind of volume, and why) are in
+<a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a>.</p>
 <section id="what-the-cluster-mounts">
 <h2>What the cluster mounts<a class="headerlink" href="#what-the-cluster-mounts" title="Link to this heading">#</a></h2>
-<p>The cluster mounts directories in two NFS exports of the NAS:</p>
+<p>Each path is the same on the NAS and for NFS clients: the ZFS datasets are
+mounted at the paths the cluster’s volumes name.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
-<tr class="row-odd"><th class="head"><p>Client-side path</p></th>
+<tr class="row-odd"><th class="head"><p>Path</p></th>
 <th class="head"><p>Set by</p></th>
 <th class="head"><p>Mounted by</p></th>
 <th class="head"><p>Owner, mode</p></th>
@@ -443,34 +451,44 @@ kind of volume, and why) are in <a class="reference internal" href="../explanati
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code></p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">k8s-cluster-nfs</span></code> PV (claimed in the <code class="docutils literal notranslate"><span class="pre">backups</span></code> namespace); node02’s etcd backup, at <code class="docutils literal notranslate"><span class="pre">/mnt/k8s-cluster</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0:0</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/grafana/</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin/</span></code> (each with <code class="docutils literal notranslate"><span class="pre">weekly/</span></code>)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/grafana/</span></code> (with <code class="docutils literal notranslate"><span class="pre">weekly/</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/backups</span></code></p></td>
-<td><p>the Grafana and Jellyfin backup CronJobs</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">0777</span></code></p></td>
+<td><p>Grafana’s backup CronJobs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">472:472</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/etcd/</span></code> (with <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/jellyfin/</span></code> (with <code class="docutils literal notranslate"><span class="pre">weekly/</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/backups</span></code></p></td>
+<td><p>Jellyfin’s backup CronJobs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">122:124</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/etcd/</span></code> (with <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_dest_subdir</span></code></p></td>
 <td><p>node02’s <code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup</span></code> job, as root, so squashed to <code class="docutils literal notranslate"><span class="pre">65534</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">0777</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">65534:65534</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/scrap-data/</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/scrap-data/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/scrap</span></code> (<code class="docutils literal notranslate"><span class="pre">storage.data_dir</span></code>)</p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">scrap-data-nfs</span></code> PV</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10001:10001</span></code>, <code class="docutils literal notranslate"><span class="pre">0750</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap/</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/scrap</span></code> (<code class="docutils literal notranslate"><span class="pre">storage.backups_dir</span></code>)</p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> PV</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10001:10001</span></code>, <code class="docutils literal notranslate"><span class="pre">0750</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap-curated/</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/scrap-curated/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code></p></td>
 <td><p>the off-site backup, read-only (scrap backup runs kept by hand)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">10001:10001</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">10001:10001</span></code>, <code class="docutils literal notranslate"><span class="pre">0750</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft/</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/config/cloudflare/</span></code> (with its parent)</p></td>
+<td><p>none</p></td>
+<td><p>dated copies of the Cloudflare OpenTofu state (encrypted) and <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>, copied in over ssh as <code class="docutils literal notranslate"><span class="pre">ansible</span></code> after each <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>; read by the off-site backup</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft/</span></code> (with <code class="docutils literal notranslate"><span class="pre">backups/</span></code>, <code class="docutils literal notranslate"><span class="pre">snapshots/</span></code>, <code class="docutils literal notranslate"><span class="pre">dashboard/</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft.store_subdir</span></code></p></td>
 <td><p>the Minecraft dashboard’s store PV</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>, <code class="docutils literal notranslate"><span class="pre">0755</span></code></p></td>
@@ -478,7 +496,7 @@ kind of volume, and why) are in <a class="reference internal" href="../explanati
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code></p></td>
 <td><p>the dashboard’s archive PV, read-only</p></td>
-<td><p>no write bit at all</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0:0</span></code>, <code class="docutils literal notranslate"><span class="pre">0555</span></code>, its files with no write bit at all</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/media/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.media.nfs_path</span></code></p></td>
@@ -488,12 +506,12 @@ kind of volume, and why) are in <a class="reference internal" href="../explanati
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code></p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> storage class</p></td>
-<td><p>the share’s own</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0:0</span></code>, <code class="docutils literal notranslate"><span class="pre">0777</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code></p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> storage class (default); the dashboard and the off-site backup, read-only</p></td>
-<td><p>same as <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0:0</span></code>, <code class="docutils literal notranslate"><span class="pre">0777</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -502,108 +520,38 @@ kind of volume, and why) are in <a class="reference internal" href="../explanati
 <code class="docutils literal notranslate"><span class="pre">etcd_backup_dest_subdir</span></code> (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults/main.yml</span></code>). The
 off-site backup (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>) reads <code class="docutils literal notranslate"><span class="pre">backups/</span></code>, the Minecraft
 store, <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> and the archive, all read-only.</p>
-<p>The export squashes root (to <code class="docutils literal notranslate"><span class="pre">65534</span></code>) but not other users, so a pod’s
-writes arrive with its own uid. That is why each directory is owned by the
-uid of the workload that writes it, and why the backup directories with
-mixed writers (Grafana’s uid <code class="docutils literal notranslate"><span class="pre">472</span></code>, Jellyfin’s uid <code class="docutils literal notranslate"><span class="pre">122</span></code>, and the
-root-squashed <code class="docutils literal notranslate"><span class="pre">65534</span></code> of older Grafana tarballs, which the jobs must still
-prune) are <code class="docutils literal notranslate"><span class="pre">0777</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code> exports squash root (to <code class="docutils literal notranslate"><span class="pre">65534</span></code>) but not other users, so a
+pod’s writes arrive with its own uid. That is why each directory is owned
+by the uid of the workload that writes it: only that writer can add,
+replace or prune files there, and the others (the off-site copy, which
+reads <code class="docutils literal notranslate"><span class="pre">backups/</span></code> as <code class="docutils literal notranslate"><span class="pre">65534</span></code>) can still read them. Which hosts each export
+admits, and how, is in <a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>.</p>
 <p>The media library is the one directory here that the cluster did not
 create and never writes: Jellyfin mounts it read-only three times over (the
-PV, its access mode and the pod’s mount).</p>
+export, the PV’s access mode and the pod’s mount).</p>
 </section>
-<section id="why-no-new-nfs-export">
-<h2>Why no new NFS export<a class="headerlink" href="#why-no-new-nfs-export" title="Link to this heading">#</a></h2>
-<p>On a stock Debian or Ubuntu NFS server the clean pattern is a drop-in under
-<code class="docutils literal notranslate"><span class="pre">/etc/exports.d/</span></code>. QTS, the QNAP’s OS, does not work that way:
-<code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> is regenerated from the web UI’s share configuration, there
-is no <code class="docutils literal notranslate"><span class="pre">/etc/exports.d/</span></code>, and a hand edit is overwritten. So nothing here
-touches the exports. The NAS already exports <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> read-write to
-192.168.1.0/24, and the cluster’s tree is a subdirectory of it.</p>
-<section id="two-paths-same-directory">
-<h3>Two paths, same directory<a class="headerlink" href="#two-paths-same-directory" title="Link to this heading">#</a></h3>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Path</p></th>
-<th class="head"><p>Who uses it</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster</span></code></p></td>
-<td><p>commands run on the QNAP</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code></p></td>
-<td><p>NFS clients: the PVs and node02’s mount</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>The client-side path works because the QNAP exports an NFSv4 pseudo entry,
-<code class="docutils literal notranslate"><span class="pre">/share/NFSv=4/bigdisk</span></code>, with <code class="docutils literal notranslate"><span class="pre">nohide</span></code> and its own <code class="docutils literal notranslate"><span class="pre">fsid</span></code>, which makes
-<code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> a first-class path for NFSv4 clients. <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> is a separate
-QNAP shared folder, exported the same way.</p>
-</section>
-</section>
-<section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>SSH to the QNAP as <code class="docutils literal notranslate"><span class="pre">admin</span></code> (or another account with a shell and the
-right to write under <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA</span></code>).</p></li>
-<li><p>The QNAP is reachable at 192.168.1.3 from 192.168.1.0/24.</p></li>
-</ul>
-</section>
-<section id="the-cluster-tree-and-the-backup-directories">
-<h2>The cluster tree and the backup directories<a class="headerlink" href="#the-cluster-tree-and-the-backup-directories" title="Link to this heading">#</a></h2>
-<p>Run this once on the QNAP. It creates <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code> and the backup
-directories of Grafana, Jellyfin and etcd.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
-
-<span class="nb">set</span><span class="w"> </span>-eu
-
-<span class="c1"># The real filesystem path of the existing /bigdisk export.</span>
-<span class="c1"># (Client-side, Kubernetes sees this as /bigdisk/k8s-cluster.)</span>
-<span class="nv">ROOT</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-
-<span class="c1"># 1. Create the cluster-owned directory tree.</span>
-<span class="c1">#    The export uses root_squash (root → 65534) but not all_squash, so</span>
-<span class="c1">#    writes from in-cluster pods arrive with their own UIDs. Leaf backup</span>
-<span class="c1">#    dirs use 0777 so mixed writers (app UIDs, root-squashed jobs)</span>
-<span class="c1">#    can all write.</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
-<span class="k">for</span><span class="w"> </span>app<span class="w"> </span><span class="k">in</span><span class="w"> </span>grafana<span class="w"> </span>jellyfin<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">&quot;</span>
-<span class="w">  </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/</span><span class="nv">$app</span><span class="s2">/weekly&quot;</span>
-<span class="k">done</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/etcd/pre-upgrade&quot;</span>
-
-chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span>
-chmod<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
-chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0777</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>/*
-
-<span class="c1"># 2. Verify.</span>
-ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups&quot;</span>
+<section id="check-a-directory">
+<h2>Check a directory<a class="headerlink" href="#check-a-directory" title="Link to this heading">#</a></h2>
+<p>On the NAS (as <code class="docutils literal notranslate"><span class="pre">ansible</span></code>, who has <code class="docutils literal notranslate"><span class="pre">sudo</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-ldn<span class="w"> </span>/bigdisk/k8s-cluster<span class="w"> </span>/bigdisk/k8s-cluster/backups/*<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/bigdisk/k8s-cluster/scrap-data<span class="w"> </span>/bigdisk/k8s-cluster/minecraft<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/bigdisk/minecraft-archive<span class="w"> </span>/k8s-dynamic/stable
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">-R</span> <span class="pre">0777</span> <span class="pre">&quot;$ROOT/backups&quot;/*</span></code> is for the first setup only, while
-<code class="docutils literal notranslate"><span class="pre">backups/</span></code> holds just these three directories. Run again later, it would
-also open up <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code>, whose runs are private to scrap’s uid: on an
-existing tree, <code class="docutils literal notranslate"><span class="pre">chmod</span></code> the one new directory instead.</p>
-<p>From the devcontainer, confirm the new path is visible over NFS before
-moving on:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Spin a throwaway pod that mounts /bigdisk and lists k8s-cluster.</span>
+<p>From the devcontainer, that the cluster sees it over NFS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Spin a throwaway pod that mounts the cluster share and lists it.</span>
 kubectl<span class="w"> </span>run<span class="w"> </span>nas-check<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--image<span class="o">=</span>busybox:1.36<span class="w"> </span>--overrides<span class="o">=</span><span class="s1">&#39;</span>
 <span class="s1">{</span>
 <span class="s1">  &quot;spec&quot;: {</span>
 <span class="s1">    &quot;volumes&quot;: [{</span>
 <span class="s1">      &quot;name&quot;: &quot;nas&quot;,</span>
-<span class="s1">      &quot;nfs&quot;: { &quot;server&quot;: &quot;192.168.1.3&quot;, &quot;path&quot;: &quot;/bigdisk&quot; }</span>
+<span class="s1">      &quot;nfs&quot;: { &quot;server&quot;: &quot;192.168.1.3&quot;, &quot;path&quot;: &quot;/bigdisk/k8s-cluster&quot; }</span>
 <span class="s1">    }],</span>
 <span class="s1">    &quot;containers&quot;: [{</span>
 <span class="s1">      &quot;name&quot;: &quot;nas-check&quot;,</span>
 <span class="s1">      &quot;image&quot;: &quot;busybox:1.36&quot;,</span>
-<span class="s1">      &quot;command&quot;: [&quot;sh&quot;, &quot;-c&quot;, &quot;ls -la /mnt/k8s-cluster /mnt/k8s-cluster/backups&quot;],</span>
+<span class="s1">      &quot;command&quot;: [&quot;sh&quot;, &quot;-c&quot;, &quot;ls -la /mnt /mnt/backups&quot;],</span>
 <span class="s1">      &quot;volumeMounts&quot;: [{ &quot;name&quot;: &quot;nas&quot;, &quot;mountPath&quot;: &quot;/mnt&quot; }]</span>
 <span class="s1">    }]</span>
 <span class="s1">  }</span>
@@ -612,73 +560,46 @@ kubectl<span class="w"> </span>run<span class="w"> </span>nas-check<span class="
 </div>
 <p>The listing shows the <code class="docutils literal notranslate"><span class="pre">backups</span></code> subtree.</p>
 </section>
-<section id="rollback">
-<h2>Rollback<a class="headerlink" href="#rollback" title="Link to this heading">#</a></h2>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Only use this straight after first-time setup, while the tree is still empty.
-Once the cluster is running, this tree holds every backup, scrap’s live
-data and the Minecraft store, and removing it destroys them.</p>
-</div>
-<p>This runbook only adds a new directory, so rollback is to remove it once no
-pods are consuming the tree. On the QNAP:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-</pre></div>
-</div>
-</section>
-<section id="what-this-runbook-does-not-do">
-<h2>What this runbook does not do<a class="headerlink" href="#what-this-runbook-does-not-do" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>Read or write <code class="docutils literal notranslate"><span class="pre">/etc/exports</span></code> (QNAP-managed — editing breaks the UI).</p></li>
-<li><p>Create or modify any QNAP share or NFS export.</p></li>
-<li><p>Restart any NFS service.</p></li>
-<li><p>Touch any path outside <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code>
-(the Minecraft archive and the dynamic volume share’s <code class="docutils literal notranslate"><span class="pre">stable/</span></code> folder
-below are separate, deliberate steps).</p></li>
-</ul>
-</section>
-<section id="adding-new-cluster-owned-subfolders-later">
-<h2>Adding new cluster-owned subfolders later<a class="headerlink" href="#adding-new-cluster-owned-subfolders-later" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">mkdir</span></code> it under <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/</span></code> by hand, and
-give it the owner of the workload that will write to it. A directory needs
-no repo change and no export change: everything the cluster writes on
-<code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> is inside this one subtree.</p>
+<section id="adding-a-new-directory">
+<h2>Adding a new directory<a class="headerlink" href="#adding-a-new-directory" title="Link to this heading">#</a></h2>
+<p>Add an entry to <code class="docutils literal notranslate"><span class="pre">nas_directories</span></code> with all four fields, <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">owner</span></code>
+and <code class="docutils literal notranslate"><span class="pre">group</span></code> (the uid and gid of the workload that will write it) and
+<code class="docutils literal notranslate"><span class="pre">mode</span></code>, for example
+<code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">path:</span> <span class="pre">/bigdisk/k8s-cluster/backups/foo,</span> <span class="pre">owner:</span> <span class="pre">&quot;1234&quot;,</span> <span class="pre">group:</span> <span class="pre">&quot;1234&quot;,</span> <span class="pre">mode:</span> <span class="pre">&quot;0755&quot;</span> <span class="pre">}</span></code>,
+and re-run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_nas.yml</span> <span class="pre">--tags</span> <span class="pre">nas_datasets</span></code>. A directory under
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/</span></code> needs no export change: everything the cluster
+writes on <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code> is inside that one dataset. A new dataset is a new
+entry in <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code> and, if the cluster mounts it, in <code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code>
+too (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>).</p>
+<p>Removing an entry only stops the role managing the directory; it never
+deletes it. Delete a directory by hand on the NAS, once nothing uses it and
+you are sure.</p>
 </section>
 <section id="dynamic-volume-share-nfs-csi">
 <span id="nfs-csi-nas-share"></span><h2>Dynamic volume share (NFS CSI)<a class="headerlink" href="#dynamic-volume-share-nfs-csi" title="Link to this heading">#</a></h2>
 <p>The NFS CSI driver’s storage classes provision volumes in a share of their
-own, <code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code> (<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>), not in <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code>. It is a
-separate QNAP shared folder, <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/k8s-dynamic</span></code> on the NAS,
-exported over NFS to 192.168.1.0/24. The driver creates one folder per
-volume in it.</p>
+own, <code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code> (<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>, the <code class="docutils literal notranslate"><span class="pre">tank/k8s-dynamic</span></code> dataset), not
+in <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code>. Its export does not squash root, since the driver
+creates and archives the folders as root, one per volume.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> class, the default (<a class="reference internal" href="nfs-stable-paths.html"><span class="doc">Stable NFS volumes</span></a>),
 has its own share root inside it, <code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>
 (<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code>). It must exist before ArgoCD syncs the class, with
 the same owner and mode as the share root, since the driver creates the
-same kind of folders in both. A second cluster would need a <code class="docutils literal notranslate"><span class="pre">stable/</span></code> of
-its own.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
-
-<span class="nb">set</span><span class="w"> </span>-eu
-<span class="nv">D</span><span class="o">=</span>/share/CACHEDEV1_DATA/k8s-dynamic<span class="w">   </span><span class="c1"># where the k8s-dynamic share lives</span>
-sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
-sudo<span class="w"> </span>chown<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>stat<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;%u:%g&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
-sudo<span class="w"> </span>chmod<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>stat<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;%a&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
-ls<span class="w"> </span>-ldn<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/stable&quot;</span>
-</pre></div>
-</div>
+same kind of folders in both; the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role makes both. A second cluster
+would need a <code class="docutils literal notranslate"><span class="pre">stable/</span></code> of its own.</p>
 <p>Never delete or empty <code class="docutils literal notranslate"><span class="pre">stable/</span></code> while the Minecraft dashboard is deployed:
 it holds the live world data, and the archives of deleted worlds.</p>
 </section>
 <section id="scrap-directories">
 <span id="scrap-nas-directories"></span><h2>scrap directories<a class="headerlink" href="#scrap-directories" title="Link to this heading">#</a></h2>
 <p>scrap’s two static NFS volumes (<a class="reference internal" href="scrap.html"><span class="doc">Run scrap</span></a>) mount these directories, so they
-must exist before scrap is deployed. They must be owned by the uid/gid scrap
+must exist before scrap is deployed. They are owned by the uid/gid scrap
 runs as (<code class="docutils literal notranslate"><span class="pre">10001</span></code>): the export squashes root, and NFS volumes ignore a pod’s
 <code class="docutils literal notranslate"><span class="pre">fsGroup</span></code>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
-<tr class="row-odd"><th class="head"><p>Client-side path</p></th>
+<tr class="row-odd"><th class="head"><p>Path</p></th>
 <th class="head"><p>Volume</p></th>
 <th class="head"><p>Holds</p></th>
 </tr>
@@ -695,35 +616,22 @@ runs as (<code class="docutils literal notranslate"><span class="pre">10001</spa
 </tbody>
 </table>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
-
-<span class="nb">set</span><span class="w"> </span>-eu
-<span class="nv">ROOT</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
-chown<span class="w"> </span><span class="m">10001</span>:10001<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
-chmod<span class="w"> </span><span class="m">0750</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/scrap-data&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap&quot;</span>
-</pre></div>
-</div>
 <p>Never delete or empty them while scrap is deployed: the replica in
 <code class="docutils literal notranslate"><span class="pre">scrap-data</span></code> is the only up-to-date copy of the database. (An emptied
 <code class="docutils literal notranslate"><span class="pre">scrap-data</span></code> beside existing backups makes scrap refuse to start, rather than
 start empty.)</p>
 <p>Backup runs kept by hand, outside scrap’s own retention, go in a sibling
 directory, <code class="docutils literal notranslate"><span class="pre">backups/scrap-curated/</span></code>, with the same owner. The off-site
-backup uploads its runs like the others (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap-curated&quot;</span>
-chown<span class="w"> </span><span class="m">10001</span>:10001<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ROOT</span><span class="s2">/backups/scrap-curated&quot;</span>
-</pre></div>
-</div>
+backup uploads its runs like the others (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>).</p>
 </section>
 <section id="minecraft-directories">
 <span id="minecraft-nas-directories"></span><h2>Minecraft directories<a class="headerlink" href="#minecraft-directories" title="Link to this heading">#</a></h2>
 <p>The Minecraft dashboard (<a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>) uses two static NFS
-volumes on the <code class="docutils literal notranslate"><span class="pre">bigdisk</span></code> export (and a third, read-only, on the dynamic
-volume share: <a class="reference internal" href="#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>):</p>
+volumes (and a third, read-only, on the dynamic volume share:
+<a class="reference internal" href="#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>):</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
-<tr class="row-odd"><th class="head"><p>Client-side path</p></th>
+<tr class="row-odd"><th class="head"><p>Path</p></th>
 <th class="head"><p>Purpose</p></th>
 <th class="head"><p>Access</p></th>
 </tr>
@@ -731,7 +639,7 @@ volume share: <a class="reference internal" href="#nfs-csi-nas-share"><span clas
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive/</span></code></p></td>
 <td><p>Precious original world backups</p></td>
-<td><p><strong>Read-only</strong> — locked on the NAS and mounted read-only</p></td>
+<td><p><strong>Read-only</strong>: locked on the NAS, exported read-only and mounted read-only</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/minecraft/</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups/</span></code> (promoted), <code class="docutils literal notranslate"><span class="pre">snapshots/&lt;world&gt;/</span></code> (rolling), <code class="docutils literal notranslate"><span class="pre">dashboard/</span></code> (state)</p></td>
@@ -740,48 +648,31 @@ volume share: <a class="reference internal" href="#nfs-csi-nas-share"><span clas
 </tbody>
 </table>
 </div>
-<p>The archive sits <strong>outside</strong> <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code> on purpose: nothing that targets
-the cluster-owned subtree (backup tooling, a future cleanup script, a
-mistyped <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code>) can ever reach it. Moving a promoted backup into
-the archive is always a deliberate manual step on the NAS.</p>
+<p>The archive is a dataset of its own, <strong>outside</strong> <code class="docutils literal notranslate"><span class="pre">k8s-cluster/</span></code>, on
+purpose: nothing that targets the cluster-owned subtree (backup tooling, a
+future cleanup script, a mistyped <code class="docutils literal notranslate"><span class="pre">rsync</span> <span class="pre">--delete</span></code>) can ever reach it.
+Moving a promoted backup into the archive is always a deliberate manual
+step on the NAS.</p>
 <p>Live world data does not live here: each world gets a dynamically
 provisioned <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volume from the NFS CSI driver, in
 <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/minecraft/&lt;world&gt;-data</span></code>. That share root comes first
 (<a class="reference internal" href="#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># SSH to the QNAP as admin, then:</span>
-
-<span class="nb">set</span><span class="w"> </span>-eu
-<span class="nv">BIGDISK</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk
-
-<span class="c1"># 1. Writable store, owned by the uid/gid the dashboard and its Jobs run as.</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/backups&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">         </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/snapshots&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">         </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft/dashboard&quot;</span>
-chown<span class="w"> </span>-R<span class="w"> </span><span class="m">1000</span>:1000<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft&quot;</span>
-chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0755</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/k8s-cluster/minecraft&quot;</span>
-
-<span class="c1"># 2. Archive directory, outside k8s-cluster/. Populate it now (see below)</span>
-<span class="c1">#    before locking it.</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span>
-</pre></div>
-</div>
-<p>Populate the archive with the <code class="docutils literal notranslate"><span class="pre">ingest-archive.sh</span></code> script from the
+<p>Populate the archive on the NAS itself (its export is read-only to every
+host) with the <code class="docutils literal notranslate"><span class="pre">ingest-archive.sh</span></code> script from the
 <a class="reference external" href="https://github.com/gilesknap/k3s-minecraft">k3s-minecraft</a> repository, as
-described in <a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scripts/ingest-archive.sh<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span><span class="w"> </span>&lt;drive-zips...&gt;
-</pre></div>
-</div>
-<p>Then make the archive read-only for everyone, including its owner:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span>
+described in <a class="reference internal" href="minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>, then lock it again:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># On the NAS</span>
+sudo<span class="w"> </span>chmod<span class="w"> </span>u+w<span class="w"> </span>/bigdisk/minecraft-archive
+sudo<span class="w"> </span>scripts/ingest-archive.sh<span class="w"> </span>/bigdisk/minecraft-archive<span class="w"> </span>&lt;drive-zips...&gt;
+sudo<span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span>/bigdisk/minecraft-archive
 
-<span class="c1"># Verify — no file or directory should show a &#39;w&#39; bit.</span>
-find<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BIGDISK</span><span class="s2">/minecraft-archive&quot;</span><span class="w"> </span>-perm<span class="w"> </span>/222<span class="w"> </span><span class="p">|</span><span class="w"> </span>head
+<span class="c1"># Verify: no file or directory should show a &#39;w&#39; bit.</span>
+find<span class="w"> </span>/bigdisk/minecraft-archive<span class="w"> </span>-perm<span class="w"> </span>/222<span class="w"> </span><span class="p">|</span><span class="w"> </span>head
 </pre></div>
 </div>
-<p>This is the first of two locks: the dashboard chart also mounts the archive
-with a read-only NFS mount, so a mistake in either layer alone cannot
-modify the originals. To add files later, <code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code> the directory, re-run
-the ingest script, and lock it again.</p>
+<p>The archive has three locks: no write bit on the NAS, a read-only export,
+and the dashboard chart’s read-only mount, so a mistake in any one layer
+alone cannot modify the originals.</p>
 </section>
 </section>
 
@@ -805,11 +696,11 @@ the ingest script, and lock it again.</p>
       </div>
     </a>
     <a class="right-next"
-       href="jellyfin.html"
+       href="nas-ubuntu-zfs.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Run Jellyfin</p>
+        <p class="prev-next-title">Build or rebuild the NAS (Ubuntu Server + ZFS)</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -833,15 +724,8 @@ the ingest script, and lock it again.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-the-cluster-mounts">What the cluster mounts</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#why-no-new-nfs-export">Why no new NFS export</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-paths-same-directory">Two paths, same directory</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cluster-tree-and-the-backup-directories">The cluster tree and the backup directories</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rollback">Rollback</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-this-runbook-does-not-do">What this runbook does not do</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-new-cluster-owned-subfolders-later">Adding new cluster-owned subfolders later</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-a-directory">Check a directory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-a-new-directory">Adding a new directory</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-volume-share-nfs-csi">Dynamic volume share (NFS CSI)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scrap-directories">scrap directories</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minecraft-directories">Minecraft directories</a></li>

@@ -1479,8 +1479,8 @@ creating the directory: the role never deletes data. This role is the only
 thing that creates or changes anything under <code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data</span></code> on an RK1.
 To move a PV to another node, see <a class="reference internal" href="../how-to/node-operations.html#move-a-local-nvme-pv"><span class="std std-ref">Move a local-nvme PV to another node</span></a>;
 <a class="reference internal" href="architecture/storage.html"><span class="doc">Storage</span></a> explains the storage design.</p>
-<p>The directories on the NAS are not Ansible’s: they are created once, by
-hand (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>).</p>
+<p>The directories on the NAS are not this role’s: the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role creates
+them, from <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>).</p>
 </section>
 <hr class="docutils" />
 <section id="k3s-kubernetes-installation">
@@ -1580,6 +1580,21 @@ also exports the sealed-secrets controller’s keys, age-encrypted to the same
 recipient, and ships the <code class="docutils literal notranslate"><span class="pre">pre-upgrade-*</span></code> snapshots that the K3s upgrade Plan
 takes. See <a class="reference internal" href="architecture/backups.html"><span class="doc">Backups and disaster recovery</span></a> and
 <a class="reference internal" href="../how-to/backup-restore.html"><span class="doc">Backup and restore</span></a>.</p>
+</section>
+<hr class="docutils" />
+<section id="nas-the-nas-separate-playbook">
+<h2><code class="docutils literal notranslate"><span class="pre">nas</span></code> — the NAS (separate playbook)<a class="headerlink" href="#nas-the-nas-separate-playbook" title="Link to this heading">#</a></h2>
+<p><strong>Runs on:</strong> <code class="docutils literal notranslate"><span class="pre">gknas</span></code> only, from <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>, not <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>
+<strong>Tags:</strong> <code class="docutils literal notranslate"><span class="pre">nas</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_os</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_fan</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_pool</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs</span></code>,
+<code class="docutils literal notranslate"><span class="pre">nas_snapshots</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_health</span></code></p>
+<p>Configures the NAS, which runs Ubuntu Server: packages and automatic updates
+(never an automatic reboot), fewer writes to its USB OS disk, the <code class="docutils literal notranslate"><span class="pre">qnap8528</span></code>
+driver for the QNAP’s embedded controller, the ZFS pools and datasets, the NFS
+exports the cluster mounts, sanoid snapshots (with a hold on each dataset’s
+newest weekly, against an accidental destroy), the nightly <code class="docutils literal notranslate"><span class="pre">syncoid</span></code> copy to
+the backup pool, smartd, scrub timers and node-exporter. Pool creation destroys
+data, so it only happens when asked on the command line, on disks named by id
+that are blank (or with <code class="docutils literal notranslate"><span class="pre">nas_force</span></code>). See <a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>.</p>
 </section>
 <hr class="docutils" />
 <section id="cluster-argocd-and-service-deployment">
@@ -1710,6 +1725,7 @@ managed by ArgoCD once it’s running.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-nightly-etcd-and-sealed-secrets-key-backup"><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> — Nightly etcd and sealed-secrets key backup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nas-the-nas-separate-playbook"><code class="docutils literal notranslate"><span class="pre">nas</span></code> — the NAS (separate playbook)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-argocd-and-service-deployment"><code class="docutils literal notranslate"><span class="pre">cluster</span></code> — ArgoCD and service deployment</a></li>
 </ul>
   </nav></div>

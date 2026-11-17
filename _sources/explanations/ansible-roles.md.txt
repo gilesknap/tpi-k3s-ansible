@@ -555,8 +555,8 @@ thing that creates or changes anything under `/var/lib/k8s-data` on an RK1.
 To move a PV to another node, see {ref}`move-a-local-nvme-pv`;
 {doc}`/explanations/architecture/storage` explains the storage design.
 
-The directories on the NAS are not Ansible's: they are created once, by
-hand ({doc}`/how-to/nas-setup`).
+The directories on the NAS are not this role's: the `nas` role creates
+them, from `pb_nas.yml` ({doc}`/how-to/nas-setup`).
 
 ---
 
@@ -656,6 +656,23 @@ also exports the sealed-secrets controller's keys, age-encrypted to the same
 recipient, and ships the `pre-upgrade-*` snapshots that the K3s upgrade Plan
 takes. See {doc}`/explanations/architecture/backups` and
 {doc}`/how-to/backup-restore`.
+
+---
+
+## `nas` — the NAS (separate playbook)
+
+**Runs on:** `gknas` only, from `pb_nas.yml`, not `pb_all.yml`
+**Tags:** `nas`, `nas_os`, `nas_fan`, `nas_pool`, `nas_datasets`, `nas_nfs`,
+`nas_snapshots`, `nas_health`
+
+Configures the NAS, which runs Ubuntu Server: packages and automatic updates
+(never an automatic reboot), fewer writes to its USB OS disk, the `qnap8528`
+driver for the QNAP's embedded controller, the ZFS pools and datasets, the NFS
+exports the cluster mounts, sanoid snapshots (with a hold on each dataset's
+newest weekly, against an accidental destroy), the nightly `syncoid` copy to
+the backup pool, smartd, scrub timers and node-exporter. Pool creation destroys
+data, so it only happens when asked on the command line, on disks named by id
+that are blank (or with `nas_force`). See {doc}`/how-to/nas-ubuntu-zfs`.
 
 ---
 

@@ -765,7 +765,8 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="current nav bd-sidenav">
@@ -1019,8 +1020,8 @@ state:</p>
 </section>
 <section id="the-nas-directories">
 <h2>The NAS directories<a class="headerlink" href="#the-nas-directories" title="Link to this heading">#</a></h2>
-<p>The archive directory and the store tree are created by hand on the NAS,
-which Ansible never manages: <a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>. World data needs
+<p>The archive directory and the store tree are created by the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role
+(<code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>): <a class="reference internal" href="nas-setup.html#minecraft-nas-directories"><span class="std std-ref">Minecraft directories</span></a>. World data needs
 the <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> share root: <a class="reference internal" href="nas-setup.html#nfs-csi-nas-share"><span class="std std-ref">Dynamic volume share (NFS CSI)</span></a>.</p>
 <section id="ingest-the-world-archive">
 <h3>Ingest the world archive<a class="headerlink" href="#ingest-the-world-archive" title="Link to this heading">#</a></h3>
@@ -1030,12 +1031,14 @@ zips (<code class="docutils literal notranslate"><span class="pre">minecraft-k8s
 zips <strong>flat, keeping their original filenames</strong>, checks each one (<code class="docutils literal notranslate"><span class="pre">unzip</span> <span class="pre">-t</span></code>
 plus a <code class="docutils literal notranslate"><span class="pre">world/level.dat</span></code> entry), and is idempotent, so re-run it later to add
 more files.</p>
-<p>Run it on the NAS, or on a host with the NAS share mounted read-write:</p>
+<p>Run it on the NAS itself: the archive’s export is read-only to every host.
+Unlock the directory first:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/gilesknap/k3s-minecraft.git
 <span class="nb">cd</span><span class="w"> </span>k3s-minecraft
 
+sudo<span class="w"> </span>chmod<span class="w"> </span>u+w<span class="w"> </span>/bigdisk/minecraft-archive
 <span class="c1"># &lt;dest&gt; first, then every downloaded wrapper zip</span>
-scripts/ingest-archive.sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/minecraft-archive<span class="w"> </span><span class="se">\</span>
+sudo<span class="w"> </span>scripts/ingest-archive.sh<span class="w"> </span>/bigdisk/minecraft-archive<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>~/Downloads/minecraft-k8s-backup-*.zip
 </pre></div>
 </div>
@@ -1043,7 +1046,7 @@ scripts/ingest-archive.sh<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/m
 were lost from newer ones. Never rename the files; the dashboard parses the
 world name and date from them.</p>
 <p>Then lock the archive so nothing can modify it, on the NAS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/minecraft-archive
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span>a-w<span class="w"> </span>/bigdisk/minecraft-archive
 </pre></div>
 </div>
 <p>To add files later, restore write access to the directory (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">u+w</span></code>),

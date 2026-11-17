@@ -1303,6 +1303,16 @@ are open to any device on the LAN, and Jellyfin and RCON are LAN services
 by design.</p></li>
 <li><p><strong>No default-deny between namespaces.</strong> A compromised pod can reach most
 other Services in the cluster.</p></li>
+<li><p><strong>NFS trusts its clients.</strong> The NAS’s exports take a client’s word for its
+uid (<code class="docutils literal notranslate"><span class="pre">AUTH_SYS</span></code>, no Kerberos). A host allowed to mount an export can read
+and write anything in it as any uid but root (squashed to <code class="docutils literal notranslate"><span class="pre">65534</span></code>, except
+on <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code>, where the NFS CSI driver needs root), so a compromised
+node, or a privileged pod on one, reaches every service’s files on the
+NAS, backups included. The <code class="docutils literal notranslate"><span class="pre">nas</span></code> role admits only the nodes and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>,
+gives the nodes only the exports the cluster mounts (the media library
+read-only), keeps <code class="docutils literal notranslate"><span class="pre">ws03</span></code>’s desktop mount out of the cluster’s data
+(<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> is the nodes’ alone), and owns each backup directory by its one writer
+(<a class="reference internal" href="../../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>).</p></li>
 <li><p><strong>Viewer rules are only as narrow as their values.</strong> The guard detects an
 open policy, not a wide one, such as a public email domain in
 <code class="docutils literal notranslate"><span class="pre">viewer_email_domains</span></code>.</p></li>

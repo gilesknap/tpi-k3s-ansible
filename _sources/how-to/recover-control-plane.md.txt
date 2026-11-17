@@ -89,10 +89,13 @@ The bundles are in `backups/etcd/` of the cluster share on the NAS, named
 
 ```bash
 mkdir -m 700 ~/k3s-restore && cd ~/k3s-restore
-NAS_DIR=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-ssh nas cat "$NAS_DIR/LATEST"
-bundle=$(ssh nas "sed -n 's/^bundle: //p' $NAS_DIR/LATEST")
-scp "nas:$NAS_DIR/$bundle" "nas:$NAS_DIR/$bundle.sha256" .
+NAS_DIR=/bigdisk/k8s-cluster/backups/etcd
+# The files are 0600 to 65534 (the squashed root that wrote them): sudo.
+ssh nas sudo cat "$NAS_DIR/LATEST"
+bundle=$(ssh nas sudo sed -n "'s/^bundle: //p'" "$NAS_DIR/LATEST")
+for f in "$bundle" "$bundle.sha256"; do
+  ssh nas sudo cat "$NAS_DIR/$f" > "$f"
+done
 sha256sum -c "$bundle.sha256"
 
 age -d -i /path/to/k3s-etcd-backup.agekey "$bundle" | tar -x -C ~/k3s-restore

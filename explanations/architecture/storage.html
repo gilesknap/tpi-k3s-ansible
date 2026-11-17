@@ -1161,9 +1161,17 @@ part of a rebuild. Moving a volume to another node is a runbook:
 </section>
 <section id="the-nas">
 <h2>The NAS<a class="headerlink" href="#the-nas" title="Link to this heading">#</a></h2>
-<p>The NAS is a QNAP at <code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code>. Ansible never touches it: it also holds
-personal data, so its directories are created once by hand
-(<a class="reference internal" href="../../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>) and the cluster is only ever an NFS client.</p>
+<p>The NAS is a QNAP running Ubuntu Server and ZFS, <code class="docutils literal notranslate"><span class="pre">gknas</span></code> at
+<code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code>, and the cluster is only ever an NFS client of it. It also
+holds personal data. The <code class="docutils literal notranslate"><span class="pre">nas</span></code> role creates its datasets, exports and the
+cluster’s directories (<a class="reference internal" href="../../how-to/nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>), run by <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> only
+(<a class="reference internal" href="../../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). That role never destroys data: no task
+destroys a pool, dataset or snapshot (<code class="docutils literal notranslate"><span class="pre">scripts/check-no-destroy</span></code>, run by
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>, fails on the destructive commands and modules it knows; it
+cannot see a command or path built from variables at run time), pool creation is opt-in and refuses an existing pool, and
+the cluster playbooks never target the NAS. A ZFS hold on each dataset’s
+newest weekly snapshot also makes an accidental destroy of it, or of the
+dataset, fail (<a class="reference internal" href="../../how-to/nas-ubuntu-zfs.html#nas-snapshot-hold"><span class="std std-ref">The hold on the newest weekly snapshot</span></a>).</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>/bigdisk/
   k8s-cluster/              the cluster&#39;s own tree (nfs.cluster_share_path)
     scrap-data/             scrap: files, preview cache, database replica

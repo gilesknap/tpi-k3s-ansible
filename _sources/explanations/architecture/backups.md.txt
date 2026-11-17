@@ -267,7 +267,7 @@ flowchart TB
 | node04 (Grafana, Prometheus) | Fence, move the volumes to another node, restore Grafana | {ref}`move-a-local-nvme-pv` | Grafana: up to a day. Prometheus: all history |
 | nuc2 (Jellyfin, Minecraft, scrap's copy) | Fence; scrap moves by itself. Move Jellyfin's volume and restore it; point `minecraft.worlds.node` and the relay at another node | {ref}`fence-a-dead-node`, {ref}`move-a-local-nvme-pv` | Jellyfin: up to a day. Worlds and scrap: none |
 | The control plane (node02) | Restore the newest etcd bundle onto node03, then point `k3s.lan` at it | {doc}`/how-to/recover-control-plane` | Cluster changes since 23:15; application data is untouched |
-| The NAS | Recreate the directories, then restore from Drive | {doc}`/how-to/nas-setup`, {ref}`offsite-backup` | scrap: up to a day (or the nuc2 copy). Worlds: up to a day. Grafana, Jellyfin, etcd: nothing live is lost |
+| The NAS | Rebuild it with `pb_nas.yml`, then restore from its backup pool or Drive | {doc}`/how-to/nas-ubuntu-zfs`, {ref}`offsite-backup` | scrap: up to a day (or the nuc2 copy). Worlds: up to a day. Grafana, Jellyfin, etcd: nothing live is lost |
 | Everything | Build the cluster again, restore the sealing keys so the SealedSecrets in Git decrypt, then restore each data set from Drive | {doc}`/tutorials/build-the-cluster`, {ref}`sealed-secrets-key-backup`, {ref}`offsite-backup` | Up to a day everywhere; Prometheus history |
 
 Two cases need no restore at all:

@@ -416,9 +416,14 @@ names, addresses, NAS paths and domain in it are this site’s.</p>
 </div>
 <p>Around the nodes:</p>
 <ul class="simple">
-<li><p><strong>The NAS.</strong> A QNAP that serves application data and backups over NFS. It
-is set up by hand and Ansible has no access to it, so no playbook can
-delete what is on it.</p></li>
+<li><p><strong>The NAS.</strong> A QNAP running Ubuntu Server and ZFS, that serves
+application data and backups over NFS. Ansible manages it but never
+destroys data: no task destroys a pool, dataset or snapshot (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>
+fails on the destructive commands and modules it knows, though not on one
+built from variables at run time; the nightly copy may roll back its own
+replica on the backup pool, by design), pool creation is opt-in and
+refuses an existing pool, the cluster playbooks never touch the NAS, and
+ZFS snapshots plus age-encrypted off-site backups cover the rest.</p></li>
 <li><p><strong>Cloudflare.</strong> DNS, a Cloudflare Tunnel that carries every web hostname,
 and Cloudflare Access as a login wall in front of all but the two that are
 public on purpose. It is managed as OpenTofu code in <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>, and
@@ -531,7 +536,8 @@ the whole cluster on one page, with diagrams, and links to a page for each layer
 <li class="toctree-l2"><a class="reference internal" href="how-to/cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to/nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="how-to/nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/jellyfin.html">Run Jellyfin</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/minecraft.html">Run the Minecraft dashboard</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to/scrap.html">Run scrap</a></li>

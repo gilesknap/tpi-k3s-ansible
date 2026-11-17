@@ -444,7 +444,7 @@ is not always the section of the <code class="docutils literal notranslate"><spa
 <td><p>Devcontainer terminal, once after the container is created (<a class="reference internal" href="../how-to/claude-code.html"><span class="doc">Set up and run Claude Code</span></a>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code></p></td>
-<td><p>Checks the two age recipients match, then runs <code class="docutils literal notranslate"><span class="pre">lint</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code> in parallel</p></td>
+<td><p>Checks the two age recipients match and that no Ansible destroys stored data, then runs <code class="docutils literal notranslate"><span class="pre">lint</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code> in parallel</p></td>
 <td><p>Required before every push (<a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">lint</span></code></p></td>
@@ -886,6 +886,14 @@ route through Cloudflare is the thing being debugged.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scripts/check-age-recipient</span></code></p></td>
 <td><p>Fails if <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code> and <code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code> differ</p></td>
 <td><p>Called by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> and a pre-commit hook</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scripts/check-no-destroy</span></code></p></td>
+<td><p>Fails if any Ansible, or a script a role installs, runs a destructive storage command (<code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">destroy</span></code>, <code class="docutils literal notranslate"><span class="pre">zfs</span> <span class="pre">receive</span> <span class="pre">-F</span></code>, <code class="docutils literal notranslate"><span class="pre">wipefs</span></code>, <code class="docutils literal notranslate"><span class="pre">mkfs</span></code>, <code class="docutils literal notranslate"><span class="pre">dd</span></code> to a device, <code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-r</span></code> of a data path and the like; argv lists and shell blocks are read whole) or removes a data path with the file module, outside its short allowlist (the RK1 flash role, the opt-in wipe in <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code>), if <code class="docutils literal notranslate"><span class="pre">zpool</span> <span class="pre">create</span></code> loses its opt-in gating in the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role, or if a cluster playbook targets the NAS. It cannot see commands or paths built from variables at run time</p></td>
+<td><p>Called by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> and a pre-commit hook</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scripts/test-check-no-destroy</span></code></p></td>
+<td><p>Runs <code class="docutils literal notranslate"><span class="pre">check-no-destroy</span></code> on a copy of the repo with each case it must catch added, and a few it must let through</p></td>
+<td><p>Called by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scripts/lib/</span></code></p></td>
 <td><p>Shared helpers: <code class="docutils literal notranslate"><span class="pre">seal.sh</span></code> (kubeseal wrapper), <code class="docutils literal notranslate"><span class="pre">cf-secrets.sh</span></code> (secret prompt), <code class="docutils literal notranslate"><span class="pre">ntfy_auth.py</span></code> (ntfy’s users)</p></td>

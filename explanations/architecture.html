@@ -924,7 +924,7 @@ hand.</p>
     K3S[&quot;K3s: one server with embedded etcd, five agents&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; installs, system-upgrade-controller patches&quot;]
     OS[&quot;Ubuntu 26.04, packages, local PV directories&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; installs, unattended-upgrades and kured maintain&quot;]
     HW[&quot;Hardware: Turing Pi and RK1s, NUCs, ws03&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; flashes the RK1s; NUCs and ws03 are installed by hand&quot;]
-    EXT[&quot;Off-cluster: the NAS, router DNS, Cloudflare, the VPS&lt;br/&gt;&lt;b&gt;By hand&lt;/b&gt;, or OpenTofu for Cloudflare&quot;]
+    EXT[&quot;Off-cluster: the NAS, router DNS, Cloudflare, the VPS&lt;br/&gt;&lt;b&gt;By hand&lt;/b&gt;, OpenTofu for Cloudflare, &lt;b&gt;Ansible&lt;/b&gt; (pb_nas.yml) for the NAS&quot;]
 
     APPS --&gt; PLAT --&gt; ARGO --&gt; K3S --&gt; OS --&gt; HW
     PLAT -.-&gt; EXT
@@ -1031,9 +1031,13 @@ what stops it doing damage.</p></li>
 <h2>What is deliberately manual<a class="headerlink" href="#what-is-deliberately-manual" title="Link to this heading">#</a></h2>
 <p>Some things are left out of the automation on purpose.</p>
 <ul class="simple">
-<li><p><strong>The NAS.</strong> Ansible has no access to it. Exports and the directories the
-cluster uses are created by hand (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>), so no
-playbook can ever delete what is on it.</p></li>
+<li><p><strong>The NAS is outside the cluster playbooks.</strong> <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> manages it
+(Ubuntu Server and ZFS) on its own, and never destroys data: no task destroys a
+pool, dataset or snapshot (checked by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>; sanoid’s timer does
+prune snapshots past their retention), pool creation is opt-in and refuses
+an existing pool (with <code class="docutils literal notranslate"><span class="pre">nas_force</span></code> it does wipe the named disks, which is
+its purpose), and the cluster playbooks never touch it
+(<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>).</p></li>
 <li><p><strong>Cloudflare login methods.</strong> The Access identity providers are set up
 once in the dashboard; everything else at Cloudflare is code
 (<a class="reference internal" href="../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>).</p></li>

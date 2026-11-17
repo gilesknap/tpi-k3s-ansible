@@ -25,6 +25,13 @@ The Cloudflare state can be re-created by import
 re-created state makes a new one, so its first apply rotates the tunnel
 token (reseal it with `just cf-seal-tunnel-token` and restart cloudflared).
 
+`ssh nas` on this page means the NAS's `ansible` account, which has
+`sudo`: `ssh ansible@192.168.1.3`, or a `Host nas` entry in `~/.ssh/config`
+with that `HostName` and `User`. Paths on the NAS are the same as the
+paths NFS clients mount ({doc}`/how-to/nas-setup`). The etcd bundles and
+key exports are `0600` to `65534` (the root-squashed uid that writes them),
+so reading them on the NAS needs `sudo`.
+
 The backups on the NAS, and the Minecraft data, also go off site: a nightly
 job copies them, age-encrypted, to Google Drive. Not everything in the table
 does; {ref}`offsite-backup` lists what does and does not. A second job
@@ -81,7 +88,7 @@ kubectl logs -n backups job/manual-<timestamp> -f
 Then verify on the NAS:
 
 ```bash
-ssh nas 'ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/'
+ssh nas 'ls -lh /bigdisk/k8s-cluster/backups/grafana/'
 ```
 
 ### Restore — Grafana sqlite
@@ -340,9 +347,10 @@ store them unencrypted, and never in Git.
 Fetch the nightly copy and check it, or use your offline copy:
 
 ```bash
-NAS_DIR=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-scp "nas:$NAS_DIR/sealed-secrets-keys.yaml.age" \
-  "nas:$NAS_DIR/sealed-secrets-keys.yaml.age.sha256" .
+NAS_DIR=/bigdisk/k8s-cluster/backups/etcd
+for f in sealed-secrets-keys.yaml.age sealed-secrets-keys.yaml.age.sha256; do
+  ssh nas sudo cat "$NAS_DIR/$f" > "$f"
+done
 sha256sum -c sealed-secrets-keys.yaml.age.sha256
 ```
 
@@ -470,12 +478,13 @@ This is done; it is repeated only for a new key pair or a new NAS.
      age_recipient: age1...
    ```
 
-3. Create `backups/etcd/` on the NAS ({doc}`/how-to/nas-setup`). On an existing
-   share, run this on the NAS:
+3. Make sure `backups/etcd/` (with `pre-upgrade/`) exists on the NAS,
+   owned by `65534`: the `nas` role creates it ({doc}`/how-to/nas-setup`).
+   To check, and create it if missing:
 
    ```bash
-   D=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-   mkdir -p "$D/pre-upgrade" && chmod -R 0777 "$D"
+   ssh nas ls -ldn /bigdisk/k8s-cluster/backups/etcd/pre-upgrade
+   ansible-playbook pb_nas.yml --tags nas_datasets
    ```
 
 4. Install the timer:
@@ -509,7 +518,7 @@ first reported) and `K3sEtcdBackupMetricsMissing`. To check by hand:
 ```bash
 ssh node02 systemctl list-timers k3s-etcd-backup.timer
 ssh node02 journalctl -u k3s-etcd-backup -n 20
-ssh nas cat /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd/LATEST
+ssh nas sudo cat /bigdisk/k8s-cluster/backups/etcd/LATEST
 ```
 
 ### Take or list snapshots by hand
@@ -862,13 +871,10 @@ never in `backups/`:
   reads it and no retention touches it.
 
 Decrypt on the machine that holds the key and stream the result to the
-NAS, so nothing decrypted is left on that machine. The export's directory
-on the NAS itself is `/share/CACHEDEV1_DATA/bigdisk/k8s-cluster` on the
-QNAP and `/bigdisk/k8s-cluster` on the Ubuntu NAS:
+NAS, so nothing decrypted is left on that machine:
 
 ```bash
-SHARE=/share/CACHEDEV1_DATA/bigdisk/k8s-cluster   # /bigdisk/k8s-cluster on the Ubuntu NAS
-S=$SHARE/restore-scratch
+S=/bigdisk/k8s-cluster/restore-scratch
 ssh -t nas "sudo mkdir -p $S/grafana && sudo chown \$(id -u) $S $S/grafana"
 # scrap: a run (unpacks as scrap/<run>/, owned by scrap's uid)
 age -d -i ~/k3s-etcd-backup.agekey <run>.tar.age | ssh nas "cat >$S/run.tar"
@@ -1307,11 +1313,11 @@ To rebuild the cluster from scratch (the full walk-through is
 {doc}`/tutorials/build-the-cluster`; a planned rebuild of the running
 cluster is {doc}`/how-to/reflash-rebuild`):
 
-1. If the NAS was lost too, run the NAS setup again
-   ({doc}`/how-to/nas-setup`), so that `/bigdisk/k8s-cluster` and
-   `/k8s-dynamic/stable` exist, and unpack its data from Drive before
-   going on ({ref}`restore-after-nas-loss`): the setup makes empty
-   directories. scrap's restore from the unpacked run comes later, after
+1. If the NAS was lost too, rebuild it ({doc}`/how-to/nas-ubuntu-zfs`):
+   `pb_nas.yml` creates `/bigdisk/k8s-cluster`, its directories and
+   `/k8s-dynamic/stable` ({doc}`/how-to/nas-setup`). Then unpack its data
+   from Drive before going on ({ref}`restore-after-nas-loss`): the role
+   makes empty directories. scrap's restore from the unpacked run comes later, after
    step 6. Otherwise leave the NAS alone.
 2. Check the inventory and variables (`hosts.yml`, `group_vars/all.yml`).
 3. Flash and provision the nodes and install the cluster:
@@ -1351,8 +1357,9 @@ NAS (steps 1 and 6).
 The nodes' `local-nvme` data is untouched, so Grafana, Jellyfin and
 Prometheus lose nothing, and their next backups refill `backups/`. What was
 only on the NAS does not come back by itself: scrap's live data, and the
-Minecraft store, worlds and archive. Once the NAS setup has made the
-directories, put these back from Drive ({ref}`offsite-backup`: download and
+Minecraft store, worlds and archive. Once `pb_nas.yml` has made the
+directories ({doc}`/how-to/nas-ubuntu-zfs`; first try the NAS's own backup
+pool, {ref}`nas-recovery`), put these back from Drive ({ref}`offsite-backup`: download and
 decrypt as in "Restore from Drive"). In a full rebuild, unpack them before
 installing the cluster.
 
@@ -1421,7 +1428,7 @@ tarball. Changes since the tarball are lost.
 The steps below use `science-lab` as the world. They unpack into
 `minecraft-restore-scratch/` in the stable share, beside `minecraft/`, not
 into the cluster share's `restore-scratch/` ({ref}`restore-scratch`). On the
-Ubuntu NAS, `k8s-dynamic` is a ZFS dataset of its own, so a move from the
+NAS, `k8s-dynamic` is a ZFS dataset of its own, so a move from the
 cluster share would copy the whole world; from a folder on the same share,
 the moves below are renames. The nightly tarball takes only `minecraft/` and
 `archived-minecraft/` from that share, so it never uploads this folder.
@@ -1447,7 +1454,7 @@ the moves below are renames. The nightly tarball takes only `minecraft/` and
    3.7 GB):
 
    ```bash
-   STABLE=/share/CACHEDEV1_DATA/k8s-dynamic/stable   # /k8s-dynamic/stable on the Ubuntu NAS
+   STABLE=/k8s-dynamic/stable
    S=$STABLE/minecraft-restore-scratch
    W=science-lab
    ssh -t nas "sudo mkdir -p $S && sudo chown \$(id -u) $S"

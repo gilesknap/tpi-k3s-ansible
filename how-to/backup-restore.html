@@ -330,7 +330,8 @@
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="nav bd-sidenav">
@@ -471,6 +472,12 @@ cluster’s state from it. What is <strong>not</strong> in Git:</p>
 (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>), except for the tunnel secret: a
 re-created state makes a new one, so its first apply rotates the tunnel
 token (reseal it with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-seal-tunnel-token</span></code> and restart cloudflared).</p>
+<p><code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">nas</span></code> on this page means the NAS’s <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, which has
+<code class="docutils literal notranslate"><span class="pre">sudo</span></code>: <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">ansible&#64;192.168.1.3</span></code>, or a <code class="docutils literal notranslate"><span class="pre">Host</span> <span class="pre">nas</span></code> entry in <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code>
+with that <code class="docutils literal notranslate"><span class="pre">HostName</span></code> and <code class="docutils literal notranslate"><span class="pre">User</span></code>. Paths on the NAS are the same as the
+paths NFS clients mount (<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>). The etcd bundles and
+key exports are <code class="docutils literal notranslate"><span class="pre">0600</span></code> to <code class="docutils literal notranslate"><span class="pre">65534</span></code> (the root-squashed uid that writes them),
+so reading them on the NAS needs <code class="docutils literal notranslate"><span class="pre">sudo</span></code>.</p>
 <p>The backups on the NAS, and the Minecraft data, also go off site: a nightly
 job copies them, age-encrypted, to Google Drive. Not everything in the table
 does; <a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a> lists what does and does not. A second job
@@ -565,7 +572,7 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </pre></div>
 </div>
 <p>Then verify on the NAS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s1">&#39;ls -lh /share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/grafana/&#39;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s1">&#39;ls -lh /bigdisk/k8s-cluster/backups/grafana/&#39;</span>
 </pre></div>
 </div>
 </section>
@@ -808,9 +815,10 @@ store them unencrypted, and never in Git.</p>
 <section id="restore-the-keys">
 <h3>Restore the keys<a class="headerlink" href="#restore-the-keys" title="Link to this heading">#</a></h3>
 <p>Fetch the nightly copy and check it, or use your offline copy:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NAS_DIR</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-scp<span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/sealed-secrets-keys.yaml.age&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/sealed-secrets-keys.yaml.age.sha256&quot;</span><span class="w"> </span>.
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NAS_DIR</span><span class="o">=</span>/bigdisk/k8s-cluster/backups/etcd
+<span class="k">for</span><span class="w"> </span>f<span class="w"> </span><span class="k">in</span><span class="w"> </span>sealed-secrets-keys.yaml.age<span class="w"> </span>sealed-secrets-keys.yaml.age.sha256<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span>
+<span class="k">done</span>
 sha256sum<span class="w"> </span>-c<span class="w"> </span>sealed-secrets-keys.yaml.age.sha256
 </pre></div>
 </div>
@@ -927,10 +935,11 @@ pre-commit hook (<code class="docutils literal notranslate"><span class="pre">sc
 </pre></div>
 </div>
 </li>
-<li><p>Create <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> on the NAS (<a class="reference internal" href="nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>). On an existing
-share, run this on the NAS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">D</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">/pre-upgrade&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span><span class="m">0777</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$D</span><span class="s2">&quot;</span>
+<li><p>Make sure <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> (with <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code>) exists on the NAS,
+owned by <code class="docutils literal notranslate"><span class="pre">65534</span></code>: the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role creates it (<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>).
+To check, and create it if missing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span>ls<span class="w"> </span>-ldn<span class="w"> </span>/bigdisk/k8s-cluster/backups/etcd/pre-upgrade
+ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_datasets
 </pre></div>
 </div>
 </li>
@@ -962,7 +971,7 @@ a failed sealed-secrets key export),
 first reported) and <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code>. To check by hand:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>node02<span class="w"> </span>systemctl<span class="w"> </span>list-timers<span class="w"> </span>k3s-etcd-backup.timer
 ssh<span class="w"> </span>node02<span class="w"> </span>journalctl<span class="w"> </span>-u<span class="w"> </span>k3s-etcd-backup<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span>
-ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd/LATEST
+ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span>/bigdisk/k8s-cluster/backups/etcd/LATEST
 </pre></div>
 </div>
 </section>
@@ -1327,11 +1336,8 @@ prunes its folder. A copy there would be mixed in with the live backups.</p></li
 reads it and no retention touches it.</p></li>
 </ul>
 <p>Decrypt on the machine that holds the key and stream the result to the
-NAS, so nothing decrypted is left on that machine. The export’s directory
-on the NAS itself is <code class="docutils literal notranslate"><span class="pre">/share/CACHEDEV1_DATA/bigdisk/k8s-cluster</span></code> on the
-QNAP and <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> on the Ubuntu NAS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">SHARE</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster<span class="w">   </span><span class="c1"># /bigdisk/k8s-cluster on the Ubuntu NAS</span>
-<span class="nv">S</span><span class="o">=</span><span class="nv">$SHARE</span>/restore-scratch
+NAS, so nothing decrypted is left on that machine:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">S</span><span class="o">=</span>/bigdisk/k8s-cluster/restore-scratch
 ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo mkdir -p </span><span class="nv">$S</span><span class="s2">/grafana &amp;&amp; sudo chown \$(id -u) </span><span class="nv">$S</span><span class="s2"> </span><span class="nv">$S</span><span class="s2">/grafana&quot;</span>
 <span class="c1"># scrap: a run (unpacks as scrap/&lt;run&gt;/, owned by scrap&#39;s uid)</span>
 age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>&lt;run&gt;.tar.age<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cat &gt;</span><span class="nv">$S</span><span class="s2">/run.tar&quot;</span>
@@ -1763,11 +1769,11 @@ cluster and deleted the backups, start with <a class="reference internal" href="
 <a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>; a planned rebuild of the running
 cluster is <a class="reference internal" href="reflash-rebuild.html"><span class="doc">Re-flash and rebuild</span></a>):</p>
 <ol class="arabic simple">
-<li><p>If the NAS was lost too, run the NAS setup again
-(<a class="reference internal" href="nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>), so that <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code> and
-<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> exist, and unpack its data from Drive before
-going on (<a class="reference internal" href="#restore-after-nas-loss"><span class="std std-ref">After losing the NAS</span></a>): the setup makes empty
-directories. scrap’s restore from the unpacked run comes later, after
+<li><p>If the NAS was lost too, rebuild it (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>):
+<code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> creates <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code>, its directories and
+<code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code> (<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>). Then unpack its data
+from Drive before going on (<a class="reference internal" href="#restore-after-nas-loss"><span class="std std-ref">After losing the NAS</span></a>): the role
+makes empty directories. scrap’s restore from the unpacked run comes later, after
 step 6. Otherwise leave the NAS alone.</p></li>
 <li><p>Check the inventory and variables (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>).</p></li>
 <li><p>Flash and provision the nodes and install the cluster:
@@ -1805,8 +1811,9 @@ NAS (steps 1 and 6).</p>
 <p>The nodes’ <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> data is untouched, so Grafana, Jellyfin and
 Prometheus lose nothing, and their next backups refill <code class="docutils literal notranslate"><span class="pre">backups/</span></code>. What was
 only on the NAS does not come back by itself: scrap’s live data, and the
-Minecraft store, worlds and archive. Once the NAS setup has made the
-directories, put these back from Drive (<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>: download and
+Minecraft store, worlds and archive. Once <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> has made the
+directories (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>; first try the NAS’s own backup
+pool, <a class="reference internal" href="nas-ubuntu-zfs.html#nas-recovery"><span class="std std-ref">Recovery</span></a>), put these back from Drive (<a class="reference internal" href="#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>: download and
 decrypt as in “Restore from Drive”). In a full rebuild, unpack them before
 installing the cluster.</p>
 <ul class="simple">
@@ -1873,7 +1880,7 @@ tarball. Changes since the tarball are lost.</p>
 <p>The steps below use <code class="docutils literal notranslate"><span class="pre">science-lab</span></code> as the world. They unpack into
 <code class="docutils literal notranslate"><span class="pre">minecraft-restore-scratch/</span></code> in the stable share, beside <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code>, not
 into the cluster share’s <code class="docutils literal notranslate"><span class="pre">restore-scratch/</span></code> (<a class="reference internal" href="#restore-scratch"><span class="std std-ref">Where to unpack a copy from Drive</span></a>). On the
-Ubuntu NAS, <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> is a ZFS dataset of its own, so a move from the
+NAS, <code class="docutils literal notranslate"><span class="pre">k8s-dynamic</span></code> is a ZFS dataset of its own, so a move from the
 cluster share would copy the whole world; from a folder on the same share,
 the moves below are renames. The nightly tarball takes only <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> and
 <code class="docutils literal notranslate"><span class="pre">archived-minecraft/</span></code> from that share, so it never uploads this folder.</p>
@@ -1895,7 +1902,7 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>minecraft<span class="w
 Drive through <code class="docutils literal notranslate"><span class="pre">age</span></code> into <code class="docutils literal notranslate"><span class="pre">tar</span></code> on the NAS, so nothing decrypted is
 written on your machine. <code class="docutils literal notranslate"><span class="pre">tar</span></code> still reads the whole tarball (about
 3.7 GB):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">STABLE</span><span class="o">=</span>/share/CACHEDEV1_DATA/k8s-dynamic/stable<span class="w">   </span><span class="c1"># /k8s-dynamic/stable on the Ubuntu NAS</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">STABLE</span><span class="o">=</span>/k8s-dynamic/stable
 <span class="nv">S</span><span class="o">=</span><span class="nv">$STABLE</span>/minecraft-restore-scratch
 <span class="nv">W</span><span class="o">=</span>science-lab
 ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo mkdir -p </span><span class="nv">$S</span><span class="s2"> &amp;&amp; sudo chown \$(id -u) </span><span class="nv">$S</span><span class="s2">&quot;</span>

@@ -664,6 +664,74 @@ described, with the values each node has, in <a class="reference internal" href=
 </table>
 </div>
 </section>
+<section id="nas-role-roles-nas-defaults-main-yml">
+<h3><code class="docutils literal notranslate"><span class="pre">nas</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>)<a class="headerlink" href="#nas-role-roles-nas-defaults-main-yml" title="Link to this heading">#</a></h3>
+<p>Used by <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> only (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). The defaults file
+documents each one; these are the ones a rebuild touches.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_pool</span></code> / <code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tank</span></code> / by-id paths of the two SSDs</p></td>
+<td><p>The main pool, a mirror. The disks must be <code class="docutils literal notranslate"><span class="pre">/dev/disk/by-id/</span></code> paths</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_backup_pool</span></code> / <code class="docutils literal notranslate"><span class="pre">nas_backup_pool_disks</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backup</span></code> / by-id path of the LaCie</p></td>
+<td><p>The backup pool, which receives a nightly copy of every dataset; optional</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_create_pool</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_create_backup_pool</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_force</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Command-line only. Create the pool (destroying the disks’ contents); <code class="docutils literal notranslate"><span class="pre">nas_force</span></code> also allows disks that are not blank</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tank/bigdisk</span></code> (<code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code>) and its children, <code class="docutils literal notranslate"><span class="pre">tank/k8s-dynamic</span></code>, <code class="docutils literal notranslate"><span class="pre">tank/Minecraft</span></code></p></td>
+<td><p>Datasets and their properties; their mountpoints are the paths the cluster mounts</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_directories</span></code></p></td>
+<td><p>The cluster’s tree</p></td>
+<td><p>Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, <code class="docutils literal notranslate"><span class="pre">0755</span></code> (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code></p></td>
+<td><p>The nodes and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, by IP</p></td>
+<td><p>The only hosts the exports admit. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code></p></td>
+<td><p>One per dataset</p></td>
+<td><p>Path and export options; <code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code> and its children squash root, <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code> does not (as on QTS). Optional <code class="docutils literal notranslate"><span class="pre">clients</span></code> narrows the hosts, <code class="docutils literal notranslate"><span class="pre">read_only_for</span></code> makes it read-only to some (<code class="docutils literal notranslate"><span class="pre">/bigdisk</span></code>, <code class="docutils literal notranslate"><span class="pre">Photos-Archive</span></code> (read-only), <code class="docutils literal notranslate"><span class="pre">/Minecraft</span></code>: <code class="docutils literal notranslate"><span class="pre">ws03</span></code> only; <code class="docutils literal notranslate"><span class="pre">k8s-cluster</span></code>: the nodes only; <code class="docutils literal notranslate"><span class="pre">media</span></code>: read-only to the nodes)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_snapshot_retention</span></code> / <code class="docutils literal notranslate"><span class="pre">nas_backup_retention</span></code></p></td>
+<td><p>48 hourly, 30 daily, 8 weekly, 12 monthly / 60 daily, 24 monthly</p></td>
+<td><p>sanoid’s retention on the main pool and on the backup pool. <code class="docutils literal notranslate"><span class="pre">weekly</span></code> on the main pool must be at least 1 while any dataset is held</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_hold_tag</span></code> / <code class="docutils literal notranslate"><span class="pre">nas_hold_datasets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nas-keep</span></code> / every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code> in <code class="docutils literal notranslate"><span class="pre">nas_datasets</span></code></p></td>
+<td><p>The ZFS hold kept on the newest weekly snapshot of each dataset, against an accidental destroy (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_hold_on_calendar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*-*-*</span> <span class="pre">02:00:00</span> <span class="pre">Europe/London</span></code></p></td>
+<td><p>When <code class="docutils literal notranslate"><span class="pre">nas-hold</span></code> moves the holds to the newest weeklies (daily; sanoid takes them Mondays at 23:30)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_replicate_on_calendar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*-*-*</span> <span class="pre">06:30:00</span> <span class="pre">Europe/London</span></code></p></td>
+<td><p>When the nightly copy to the backup pool runs</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">enp3s0</span></code> and <code class="docutils literal notranslate"><span class="pre">enp2s0</span></code>, both DHCP, <code class="docutils literal notranslate"><span class="pre">enp2s0</span></code> optional</p></td>
+<td><p>The NAS’s network ports, as netplan <code class="docutils literal notranslate"><span class="pre">ethernets</span></code>; the port not cabled is <code class="docutils literal notranslate"><span class="pre">optional</span></code>, so boot does not wait for it</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Build the community <code class="docutils literal notranslate"><span class="pre">qnap8528</span></code> EC driver (fans, temperatures) with DKMS, at <code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_commit</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 <section id="update-packages-and-node-reboot-roles-defaults-main-yml">
 <h3><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> and <code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> roles (<code class="docutils literal notranslate"><span class="pre">defaults/main.yml</span></code>)<a class="headerlink" href="#update-packages-and-node-reboot-roles-defaults-main-yml" title="Link to this heading">#</a></h3>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -847,233 +915,237 @@ applies to that run only.</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster</span></code></p></td>
-<td><p>The cluster-owned directory on the NAS (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>)</p></td>
+<td><p>The cluster-owned directory on the NAS (<a class="reference internal" href="../how-to/nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas.monitoring.enabled</span></code> / <code class="docutils literal notranslate"><span class="pre">nas.monitoring.targets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">[192.168.1.3:9100]</span></code></p></td>
+<td><p>Scrape the NAS’s node-exporter (job <code class="docutils literal notranslate"><span class="pre">nas</span></code>) and load the NAS alerts (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.3</span></code></p></td>
 <td><p>NFS server for the dynamic StorageClasses (the NAS again)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.share</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/k8s-dynamic</span></code></p></td>
 <td><p>Export for <code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> scratch volumes (a new folder per PV)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable</span></code></p></td>
 <td><p>Folder for <code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volumes (one fixed folder per PVC); keep it a subfolder of <code class="docutils literal notranslate"><span class="pre">share</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.chart_version</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">4.13.4</span></code></p></td>
 <td><p>csi-driver-nfs chart version</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.fresh_storage_class</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.fresh_storage_class</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code></p></td>
 <td><p>Name of the scratch StorageClass, used only when named</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_storage_class</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code></p></td>
 <td><p>Name of the default StorageClass</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_jellyfin</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy Jellyfin (<a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>); needs <code class="docutils literal notranslate"><span class="pre">local_storage.jellyfin</span></code> and its <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> entry</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.chart_version</span></code> / <code class="docutils literal notranslate"><span class="pre">image_tag</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.chart_version</span></code> / <code class="docutils literal notranslate"><span class="pre">image_tag</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">3.7.0</span></code> / <code class="docutils literal notranslate"><span class="pre">12.4.20261026-211555</span></code></p></td>
 <td><p>The upstream chart version and the Jellyfin image tag (never older than the database’s Jellyfin)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.trial</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.trial</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Throwaway trial config: marks the config volume <code class="docutils literal notranslate"><span class="pre">TRIAL-CONFIG-SAFE-TO-DELETE</span></code>. Not with <code class="docutils literal notranslate"><span class="pre">seed_from_host</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed_from_host</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>One-off copy of the stopped host install on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> into the config volume (init containers). Off now that the seed is done: the volume is marked <code class="docutils literal notranslate"><span class="pre">SEEDED-FROM-HOST</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.sqlite_image</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">docker.io/keinos/sqlite3:3.54.1</span></code></p></td>
 <td><p>Image with <code class="docutils literal notranslate"><span class="pre">sqlite3</span></code>, for the seed’s integrity check and the backup CronJobs</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.hardware_decoding_codecs</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.seed.hardware_decoding_codecs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[h264,</span> <span class="pre">hevc,</span> <span class="pre">…]</span></code></p></td>
 <td><p>Replaces <code class="docutils literal notranslate"><span class="pre">HardwareDecodingCodecs</span></code> in the copied <code class="docutils literal notranslate"><span class="pre">encoding.xml</span></code>; empty leaves it unchanged</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.data_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">config_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">log_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">cache_dir</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.data_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">config_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">log_dir</span></code> / <code class="docutils literal notranslate"><span class="pre">cache_dir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/etc/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/var/log/jellyfin</span></code> / <code class="docutils literal notranslate"><span class="pre">/var/cache/jellyfin</span></code></p></td>
 <td><p>Jellyfin’s paths in the pod, the same as a host install’s. The first three are the config volume’s <code class="docutils literal notranslate"><span class="pre">data/</span></code>, <code class="docutils literal notranslate"><span class="pre">config/</span></code> and <code class="docutils literal notranslate"><span class="pre">log/</span></code>; the seed copies the host’s <code class="docutils literal notranslate"><span class="pre">data_dir</span></code> and <code class="docutils literal notranslate"><span class="pre">config_dir</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.cache_size</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.cache_size</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">20Gi</span></code></p></td>
 <td><p>Size limit of the emptyDir for the cache and transcodes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Run on the node’s network (both LANs, Tailscale, UDP 7359 discovery); off for a trial beside a host install</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">122</span></code> / <code class="docutils literal notranslate"><span class="pre">124</span></code></p></td>
 <td><p>The node’s <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account; must match the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> owner</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code> / <code class="docutils literal notranslate"><span class="pre">video_gid</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code> / <code class="docutils literal notranslate"><span class="pre">video_gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">992</span></code> / <code class="docutils literal notranslate"><span class="pre">44</span></code></p></td>
 <td><p>The node’s <code class="docutils literal notranslate"><span class="pre">render</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> groups, for <code class="docutils literal notranslate"><span class="pre">/dev/dri</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.media.nfs_path</span></code> / <code class="docutils literal notranslate"><span class="pre">mount_path</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jellyfin.media.nfs_path</span></code> / <code class="docutils literal notranslate"><span class="pre">mount_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code> / <code class="docutils literal notranslate"><span class="pre">/media/bigdisk/media</span></code></p></td>
 <td><p>The library’s NFS export on <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, and where the pod mounts it read-only</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Nightly off-site copy of the NAS backups to Google Drive (<a class="reference internal" href="../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). It needs the sealed rclone credentials (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-rclone-drive</span></code>), and its alerts fire only while it is on. It gates the B2 copy too: off, neither job exists</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code> / <code class="docutils literal notranslate"><span class="pre">time_zone</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.schedule</span></code> / <code class="docutils literal notranslate"><span class="pre">time_zone</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">*</span> <span class="pre">*</span></code> / <code class="docutils literal notranslate"><span class="pre">Europe/London</span></code></p></td>
 <td><p>When it runs: after the other nightly backups</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.drive_root</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.drive_root</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code></p></td>
 <td><p>Folder in the Drive’s root that everything goes into</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.include</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.include</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[backups,</span> <span class="pre">minecraft-nightly,</span> <span class="pre">minecraft-archive]</span></code></p></td>
 <td><p>What goes to Drive: the NAS <code class="docutils literal notranslate"><span class="pre">backups/</span></code> tree, the nightly Minecraft tarball, the world archive</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>The second off-site copy, to a Backblaze B2 bucket with Object Lock (<a class="reference internal" href="../how-to/backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a>). Needs <code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code> too. Turn on only after the one-time B2 setup and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-b2-offsite</span></code>; its alerts fire only while it is on</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.bucket</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.bucket</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">gk-cluster-offsite</span></code></p></td>
 <td><p>The bucket’s name; required when <code class="docutils literal notranslate"><span class="pre">b2.enabled</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.secret_name</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.secret_name</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code></p></td>
 <td><p>The Secret holding rclone’s <code class="docutils literal notranslate"><span class="pre">[b2]</span></code> remote</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.include</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.include</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[backups]</span></code></p></td>
 <td><p>What goes to B2, from the same three as <code class="docutils literal notranslate"><span class="pre">include</span></code>: only the NAS backups, which keeps the bucket inside B2’s free 10 GB</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
 <td><p>age public key every file is encrypted to. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.image</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.image</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">docker.io/rclone/rclone:1.75.2</span></code></p></td>
 <td><p>rclone image (Alpine, busybox) every container runs</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age.version</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.amd64</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.arm64</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.age.version</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.amd64</span></code> / <code class="docutils literal notranslate"><span class="pre">sha256.arm64</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1.3.2</span></code> / <em>(checksums)</em></p></td>
 <td><p>age release an init container fetches, checked against these checksums; bump all three together</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.deadline_hours</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.deadline_hours</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">6</span></code></p></td>
 <td><p>A run is stopped after this long; the next carries on</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.uid</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.uid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">65534</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">backups</span></code> container runs as: the NAS’s squashed-root owner of the etcd bundles. It uploads everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> but the <code class="docutils literal notranslate"><span class="pre">run_dirs</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.run_dirs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[scrap,</span> <span class="pre">scrap/monthly,</span> <span class="pre">scrap-curated]</span></code></p></td>
 <td><p>Folders under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> whose subfolders are runs, each uploaded by the <code class="docutils literal notranslate"><span class="pre">scrap</span></code> container as one tarball once complete (<code class="docutils literal notranslate"><span class="pre">&lt;run&gt;.incomplete.tar.age</span></code> if it has no <code class="docutils literal notranslate"><span class="pre">COMPLETE</span></code> marker once its folder is two days old)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.exclude</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.exclude</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">etcd/LATEST</span></code>, <code class="docutils literal notranslate"><span class="pre">etcd/sealed-secrets-keys.yaml.age{,.sha256}</span></code></p></td>
 <td><p>Paths under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> rewritten in place, never uploaded</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.prune_days</span></code> / <code class="docutils literal notranslate"><span class="pre">keep_min</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.backups.prune_days</span></code> / <code class="docutils literal notranslate"><span class="pre">keep_min</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">180</span></code> / <code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
 <td><p>Delete a file on Drive only once its source is gone from the NAS and it was uploaded over <code class="docutils literal notranslate"><span class="pre">prune_days</span></code> ago (<code class="docutils literal notranslate"><span class="pre">0</span></code>: never), always keeping the <code class="docutils literal notranslate"><span class="pre">keep_min</span></code> newest of each series</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.scrap.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.scrap.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10001</span></code> / <code class="docutils literal notranslate"><span class="pre">10001</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">scrap</span></code> container runs as: scrap’s, as hard-coded in <code class="docutils literal notranslate"><span class="pre">additions/scrap/templates</span></code> (<code class="docutils literal notranslate"><span class="pre">backup-copy.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">migrate-job.yaml</span></code>), which owns its backup runs’ files</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.enabled</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.enabled</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Also upload the Minecraft store, worlds and archive (only with <code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.uid</span></code> / <code class="docutils literal notranslate"><span class="pre">gid</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1000</span></code> / <code class="docutils literal notranslate"><span class="pre">1000</span></code></p></td>
 <td><p>User the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> container runs as: the owner of the worlds’ files</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.worlds_path</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.worlds_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">nfs_csi.stable_share</span></code>)</p></td>
 <td><p>Share whose <code class="docutils literal notranslate"><span class="pre">minecraft/</span></code> (live worlds) and <code class="docutils literal notranslate"><span class="pre">archived-minecraft/</span></code> (deleted worlds) folders go in the nightly tarball</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.keep</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">7</span></code></p></td>
 <td><p>Nightly Minecraft tarballs kept on Drive</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.min_size_percent</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.min_size_percent</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">50</span></code></p></td>
 <td><p>A nightly tarball smaller than this percentage of the largest on Drive fails the run and stops pruning</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.archive</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.minecraft.archive</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Upload <code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code> (once, and again only if it changes)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy the Minecraft dashboard (<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">0.5.2</span></code></p></td>
 <td><p>Version of the <code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/charts/minecraft-dashboard</span></code> OCI chart (image tag follows the chart’s appVersion)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.image.repository</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.image.repository</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ghcr.io/gilesknap/k3s-minecraft</span></code></p></td>
 <td><p>The dashboard image</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.archive_path</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/bigdisk/minecraft-archive</span></code></p></td>
 <td><p>Read-only NFS path of the world archive on <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> (outside the cluster share)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.store_subdir</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.store_subdir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p>Writable store directory under <code class="docutils literal notranslate"><span class="pre">nfs.cluster_share_path</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.dns_name</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.dns_name</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">mc</span></code></p></td>
 <td><p>Players connect to <code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org</span></code>, a DNS-only record for the VPS relay</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
 <td><p>Node all worlds are pinned to: the VPS relay forward’s target</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">port_max</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">port_max</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30565</span></code> / <code class="docutils literal notranslate"><span class="pre">30584</span></code></p></td>
 <td><p>Inclusive NodePort range for game ports</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_port_min</span></code> / <code class="docutils literal notranslate"><span class="pre">rcon_port_max</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">30600</span></code> / <code class="docutils literal notranslate"><span class="pre">30619</span></code></p></td>
 <td><p>Inclusive NodePort range for per-world RCON (LAN only; never relay it)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.0/24</span></code> except the other nodes, and <code class="docutils literal notranslate"><span class="pre">192.168.0.0/24</span></code></p></td>
 <td><p>Sources allowed to reach world RCON through the dashboard’s NetworkPolicy (CIDR or <code class="docutils literal notranslate"><span class="pre">{cidr,</span> <span class="pre">except}</span></code>); except every cluster node’s IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node’s IP</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy the VPS relay (<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>); needs the <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> SealedSecret</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
 <td><p><em>(tailnet address)</em></p></td>
 <td><p>The VPS’s tailnet IP or MagicDNS name, where frps listens</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">7000</span></code></p></td>
 <td><p>frps control port on the VPS’s tailnet address</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code>: tcp <code class="docutils literal notranslate"><span class="pre">30565-30584</span></code> to <code class="docutils literal notranslate"><span class="pre">192.168.1.92</span></code></p></td>
 <td><p>List of <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">protocol</span></code> (<code class="docutils literal notranslate"><span class="pre">tcp</span></code>/<code class="docutils literal notranslate"><span class="pre">udp</span></code>), <code class="docutils literal notranslate"><span class="pre">ports</span></code> (port or <code class="docutils literal notranslate"><span class="pre">min-max</span></code>) and <code class="docutils literal notranslate"><span class="pre">target</span></code>; each publishes <code class="docutils literal notranslate"><span class="pre">ports</span></code> on the VPS and relays them to the same ports on <code class="docutils literal notranslate"><span class="pre">target</span></code>. The VPS’s <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code> and firewall must match</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> / <code class="docutils literal notranslate"><span class="pre">3.9.1</span></code></p></td>
 <td><p>Kyverno is off: the app never settled to Synced on its CRDs, and no policies were in use</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code> and <code class="docutils literal notranslate"><span class="pre">prometheus</span></code> on <code class="docutils literal notranslate"><span class="pre">node04</span></code>; <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap_backup_copy</span></code> and <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
 <td><p>One static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV each: <code class="docutils literal notranslate"><span class="pre">node</span></code>, <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">capacity</span></code> and the <code class="docutils literal notranslate"><span class="pre">claim_namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">claim_name</span></code> it is pre-bound to (<a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a>). The <code class="docutils literal notranslate"><span class="pre">scrap</span></code> entry is the frozen pre-Litestream copy, kept so its PV is not pruned under a bound claim. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 </tr>
@@ -1264,6 +1336,7 @@ root (gitignored), ready for a rebuild: <code class="docutils literal notranslat
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#flash-role-roles-flash-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">flash</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/flash/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-role-roles-k3s-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">k3s</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/k3s/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-role-roles-etcd-backup-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults/main.yml</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nas-role-roles-nas-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">nas</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#update-packages-and-node-reboot-roles-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> and <code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> roles (<code class="docutils literal notranslate"><span class="pre">defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rk1-os-role-defaults-main-yml-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> role (<code class="docutils literal notranslate"><span class="pre">defaults/main.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">vars/main.yml</span></code>)</a></li>
 </ul>

@@ -330,7 +330,8 @@
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="nav bd-sidenav">
@@ -516,10 +517,13 @@ cluster with a new token and CA, and the workers would then refuse it.</p>
 <p>The bundles are in <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code> of the cluster share on the NAS, named
 <code class="docutils literal notranslate"><span class="pre">k3s-etcd-&lt;node&gt;-&lt;UTC</span> <span class="pre">time&gt;.tar.age</span></code>. <code class="docutils literal notranslate"><span class="pre">LATEST</span></code> names the newest one.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-m<span class="w"> </span><span class="m">700</span><span class="w"> </span>~/k3s-restore<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/k3s-restore
-<span class="nv">NAS_DIR</span><span class="o">=</span>/share/CACHEDEV1_DATA/bigdisk/k8s-cluster/backups/etcd
-ssh<span class="w"> </span>nas<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span>
-<span class="nv">bundle</span><span class="o">=</span><span class="k">$(</span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sed -n &#39;s/^bundle: //p&#39; </span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span><span class="k">)</span>
-scp<span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$bundle</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;nas:</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$bundle</span><span class="s2">.sha256&quot;</span><span class="w"> </span>.
+<span class="nv">NAS_DIR</span><span class="o">=</span>/bigdisk/k8s-cluster/backups/etcd
+<span class="c1"># The files are 0600 to 65534 (the squashed root that wrote them): sudo.</span>
+ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span>
+<span class="nv">bundle</span><span class="o">=</span><span class="k">$(</span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>sed<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;&#39;s/^bundle: //p&#39;&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/LATEST&quot;</span><span class="k">)</span>
+<span class="k">for</span><span class="w"> </span>f<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">.sha256&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NAS_DIR</span><span class="s2">/</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span>
+<span class="k">done</span>
 sha256sum<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">.sha256&quot;</span>
 
 age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/path/to/k3s-etcd-backup.agekey<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$bundle</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>-x<span class="w"> </span>-C<span class="w"> </span>~/k3s-restore

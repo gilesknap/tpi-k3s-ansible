@@ -330,7 +330,8 @@
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">Set up the cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
 <ul class="current nav bd-sidenav">
@@ -711,7 +712,8 @@ template makes it visible.</p></li>
 mounted with a static NFS PersistentVolume in the service’s <code class="docutils literal notranslate"><span class="pre">additions/</span></code>,
 as Jellyfin does for <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code>, read-only
 (<code class="docutils literal notranslate"><span class="pre">additions/jellyfin/templates/media-nfs.yaml</span></code>). The directory itself is
-made by hand on the NAS (<a class="reference internal" href="nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>).</p>
+created by the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role, or is a dataset of its own there
+(<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>).</p>
 </section>
 <section id="secrets">
 <h3>Secrets<a class="headerlink" href="#secrets" title="Link to this heading">#</a></h3>
@@ -769,8 +771,9 @@ to the home chart in <code class="docutils literal notranslate"><span class="pre
 on a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> volume exists in one place only, so it needs a CronJob
 that copies it to <code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/&lt;service&gt;/</span></code> on the NAS.
 The jobs live in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/</span></code> (Grafana’s and
-Jellyfin’s are the models). Create the destination directory on the NAS first
-(<a class="reference internal" href="nas-setup.html"><span class="doc">Set up the cluster’s directories on the NAS</span></a>). Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> is then picked up
+Jellyfin’s are the models). Add the destination directory to the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role’s
+<code class="docutils literal notranslate"><span class="pre">nas_directories</span></code>, owned by the job’s uid, and run <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> first
+(<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>). Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> is then picked up
 by the nightly encrypted copy to Google Drive with no further change
 (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>).</p>
 </section>
@@ -833,7 +836,7 @@ PersistentVolumeClaims.</p>
 <td><p>Delete the archived folder on the NAS by hand when sure</p></td>
 </tr>
 <tr class="row-odd"><td><p>Static NFS directories and backups on the NAS</p></td>
-<td><p>Ansible and ArgoCD never touch the NAS</p></td>
+<td><p>Nothing automated deletes on the NAS: ArgoCD and the cluster playbooks never touch it, and the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role leaves a directory or dataset removed from its lists</p></td>
 <td><p>Delete by hand on the NAS when sure</p></td>
 </tr>
 <tr class="row-even"><td><p>Files already on Google Drive</p></td>

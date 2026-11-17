@@ -44,7 +44,7 @@ store.** Two clusters sharing either would see each other's worlds: the same
 ## Creating the share
 
 The share root (`nfs_csi.stable_share`, `/k8s-dynamic/stable`) is not
-created by the cluster. It is made once on the NAS, by hand, before ArgoCD
+created by the cluster. The `nas` role makes it on the NAS, before ArgoCD
 syncs the class: the driver cannot provision into a missing share, and the
 dashboard, which mounts the share read-only, cannot start. See
 {ref}`nfs-csi-nas-share`.
