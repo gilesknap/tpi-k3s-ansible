@@ -296,7 +296,9 @@ adds (below). The packaged `smartmon.sh` stops at the first disk type it does no
 know, and the OS disk's `sntjmicron` comes first, so on its own it reported
 only that disk; the role runs an edited copy, `/usr/local/sbin/nas-smartmon`,
 that reports every disk (`smartmon_device_smart_healthy` for each). The
-role's own files are `nas_zpool.prom` (error counts and the last scrub, every 5 minutes),
+role's own files are `nas_zpool.prom` (every 5 minutes: each pool's size
+and allocated bytes from `zpool list`, its error counts, and its last
+finished scrub, kept through a resilver or a scrub in progress),
 `nas_replicate.prom` (the last copy to the backup pool) and `nas_hold.prom`
 (`nas_zfs_held_snapshot_timestamp_seconds{dataset}`, the creation time of
 each dataset's held weekly snapshot, and whether `nas-hold` last
@@ -314,13 +316,16 @@ alerts:
 | `NasZfsScrubErrors` | the last scrub found errors | warning |
 | `NasZfsScrubOverdue` | no scrub has finished for 40 days | warning |
 | `NasDiskSmartUnhealthy` | a disk fails its SMART health check | warning |
-| `NasPoolFillingUp` | `/bigdisk` is over 85% full | warning |
+| `NasPoolFillingUp` | a pool's allocated space is over 85% of its size (from `zpool list`: the free space a dataset reports stays near 100% however full the pool is) | warning |
 | `NasBackupPoolCopyStale` | the copy to the backup pool has not succeeded for 36 hours | warning |
+| `NasBackupPoolCopyFailed` | the last copy to the backup pool failed | warning |
 | `NasZfsHoldStale` | a dataset has no held snapshot, or its held weekly is over 8 days old (a new dataset gets 8 days from its creation) | warning |
 | `NasZfsHoldFailed` | the last `nas-hold` run failed | warning |
+| `NasMetricsStale` | `nas_zpool.prom` or `smartmon.prom` has not been rewritten for 2 hours, or `nas_hold.prom` for 26 (stale files keep their last, healthy-looking values) | warning |
 
 All of them reach ntfy ({doc}`/how-to/ntfy`): the critical ones by severity,
-the warnings by name.
+the warnings by name. While the NAS is down, `NasDown` mutes the chart's
+generic `TargetDown` for job `nas`.
 
 Some start working later than the rest, because their metrics are absent
 until there is something to measure (an absent metric fires nothing):
@@ -328,8 +333,8 @@ until there is something to measure (an absent metric fires nothing):
 - `NasZfsScrubErrors` and `NasZfsScrubOverdue`, after a pool's first scrub
   (`zpool status` reports no scan until then); `tank`'s first is due on
   1 December 2026.
-- `NasBackupPoolCopyStale`, once the backup pool exists and
-  `nas-replicate.timer` has run once.
+- `NasBackupPoolCopyStale` and `NasBackupPoolCopyFailed`, once the backup
+  pool exists and `nas-replicate.timer` has run once.
 
 (nas-fans)=
 ## Fans and the embedded controller

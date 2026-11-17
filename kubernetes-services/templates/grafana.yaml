@@ -190,7 +190,7 @@ spec:
                   # `for`), and ignores cordoned nodes.
                   - receiver: ntfy
                     matchers:
-                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale|NasZfsHoldStale|NasZfsHoldFailed"
+                      - alertname=~"K3sEtcdBackupFailed|K3sEtcdBackupStale|K3sEtcdBackupNeverSucceeded|K3sEtcdBackupMetricsMissing|OffsiteBackupFailed|OffsiteBackupStale|OffsiteBackupNeverSucceeded|BackupJobFailed|BackupJobStale|BackupJobNeverSucceeded|KubeNodeNotReady|KubePersistentVolumeFillingUp|KubePersistentVolumeInodesFillingUp|NodeFilesystemSpaceFillingUp|NodeFilesystemAlmostOutOfSpace|NodeFilesystemFilesFillingUp|NodeFilesystemAlmostOutOfFiles|CertManagerCertificateExpiringSoon|NasZfsPoolErrors|NasZfsScrubErrors|NasZfsScrubOverdue|NasDiskSmartUnhealthy|NasPoolFillingUp|NasBackupPoolCopyStale|NasBackupPoolCopyFailed|NasZfsHoldStale|NasZfsHoldFailed|NasMetricsStale"
               inhibit_rules:
                 # Chart defaults: a critical mutes its own warning/info, a
                 # warning its own info; InfoInhibitor mutes info alerts in its
@@ -230,6 +230,14 @@ spec:
                     - namespace
                 - target_matchers:
                     - alertname="InfoInhibitor"
+                # NasDown already reports the NAS's node-exporter as down:
+                # mute the chart's generic TargetDown for job nas.
+                - source_matchers:
+                    - alertname="NasDown"
+                  target_matchers:
+                    - alertname="TargetDown"
+                  equal:
+                    - job
                 # A NotReady node mutes its own fallout. These two carry the
                 # node label, so only that node's alerts are muted.
                 - source_matchers:
@@ -416,15 +424,18 @@ spec:
                       annotations:
                         summary: A disk in the NAS fails its SMART health check.
                         description: Run `smartctl -a` on the disk on gknas.
+                    # From zpool list (nas-zpool-metrics): statfs on a ZFS
+                    # dataset shows about the same free fraction however
+                    # full the pool is, so node_filesystem_* cannot say.
                     - alert: NasPoolFillingUp
                       expr: >-
-                        node_filesystem_avail_bytes{job="nas", mountpoint="/bigdisk"}
-                        / node_filesystem_size_bytes{job="nas", mountpoint="/bigdisk"} < 0.15
+                        nas_zpool_allocated_bytes{job="nas"}
+                        / nas_zpool_size_bytes{job="nas"} > 0.85
                       for: 1h
                       labels:
                         severity: warning
                       annotations:
-                        summary: The NAS's main pool is over 85% full.
+                        summary: A ZFS pool on the NAS is over 85% full.
                         description: >-
                           ZFS slows down as a pool fills. Free space on gknas,
                           or prune snapshots (`zfs list -t snapshot`).
@@ -435,6 +446,18 @@ spec:
                         severity: warning
                       annotations:
                         summary: The NAS's nightly copy to its backup pool has not succeeded for 36 hours.
+                        description: >-
+                          See `journalctl -u nas-replicate` on gknas (is the
+                          LaCie plugged in?).
+                    # Absent until nas-replicate first runs, which it does
+                    # only once the backup pool exists.
+                    - alert: NasBackupPoolCopyFailed
+                      expr: nas_replicate_last_run_success{job="nas"} == 0
+                      for: 15m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: The NAS's last copy to its backup pool failed.
                         description: >-
                           See `journalctl -u nas-replicate` on gknas (is the
                           LaCie plugged in?).
@@ -461,6 +484,25 @@ spec:
                       annotations:
                         summary: The NAS's job that moves the weekly snapshot holds failed.
                         description: See `journalctl -u nas-hold` on gknas.
+                    # A textfile metrics file that stops being rewritten
+                    # keeps its last values, which then look healthy for
+                    # ever: nas_zpool.prom is rewritten every 5 minutes and
+                    # smartmon.prom every 15, nas_hold.prom daily at 02:00.
+                    - alert: NasMetricsStale
+                      expr: >-
+                        (time() - node_textfile_mtime_seconds{job="nas", file=~".*/(nas_zpool|smartmon)\\.prom"} > 2 * 3600)
+                        or
+                        (time() - node_textfile_mtime_seconds{job="nas", file=~".*/nas_hold\\.prom"} > 26 * 3600)
+                      for: 15m
+                      labels:
+                        severity: warning
+                      annotations:
+                        summary: A metrics file on the NAS is no longer updated.
+                        description: >-
+                          {{ "{{ $labels.file }}" }} on gknas is out of date: check
+                          the timer that writes it (nas-zpool-metrics,
+                          prometheus-node-exporter-smartmon or nas-hold) with
+                          `systemctl list-timers` and `journalctl -u`.
 {{- end }}
 
     - path: ./kubernetes-services/additions/grafana

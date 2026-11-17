@@ -1,38 +1,73 @@
 #!/bin/bash
 # {{ ansible_managed }} (roles/nas).
-# Pool error counts and scrub results for node-exporter's textfile
-# collector (its own zfs collector has pool state but neither of these).
-# Reads `zpool status -j` (OpenZFS 2.3 and later; the NAS runs 2.4.1). Each
-# pool has nested `vdevs` with read/write/checksum_errors on every level
-# (root, mirror, disk). `scan_stats` (function SCRUB or RESILVER, state
-# SCANNING, FINISHED or CANCELED, end_time, errors) appears only once the
-# pool has been scrubbed or resilvered: until then the scrub metrics are
-# absent, and so are the alerts on them.
+# Pool capacity, error counts and scrub results for node-exporter's
+# textfile collector (its own zfs collector has pool state but none of
+# these; and statfs on a dataset reports the dataset's own view, about
+# the same free fraction however full the pool is).
+# Reads `zpool list -Hp` and `zpool status -j` (OpenZFS 2.3 and later; the
+# NAS runs 2.4.1). Each pool has nested `vdevs` with
+# read/write/checksum_errors on every level (root, mirror, disk).
+# `scan_stats` (function SCRUB or RESILVER, state SCANNING, FINISHED or
+# CANCELED, end_time, errors) describes the pool's latest scan only, so a
+# resilver, or a scrub in progress or cancelled, hides the last finished
+# scrub: then the last values written for that pool are kept. Until a
+# pool's first scrub the scrub metrics are absent, and so are the alerts
+# on them.
 set -euo pipefail
 prom={{ nas_textfile_dir }}/nas_zpool.prom
 tmp=$(mktemp "$prom.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 
-zpool status -j --json-int | jq -r '
-  def labels($p): "{zpool=\"" + $p + "\"}";
-  "# HELP nas_zpool_errors Read, write and checksum errors summed over every device of the pool.",
-  "# TYPE nas_zpool_errors gauge",
-  "# HELP nas_zpool_scrub_errors Errors found by the last scrub.",
-  "# TYPE nas_zpool_scrub_errors gauge",
-  "# HELP nas_zpool_scrub_end_timestamp_seconds When the last scrub finished.",
-  "# TYPE nas_zpool_scrub_end_timestamp_seconds gauge",
-  (.pools // {} | to_entries[] | .key as $p | .value as $v |
-    ([$v.vdevs // {} | .. | objects | select(has("read_errors"))
-      | (.read_errors // 0) + (.write_errors // 0) + (.checksum_errors // 0)] | add // 0) as $errs |
-    ("nas_zpool_errors" + labels($p) + " " + ($errs | tostring)),
-    (if ($v.scan_stats.function // "") == "SCRUB" then
-      ("nas_zpool_scrub_errors" + labels($p) + " " + (($v.scan_stats.errors // 0) | tostring)),
-      (if ($v.scan_stats.state // "") == "FINISHED" then
-        ($v.scan_stats.end_time // null | numbers
-          | "nas_zpool_scrub_end_timestamp_seconds" + labels($p) + " " + tostring)
-      else empty end)
-    else empty end))
-' >"$tmp"
+status=$(zpool status -j --json-int)
+old=""
+[ -f "$prom" ] && old=$(cat "$prom")
+
+# One sample per line: metric{zpool="<pool>"} value.
+samples() {
+    zpool list -Hp -o name,size,alloc | while read -r pool size alloc; do
+        echo "nas_zpool_size_bytes{zpool=\"$pool\"} $size"
+        echo "nas_zpool_allocated_bytes{zpool=\"$pool\"} $alloc"
+    done
+    jq -r '
+      def labels($p): "{zpool=\"" + $p + "\"}";
+      .pools // {} | to_entries[] | .key as $p | .value as $v |
+        ([$v.vdevs // {} | .. | objects | select(has("read_errors"))
+          | (.read_errors // 0) + (.write_errors // 0) + (.checksum_errors // 0)] | add // 0) as $errs |
+        ("nas_zpool_errors" + labels($p) + " " + ($errs | tostring)),
+        (if ($v.scan_stats.function // "") == "SCRUB"
+            and ($v.scan_stats.state // "") == "FINISHED" then
+          ("nas_zpool_scrub_errors" + labels($p) + " " + (($v.scan_stats.errors // 0) | tostring)),
+          ($v.scan_stats.end_time // null | numbers
+            | "nas_zpool_scrub_end_timestamp_seconds" + labels($p) + " " + tostring)
+        else empty end)
+    ' <<<"$status"
+}
+new=$(samples)
+
+# A pool whose latest scan is not a finished scrub keeps its last scrub
+# results from the previous file.
+for pool in $(jq -r '.pools // {} | keys[]' <<<"$status"); do
+    for m in nas_zpool_scrub_errors nas_zpool_scrub_end_timestamp_seconds; do
+        key="$m{zpool=\"$pool\"} "
+        if ! grep -qF "$key" <<<"$new"; then
+            kept=$(grep -F "$key" <<<"$old" || true)
+            [ -n "$kept" ] && new+=$'\n'"$kept"
+        fi
+    done
+done
+
+family() { # name, help: the family's HELP, TYPE and samples together
+    echo "# HELP $1 $2"
+    echo "# TYPE $1 gauge"
+    grep "^$1{" <<<"$new" || true
+}
+{
+    family nas_zpool_size_bytes "Size of the pool (zpool list SIZE)."
+    family nas_zpool_allocated_bytes "Space allocated in the pool (zpool list ALLOC)."
+    family nas_zpool_errors "Read, write and checksum errors summed over every device of the pool."
+    family nas_zpool_scrub_errors "Errors found by the last finished scrub."
+    family nas_zpool_scrub_end_timestamp_seconds "When the last finished scrub ended."
+} >"$tmp"
 chmod 0644 "$tmp"
 mv "$tmp" "$prom"
 trap - EXIT
