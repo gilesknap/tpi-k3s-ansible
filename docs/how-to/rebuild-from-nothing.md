@@ -4,8 +4,10 @@ This runbook is for the worst case: the house and every machine in it are
 gone. The NAS, the Turing Pi, the NUCs and `ws03` are lost, and so is
 everything stored on them. What is left:
 
-- the **paper kit**: the age private key and the logins to GitHub, Google,
-  Backblaze and Cloudflare;
+- the **paper kit** (printed; regenerated with the kit script kept outside
+  Git): the age private key, the account recovery codes, the local
+  passwords, the Ansible SSH key and the cluster's external credentials
+  ({ref}`dr-paper-kit`);
 - **a laptop**;
 - **GitHub**: this repository, and with it every manifest, role and
   SealedSecret;
@@ -41,38 +43,38 @@ and {doc}`/how-to/backup-restore`.
 (dr-before)=
 ## Before a disaster: what must be off site
 
-Nothing in this repository records what the paper kit holds. The docs say
-only that the age private key is kept "offline, in two places"
-({doc}`/explanations/architecture/backups`), and that the Cloudflare state
-passphrase is in "the password manager". Issue #681 plans a break-glass
-kit with the age key, the provider recovery codes and a one-page runbook.
-Use this list to check the kit. Everything on it must be somewhere that
-does not burn with the house.
+(dr-paper-kit)=
+### The paper kit
 
-| Item | Why it is needed | Without it |
-|------|------------------|------------|
-| The age private key (`AGE-SECRET-KEY-1...`), at least one copy away from the house | Decrypts every backup and every sealing key export | **Nothing can be restored.** No other loss is this bad |
-| GitHub login and 2FA recovery codes | The repository, `gh`, the GitHub OAuth apps behind Dex and oauth2-proxy | No code, no sign-in to the cluster's web apps |
-| Google login and 2FA recovery codes | The Drive copy (the only copy of the Minecraft data) | No Minecraft worlds; one fewer copy of the rest |
-| Backblaze login and 2FA recovery codes | The B2 copy, and a new read-only key for the restore | Restore from Drive instead |
-| Cloudflare login and 2FA recovery codes | The DNS zone, the tunnel and Access, if anything there has to change | The edge keeps working; it just cannot be changed |
-| The password manager, reachable without the house | Holds the Cloudflare state passphrase | Re-import the state ({doc}`/how-to/cloudflare-as-code`) |
-| Tailscale login | The VPS relay, and Jellyfin over the tailnet | No Minecraft from outside, no remote Jellyfin |
-| The VPS provider's login | The VPS that runs frps for the relay | Only matters if the VPS was lost too |
-| The domain registrar's login for `gkcluster.org` | Renewing the domain | Only matters if it is not Cloudflare |
-| Anthropic console login | scrap's Claude API key, if it is to be replaced | scrap's enrichment stops |
+The paper kit is a printed document, a few pages long. It is regenerated
+with the kit script, which is kept outside Git because it carries the
+encrypted credentials. It holds:
 
-Then check, while the cluster is up, that the copies are there and open.
-`just drill-monthly` already does most of it ({ref}`restore-drills`):
+| Part | What is in it |
+|------|---------------|
+| Page 1 | Where the printed copies are kept. The age private key, as text and as a QR code, and the public key it must match (`age-keygen -y`) |
+| Account recovery | The Google address and its 2-step backup codes; the GitHub username and recovery codes; the Cloudflare login and recovery codes; the Tailscale login provider; the registrar for `gkcluster.org` and its login; the Hostinger account (the VPS) and its 2FA recovery codes |
+| Local passwords | The OpenWrt router's root password; the Turing Pi BMC password; the password manager's name and master password; the OpenTofu state passphrase. (The QNAP passwords are obsolete since the NAS moved to Ubuntu) |
+| SSH access | The private key Ansible uses (and its passphrase, if any), as QR codes and as text, with its fingerprint and public key |
+| Appendix | The cluster's external credentials, age-encrypted to the same key, as QR codes. Decrypted, they are the values of `.env`: the GitHub OAuth apps, the Cloudflare API and tunnel tokens, the VPS relay's, scrap's and ntfy's tokens, the admin password, the Drive rclone config and the Tailscale OAuth client. The appendix says how to turn them into `.env` |
+| Rebuild notes | The order of the work, and the network: hosts and addresses |
 
-```bash
-just drill-monthly            # Drive and B2 decrypt, the keys open every SealedSecret
-```
+The appendix is a snapshot from the day it was generated (the date is
+printed on page 1). Regenerate and reprint the kit after any change to
+those credentials, or to the sealing key.
 
-Two things it does not check:
+### Check it, and the off-site copies
 
-- **The age key on paper is the right key.** Type it into a file in RAM and
-  compare its public key with the one the cluster encrypts to:
+Read the kit's page 1 for where its copies are. At least one must be away
+from the house: a kit that burns with the house is no kit.
+
+`just drill-monthly` proves that the off-site copies decrypt and that the
+sealing keys open every SealedSecret ({ref}`restore-drills`). Two more
+checks, every few months:
+
+- **The age key on paper is the right key.** Type it, or scan its QR code,
+  into a file in RAM and compare its public key with the one the cluster
+  encrypts to:
 
   ```bash
   (umask 077; cat >/dev/shm/age.key)    # type the key, then Ctrl-D
@@ -90,43 +92,46 @@ Two things it does not check:
   ```
 
 (dr-gaps)=
-### Gaps found while writing this page
+### Gaps
 
 These are open, not fixed. Each is a question for the owner.
 
-- **The paper kit is not written down.** No doc lists what it holds or
-  where its two copies are. If both copies of the age key are in the
-  house, a fire loses every backup.
-- **2FA recovery codes.** Nothing says the GitHub, Google, Backblaze and
-  Cloudflare recovery codes are in the kit. A lost phone and no codes
-  means no way into those accounts.
-- **Tailscale, the VPS, the registrar and the Anthropic console** are
-  not mentioned anywhere as part of the kit.
-- **The router.** The OpenWrt router's settings are not in Git or in any
-  backup: the fixed DHCP leases (192.168.1.3 for the NAS, .82 to .92 for
-  the nodes), the local DNS that resolves bare names (`nuc2`) and `.lan`
-  names, and the `k3s.lan` record. The repository relies on all three.
-- **The Ansible SSH key** (`~/.ssh/ansible_rsa` on `ws03`) has no off-site
-  copy. That is fine: make a new pair and commit the new public half
-  (step 1 below). It is listed so it is not a surprise.
-- **The Cloudflare state copy** is made by hand after each apply. Nothing
-  checks that it is there or current.
-- **The Google OAuth client's JSON** for rclone is "kept offline", but
-  where is not recorded. It is not needed if the sealing keys come back
-  (step 2 rebuilds rclone's config from Git).
-- **A copy of `.env`.** {doc}`/tutorials/build-the-cluster` says to keep one
-  off the cluster. If one exists it is plaintext credentials and must be
-  as safe as the age key; if not, the fresh-reseal path (step 6) has to
-  collect each value again.
-- **The Minecraft data is on Drive only.** Drive and the house together
-  lose the worlds; the archive's "other copies" are not listed.
-- **The devcontainer assumes a Linux host** with podman: it runs with
+- **Backblaze is not in the kit.** It has no Backblaze login or 2FA
+  recovery codes. Without them the B2 copy can still be read through the
+  job's key (step 3 rebuilds it from Git), but not managed: no new
+  read-only key, no web UI, nothing after an attack
+  ({ref}`restore-after-attack`).
+- **The B2 key is not in the appendix.** Its credentials hold the Drive
+  rclone config but not `OFFSITE_BACKUP_B2_RCLONE_CONF_B64`. A fresh reseal
+  (step 7, path B) needs it added from Git with the sealing keys, or a new
+  key sealed afterwards with `just seal-b2-offsite`.
+- **Google's backup codes may be missing.** The kit has a field for them;
+  check it is filled in on the printed copy, not "(not recorded)". The
+  same goes for every other field.
+- **The router's settings are not backed up.** The kit has the router's
+  password, but nothing holds its configuration: the fixed DHCP leases
+  (192.168.1.3 for the NAS, .82 to .92 for the nodes), the local DNS that
+  resolves bare names (`nuc2`) and `.lan` names, and the `k3s.lan` record.
+  The repository relies on all three; on a new router they are set up by
+  hand (step 4).
+- **Where the age key's copies are.** The docs say "offline, in two
+  places"; the kit's page 1 records where. Check that one is outside the
+  house.
+- **The QNAP rows are obsolete.** The NAS now runs Ubuntu, with no
+  passwords: drop them at the next reprint.
+- **The Anthropic console login** is not in the kit. The appendix has
+  scrap's API key, so it only matters to replace that key.
+- **The devcontainer needs a Linux host** with podman: it runs with
   `--net=host` and its `initializeCommand` calls `xhost`. A macOS or
   Windows laptop needs a Linux VM, or work on the devcontainer first.
+- **The drill logs** (`build/restore-test/`) are only on `ws03`, so the
+  record of past drills is lost with it.
+- **The Minecraft data is on Drive only.** Drive and the house together
+  lose the worlds.
 - **Restoring old sealing keys onto a fresh install is not drilled.** The
   monthly drill proves the keys open the SealedSecrets offline, and
-  `/rebuild-cluster` reseals instead. Step 6's path A has not been run end
-  to end.
+  `/rebuild-cluster` reseals instead. Path A of step 7 has not been run
+  end to end.
 
 ## Hardware
 
@@ -159,7 +164,7 @@ The cluster is then one K3s server. The `cluster` role taints the control
 plane `NoSchedule` only when there is more than one node, so a single
 server runs every workload.
 
-The edits, made on a branch (step 4):
+The edits, made on a branch (step 5):
 
 - `hosts.yml`: remove `turingpi`, `node02`, `node03`, `node04`, `nuc1` and
   `ws03`. Keep `nuc2`, without `node_ip` and `flannel_iface` if it has one
@@ -220,45 +225,56 @@ not at all.
 
 ```mermaid
 flowchart LR
-    laptop["1. Laptop<br/>devcontainer"] --> keys["2. age key,<br/>sealing keys,<br/>rclone config"]
-    keys --> hw["3. Buy the<br/>hardware"]
-    hw --> cfg["4. Inventory and<br/>install stick"]
-    cfg --> nas["5. NAS<br/>pb_nas.yml"]
+    kit["1. The<br/>paper kit"] --> laptop["2. Laptop<br/>devcontainer"]
+    laptop --> keys["3. age key,<br/>sealing keys,<br/>rclone config"]
+    keys --> hw["4. Buy the<br/>hardware"]
+    hw --> cfg["5. Inventory and<br/>install stick"]
+    cfg --> nas["6. NAS<br/>pb_nas.yml"]
     nas --> data1["Unpack scrap<br/>and Minecraft<br/>onto the NAS"]
-    data1 --> k3s["6. Cluster<br/>pb_all.yml"]
-    k3s --> edge["7. Edge<br/>and relay"]
-    edge --> data2["8. Restore scrap,<br/>Grafana, Jellyfin"]
-    data2 --> done["9. Back to main,<br/>backups running"]
+    data1 --> k3s["7. Cluster<br/>pb_all.yml"]
+    k3s --> edge["8. Edge<br/>and relay"]
+    edge --> data2["9. Restore scrap,<br/>Grafana, Jellyfin"]
+    data2 --> done["10. Back to main,<br/>backups running"]
 ```
 
-### 1. A laptop with the repository
+### 1. Get the paper kit
+
+Fetch a printed copy of the paper kit ({ref}`dr-paper-kit`); its page 1
+says where the copies are. Recover the Google account first, with its
+backup codes: the Drive copy is in it. Then GitHub, and the others as they
+are needed. Cross out each recovery code as it is used.
+
+### 2. A laptop with the repository
 
 1. Install a Linux desktop, podman, VS Code and the Dev Containers
    extension (with `dev.containers.dockerPath` set to `podman`), as in
    {doc}`/tutorials/build-the-cluster`.
 2. Sign in to GitHub in the browser with the kit's login, then clone the
    repository and open it in its container (**Reopen in Container**).
-3. Make a new Ansible key pair. The old private half was on `ws03`:
+3. Put the Ansible SSH key from the kit on the laptop: scan its QR codes
+   in order into `~/.ssh/ansible_rsa`, as the kit says, then check its
+   fingerprint against the one printed:
 
    ```bash
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/ansible_rsa   # on the laptop
-   ssh-add ~/.ssh/ansible_rsa                          # before opening the container
+   chmod 600 ~/.ssh/ansible_rsa
+   ssh-keygen -lf ~/.ssh/ansible_rsa   # the fingerprint in the kit
+   ssh-add ~/.ssh/ansible_rsa          # before opening the container
    ```
 
-   The new public half replaces `pub_keys/ansible_rsa.pub` on the rebuild
-   branch (step 4). The install stick and `pb_add_nodes.yml` both put that
-   file on the machines.
+   Its public half is already `pub_keys/ansible_rsa.pub`, which the install
+   stick and `pb_add_nodes.yml` put on the machines.
 4. In the container, `just setup` checks the forwarded agent and signs `gh`
-   in. The Claude sandbox gets its own key once the node exists (step 6;
+   in. The Claude sandbox gets its own key once the node exists (step 7;
    {doc}`/how-to/claude-code`).
 
 The container has `age`, `rclone`, `kubeseal`, `kubectl`, `yq` and `jq`.
 
-### 2. The keys, and a way to read the off-site copies
+### 3. The keys, and a way to read the off-site copies
 
 Do this before buying anything: it proves the backups can be read.
 
-1. **The age key.** Type it from paper into RAM, and check it:
+1. **The age key.** Type it from the kit's page 1 (or scan its QR code)
+   into RAM, and check it:
 
    ```bash
    (umask 077; cat >/dev/shm/age.key)    # type the key, then Ctrl-D
@@ -313,7 +329,7 @@ Do this before buying anything: it proves the backups can be read.
 `/dev/shm` empties on a reboot. Repeat these steps whenever the laptop
 restarts.
 
-### 3. Buy the hardware
+### 4. Buy the hardware
 
 See [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes). Set the
 new router up first: fixed DHCP leases by MAC (192.168.1.3 for the NAS,
@@ -322,7 +338,7 @@ names (`known_hosts` looks up `<host>.lan` and Ansible connects to bare
 `nuc2` and `gknas`), and a `k3s.lan` record pointing at 192.168.1.92. On
 OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
 
-### 4. The inventory and the install stick
+### 5. The inventory and the install stick
 
 1. Branch, as nothing is committed to `main`:
 
@@ -331,15 +347,14 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
    ```
 
 2. Make the edits listed under
-   [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes), and
-   replace `pub_keys/ansible_rsa.pub` with the new key's public half.
+   [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes).
 3. Record each new machine's disks and NICs, and build an install stick
    for each, as the install stick (docs/how-to/install-stick.md) describes:
    it has a "new hardware" entry for exactly this. The NAS's pool disk ids
-   are read on the NAS once it runs (step 5).
+   are read on the NAS once it runs (step 6).
 4. Run `just check`, commit, and push the branch: ArgoCD will track it.
 
-### 5. The NAS
+### 6. The NAS
 
 1. Install Ubuntu from the stick, with the data disks out, as in
    {doc}`/how-to/nas-ubuntu-zfs` (steps 1 and 2 there). Then:
@@ -367,7 +382,7 @@ Put back the data that only lived on the NAS now, before the cluster
 starts. Pick the newest of each with `rclone lsf`.
 
 **scrap's newest run**, into `backups/` (its paths start `scrap/<run>/`).
-scrap then refuses to start empty, and step 8 restores it:
+scrap then refuses to start empty, and step 9 restores it:
 
 ```bash
 rclone --config /dev/shm/rclone.conf lsf b2:gk-cluster-offsite/backups/scrap
@@ -412,7 +427,7 @@ check. Remove the scratch folder: `ssh -t nas "sudo rm -rf ${S:?}"`.
 Grafana, Jellyfin and the etcd bundles need nothing on the NAS: the nightly
 jobs refill `backups/`.
 
-### 6. The cluster
+### 7. The cluster
 
 The NUC-class box is installed from its stick, then brought under Ansible
 and built up to K3s, without the `cluster` stage yet:
@@ -430,9 +445,9 @@ The sealing keys can come back in two ways:
 
 | | A: restore the old keys | B: reseal everything fresh |
 |---|---|---|
-| Needs | `/dev/shm/keys.yaml` from step 2 | `.env` with the six required values ({doc}`/tutorials/build-the-cluster`, "Collect the credentials") |
+| Needs | `/dev/shm/keys.yaml` from step 3 | `.env`, from the kit's appendix, plus the B2 key's config |
 | Git | Nothing to commit but one Dex secret | Every SealedSecret is resealed and committed |
-| Tokens held outside (scrap MCP, ntfy, the Drive consent, the B2 key) | Kept | Kept only if `.env` has them; otherwise new ones, and every client to update |
+| Tokens held outside (scrap MCP, ntfy, the Drive consent, the B2 key) | Kept as they are now | Kept as they were when the kit was printed |
 | How well trodden | Not drilled end to end: the keys are proven offline monthly | `/rebuild-cluster` runs it every time |
 
 Use A. Fall back to B if A fails.
@@ -463,12 +478,22 @@ git commit -m "Re-derive the Dex argo-cd client secret" && git push
 just argocd-sync && just restart-dex
 ```
 
-**B: reseal fresh.** Get `.env`: from a kept copy, or by reading each value
-out of the SealedSecrets in Git with the keys
+**B: reseal fresh.** Make `.env` from the kit's appendix, as the kit
+says (scan the QR codes into `creds.age`, decrypt it, and turn the JSON
+into `.env` with `jq`; delete it once the rebuild is verified). The appendix has no B2 key, so add
+it from Git with the sealing keys:
+
+```bash
+printf 'OFFSITE_BACKUP_B2_RCLONE_CONF_B64=%s\n' "$(KUBECONFIG=/nonexistent kubeseal \
+    --recovery-unseal --recovery-private-key /dev/shm/keys.yaml -o json \
+    < kubernetes-services/additions/backups/templates/offsite-backup-b2-secret.yaml |
+    jq -r '.data["rclone.conf"]')" >>.env
+```
+
+A value changed since the kit was printed is stale in `.env`: read the
+current one from the SealedSecret the same way
 ({doc}`/how-to/manage-sealed-secrets`, "Decrypt SealedSecrets without a
-cluster"), or by issuing new ones at GitHub, Cloudflare and Tailscale.
-There is no script that builds `.env` from Git. Then run the rest as in
-{doc}`/tutorials/build-the-cluster`:
+cluster"). Then run the rest as in {doc}`/tutorials/build-the-cluster`:
 
 ```bash
 set -a && source .env && set +a
@@ -491,7 +516,7 @@ to node04, whose node affinity cannot be changed. It would also bring back
 the old keys and `admin-auth`, which A gets more simply. Keep the bundle
 for the case it is made for: the same cluster with a lost control plane.
 
-### 7. DNS, the tunnel and the relay
+### 8. DNS, the tunnel and the relay
 
 With path A nothing at Cloudflare changes. The zone, the tunnel, its
 hostnames and Access are all at Cloudflare, and `cloudflared` connects
@@ -511,10 +536,10 @@ its restored credentials, and its `minecraft` forward still targets
 192.168.1.92. Install Tailscale on the new node by hand and sign it in
 (Ansible does not manage it), for Jellyfin over the tailnet.
 
-### 8. Restore the applications' data
+### 9. Restore the applications' data
 
 **scrap.** Follow "Restore scrap" in {doc}`/how-to/backup-restore`: pause
-it through Git, run the staged restore from the run unpacked in step 5
+it through Git, run the staged restore from the run unpacked in step 6
 (`/backups/<run>`, with the `scrap-backups-nfs` claim), and revert the
 pause. Pages written after that run are lost.
 
@@ -528,7 +553,7 @@ the restore pod can be replaced by:
 rclone --config /dev/shm/rclone.conf lsf b2:gk-cluster-offsite/backups/grafana
 rclone --config /dev/shm/rclone.conf cat b2:gk-cluster-offsite/backups/grafana/<date>_<HHMM>.tar.gz.age |
     age -d -i /dev/shm/age.key |
-    ssh ansible@nuc2 "sudo rm -f /home/k8s-data/grafana/grafana.db-journal /home/k8s-data/grafana/grafana.db-wal /home/k8s-data/grafana/grafana.db-shm &&
+    ssh ansiblenuc2 "sudo rm -f /home/k8s-data/grafana/grafana.db-journal /home/k8s-data/grafana/grafana.db-wal /home/k8s-data/grafana/grafana.db-shm &&
         sudo tar -xzf - -C /home/k8s-data/grafana grafana.db &&
         sudo chown 472:472 /home/k8s-data/grafana/grafana.db"
 ```
@@ -541,7 +566,7 @@ may have no `jellyfin` account, so use numbers:
 ```bash
 rclone --config /dev/shm/rclone.conf cat b2:gk-cluster-offsite/backups/jellyfin/<date>_<time>.tar.gz.age |
     age -d -i /dev/shm/age.key |
-    ssh ansible@nuc2 "sudo tar --numeric-owner --no-overwrite-dir -xzf - -C /home/k8s-data/jellyfin &&
+    ssh ansiblenuc2 "sudo tar --numeric-owner --no-overwrite-dir -xzf - -C /home/k8s-data/jellyfin &&
         sudo rm -f /home/k8s-data/jellyfin/data/data/jellyfin.db-wal /home/k8s-data/jellyfin/data/data/jellyfin.db-shm &&
         sudo chown -R 122:124 /home/k8s-data/jellyfin"
 ```
@@ -550,11 +575,11 @@ The library itself is gone, so Jellyfin shows empty libraries until media
 is copied back to `/bigdisk/media`. Check `jellyfin.render_gid`
 (`getent group render` on the node) if the new box has an Intel iGPU.
 
-**Minecraft.** The worlds were unpacked in step 5. If the dashboard
+**Minecraft.** The worlds were unpacked in step 6. If the dashboard
 started before that, restart it:
 `kubectl -n minecraft rollout restart deploy/minecraft-dashboard`.
 
-### 9. Back to normal
+### 10. Back to normal
 
 1. Take the first backups, and prove them:
 
@@ -568,7 +593,9 @@ started before that, restart it:
    The off-site jobs add only. While the cluster was down nothing pruned
    the off-site copies, and each keeps the 4 newest of every series.
 2. Path B made a new sealing key: make a new offline copy of it
-   ({ref}`sealed-secrets-key-backup`).
+   ({ref}`sealed-secrets-key-backup`). Either way, make new recovery
+   codes for any account whose codes were used, then regenerate and
+   reprint the paper kit.
 3. Open a pull request from the rebuild branch, merge it, and put ArgoCD
    back on `main`: `just switch-branch main`.
 4. Wipe the RAM copies: `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`.
@@ -599,13 +626,14 @@ machine other than `ws03`, ideally the laptop that would be used, with
 only what is in the paper kit. Write down every step that needed something
 not in the kit.
 
-1. **The kit.** Check that it holds every item in {ref}`dr-before`. Sign in
-   to each account from the laptop. Do not use up a recovery code: just
-   check it is there.
+1. **The kit.** Check that every field of {ref}`dr-paper-kit` is filled
+   in on the printed copy, and that its QR codes scan. Sign in to each
+   account from the laptop. Do not use up a recovery code: just check it
+   is there.
 2. **The laptop.** Clone the repository fresh, open the devcontainer and
-   run `just setup`. Do not make a new Ansible key: that would need
-   committing.
-3. **The keys and rclone without the cluster.** Do all of step 2: type the
+   run `just setup`. Load the Ansible SSH key from the kit's QR codes and
+   check its fingerprint, then delete it again.
+3. **The keys and rclone without the cluster.** Do all of step 3: type the
    age key from paper, download the key export from the B2 web UI, run
    `just unseal-check --keys ... --all`, build `/dev/shm/rclone.conf` from
    Git, and run both `restore-test` commands. These read only.
