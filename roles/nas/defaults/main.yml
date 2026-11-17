@@ -63,6 +63,8 @@ nas_pool_fs_properties:
 # The mountpoints are the paths the cluster's NFS volumes use (SYNC:
 # kubernetes-services/values.yaml nfs.*, nfs_csi.*, minecraft.archive_path,
 # jellyfin.media.nfs_path), so no PV changes when the NAS moves off QTS.
+# Give sizes in bytes, as `zfs get -p` prints them (1048576, not 1M): the
+# zfs module compares the strings, so 1M shows as a change in --check.
 nas_datasets:
   - name: tank/bigdisk
     properties:
@@ -72,11 +74,11 @@ nas_datasets:
   # The Jellyfin library: large files, read sequentially.
   - name: tank/bigdisk/media
     properties:
-      recordsize: 1M
+      recordsize: "1048576"
   - name: tank/bigdisk/minecraft-archive
   - name: tank/bigdisk/Photos-Archive
     properties:
-      recordsize: 1M
+      recordsize: "1048576"
   # The NFS CSI driver's share (nfs-rwx; nfs-stable in stable/).
   - name: tank/k8s-dynamic
     properties:
