@@ -475,7 +475,16 @@ Prepares each node for K3s:
    set here rather than by the `kernel-settings` DaemonSet because that
    DaemonSet does not run on tainted nodes. `--tags sysctl` runs this task
    alone.
-7. **NVIDIA GPU nodes only** (`nvidia_gpu_node: true` in the inventory, which is `ws03`):
+7. **`nuc1` and `nuc2` only** (`power_key_ignore: true` in the inventory):
+   a short press of the power button does nothing. A logind drop-in,
+   `/etc/systemd/logind.conf.d/90-power-key.conf`, sets `HandlePowerKey=ignore`,
+   and on a host with GNOME `/usr/share/glib-2.0/schemas/90_power-key.gschema.override`
+   sets GNOME's `power-button-action` to `nothing`, as GNOME (and its gdm login
+   screen) takes the key over from logind while it runs. logind is reloaded,
+   never restarted; GNOME picks up the change at the next login or boot.
+   Holding the button for about 4 seconds still cuts the power. On every other
+   node both files are removed. `--tags power_key` runs these tasks alone.
+8. **NVIDIA GPU nodes only** (`nvidia_gpu_node: true` in the inventory, which is `ws03`):
    - Install `ubuntu-drivers-common` and run `ubuntu-drivers install` to install the GPU driver
    - Add the NVIDIA container toolkit apt repository and install `nvidia-container-toolkit`
    - Write `/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl` with the NVIDIA
@@ -663,10 +672,10 @@ takes. See {doc}`/explanations/architecture/backups` and
 
 **Runs on:** `gknas` only, from `pb_nas.yml`, not `pb_all.yml`
 **Tags:** `nas`, `nas_os`, `nas_fan`, `nas_pool`, `nas_datasets`, `nas_nfs`,
-`nas_snapshots`, `nas_health`
+`nas_snapshots`, `nas_health`, `power_key`
 
 Configures the NAS, which runs Ubuntu Server: packages and automatic updates
-(never an automatic reboot), fewer writes to its USB OS disk, the `qnap8528`
+(never an automatic reboot), a power button that ignores a short press, fewer writes to its USB OS disk, the `qnap8528`
 driver for the QNAP's embedded controller, the ZFS pools and datasets, the NFS
 exports the cluster mounts, sanoid snapshots (with a hold on each dataset's
 newest weekly, against an accidental destroy), the nightly `syncoid` copy to
