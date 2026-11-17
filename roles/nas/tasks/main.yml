@@ -17,6 +17,14 @@
     quiet: true
   tags: always
 
+# The play's own fact gathering inherits the play's `nas` tag, so a run with
+# --tags nas_fan (say) skips it. The EC driver needs the running kernel.
+- name: Gather the facts the role needs
+  ansible.builtin.setup:
+    gather_subset: [min]
+  when: ansible_facts['kernel'] is not defined
+  tags: always
+
 - name: Configure the operating system
   ansible.builtin.import_tasks: os.yml
   tags: nas_os
