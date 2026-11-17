@@ -125,9 +125,14 @@ port is USB 3. The firmware setup opens with **Del** at power-on.
 3. Remove the stick. In the firmware setup, put the NVMe's UEFI entry
    first in the boot order, before the DOM (QTS).
 
-The NAS has two 2.5GbE ports; the install takes DHCP on whichever is cabled.
-The router's reservation for 192.168.1.3 is by MAC address, so cable the port
-it names (`ip -br link` on the NAS shows each port's name and MAC).
+The NAS has two 2.5GbE ports, `enp2s0` and `enp3s0`; the install takes DHCP
+on whichever is cabled. The router's reservation for 192.168.1.3 is by
+`enp3s0`'s MAC address, so cable that port (`ip -br link` on the NAS shows
+each port's name and MAC). The installer's netplan configures both ports
+under one `en*` match, so every boot waits two minutes for the port with no
+cable and then logs `systemd-networkd-wait-online` as failed; `nas_os`
+replaces it with one entry per port (`nas_netplan_ethernets`), both on DHCP,
+the one not cabled `optional`. That takes effect at the next boot.
 
 ### 2. Configure the OS, before the data disks go in
 

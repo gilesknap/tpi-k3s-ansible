@@ -27,6 +27,43 @@
     name: openipmi
     masked: true
 
+# Masking does not clear the failure of the boot's attempt, which leaves
+# the system "degraded" in systemctl until the next boot.
+- name: Read openipmi's state
+  ansible.builtin.systemd_service:
+    name: openipmi
+  register: nas_openipmi
+  check_mode: false
+
+- name: Clear openipmi's failed state
+  ansible.builtin.command: systemctl reset-failed openipmi
+  when: nas_openipmi.status.ActiveState | default('') == 'failed'
+  changed_when: true
+
+# The installer's netplan (00-installer-config.yaml) matches both ports,
+# enp2s0 and enp3s0, by `en*` under one id, with DHCP. Only enp3s0 is
+# cabled (the router's reservation for 192.168.1.3 is by its MAC), and
+# systemd-networkd-wait-online waits for every port netplan configures,
+# so each boot spent 2 minutes waiting for enp2s0 and then failed. Name
+# the ports instead, with DHCP on both as before (so either works if the
+# cable moves), and mark the ones not cabled optional. netplan regenerates
+# the networkd and wait-online configuration at boot, so this takes effect
+# on the next boot, without touching the network now.
+- name: Configure the network ports
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (roles/nas).
+      {{ {'network': {'version': 2, 'ethernets': nas_netplan_ethernets}} | to_nice_yaml(indent=2) }}
+    dest: /etc/netplan/50-nas.yaml
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Remove the installer's netplan, which the ports above replace
+  ansible.builtin.file:
+    path: /etc/netplan/00-installer-config.yaml
+    state: absent
+
 # The SSDs come from QTS with Linux RAID (md) superblocks on them. udev
 # would assemble those arrays as the disks appear (mdadm --incremental),
 # which writes to the disks. Never assemble an array automatically: this NAS

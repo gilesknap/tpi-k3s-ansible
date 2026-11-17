@@ -103,6 +103,7 @@ documents each one; these are the ones a rebuild touches.
 | `nas_hold_tag` / `nas_hold_datasets` | `nas-keep` / every dataset of `tank` in `nas_datasets` | The ZFS hold kept on the newest weekly snapshot of each dataset, against an accidental destroy ({doc}`/how-to/nas-ubuntu-zfs`) |
 | `nas_hold_on_calendar` | `*-*-* 02:00:00 Europe/London` | When `nas-hold` moves the holds to the newest weeklies (daily; sanoid takes them Mondays at 23:30) |
 | `nas_replicate_on_calendar` | `*-*-* 06:30:00 Europe/London` | When the nightly copy to the backup pool runs |
+| `nas_netplan_ethernets` | `enp3s0` and `enp2s0`, both DHCP, `enp2s0` optional | The NAS's network ports, as netplan `ethernets`; the port not cabled is `optional`, so boot does not wait for it |
 | `nas_qnap_ec_driver` | `true` | Build the community `qnap8528` EC driver (fans, temperatures) with DKMS, at `nas_qnap_ec_commit` |
 
 ### `update_packages` and `node_reboot` roles (`defaults/main.yml`)
