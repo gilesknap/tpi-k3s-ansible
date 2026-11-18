@@ -32,6 +32,7 @@ how-to/add-remove-services
 :caption: Operations
 
 how-to/backup-restore
+how-to/paper-kit
 how-to/recover-control-plane
 how-to/rebuild-from-nothing
 how-to/node-operations

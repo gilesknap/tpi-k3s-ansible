@@ -218,6 +218,17 @@ drill-monthly identity="":
     echo; echo "$line (logs: $dir/drill-$stamp-*.txt; history: $dir/drill-log.txt)"
     case "$drive $b2 $unseal" in *FAIL*) exit 1 ;; *WARN*) exit 3 ;; esac
 
+# The paper disaster-recovery kit (docs/how-to/paper-kit.md). Its data is in
+# _claude/paper-kit-data/ (gitignored), never in git. Prints names, never values.
+# Refresh the paper kit's encrypted cluster credentials from the live cluster
+paper-kit-refresh:
+    scripts/paper-kit/refresh-embedded.sh
+
+# Browser form on 127.0.0.1 by default; --cli [out.pdf] for terminal prompts.
+# Make the paper recovery kit PDF (asks for the cluster's age key)
+paper-kit *args:
+    scripts/paper-kit/run.sh {{ args }}
+
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
