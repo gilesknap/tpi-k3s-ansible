@@ -368,7 +368,7 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
 
 2. Make the edits listed under
    [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes), all but
-   the install entries' disks and MACs.
+   the new disks and MACs (item 4).
 3. Read the new machines with the install stick
    ({doc}`/how-to/install-stick`). Its host entries match only the old
    machines, so first build a stick just to read the new ones. On the
@@ -522,7 +522,9 @@ The sealing keys can come back in two ways:
 Use A. Fall back to B if A fails.
 
 **A: restore the old keys.** Put the keys in before the controller starts,
-so it uses them and makes none of its own, then run the `cluster` stage:
+so it uses them and makes none of its own, then run the `cluster` stage.
+This is a one-off write to a fresh cluster, of Secrets ArgoCD does not
+manage:
 
 ```bash
 yq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp,
@@ -581,7 +583,7 @@ GENERATE_SECRETS=true ansible-playbook pb_all.yml --tags cluster \
 Either way, give the Claude sandbox its key on the node:
 `just claude-ssh-bootstrap` ({doc}`/how-to/claude-code`). It reaches only
 the cluster's nodes, and the stick was built without a Claude key, so add
-the key to the NAS by hand if Claude is to reach it:
+the key that run made to the NAS by hand if Claude is to reach it:
 `ssh nas 'cat >>~/.ssh/authorized_keys' </root/.config/claude-ssh/id_ed25519.pub`
 from the container.
 
@@ -690,7 +692,8 @@ started before that, restart it:
    codes for any account whose codes were used, then regenerate and
    reprint the paper kit.
 3. Open a pull request from the rebuild branch, tidy it with
-   `/pr-squash`, merge it with `gh pr merge --merge`, and put ArgoCD back
+   `/pr-squash`, have a fresh review of it, merge it with
+   `gh pr merge --merge`, and put ArgoCD back
    on `main`: `just switch-branch main`.
 4. Wipe the RAM copies: `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`.
 5. Write down what went wrong, and what took how long, in a GitHub issue.
