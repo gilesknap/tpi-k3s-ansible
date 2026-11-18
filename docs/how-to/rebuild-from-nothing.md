@@ -68,28 +68,29 @@ those credentials, or to the sealing key.
 Read the kit's page 1 for where its copies are. At least one must be away
 from the house: a kit that burns with the house is no kit.
 
-`just drill-monthly` proves that the off-site copies decrypt and that the
-sealing keys open every SealedSecret ({ref}`restore-drills`). Two more
-checks, every few months:
+Every few months, with the cluster up, check that the B2 copy restores
+with the age key on paper. Run the restore test against B2, and when it
+asks for the age private key, type it from the kit's page 1 (not from a
+file on `ws03`):
 
-- **The age key on paper is the right key.** Type it, or scan its QR code,
-  into a file in RAM and compare its public key with the one the cluster
-  encrypts to:
+```bash
+just restore-test --target b2
+```
 
-  ```bash
-  (umask 077; cat >/dev/shm/age.key)    # type the key, then Ctrl-D
-  age-keygen -y /dev/shm/age.key
-  grep etcd_backup_age_recipient group_vars/all.yml   # must be the same age1...
-  rm /dev/shm/age.key
-  ```
+It downloads and decrypts the newest backups and checks them, changing
+nothing ({ref}`offsite-restore-test`). A PASS proves both the B2 copy and
+the key on paper. `just unseal-check --target b2 --all` proves, the same
+way, that the sealing keys in it open every SealedSecret in Git
+({ref}`unseal-check`).
 
-- **The Cloudflare state copy is current.** It is copied by hand to the NAS
-  after each `just cf-apply` ({doc}`/how-to/nas-setup`), and from there goes
-  off site. List it on B2 and compare the newest date with the last apply:
+Check too that the Cloudflare state copy is current. It is copied by hand
+to the NAS after each `just cf-apply` ({doc}`/how-to/nas-setup`), and from
+there goes off site each night. Compare the newest date with the last
+apply:
 
-  ```bash
-  rclone --config /dev/shm/rclone.conf lsf b2:gk-cluster-offsite/backups/config/cloudflare
-  ```
+```bash
+ssh nas ls -l /bigdisk/k8s-cluster/backups/config/cloudflare
+```
 
 (dr-gaps)=
 ### Gaps
@@ -124,14 +125,12 @@ These are open, not fixed. Each is a question for the owner.
 - **The devcontainer needs a Linux host** with podman: it runs with
   `--net=host` and its `initializeCommand` calls `xhost`. A macOS or
   Windows laptop needs a Linux VM, or work on the devcontainer first.
-- **The drill logs** (`build/restore-test/`) are only on `ws03`, so the
-  record of past drills is lost with it.
 - **The Minecraft data is on Drive only.** Drive and the house together
   lose the worlds.
-- **Restoring old sealing keys onto a fresh install is not drilled.** The
-  monthly drill proves the keys open the SealedSecrets offline, and
-  `/rebuild-cluster` reseals instead. Path A of step 7 has not been run
-  end to end.
+- **Restoring old sealing keys onto a fresh install has not been run end
+  to end.** `just unseal-check` proves the keys open the SealedSecrets
+  offline, and `/rebuild-cluster` reseals instead. Path A of step 7 is
+  untried.
 
 ## Hardware
 
@@ -141,9 +140,10 @@ These are open, not fixed. Each is a question for the owner.
 |------|-------------------|-----------------|
 | Turing Pi BMC and RK1 flashing | `roles/flash`, `move_fs`, `rk1_os`; `turing_pis` and `turingpi_nodes` in `hosts.yml` | Not needed for x86 boxes. Leave the groups empty: the `flash` play then has no hosts |
 | The QNAP embedded controller (fans) | `nas_qnap_ec_driver` in `roles/nas/defaults/main.yml` | Set it to `false` on anything that is not a TS-253D |
-| The NAS's network ports | `nas_netplan_ethernets` (matched by MAC) | Set the new MACs **before** the first `pb_nas.yml`: the role removes the installer's netplan |
+| The NAS's network ports | `nas_netplan_ethernets` (matched by MAC) | Set the new MACs (the same as `gknas`'s `install_machine_macs`) **before** the first `pb_nas.yml`: the role removes the installer's netplan |
 | The NAS's pool disks | `nas_pool_disks` (by `/dev/disk/by-id/`), `nas_backup_pool_disks` | Set the new disk ids (see the NAS's step 3 in {doc}`/how-to/nas-ubuntu-zfs`) |
-| The NAS's install disk | The install stick's per-host settings | See the install stick (docs/how-to/install-stick.md) |
+| Each x86 host's OS disk and network ports | `install_disk_serial`, `install_disk_model` and `install_machine_macs` in `hosts.yml`. `gknas`'s OS disk is the Fanxiang NVMe in its PCIe slot | The install stick ({doc}`/how-to/install-stick`) erases only the disk with that serial, on a machine with one of those MACs. Read the new ones with the stick's `New hardware` entry and set them before building the stick (step 5). Give the NAS an internal OS disk: one in a USB enclosure reports the enclosure's serial |
+| `nuc2`'s other disks | `install_ansible_uid` and `extra_mounts` on `nuc2` (its 870 QVO `/home` and the Crucial X6) | Drop both: the `servers` tag would fail to mount disks that no longer exist |
 | Intel iGPU for Jellyfin | `intel_gpu_node` in `hosts.yml`; Jellyfin requests `gpu.intel.com/i915`; `jellyfin.render_gid` | Without an Intel iGPU the Jellyfin pod stays `Pending`: set `enable_jellyfin: false`, or buy a box with one |
 | NVIDIA GPU | `nvidia_gpu_node`, `workstation` on `ws03` | Not needed: only GPU and monitoring pods ran there |
 | nuc2's two NICs | `node_ip`, `flannel_iface` on `nuc2` | Drop both on a single-NIC box |
@@ -168,8 +168,11 @@ The edits, made on a branch (step 5):
 
 - `hosts.yml`: remove `turingpi`, `node02`, `node03`, `node04`, `nuc1` and
   `ws03`. Keep `nuc2`, without `node_ip` and `flannel_iface` if it has one
-  NIC, and with `intel_gpu_node: true` only if it has an Intel iGPU. Keep
-  `gknas` in `nas`. The install stick adds its own per-host settings here.
+  NIC, with `intel_gpu_node: true` only if it has an Intel iGPU, and
+  without `install_ansible_uid` and `extra_mounts`. Keep `gknas` in `nas`.
+  On both, keep `install_profile: server`, and set `install_disk_serial`,
+  `install_disk_model` and `install_machine_macs` to the new machine's
+  (step 5).
 - `group_vars/all.yml`: `control_plane: nuc2`, `standby_control_plane: ""`.
   Move the `grafana` and `prometheus` entries of `k8s_data_dirs` to
   `node: nuc2`, with paths `/home/k8s-data/grafana` and
@@ -249,25 +252,33 @@ are needed. Cross out each recovery code as it is used.
 1. Install a Linux desktop, podman, VS Code and the Dev Containers
    extension (with `dev.containers.dockerPath` set to `podman`), as in
    {doc}`/tutorials/build-the-cluster`.
-2. Sign in to GitHub in the browser with the kit's login, then clone the
-   repository and open it in its container (**Reopen in Container**).
+2. Sign in to GitHub in the browser with the kit's login, and clone the
+   repository.
 3. Put the Ansible SSH key from the kit on the laptop: scan its QR codes
    in order into `~/.ssh/ansible_rsa`, as the kit says, then check its
-   fingerprint against the one printed:
+   fingerprint against the one printed and load it into the laptop's
+   agent, before the container opens (it forwards the agent):
 
    ```bash
    chmod 600 ~/.ssh/ansible_rsa
    ssh-keygen -lf ~/.ssh/ansible_rsa   # the fingerprint in the kit
-   ssh-add ~/.ssh/ansible_rsa          # before opening the container
+   ssh-add ~/.ssh/ansible_rsa
    ```
 
-   Its public half is already `pub_keys/ansible_rsa.pub`, which the install
-   stick and `pb_add_nodes.yml` put on the machines.
-4. In the container, `just setup` checks the forwarded agent and signs `gh`
-   in. The Claude sandbox gets its own key once the node exists (step 7;
+   Its public half is already `pub_keys/ansible_rsa.pub`, which the
+   {doc}`install stick </how-to/install-stick>` puts on the machines.
+4. Open the repository in its container (**Reopen in Container**). There,
+   `just setup` checks the forwarded agent and signs `gh` in. The Claude
+   sandbox gets its own key once the node exists (step 7;
    {doc}`/how-to/claude-code`).
 
 The container has `age`, `rclone`, `kubeseal`, `kubectl`, `yq` and `jq`.
+
+The install stick is built on the laptop
+itself, in its clone, not in the container: the script needs the
+internet, `sudo` and the stick. Install what it needs there:
+`sudo apt install xorriso curl python3-yaml` (its "Build the stick" runs
+it on `ws03`, which is gone).
 
 ### 3. The keys, and a way to read the off-site copies
 
@@ -347,21 +358,55 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
    ```
 
 2. Make the edits listed under
-   [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes).
-3. Record each new machine's disks and NICs, and build an install stick
-   for each, as the install stick (docs/how-to/install-stick.md) describes:
-   it has a "new hardware" entry for exactly this. The NAS's pool disk ids
-   are read on the NAS once it runs (step 6).
-4. Run `just check`, commit, and push the branch: ArgoCD will track it.
+   [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes), all but
+   the install entries' disks and MACs.
+3. Read the new machines with the install stick
+   ({doc}`/how-to/install-stick`). Its host entries match only the old
+   machines, so first build a stick just to read the new ones. On the
+   laptop, outside the container, find the stick and write it:
+
+   ```bash
+   lsblk -o NAME,SIZE,MODEL,SERIAL,TRAN   # the stick, e.g. /dev/sdb
+   scripts/make-install-stick --write /dev/sdb
+   ```
+
+   The laptop has no Claude sandbox key, so the script warns and puts only
+   `pub_keys/ansible_rsa.pub` on the machines; `--claude-key FILE` adds
+   one if there is. The menu has no default: nothing installs until an
+   entry is picked. Boot each new machine from the stick in UEFI mode and
+   pick `New hardware`, open a shell from the installer's **Help** menu
+   (**Enter shell**), and note the OS disk and the network ports:
+
+   ```bash
+   lsblk -o NAME,SIZE,MODEL,SERIAL,TRAN
+   cat /sys/class/net/*/address
+   ```
+
+   Then power off without installing. Never note a USB network dongle's
+   MAC.
+4. Set them on the branch, in `hosts.yml`: `install_disk_serial`,
+   `install_disk_model` and `install_machine_macs` (lower case) for
+   `gknas` and `nuc2`, and the NAS's MACs in `nas_netplan_ethernets`
+   (`roles/nas/defaults/main.yml`) too.
+   The NAS's pool disk ids are read on the NAS once it runs (step 6).
+5. Run `just check` (its `scripts/test-make-install-stick` renders each
+   host's install from `hosts.yml`), commit, and push the branch: ArgoCD
+   will track it.
+6. Build the stick again, now with an `Install gknas` and an
+   `Install nuc2` entry for the new machines:
+   `scripts/make-install-stick --write /dev/sdb`.
 
 ### 6. The NAS
 
-1. Install Ubuntu from the stick, with the data disks out, as in
-   {doc}`/how-to/nas-ubuntu-zfs` (steps 1 and 2 there). Then:
+1. Install Ubuntu from the stick, with the data disks out: boot the stick
+   in UEFI mode, pick `Install gknas`, and it installs on its own and
+   powers off ({doc}`/how-to/nas-ubuntu-zfs`, step 1). Remove the stick,
+   power on, and configure the OS from the container (step 2 there; the
+   `nas_fan` tag does nothing with `nas_qnap_ec_driver: false`):
 
    ```bash
    ansible-playbook pb_nas.yml --tags known_hosts
-   ansible-playbook pb_nas.yml --tags nas_os
+   ansible-playbook pb_nas.yml --tags nas_os,nas_fan
    ```
 
 2. Put the data disks in, read their ids
@@ -429,11 +474,13 @@ jobs refill `backups/`.
 
 ### 7. The cluster
 
-The NUC-class box is installed from its stick, then brought under Ansible
-and built up to K3s, without the `cluster` stage yet:
+Install the cluster box from the stick: boot it in UEFI mode, pick
+`Install nuc2`, and it installs on its own and powers off. The install
+made the `ansible` account with the key from the kit, so
+`pb_add_nodes.yml` is not needed. Remove the stick, power on, and build
+it up to K3s, without the `cluster` stage yet:
 
 ```bash
-ansible-playbook pb_add_nodes.yml -e ansible_user=<login> -K   # if the stick did not make the ansible account
 ansible-playbook pb_all.yml --tags tools,known_hosts,servers,k3s
 ```
 
@@ -448,7 +495,7 @@ The sealing keys can come back in two ways:
 | Needs | `/dev/shm/keys.yaml` from step 3 | `.env`, from the kit's appendix, plus the B2 key's config |
 | Git | Nothing to commit but one Dex secret | Every SealedSecret is resealed and committed |
 | Tokens held outside (scrap MCP, ntfy, the Drive consent, the B2 key) | Kept as they are now | Kept as they were when the kit was printed |
-| How well trodden | Not drilled end to end: the keys are proven offline monthly | `/rebuild-cluster` runs it every time |
+| How well trodden | Never run end to end: `just unseal-check` proves the keys offline | `/rebuild-cluster` runs it every time |
 
 Use A. Fall back to B if A fails.
 
@@ -553,7 +600,7 @@ the restore pod can be replaced by:
 rclone --config /dev/shm/rclone.conf lsf b2:gk-cluster-offsite/backups/grafana
 rclone --config /dev/shm/rclone.conf cat b2:gk-cluster-offsite/backups/grafana/<date>_<HHMM>.tar.gz.age |
     age -d -i /dev/shm/age.key |
-    ssh ansiblenuc2 "sudo rm -f /home/k8s-data/grafana/grafana.db-journal /home/k8s-data/grafana/grafana.db-wal /home/k8s-data/grafana/grafana.db-shm &&
+    ssh ansible@nuc2 "sudo rm -f /home/k8s-data/grafana/grafana.db-journal /home/k8s-data/grafana/grafana.db-wal /home/k8s-data/grafana/grafana.db-shm &&
         sudo tar -xzf - -C /home/k8s-data/grafana grafana.db &&
         sudo chown 472:472 /home/k8s-data/grafana/grafana.db"
 ```
@@ -566,7 +613,7 @@ may have no `jellyfin` account, so use numbers:
 ```bash
 rclone --config /dev/shm/rclone.conf cat b2:gk-cluster-offsite/backups/jellyfin/<date>_<time>.tar.gz.age |
     age -d -i /dev/shm/age.key |
-    ssh ansiblenuc2 "sudo tar --numeric-owner --no-overwrite-dir -xzf - -C /home/k8s-data/jellyfin &&
+    ssh ansible@nuc2 "sudo tar --numeric-owner --no-overwrite-dir -xzf - -C /home/k8s-data/jellyfin &&
         sudo rm -f /home/k8s-data/jellyfin/data/data/jellyfin.db-wal /home/k8s-data/jellyfin/data/data/jellyfin.db-shm &&
         sudo chown -R 122:124 /home/k8s-data/jellyfin"
 ```
@@ -587,8 +634,11 @@ started before that, restart it:
    just etcd-backup-now
    just offsite-backup-now
    just offsite-backup-now b2
-   just drill-monthly /dev/shm/age.key
+   just restore-test --target b2 --identity /dev/shm/age.key
+   just unseal-check --target b2 --all --identity /dev/shm/age.key
    ```
+
+   With the cluster up, both read rclone's config from the cluster.
 
    The off-site jobs add only. While the cluster was down nothing pruned
    the off-site copies, and each keeps the 4 newest of every series.
@@ -599,7 +649,8 @@ started before that, restart it:
 3. Open a pull request from the rebuild branch, merge it, and put ArgoCD
    back on `main`: `just switch-branch main`.
 4. Wipe the RAM copies: `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`.
-5. Write down what went wrong, and what took how long, in issue #681.
+5. Write down what went wrong, and what took how long, in a GitHub issue,
+   and correct this page.
 
 ## How long it takes
 
@@ -617,45 +668,3 @@ From the repo's own measurements and the NAS switchover of 17 November
 | `pb_all.yml`, K3s and cluster stages | 10 to 20 minutes, then a few minutes for ArgoCD to settle | {doc}`/tutorials/build-the-cluster` |
 | Restores of scrap, Grafana, Jellyfin | Minutes each | |
 | First off-site run | Minutes; a full first upload of `backups/` (about 3.3 GB) takes longer | {doc}`/how-to/backup-restore` |
-
-(dr-desk-exercise)=
-## Desk exercise
-
-Rehearse this without touching the cluster or the NAS. Do it from a
-machine other than `ws03`, ideally the laptop that would be used, with
-only what is in the paper kit. Write down every step that needed something
-not in the kit.
-
-1. **The kit.** Check that every field of {ref}`dr-paper-kit` is filled
-   in on the printed copy, and that its QR codes scan. Sign in to each
-   account from the laptop. Do not use up a recovery code: just check it
-   is there.
-2. **The laptop.** Clone the repository fresh, open the devcontainer and
-   run `just setup`. Load the Ansible SSH key from the kit's QR codes and
-   check its fingerprint, then delete it again.
-3. **The keys and rclone without the cluster.** Do all of step 3: type the
-   age key from paper, download the key export from the B2 web UI, run
-   `just unseal-check --keys ... --all`, build `/dev/shm/rclone.conf` from
-   Git, and run both `restore-test` commands. These read only.
-4. **A data restore into a throwaway pod.** The quarterly scrap drill
-   ({ref}`restore-drills`) does it with a run from Drive.
-5. **The configuration.** On a local branch that is never pushed, make the
-   edits for [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes),
-   then:
-
-   ```bash
-   ansible-inventory --graph
-   ansible-playbook pb_all.yml --list-hosts --tags servers,k3s,cluster
-   just check
-   ```
-
-   Every play should list only `nuc2` (and `localhost`). Delete the branch
-   afterwards.
-6. **Time it.** Put the times in issue #681 and the table above.
-7. **Clean up.** `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`,
-   and delete the downloaded key export.
-
-A full rehearsal on spare hardware, with its own throwaway NAS and
-cluster, is the next level. It would need its own inventory, addresses and
-Cloudflare hostnames so that nothing in it can reach the live cluster or
-the NAS, and is not described here.
