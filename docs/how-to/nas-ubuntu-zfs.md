@@ -101,29 +101,36 @@ devcontainer on `ws03`.
 
 ### 1. Install Ubuntu
 
-The install is unattended. The autoinstall stick
-(Ubuntu Server 26.04 live ISO plus an `autoinstall.yaml`) creates:
+The install runs on its own once you pick the install stick's
+`Install gknas` entry ({doc}`/how-to/install-stick`). It creates:
 
 - hostname `gknas`, DHCP (the router reserves 192.168.1.3 for it);
 - the `ansible` account with passwordless sudo, no password, and the keys in
   `pub_keys/ansible_rsa.pub` plus the Claude sandbox's key;
-- the packages `smartmontools nvme-cli lm-sensors ethtool zfsutils-linux`;
-- the whole of the 200 to 300 GB disk with model `Tech` (the NVMe's USB
-  enclosure) as the OS disk. It refuses to install if any disk over 2 TB is
-  attached, so the drive trays and the LaCie must be out.
+- the whole of the disk with serial `DD564198838AA` as the OS disk. That
+  serial and the model `Tech` are the JMicron USB enclosure's, not the
+  NVMe's. The install refuses unless exactly one disk has that serial and
+  one of the NAS's ports has its MAC (`enp3s0` or `enp2s0`).
+
+`nas_os` installs the NAS's packages (ZFS, smartmontools and the rest) in
+step 2.
+
+Plug a keyboard and screen into the NAS for the install: you pick the
+stick in the firmware's boot menu and the entry in the stick's menu.
 
 The rear panel has one blue USB 3 port and two black USB 2 ports; the front
 port is USB 3. The firmware setup opens with **Del** at power-on.
 
-1. Power the NAS off. Pull both drive trays and unplug the LaCie.
+1. Power the NAS off. Pull both drive trays and unplug the LaCie. The
+   guard would refuse to install onto them, but with them out no mistake
+   can reach them.
 2. Plug the NVMe enclosure into the rear blue (USB 3) port and the install
    stick into another, power on, and boot the stick in **UEFI** mode (its
-   `UEFI:` entry in the boot menu). Its legacy entry also boots, but installs
-   a BIOS-booting system: the first install, from that entry, had to be
-   done again. The install runs on its own and
-   reboots.
-3. Remove the stick. In the firmware setup, put the NVMe's UEFI entry
-   first in the boot order, before the DOM (QTS).
+   `UEFI:` entry in the boot menu). Booted the legacy way, it shows no host
+   entries. Pick `Install gknas`: the install runs on its own and powers
+   off.
+3. Remove the stick and power on. In the firmware setup, put the NVMe's
+   UEFI entry first in the boot order, before the DOM (QTS).
 
 The NAS has two 2.5GbE ports, `enp2s0` and `enp3s0`; the install takes DHCP
 on whichever is cabled. The router's reservation for 192.168.1.3 is by

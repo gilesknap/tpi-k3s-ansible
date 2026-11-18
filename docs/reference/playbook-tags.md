@@ -15,7 +15,7 @@ Run it in the devcontainer, from the repo root.
 | `rk1_os` | Convert RK1 nodes | `rk1_os` | RK1 nodes, `serial: 1` | Converts an RK1 still on the old ubuntu-rockchip vendor layout to stock Ubuntu 26.04; skips a standard install, which is what `node02` to `node04` now are |
 | `sysctl` | Update all nodes | `update_packages` (one task) | `all_nodes` | Only the `net.mptcp.enabled=0` sysctl, which reaches the tainted nodes that the `kernel-settings` DaemonSet cannot |
 | `power_key` | Update all nodes | `update_packages` (its power button tasks) | `all_nodes` | Only the power button setting: a short press does nothing on nodes with `power_key_ignore: true` (`nuc1`, `nuc2`); elsewhere its files are removed. In `pb_nas.yml`, the same for `gknas` |
-| `k8s_data_dirs` | Update all nodes | `k8s_data_dirs` | `all_nodes` | Only the local PV host directories from `k8s_data_dirs`; never deletes data |
+| `k8s_data_dirs` | Update all nodes | `k8s_data_dirs` | `all_nodes` | Only the node's `extra_mounts` and the local PV host directories from `k8s_data_dirs`; never deletes data |
 | `k3s` | Install K3s | `k3s`, `etcd_backup` | `all_nodes` | Installs or updates the K3s control plane and workers, and the control plane's nightly etcd backup timer |
 | `apparmor` | Install K3s | `k3s` (`apparmor.yml` only) | `all_nodes` | Only the corrected containerd AppArmor profile (see {doc}`/reference/troubleshooting`) |
 | `etcd_backup` | Install K3s | `etcd_backup` | `node02` (the control plane) | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
