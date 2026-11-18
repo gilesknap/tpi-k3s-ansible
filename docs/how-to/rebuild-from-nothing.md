@@ -102,10 +102,11 @@ These are open, not fixed. Each is a question for the owner.
   job's key (step 3 rebuilds it from Git), but not managed: no new
   read-only key, no web UI, nothing after an attack
   ({ref}`restore-after-attack`).
-- **The B2 key is not in the appendix.** Its credentials hold the Drive
-  rclone config but not `OFFSITE_BACKUP_B2_RCLONE_CONF_B64`. A fresh reseal
-  (step 7, path B) needs it added from Git with the sealing keys, or a new
-  key sealed afterwards with `just seal-b2-offsite`.
+- **The B2 key may be missing from the appendix.**
+  `just export-external-creds` writes `OFFSITE_BACKUP_B2_RCLONE_CONF_B64` to
+  `.env`, but check the printed appendix has it. Without it, a fresh
+  reseal (step 7, path B) needs it added from Git with the sealing keys,
+  or a new key sealed afterwards with `just seal-b2-offsite`.
 - **Google's backup codes may be missing.** The kit has a field for them;
   check it is filled in on the printed copy, not "(not recorded)". The
   same goes for every other field.
@@ -274,7 +275,7 @@ are needed. Cross out each recovery code as it is used.
 
 The container has `age`, `rclone`, `kubeseal`, `kubectl`, `yq` and `jq`.
 
-The install stick is built on the laptop
+The {doc}`install stick </how-to/install-stick>` is built on the laptop
 itself, in its clone, not in the container: the script needs the
 internet, `sudo` and the stick. Install what it needs there:
 `sudo apt install xorriso curl python3-yaml` (its "Build the stick" runs
@@ -292,14 +293,16 @@ Do this before buying anything: it proves the backups can be read.
    age-keygen -y /dev/shm/age.key        # must equal etcd_backup_age_recipient
    ```
 
-2. **The sealing keys.** Sign in to the Backblaze web UI, open the bucket
-   `gk-cluster-offsite`, and download the newest
-   `backups/etcd/sealed-secrets-keys/sealed-secrets-keys-<UTC time>.yaml.age`.
-   (Drive has the same file under `home-cluster-offsite/backups/etcd/`.)
-   Check that it opens every SealedSecret in Git:
+2. **The sealing keys.** In Google Drive's web page (the Google account
+   from step 1; the kit has no Backblaze login), open
+   `home-cluster-offsite/backups/etcd/sealed-secrets-keys/` and download
+   the newest `sealed-secrets-keys-<UTC time>.yaml.age`. The browser saves
+   it on the laptop, which the container cannot see: move it into the
+   clone's gitignored `build/` folder. It is encrypted, so it may sit on
+   disk. Check that it opens every SealedSecret in Git:
 
    ```bash
-   just unseal-check --keys ~/Downloads/sealed-secrets-keys-<time>.yaml.age \
+   just unseal-check --keys build/sealed-secrets-keys-<time>.yaml.age \
        --identity /dev/shm/age.key --all
    ```
 
@@ -307,7 +310,7 @@ Do this before buying anything: it proves the backups can be read.
 
    ```bash
    (umask 077; age -d -i /dev/shm/age.key \
-       ~/Downloads/sealed-secrets-keys-<time>.yaml.age >/dev/shm/keys.yaml)
+       build/sealed-secrets-keys-<time>.yaml.age >/dev/shm/keys.yaml)
    ```
 
 3. **rclone's config, from Git.** The off-site jobs' rclone configs are
@@ -343,8 +346,9 @@ restarts.
 ### 4. Buy the hardware
 
 See [the smallest rebuild](#the-smallest-rebuild-two-x86-boxes). Set the
-new router up first: fixed DHCP leases by MAC (192.168.1.3 for the NAS,
-192.168.1.92 for the cluster node), local DNS for bare names and `.lan`
+new router up: fixed DHCP leases by MAC (192.168.1.3 for the NAS,
+192.168.1.92 for the cluster node; the MACs are read in step 5, so add
+the leases then, before installing either machine), local DNS for bare names and `.lan`
 names (`known_hosts` looks up `<host>.lan` and Ansible connects to bare
 `nuc2` and `gknas`), and a `k3s.lan` record pointing at 192.168.1.92. On
 OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
@@ -389,16 +393,21 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
    `gknas` and `nuc2`, and the NAS's MACs in `nas_netplan_ethernets`
    (`roles/nas/defaults/main.yml`) too.
    The NAS's pool disk ids are read on the NAS once it runs (step 6).
-5. Run `just check` (its `scripts/test-make-install-stick` renders each
-   host's install from `hosts.yml`), commit, and push the branch: ArgoCD
+5. Update `scripts/test-make-install-stick` to match: it requires
+   `gknas`, `nuc1` and `nuc2` to have `install_profile` (drop `nuc1`),
+   and its guard cases use the old machines' serials and MACs (put in the
+   new ones). Then run `just check` (the test renders each host's install
+   from `hosts.yml` and checks it), commit, and push the branch: ArgoCD
    will track it.
-6. Build the stick again, now with an `Install gknas` and an
+6. Add the DHCP leases for the new MACs on the router (step 4).
+7. Build the {doc}`install stick </how-to/install-stick>` again, now with an `Install gknas` and an
    `Install nuc2` entry for the new machines:
    `scripts/make-install-stick --write /dev/sdb`.
 
 ### 6. The NAS
 
-1. Install Ubuntu from the stick, with the data disks out: boot the stick
+1. Install Ubuntu from the {doc}`install stick </how-to/install-stick>`,
+   with the data disks out: boot the stick
    in UEFI mode, pick `Install gknas`, and it installs on its own and
    powers off ({doc}`/how-to/nas-ubuntu-zfs`, step 1). Remove the stick,
    power on, and configure the OS from the container (step 2 there; the
@@ -412,7 +421,8 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
 2. Put the data disks in, read their ids
    (`ls -l /dev/disk/by-id/ | grep -v -- -part` on the NAS), set
    `nas_pool_disks` on the branch, then create the pool and everything on
-   it. New disks are blank, so `nas_force` is not needed:
+   it (run `just check` before pushing, as for every push). New disks are
+   blank, so `nas_force` is not needed:
 
    ```bash
    ansible-playbook pb_nas.yml -e nas_create_pool=true
@@ -421,7 +431,8 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
    This makes the datasets, the cluster's directories with their owners
    ({doc}`/how-to/nas-setup`), the exports, snapshots and health checks.
 3. Add `Host nas` to `~/.ssh/config` (`HostName 192.168.1.3`,
-   `User ansible`), as the other restore pages use `ssh nas`.
+   `User ansible`, `HostKeyAlias gknas`: the `known_hosts` tag recorded the
+   key under that name), as the other restore pages use `ssh nas`.
 
 Put back the data that only lived on the NAS now, before the cluster
 starts. Pick the newest of each with `rclone lsf`.
@@ -474,7 +485,7 @@ jobs refill `backups/`.
 
 ### 7. The cluster
 
-Install the cluster box from the stick: boot it in UEFI mode, pick
+Install the cluster box from the {doc}`install stick </how-to/install-stick>`: boot it in UEFI mode, pick
 `Install nuc2`, and it installs on its own and powers off. The install
 made the `ansible` account with the key from the kit, so
 `pb_add_nodes.yml` is not needed. Remove the stick, power on, and build
@@ -493,7 +504,7 @@ The sealing keys can come back in two ways:
 | | A: restore the old keys | B: reseal everything fresh |
 |---|---|---|
 | Needs | `/dev/shm/keys.yaml` from step 3 | `.env`, from the kit's appendix, plus the B2 key's config |
-| Git | Nothing to commit but one Dex secret | Every SealedSecret is resealed and committed |
+| Git | Nothing to commit but one stale Dex secret | Every SealedSecret is resealed and committed |
 | Tokens held outside (scrap MCP, ntfy, the Drive consent, the B2 key) | Kept as they are now | Kept as they were when the kit was printed |
 | How well trodden | Never run end to end: `just unseal-check` proves the keys offline | `/rebuild-cluster` runs it every time |
 
@@ -503,20 +514,25 @@ Use A. Fall back to B if A fails.
 so it uses them and makes none of its own, then run the `cluster` stage:
 
 ```bash
-kubectl apply -f /dev/shm/keys.yaml
+yq 'del(.items[].metadata.resourceVersion, .items[].metadata.uid,
+        .items[].metadata.creationTimestamp)' /dev/shm/keys.yaml |
+    kubectl apply -f -
 ansible-playbook pb_all.yml --tags cluster -e repo_branch=$(git branch --show-current)
-just claude-ssh-bootstrap       # the Claude sandbox's key on the node
 just set-admin-password
 ```
+
+The export is a `kubectl get -o yaml` list, so `yq` drops the fields the
+API server refuses on a create.
 
 If the controller made a key of its own anyway, it seals new secrets with
 that one, and the restored keys still decrypt the SealedSecrets in Git
 ({ref}`sealed-secrets-key-backup`). `admin-auth` is not in Git, so
 `set-admin-password` makes it again. One
-SealedSecret is expected to be wrong: `argocd-dex-secret` holds a client
-secret derived from the old ArgoCD's `server.secretkey`, and the new
-ArgoCD has a new one, so signing in to ArgoCD fails with `invalid_client`.
-Re-derive it, commit, push, then restart Dex once ArgoCD has synced:
+SealedSecret is stale: `argocd-dex-secret`'s `argo-cd.clientSecret` is
+derived from the old ArgoCD's `server.secretkey`. Sign-in still works, as
+the `cluster` role writes the value derived from the new key straight into
+ArgoCD's and Dex's config, but Git should match. Re-derive it, run
+`just check`, commit, push, then restart Dex once ArgoCD has synced:
 
 ```bash
 just seal-argocd-dex argocd
@@ -527,8 +543,8 @@ just argocd-sync && just restart-dex
 
 **B: reseal fresh.** Make `.env` from the kit's appendix, as the kit
 says (scan the QR codes into `creds.age`, decrypt it, and turn the JSON
-into `.env` with `jq`; delete it once the rebuild is verified). The appendix has no B2 key, so add
-it from Git with the sealing keys:
+into `.env` with `jq`; delete it once the rebuild is verified). If the appendix has no B2 key,
+add it from Git with the sealing keys:
 
 ```bash
 printf 'OFFSITE_BACKUP_B2_RCLONE_CONF_B64=%s\n' "$(KUBECONFIG=/nonexistent kubeseal \
@@ -548,7 +564,14 @@ GENERATE_SECRETS=true ansible-playbook pb_all.yml --tags cluster \
     -e repo_branch=$(git branch --show-current)
 ```
 
-Either way, check the result as in {doc}`/tutorials/build-the-cluster`,
+Either way, give the Claude sandbox its key on the node:
+`just claude-ssh-bootstrap` ({doc}`/how-to/claude-code`). It reaches only
+the cluster's nodes, and the stick was built without a Claude key, so add
+the key to the NAS by hand if Claude is to reach it:
+`ssh nas 'cat >>~/.ssh/authorized_keys' </root/.config/claude-ssh/id_ed25519.pub`
+from the container.
+
+Then check the result as in {doc}`/tutorials/build-the-cluster`,
 "Verify": `just status`, `kubectl get sealedsecrets -A` (every one
 `True`), `kubectl get certificate -A` (a new wildcard certificate from
 Let's Encrypt in a few minutes), `kubectl get pv` (all `Bound`).
@@ -572,8 +595,8 @@ with the restored tunnel token. Check from outside the house that
 
 The OpenTofu state is needed only to change the edge. Restore it into the
 laptop's main checkout from `backups/config/cloudflare/` (decrypt it with
-the age key; the state itself is also encrypted, with the passphrase from
-the password manager), then expect `just cf-plan` to show no changes. If
+the age key; the state itself is also encrypted, with the OpenTofu state passphrase
+from the kit; `live.auto.tfvars` is beside it), then expect `just cf-plan` to show no changes. If
 there is no copy, re-import ({doc}`/how-to/cloudflare-as-code`, steps 3
 and 4); that apply rotates the tunnel token, so finish with
 {ref}`the rotation steps <cf-rotate-tunnel-token>`.
@@ -640,8 +663,10 @@ started before that, restart it:
 
    With the cluster up, both read rclone's config from the cluster.
 
-   The off-site jobs add only. While the cluster was down nothing pruned
-   the off-site copies, and each keeps the 4 newest of every series.
+   While the cluster was down nothing pruned the off-site copies. Now it
+   runs again: a file whose source is gone from the NAS is deleted once it
+   was uploaded over 180 days ago (`prune_days`), but never the 4 newest of
+   its series (`keep_min`), so the older copies thin out from here on.
 2. Path B made a new sealing key: make a new offline copy of it
    ({ref}`sealed-secrets-key-backup`). Either way, make new recovery
    codes for any account whose codes were used, then regenerate and
