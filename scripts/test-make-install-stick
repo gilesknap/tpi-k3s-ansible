@@ -20,6 +20,9 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-make-install-stick.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
+# The guard writes its refusals to the console for the installer's operator:
+# send them nowhere, or they land on the terminal running this test.
+export INSTALL_CONSOLE=/dev/null
 fail=0
 ok() { echo "ok $*"; }
 bad() {
