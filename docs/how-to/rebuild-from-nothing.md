@@ -28,9 +28,9 @@ and {doc}`/how-to/backup-restore`.
 |------|-------------|-------------------|
 | Configuration: roles, manifests, SealedSecrets | GitHub | Everything |
 | Sealing keys | B2 and Drive, `backups/etcd/sealed-secrets-keys/` | Restored, so the SealedSecrets in Git decrypt |
-| scrap | B2 and Drive, `backups/scrap/` | Up to a day lost (the nightly run at 00:30) |
-| Grafana dashboards and settings | B2 and Drive, `backups/grafana/` | Up to a day lost |
-| Jellyfin database and config | B2 and Drive, `backups/jellyfin/` | Up to a day lost; metadata and subtitles are rebuilt by a library scan |
+| scrap | B2 and Drive, `backups/scrap/` | Up to about 29 hours lost: the 00:30 run reaches Drive at 05:30 and B2 at 05:45 |
+| Grafana dashboards and settings | B2 and Drive, `backups/grafana/` | Up to about 29 hours lost, as scrap |
+| Jellyfin database and config | B2 and Drive, `backups/jellyfin/` | Up to about 28 hours lost: its run is at 01:45; metadata and subtitles are rebuilt by a library scan |
 | Minecraft store, worlds and deleted worlds | Drive only, `minecraft/nightly/` | Up to a day lost |
 | Minecraft world archive | Drive only, `minecraft/archive/` | Everything |
 | etcd snapshot | B2 and Drive, `backups/etcd/` | Not needed: see {ref}`dr-etcd` |
@@ -106,7 +106,9 @@ These are open, not fixed. Each is a question for the owner.
   `just export-external-creds` writes `OFFSITE_BACKUP_B2_RCLONE_CONF_B64` to
   `.env`, but check the printed appendix has it. Without it, a fresh
   reseal (step 7, path B) needs it added from Git with the sealing keys,
-  or a new key sealed afterwards with `just seal-b2-offsite`.
+  or a new key sealed afterwards with `just seal-b2-offsite`. And if
+  Drive is lost as well, nothing in the kit reads B2: the sealing keys
+  that open the key in Git are themselves off-site.
 - **Google's backup codes may be missing.** The kit has a field for them;
   check it is filled in on the printed copy, not "(not recorded)". The
   same goes for every other field.
@@ -303,7 +305,22 @@ Do this before buying anything: it proves the backups can be read.
    the newest `sealed-secrets-keys-<UTC time>.yaml.age`. The browser saves
    it on the laptop, which the container cannot see: move it into the
    clone's gitignored `build/` folder. It is encrypted, so it may sit on
-   disk. Check that it opens every SealedSecret in Git:
+   disk.
+
+   If Drive is gone too, take the same file from B2 with the B2 key from
+   the kit's appendix ({ref}`dr-gaps`): make `.env` from the appendix as
+   in step 7, path B, then:
+
+   ```bash
+   (umask 077; grep '^OFFSITE_BACKUP_B2_RCLONE_CONF_B64=' .env | cut -d= -f2- |
+       base64 -d >/dev/shm/rclone.conf)
+   rclone --config /dev/shm/rclone.conf ls \
+       b2:gk-cluster-offsite/backups/etcd/sealed-secrets-keys/
+   rclone --config /dev/shm/rclone.conf copy \
+       b2:gk-cluster-offsite/backups/etcd/sealed-secrets-keys/sealed-secrets-keys-<time>.yaml.age build/
+   ```
+
+   Check that it opens every SealedSecret in Git:
 
    ```bash
    just unseal-check --keys build/sealed-secrets-keys-<time>.yaml.age \
@@ -634,8 +651,10 @@ it through Git, run the staged restore from the run unpacked in step 6
 pause. Pages written after that run are lost.
 
 **Grafana.** Grafana's volume is new and empty. Restore the newest daily
-tarball the same way as {doc}`/how-to/backup-restore`, "Restore — Grafana
-sqlite": stop it through Git, then put `grafana.db` on the volume. On the
+tarball from before the loss, by its `<date>_<HHMM>` name: once the
+cluster runs, its own nightly backups of the empty volume reach the
+off-site copies too. Restore it the same way as
+{doc}`/how-to/backup-restore`, "Restore — Grafana sqlite": stop it through Git, then put `grafana.db` on the volume. On the
 single node the volume is `/home/k8s-data/grafana`, so with Grafana stopped
 the restore pod can be replaced by:
 
@@ -649,8 +668,8 @@ rclone --config /dev/shm/rclone.conf cat b2:gk-cluster-offsite/backups/grafana/<
 ```
 
 **Jellyfin.** Follow {doc}`/how-to/jellyfin`, "Restore from a backup":
-`enable_jellyfin: false`, unpack the newest daily tarball over
-`/home/k8s-data/jellyfin` as uid 122, then turn it back on. The new box
+`enable_jellyfin: false`, unpack the newest daily tarball from before
+the loss (as for Grafana) over `/home/k8s-data/jellyfin` as uid 122, then turn it back on. The new box
 may have no `jellyfin` account, so use numbers:
 
 ```bash
