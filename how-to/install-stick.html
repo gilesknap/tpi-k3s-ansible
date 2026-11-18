@@ -468,7 +468,7 @@ build warns and leaves the host out.</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gknas</span></code></p></td>
 <td><p>server</p></td>
-<td><p>256 GB NVMe in a JMicron USB enclosure. Serial <code class="docutils literal notranslate"><span class="pre">DD564198838AA</span></code> and model <code class="docutils literal notranslate"><span class="pre">Tech</span></code> are the enclosure’s.</p></td>
+<td><p>Fanxiang S500Pro 256GB NVMe in the PCIe slot, serial <code class="docutils literal notranslate"><span class="pre">26100800643000458</span></code></p></td>
 <td><p>The DOM (QTS), the data SSDs, the LaCie</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc1</span></code></p></td>
@@ -484,10 +484,11 @@ build warns and leaves the host out.</p>
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s serial and model belong to the USB enclosure, not to the NVMe
-inside it. The NVMe’s own serial, <code class="docutils literal notranslate"><span class="pre">26100800643000458</span></code>, shows only through
-<code class="docutils literal notranslate"><span class="pre">smartctl</span> <span class="pre">-d</span> <span class="pre">sntjmicron</span> <span class="pre">-i</span></code>. Any drive in that enclosure would match, so
-the MAC check is what keeps <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s entry to <code class="docutils literal notranslate"><span class="pre">gknas</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s NVMe used to sit in a JMicron USB enclosure, which reported its
+own serial (<code class="docutils literal notranslate"><span class="pre">DD564198838AA</span></code>) and model (<code class="docutils literal notranslate"><span class="pre">Tech</span></code>) in place of the NVMe’s.
+Put back in that enclosure, the NVMe would not match <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s entry: the
+install would refuse, and the entry would need the enclosure’s serial and
+model again.</p>
 <p>Every install:</p>
 <ul class="simple">
 <li><p>refuses to start, before it touches any disk, unless:</p>
@@ -564,8 +565,9 @@ Without <code class="docutils literal notranslate"><span class="pre">--write</sp
 <h2>Check a new stick in a VM<a class="headerlink" href="#check-a-new-stick-in-a-vm" title="Link to this heading">#</a></h2>
 <p>Before you rely on a rebuilt stick, boot its ISO once in QEMU on <code class="docutils literal notranslate"><span class="pre">ws03</span></code>.
 This confirms that the menu, the seed and the guard work. The VM gets a
-disk with <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s serial and model, a decoy disk, and a network port with
-<code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s MAC (it needs <code class="docutils literal notranslate"><span class="pre">qemu-system-x86</span></code> and <code class="docutils literal notranslate"><span class="pre">ovmf</span></code>):</p>
+disk with <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s serial and model (a SATA disk: QEMU cannot set an
+NVMe’s model), a decoy disk, and a network port with <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s MAC (it
+needs <code class="docutils literal notranslate"><span class="pre">qemu-system-x86</span></code> and <code class="docutils literal notranslate"><span class="pre">ovmf</span></code>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>build/install-stick
 truncate<span class="w"> </span>-s<span class="w"> </span>20G<span class="w"> </span>os.img<span class="w"> </span>decoy.img
 cp<span class="w"> </span>/usr/share/OVMF/OVMF_VARS_4M.fd<span class="w"> </span>vars.fd
@@ -575,7 +577,7 @@ qemu-system-x86_64<span class="w"> </span>-enable-kvm<span class="w"> </span>-ma
 <span class="w">  </span>-cdrom<span class="w"> </span>install-stick.iso<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-device<span class="w"> </span>virtio-scsi-pci<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-drive<span class="w"> </span><span class="k">if</span><span class="o">=</span>none,id<span class="o">=</span>os,file<span class="o">=</span>os.img,format<span class="o">=</span>raw<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-device<span class="w"> </span>scsi-hd,drive<span class="o">=</span>os,serial<span class="o">=</span>DD564198838AA,product<span class="o">=</span>Tech<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-device<span class="w"> </span><span class="s1">&#39;ide-hd,drive=os,bus=ide.0,serial=26100800643000458,model=Fanxiang S500Pro 256GB&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-drive<span class="w"> </span><span class="k">if</span><span class="o">=</span>none,id<span class="o">=</span>decoy,file<span class="o">=</span>decoy.img,format<span class="o">=</span>raw<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-device<span class="w"> </span>scsi-hd,drive<span class="o">=</span>decoy,serial<span class="o">=</span>DECOY0000001,product<span class="o">=</span>Decoy<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-nic<span class="w"> </span>user,model<span class="o">=</span>virtio-net-pci,mac<span class="o">=</span><span class="m">24</span>:5e:be:47:a3:05
@@ -642,7 +644,8 @@ reinstall it from its own entry.</p>
 </pre></div>
 </div>
 <p>A disk in a USB enclosure may report the enclosure’s serial, as
-<code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s does. The MACs still pin the entry to the machine.</p>
+<code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s NVMe did in its old enclosure: any drive in that enclosure
+would match, so only the MACs pin the entry to the machine.</p>
 </li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>. Its <code class="docutils literal notranslate"><span class="pre">scripts/test-make-install-stick</span></code> renders every
 host’s install from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and checks it.</p></li>

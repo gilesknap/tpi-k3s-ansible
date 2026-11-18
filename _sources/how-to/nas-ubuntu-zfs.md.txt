@@ -16,7 +16,7 @@ Its notes on QTS describe the move from it.
 
 | Disk | Where | Holds |
 |------|-------|-------|
-| Fanxiang 256 GB NVMe, in a JMicron USB enclosure on the rear blue (USB 3) port | The OS disk, for now: it is to move to an x4 PCIe adapter (the same disk, so no reinstall; only the boot order changes) | Ubuntu Server |
+| Fanxiang S500Pro 256 GB NVMe, on an x4 PCIe adapter (`nvme0n1`) | The OS disk | Ubuntu Server |
 | Two Samsung 870 QVO 4 TB SSDs, in the bays | ZFS pool `tank`, a mirror | Everything the NAS serves |
 | LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk: **not yet created**, as the LaCie still holds the migration's tar copies | A nightly copy of every dataset of `tank`, once the pool exists |
 | The internal DOM | Not used | QTS's firmware (still there: see the migration's back-out) |
@@ -96,7 +96,7 @@ Two things follow from moving NAS:
 
 ## Build the NAS from bare metal
 
-You need: the NAS, a USB stick, the OS NVMe in its enclosure and the
+You need: the NAS, a USB stick, the OS NVMe on its PCIe adapter and the
 devcontainer on `ws03`.
 
 ### 1. Install Ubuntu
@@ -107,10 +107,10 @@ The install runs on its own once you pick the install stick's
 - hostname `gknas`, DHCP (the router reserves 192.168.1.3 for it);
 - the `ansible` account with passwordless sudo, no password, and the keys in
   `pub_keys/ansible_rsa.pub` plus the Claude sandbox's key;
-- the whole of the disk with serial `DD564198838AA` as the OS disk. That
-  serial and the model `Tech` are the JMicron USB enclosure's, not the
-  NVMe's. The install refuses unless exactly one disk has that serial and
-  one of the NAS's ports has its MAC (`enp3s0` or `enp2s0`).
+- the whole of the disk with serial `26100800643000458` (model
+  `Fanxiang S500Pro 256GB`) as the OS disk. The install refuses unless
+  exactly one disk has that serial and model and one of the NAS's ports
+  has its MAC (`enp3s0` or `enp2s0`).
 
 `nas_os` installs the NAS's packages (ZFS, smartmontools and the rest) in
 step 2.
@@ -124,11 +124,10 @@ port is USB 3. The firmware setup opens with **Del** at power-on.
 1. Power the NAS off. Pull both drive trays and unplug the LaCie. The
    guard would refuse to install onto them, but with them out no mistake
    can reach them.
-2. Plug the NVMe enclosure into the rear blue (USB 3) port and the install
-   stick into another, power on, and boot the stick in **UEFI** mode (its
-   `UEFI:` entry in the boot menu). Booted the legacy way, it shows no host
-   entries. Pick `Install gknas`: the install runs on its own and powers
-   off.
+2. Plug the install stick into a USB port, power on, and boot the stick
+   in **UEFI** mode (its `UEFI:` entry in the boot menu). Booted the
+   legacy way, it shows no host entries. Pick `Install gknas`: the
+   install runs on its own and powers off.
 3. Remove the stick and power on. In the firmware setup, put the NVMe's
    UEFI entry first in the boot order, before the DOM (QTS).
 
@@ -249,14 +248,15 @@ longer than `NasDown` should report.
   (Ubuntu's own cron scrub is turned off per pool with the
   `org.debian:periodic-scrub=disable` property).
 - **SMART**: smartd watches every disk, with a short self-test daily and a
-  long one on Saturdays: the SSDs as plain SATA, and the two USB disks
-  through entries the role adds to `/etc/smart_drivedb.h`, by USB ID. The OS
-  disk's JMicron enclosure (152d:0562) is an NVMe bridge (`-d sntjmicron`),
-  which smartmontools' own database takes for a SATA bridge; the LaCie
-  (059f:1106) is a SATA disk behind a SAT bridge (`-d sat`), which it does
-  not know at all. smartd scans for disks when it starts, so a disk plugged
-  in later is watched from its next restart. By hand:
-  `sudo smartctl -a -d sntjmicron /dev/disk/by-id/usb-JMicron_Tech_DD564198838AA-0:0`.
+  long one on Saturdays: the SSDs as plain SATA, the OS disk as NVMe, and
+  the LaCie through an entry the role adds to `/etc/smart_drivedb.h`, by
+  USB ID. The LaCie (059f:1106) is a SATA disk behind a SAT bridge
+  (`-d sat`), which smartmontools' own database does not know at all. The
+  file also has an entry for the OS NVMe's old JMicron USB enclosure
+  (152d:0562), an NVMe bridge (`-d sntjmicron`) that the database takes for
+  a SATA bridge, in case the NVMe goes back in it. smartd scans for disks
+  when it starts, so a disk plugged in later is watched from its next
+  restart. By hand: `sudo smartctl -a /dev/nvme0n1`.
 - **The power button** ignores a short press, so knocking it no longer shuts
   the NAS down (`power_key_ignore: true` on `gknas` in `hosts.yml`; a logind
   drop-in, `/etc/systemd/logind.conf.d/90-power-key.conf`). To shut it down
@@ -317,9 +317,9 @@ out for good, take it out of `nas_hold_datasets`.
 node-exporter runs on the NAS on port 9100, with its ZFS collector (pool
 states), the `smartmon` collector, and three textfile metrics files the role
 adds (below). The packaged `smartmon.sh` stops at the first disk type it does not
-know, and the OS disk's `sntjmicron` comes first, so on its own it reported
-only that disk; the role runs an edited copy, `/usr/local/sbin/nas-smartmon`,
-that reports every disk (`smartmon_device_smart_healthy` for each). The
+know, and the OS disk's `sntjmicron` came first while it was in its USB
+enclosure, so on its own it reported only that disk; the role runs an
+edited copy, `/usr/local/sbin/nas-smartmon`, that reports every disk (`smartmon_device_smart_healthy` for each). The
 role's own files are `nas_zpool.prom` (every 5 minutes: each pool's size
 and allocated bytes from `zpool list`, its error counts, and its last
 finished scrub, kept through a resilver or a scrub in progress),
