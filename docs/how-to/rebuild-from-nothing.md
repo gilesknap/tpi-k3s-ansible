@@ -183,10 +183,14 @@ The edits, made on a branch (step 5):
   `k3s.etcd_metrics_endpoints: [192.168.1.92]`. `minecraft.worlds.node` and
   the `minecraft` relay forward already name `nuc2` and .92.
 - `roles/nas/defaults/main.yml`: `nas_pool_disks`, `nas_netplan_ethernets`,
-  `nas_qnap_ec_driver: false` (unless it is a QNAP again), and
-  `nas_backup_pool_disks: []` until there is a backup disk. Leave
+  `nas_qnap_ec_driver: false` (unless it is a QNAP again); leave
+  `nas_backup_pool_disks` empty until there is a backup disk. Leave
   `nas_nfs_clients` and `nas_nfs_exports` alone: they name `nuc2` at .92,
   and the entries for the missing hosts admit nobody.
+- The defaults that keep in step with these for a standalone
+  `helm template`: `node` and `path` in
+  `kubernetes-services/additions/local-storage/values.yaml` and
+  `kubernetes-services/additions/backups/values.yaml`.
 
 (dr-single-box)=
 ### Why not one box
@@ -198,7 +202,7 @@ changing the roles, on purpose. The blockers:
    `nas` and not in `all_nodes`.
 2. **`just check` refuses.** `scripts/check-no-destroy` fails if any
    cluster playbook (every `pb_*.yml` but `pb_nas.yml`) targets a host of
-   the `nas` group, and every one of them targets `all_nodes`.
+   the `nas` group, and each of them targets cluster nodes.
 3. **That guard is there for a reason.** `pb_decommission.yml` would run on
    the NAS: it uninstalls K3s, removes `/var/lib/rancher` and
    `/var/lib/kubelet`, and with `wipe_local_data=true` deletes the local
@@ -323,6 +327,7 @@ Do this before buying anything: it proves the backups can be read.
            --recovery-private-key /dev/shm/keys.yaml -o json \
            < kubernetes-services/additions/backups/templates/$s-secret.yaml |
        jq -r '.data["rclone.conf"]' | base64 -d
+       echo
    done | (umask 077; cat >/dev/shm/rclone.conf)
    rclone --config /dev/shm/rclone.conf listremotes   # drive: and b2:
    ```
@@ -340,8 +345,8 @@ Do this before buying anything: it proves the backups can be read.
        --rclone-config /dev/shm/rclone.conf --identity /dev/shm/age.key
    ```
 
-`/dev/shm` empties on a reboot. Repeat these steps whenever the laptop
-restarts.
+`/dev/shm` here is the container's own, so it empties whenever the
+container or the laptop restarts. Repeat these steps then.
 
 ### 4. Buy the hardware
 
@@ -393,10 +398,15 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
    `gknas` and `nuc2`, and the NAS's MACs in `nas_netplan_ethernets`
    (`roles/nas/defaults/main.yml`) too.
    The NAS's pool disk ids are read on the NAS once it runs (step 6).
-5. Update `scripts/test-make-install-stick` to match: it requires
-   `gknas`, `nuc1` and `nuc2` to have `install_profile` (drop `nuc1`),
-   and its guard cases use the old machines' serials and MACs (put in the
-   new ones). Then run `just check` (the test renders each host's install
+5. Update `scripts/test-make-install-stick` to match, or every
+   `just check` fails. It requires `gknas`, `nuc1` and `nuc2` to have
+   `install_profile`: drop `nuc1`. Its `guard_case` fixtures hold the old
+   machines' disks and MACs: delete the `nuc1` cases (and the `nuc2` case
+   that uses `nuc1`'s MAC, or give it another MAC), and in the `gknas` and
+   `nuc2` cases put the new MACs (`nas_mac` and the `nuc2` lines) and the
+   new OS disk's serial, udev `ID_SERIAL` (as
+   `udevadm info -q property -n <disk> | grep ID_SERIAL=` shows it) and
+   model. Then run `just check` (the test renders each host's install
    from `hosts.yml` and checks it), commit, and push the branch: ArgoCD
    will track it.
 6. Add the DHCP leases for the new MACs on the router (step 4).
@@ -430,9 +440,10 @@ OpenWrt, `just k3s-api-dns 192.168.1.92` adds the last one later.
 
    This makes the datasets, the cluster's directories with their owners
    ({doc}`/how-to/nas-setup`), the exports, snapshots and health checks.
-3. Add `Host nas` to `~/.ssh/config` (`HostName 192.168.1.3`,
-   `User ansible`, `HostKeyAlias gknas`: the `known_hosts` tag recorded the
-   key under that name), as the other restore pages use `ssh nas`.
+3. Add `Host nas` to the container's `~/.ssh/config`
+   (`HostName 192.168.1.3`, `User ansible`, `HostKeyAlias gknas`: the
+   `known_hosts` tag recorded the key under that name), as the other restore pages use `ssh nas`. A rebuilt container loses
+   it: add it again then.
 
 Put back the data that only lived on the NAS now, before the cluster
 starts. Pick the newest of each with `rclone lsf`.
@@ -514,15 +525,18 @@ Use A. Fall back to B if A fails.
 so it uses them and makes none of its own, then run the `cluster` stage:
 
 ```bash
-yq 'del(.items[].metadata.resourceVersion, .items[].metadata.uid,
+yq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp,
+        .items[].metadata.resourceVersion, .items[].metadata.uid,
         .items[].metadata.creationTimestamp)' /dev/shm/keys.yaml |
     kubectl apply -f -
 ansible-playbook pb_all.yml --tags cluster -e repo_branch=$(git branch --show-current)
 just set-admin-password
 ```
 
-The export is a `kubectl get -o yaml` list, so `yq` drops the fields the
-API server refuses on a create.
+The export is `kubectl get -o yaml` output (one Secret, or a List of
+several), so `yq` drops the fields the API server refuses on a create.
+When `set-admin-password` asks, give the admin password from the kit's
+appendix, or a new one.
 
 If the controller made a key of its own anyway, it seals new secrets with
 that one, and the restored keys still decrypt the SealedSecrets in Git
@@ -542,7 +556,7 @@ just argocd-sync && just restart-dex
 ```
 
 **B: reseal fresh.** Make `.env` from the kit's appendix, as the kit
-says (scan the QR codes into `creds.age`, decrypt it, and turn the JSON
+says (scan the QR codes into `build/creds.age`, decrypt it, and turn the JSON
 into `.env` with `jq`; delete it once the rebuild is verified). If the appendix has no B2 key,
 add it from Git with the sealing keys:
 
@@ -574,7 +588,9 @@ from the container.
 Then check the result as in {doc}`/tutorials/build-the-cluster`,
 "Verify": `just status`, `kubectl get sealedsecrets -A` (every one
 `True`), `kubectl get certificate -A` (a new wildcard certificate from
-Let's Encrypt in a few minutes), `kubectl get pv` (all `Bound`).
+Let's Encrypt in a few minutes), `kubectl get pv` (all `Bound`). One
+`cloudflared` pod stays `Pending`: the two tunnel connectors must run on
+different nodes, and there is one. The other serves the tunnel.
 
 (dr-etcd)=
 #### The etcd bundle is not used
@@ -593,10 +609,12 @@ hostnames and Access are all at Cloudflare, and `cloudflared` connects
 with the restored tunnel token. Check from outside the house that
 <https://home.gkcluster.org> asks for a login.
 
-The OpenTofu state is needed only to change the edge. Restore it into the
-laptop's main checkout from `backups/config/cloudflare/` (decrypt it with
-the age key; the state itself is also encrypted, with the OpenTofu state passphrase
-from the kit; `live.auto.tfvars` is beside it), then expect `just cf-plan` to show no changes. If
+The OpenTofu state is needed only to change the edge. Restore the newest
+copy from `backups/config/cloudflare/` (decrypt it with the age key) to
+`cloudflare/terraform.tfstate`, with `live.auto.tfvars` beside it in
+`cloudflare/`. The state itself is also encrypted, with the OpenTofu state
+passphrase from the kit: put it in `cloudflare/.secrets/state-passphrase`
+({doc}`/how-to/cloudflare-as-code`, "State and its encryption key"). Then expect `just cf-plan` to show no changes. If
 there is no copy, re-import ({doc}`/how-to/cloudflare-as-code`, steps 3
 and 4); that apply rotates the tunnel token, so finish with
 {ref}`the rotation steps <cf-rotate-tunnel-token>`.
@@ -671,11 +689,14 @@ started before that, restart it:
    ({ref}`sealed-secrets-key-backup`). Either way, make new recovery
    codes for any account whose codes were used, then regenerate and
    reprint the paper kit.
-3. Open a pull request from the rebuild branch, merge it, and put ArgoCD
-   back on `main`: `just switch-branch main`.
+3. Open a pull request from the rebuild branch, tidy it with
+   `/pr-squash`, merge it with `gh pr merge --merge`, and put ArgoCD back
+   on `main`: `just switch-branch main`.
 4. Wipe the RAM copies: `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`.
-5. Write down what went wrong, and what took how long, in a GitHub issue,
-   and correct this page.
+5. Write down what went wrong, and what took how long, in a GitHub issue.
+   Correct this page, and update `CLAUDE.md` (its list of pinned local
+   PVs and the RK1 data paths) and every page that names the old nodes:
+   the docs describe this cluster.
 
 ## How long it takes
 
