@@ -1,0 +1,1860 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Rebuild from nothing &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}`;
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        all_mermaids.forEach((el) => {
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+        await mermaid.run();
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+const load = async () => {
+    initStyles();
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...JSON.parse(
+                    `{"startOnLoad": false}`
+                ),
+                ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...JSON.parse(
+        `{"startOnLoad": false}`
+    ),
+    ...{ darkMode: darkTheme, theme: darkTheme ? 'dark' : 'default' },
+    }
+);
+
+window.addEventListener("load", load);</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/rebuild-from-nothing';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Node operations" href="node-operations.html" />
+    <link rel="prev" title="Recover the control plane" href="recover-control-plane.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Rebuild from nothing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Rebuild from nothing</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="rebuild-from-nothing">
+<h1>Rebuild from nothing<a class="headerlink" href="#rebuild-from-nothing" title="Link to this heading">#</a></h1>
+<p>This runbook is for the worst case: the house and every machine in it are
+gone. The NAS, the Turing Pi, the NUCs and <code class="docutils literal notranslate"><span class="pre">ws03</span></code> are lost, and so is
+everything stored on them. What is left:</p>
+<ul class="simple">
+<li><p>the <strong>paper kit</strong> (printed; regenerated with the kit script kept outside
+Git): the age private key, the account recovery codes, the local
+passwords, the Ansible SSH key and the cluster’s external credentials
+(<a class="reference internal" href="#dr-paper-kit"><span class="std std-ref">The paper kit</span></a>);</p></li>
+<li><p><strong>a laptop</strong>;</p></li>
+<li><p><strong>GitHub</strong>: this repository, and with it every manifest, role and
+SealedSecret;</p></li>
+<li><p><strong>the off-site copies</strong>: Google Drive, folder <code class="docutils literal notranslate"><span class="pre">home-cluster-offsite</span></code>
+(<code class="docutils literal notranslate"><span class="pre">backups/</span></code> and the Minecraft nightly tarballs and archive), and the
+Backblaze B2 bucket <code class="docutils literal notranslate"><span class="pre">gk-cluster-offsite</span></code> (<code class="docutils literal notranslate"><span class="pre">backups/</span></code> only, each upload
+locked for 30 days).</p></li>
+</ul>
+<p>The plan is to buy new hardware, build the NAS, build a cluster, put back
+the sealing keys so the SealedSecrets in Git decrypt, then restore the data
+from B2 or Drive. The other recovery cases (one node, the control plane,
+the NAS alone, an attacker) are in <a class="reference internal" href="../explanations/architecture/backups.html"><span class="doc">Backups and disaster recovery</span></a>
+and <a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>.</p>
+<section id="what-comes-back-and-what-does-not">
+<h2>What comes back, and what does not<a class="headerlink" href="#what-comes-back-and-what-does-not" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Data</p></th>
+<th class="head"><p>Off site in</p></th>
+<th class="head"><p>After the rebuild</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Configuration: roles, manifests, SealedSecrets</p></td>
+<td><p>GitHub</p></td>
+<td><p>Everything</p></td>
+</tr>
+<tr class="row-odd"><td><p>Sealing keys</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys/</span></code></p></td>
+<td><p>Restored, so the SealedSecrets in Git decrypt</p></td>
+</tr>
+<tr class="row-even"><td><p>scrap</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/scrap/</span></code></p></td>
+<td><p>Up to about 29 hours lost: the 00:30 run reaches Drive at 05:30 and B2 at 05:45</p></td>
+</tr>
+<tr class="row-odd"><td><p>Grafana dashboards and settings</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/grafana/</span></code></p></td>
+<td><p>Up to about 29 hours lost, as scrap</p></td>
+</tr>
+<tr class="row-even"><td><p>Jellyfin database and config</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/jellyfin/</span></code></p></td>
+<td><p>Up to about 28 hours lost: its run is at 01:45; metadata and subtitles are rebuilt by a library scan</p></td>
+</tr>
+<tr class="row-odd"><td><p>Minecraft store, worlds and deleted worlds</p></td>
+<td><p>Drive only, <code class="docutils literal notranslate"><span class="pre">minecraft/nightly/</span></code></p></td>
+<td><p>Up to a day lost</p></td>
+</tr>
+<tr class="row-even"><td><p>Minecraft world archive</p></td>
+<td><p>Drive only, <code class="docutils literal notranslate"><span class="pre">minecraft/archive/</span></code></p></td>
+<td><p>Everything</p></td>
+</tr>
+<tr class="row-odd"><td><p>etcd snapshot</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code></p></td>
+<td><p>Not needed: see <a class="reference internal" href="#dr-etcd"><span class="std std-ref">The etcd bundle is not used</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Cloudflare OpenTofu state</p></td>
+<td><p>B2 and Drive, <code class="docutils literal notranslate"><span class="pre">backups/config/cloudflare/</span></code>, if it was copied there</p></td>
+<td><p>The newest copy; or re-import it</p></td>
+</tr>
+<tr class="row-odd"><td><p>The media library</p></td>
+<td><p>Nowhere: the owner’s choice</p></td>
+<td><p><strong>Lost</strong></p></td>
+</tr>
+<tr class="row-even"><td><p>The photo archive</p></td>
+<td><p>Its own copy on Drive, outside this cluster</p></td>
+<td><p>Restored by hand, outside this runbook</p></td>
+</tr>
+<tr class="row-odd"><td><p>Prometheus history</p></td>
+<td><p>Nowhere</p></td>
+<td><p><strong>Lost</strong>: history starts again</p></td>
+</tr>
+<tr class="row-even"><td><p>The OpenWrt router’s settings</p></td>
+<td><p>Nowhere</p></td>
+<td><p><strong>Lost</strong>: set up again by hand</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="before-a-disaster-what-must-be-off-site">
+<span id="dr-before"></span><h2>Before a disaster: what must be off site<a class="headerlink" href="#before-a-disaster-what-must-be-off-site" title="Link to this heading">#</a></h2>
+<section id="the-paper-kit">
+<span id="dr-paper-kit"></span><h3>The paper kit<a class="headerlink" href="#the-paper-kit" title="Link to this heading">#</a></h3>
+<p>The paper kit is a printed document, a few pages long. It is regenerated
+with the kit script, which is kept outside Git because it carries the
+encrypted credentials. It holds:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Part</p></th>
+<th class="head"><p>What is in it</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Page 1</p></td>
+<td><p>Where the printed copies are kept. The age private key, as text and as a QR code, and the public key it must match (<code class="docutils literal notranslate"><span class="pre">age-keygen</span> <span class="pre">-y</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Account recovery</p></td>
+<td><p>The Google address and its 2-step backup codes; the GitHub username and recovery codes; the Cloudflare login and recovery codes; the Tailscale login provider; the registrar for <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code> and its login; the Hostinger account (the VPS) and its 2FA recovery codes</p></td>
+</tr>
+<tr class="row-even"><td><p>Local passwords</p></td>
+<td><p>The OpenWrt router’s root password; the Turing Pi BMC password; the password manager’s name and master password; the OpenTofu state passphrase. (The QNAP passwords are obsolete since the NAS moved to Ubuntu)</p></td>
+</tr>
+<tr class="row-odd"><td><p>SSH access</p></td>
+<td><p>The private key Ansible uses (and its passphrase, if any), as QR codes and as text, with its fingerprint and public key</p></td>
+</tr>
+<tr class="row-even"><td><p>Appendix</p></td>
+<td><p>The cluster’s external credentials, age-encrypted to the same key, as QR codes. Decrypted, they are the values of <code class="docutils literal notranslate"><span class="pre">.env</span></code>: the GitHub OAuth apps, the Cloudflare API and tunnel tokens, the VPS relay’s, scrap’s and ntfy’s tokens, the admin password, the Drive rclone config and the Tailscale OAuth client. The appendix says how to turn them into <code class="docutils literal notranslate"><span class="pre">.env</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Rebuild notes</p></td>
+<td><p>The order of the work, and the network: hosts and addresses</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The appendix is a snapshot from the day it was generated (the date is
+printed on page 1). Regenerate and reprint the kit after any change to
+those credentials, or to the sealing key.</p>
+</section>
+<section id="check-it-and-the-off-site-copies">
+<h3>Check it, and the off-site copies<a class="headerlink" href="#check-it-and-the-off-site-copies" title="Link to this heading">#</a></h3>
+<p>Read the kit’s page 1 for where its copies are. At least one must be away
+from the house: a kit that burns with the house is no kit.</p>
+<p>Every few months, with the cluster up, check that the B2 copy restores
+with the age key on paper. Run the restore test against B2, and when it
+asks for the age private key, type it from the kit’s page 1 (not from a
+file on <code class="docutils literal notranslate"><span class="pre">ws03</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>restore-test<span class="w"> </span>--target<span class="w"> </span>b2
+</pre></div>
+</div>
+<p>It downloads and decrypts the newest backups and checks them, changing
+nothing (<a class="reference internal" href="backup-restore.html#offsite-restore-test"><span class="std std-ref">Test a restore</span></a>). A PASS proves both the B2 copy and
+the key on paper. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">unseal-check</span> <span class="pre">--target</span> <span class="pre">b2</span> <span class="pre">--all</span></code> proves, the same
+way, that the sealing keys in it open every SealedSecret in Git
+(<a class="reference internal" href="backup-restore.html#unseal-check"><span class="std std-ref">Check the keys open the SealedSecrets</span></a>).</p>
+<p>Check too that the Cloudflare state copy is current. It is copied by hand
+to the NAS after each <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> (<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>), and from
+there goes off site each night. Compare the newest date with the last
+apply:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/bigdisk/k8s-cluster/backups/config/cloudflare
+</pre></div>
+</div>
+</section>
+<section id="gaps">
+<span id="dr-gaps"></span><h3>Gaps<a class="headerlink" href="#gaps" title="Link to this heading">#</a></h3>
+<p>These are open, not fixed. Each is a question for the owner.</p>
+<ul class="simple">
+<li><p><strong>Backblaze is not in the kit.</strong> It has no Backblaze login or 2FA
+recovery codes. Without them the B2 copy can still be read through the
+job’s key (step 3 rebuilds it from Git), but not managed: no new
+read-only key, no web UI, nothing after an attack
+(<a class="reference internal" href="backup-restore.html#restore-after-attack"><span class="std std-ref">After an attacker wiped Drive and the NAS</span></a>).</p></li>
+<li><p><strong>The B2 key may be missing from the appendix.</strong>
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">export-external-creds</span></code> writes <code class="docutils literal notranslate"><span class="pre">OFFSITE_BACKUP_B2_RCLONE_CONF_B64</span></code> to
+<code class="docutils literal notranslate"><span class="pre">.env</span></code>, but check the printed appendix has it. Without it, a fresh
+reseal (step 7, path B) needs it added from Git with the sealing keys,
+or a new key sealed afterwards with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">seal-b2-offsite</span></code>. And if
+Drive is lost as well, nothing in the kit reads B2: the sealing keys
+that open the key in Git are themselves off-site.</p></li>
+<li><p><strong>Google’s backup codes may be missing.</strong> The kit has a field for them;
+check it is filled in on the printed copy, not “(not recorded)”. The
+same goes for every other field.</p></li>
+<li><p><strong>The router’s settings are not backed up.</strong> The kit has the router’s
+password, but nothing holds its configuration: the fixed DHCP leases
+(192.168.1.3 for the NAS, .82 to .92 for the nodes), the local DNS that
+resolves bare names (<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>) and <code class="docutils literal notranslate"><span class="pre">.lan</span></code> names, and the <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> record.
+The repository relies on all three; on a new router they are set up by
+hand (step 4).</p></li>
+<li><p><strong>Where the age key’s copies are.</strong> The docs say “offline, in two
+places”; the kit’s page 1 records where. Check that one is outside the
+house.</p></li>
+<li><p><strong>The QNAP rows are obsolete.</strong> The NAS now runs Ubuntu, with no
+passwords: drop them at the next reprint.</p></li>
+<li><p><strong>The Anthropic console login</strong> is not in the kit. The appendix has
+scrap’s API key, so it only matters to replace that key.</p></li>
+<li><p><strong>The devcontainer needs a Linux host</strong> with podman: it runs with
+<code class="docutils literal notranslate"><span class="pre">--net=host</span></code> and its <code class="docutils literal notranslate"><span class="pre">initializeCommand</span></code> calls <code class="docutils literal notranslate"><span class="pre">xhost</span></code>. A macOS or
+Windows laptop needs a Linux VM, or work on the devcontainer first.</p></li>
+<li><p><strong>The Minecraft data is on Drive only.</strong> Drive and the house together
+lose the worlds.</p></li>
+<li><p><strong>Restoring old sealing keys onto a fresh install has not been run end
+to end.</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">unseal-check</span></code> proves the keys open the SealedSecrets
+offline, and <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> reseals instead. Path A of step 7 is
+untried.</p></li>
+</ul>
+</section>
+</section>
+<section id="hardware">
+<h2>Hardware<a class="headerlink" href="#hardware" title="Link to this heading">#</a></h2>
+<section id="what-is-tied-to-the-old-hardware">
+<h3>What is tied to the old hardware<a class="headerlink" href="#what-is-tied-to-the-old-hardware" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Part</p></th>
+<th class="head"><p>Where in the repo</p></th>
+<th class="head"><p>On new hardware</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Turing Pi BMC and RK1 flashing</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">roles/flash</span></code>, <code class="docutils literal notranslate"><span class="pre">move_fs</span></code>, <code class="docutils literal notranslate"><span class="pre">rk1_os</span></code>; <code class="docutils literal notranslate"><span class="pre">turing_pis</span></code> and <code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+<td><p>Not needed for x86 boxes. Leave the groups empty: the <code class="docutils literal notranslate"><span class="pre">flash</span></code> play then has no hosts</p></td>
+</tr>
+<tr class="row-odd"><td><p>The QNAP embedded controller (fans)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver</span></code> in <code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code></p></td>
+<td><p>Set it to <code class="docutils literal notranslate"><span class="pre">false</span></code> on anything that is not a TS-253D</p></td>
+</tr>
+<tr class="row-even"><td><p>The NAS’s network ports</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code> (matched by MAC)</p></td>
+<td><p>Set the new MACs (the same as <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code>) <strong>before</strong> the first <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>: the role removes the installer’s netplan</p></td>
+</tr>
+<tr class="row-odd"><td><p>The NAS’s pool disks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code> (by <code class="docutils literal notranslate"><span class="pre">/dev/disk/by-id/</span></code>), <code class="docutils literal notranslate"><span class="pre">nas_backup_pool_disks</span></code></p></td>
+<td><p>Set the new disk ids (see the NAS’s step 3 in <a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p>Each x86 host’s OS disk and network ports</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code>, <code class="docutils literal notranslate"><span class="pre">install_disk_model</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>. <code class="docutils literal notranslate"><span class="pre">gknas</span></code>’s OS disk is the Fanxiang NVMe in its PCIe slot</p></td>
+<td><p>The install stick (<a class="reference internal" href="install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>) erases only the disk with that serial, on a machine with one of those MACs. Read the new ones with the stick’s <code class="docutils literal notranslate"><span class="pre">New</span> <span class="pre">hardware</span></code> entry and set them before building the stick (step 5). Give the NAS an internal OS disk: one in a USB enclosure reports the enclosure’s serial</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code>’s other disks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">install_ansible_uid</span></code> and <code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (its 870 QVO <code class="docutils literal notranslate"><span class="pre">/home</span></code> and the Crucial X6)</p></td>
+<td><p>Drop both: the <code class="docutils literal notranslate"><span class="pre">servers</span></code> tag would fail to mount disks that no longer exist</p></td>
+</tr>
+<tr class="row-even"><td><p>Intel iGPU for Jellyfin</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>; Jellyfin requests <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code>; <code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code></p></td>
+<td><p>Without an Intel iGPU the Jellyfin pod stays <code class="docutils literal notranslate"><span class="pre">Pending</span></code>: set <code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code>, or buy a box with one</p></td>
+</tr>
+<tr class="row-odd"><td><p>NVIDIA GPU</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code> on <code class="docutils literal notranslate"><span class="pre">ws03</span></code></p></td>
+<td><p>Not needed: only GPU and monitoring pods ran there</p></td>
+</tr>
+<tr class="row-even"><td><p>nuc2’s two NICs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code>, <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p>Drop both on a single-NIC box</p></td>
+</tr>
+<tr class="row-odd"><td><p>Fixed addresses</p></td>
+<td><p>DHCP leases on the router; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code>, <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code></p></td>
+<td><p>Keep the old addresses on the new router and almost nothing changes</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>, <code class="docutils literal notranslate"><span class="pre">dns_router</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>; <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span></code> assumes OpenWrt</p></td>
+<td><p>On another router, add the record by hand, or set <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the server’s IP</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="the-smallest-rebuild-two-x86-boxes">
+<h3>The smallest rebuild: two x86 boxes<a class="headerlink" href="#the-smallest-rebuild-two-x86-boxes" title="Link to this heading">#</a></h3>
+<p>Two boxes are enough. Give them the old names and addresses, and most of
+the configuration stays as it is:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Box</p></th>
+<th class="head"><p>Name and address</p></th>
+<th class="head"><p>What it needs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>The NAS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gknas</span></code>, 192.168.1.3</p></td>
+<td><p>Any x86 box that runs Ubuntu Server 26.04. A small OS disk, plus two data disks for the <code class="docutils literal notranslate"><span class="pre">tank</span></code> mirror. Without the media library, the data is the backups, scrap, and the Minecraft store and archive: tens of GB, so the size is set by what you want to add back later</p></td>
+</tr>
+<tr class="row-odd"><td><p>The cluster</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, 192.168.1.92</p></td>
+<td><p>An amd64 box with an NVMe and 32 GB or more. On 17 November 2026 the five nodes other than <code class="docutils literal notranslate"><span class="pre">ws03</span></code> used about 17.5 GiB together (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">top</span> <span class="pre">nodes</span></code>), with Minecraft worlds stopped. An Intel iGPU for Jellyfin’s transcoding</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The cluster is then one K3s server. The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role taints the control
+plane <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> only when there is more than one node, so a single
+server runs every workload.</p>
+<p>The edits, made on a branch (step 5):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: remove <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>, <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code>, <code class="docutils literal notranslate"><span class="pre">node04</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ws03</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, without <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> if it has one
+NIC, with <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code> only if it has an Intel iGPU, and
+without <code class="docutils literal notranslate"><span class="pre">install_ansible_uid</span></code> and <code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">gknas</span></code> in <code class="docutils literal notranslate"><span class="pre">nas</span></code>.
+On both, keep <code class="docutils literal notranslate"><span class="pre">install_profile:</span> <span class="pre">server</span></code>, and set <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code>,
+<code class="docutils literal notranslate"><span class="pre">install_disk_model</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> to the new machine’s
+(step 5).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">control_plane:</span> <span class="pre">nuc2</span></code>, <code class="docutils literal notranslate"><span class="pre">standby_control_plane:</span> <span class="pre">&quot;&quot;</span></code>.
+Move the <code class="docutils literal notranslate"><span class="pre">grafana</span></code> and <code class="docutils literal notranslate"><span class="pre">prometheus</span></code> entries of <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> to
+<code class="docutils literal notranslate"><span class="pre">node:</span> <span class="pre">nuc2</span></code>, with paths <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/grafana</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/prometheus</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>: the same two moves in <code class="docutils literal notranslate"><span class="pre">local_storage</span></code>
+(node and path must match <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code>), and
+<code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints:</span> <span class="pre">[192.168.1.92]</span></code>. <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.node</span></code> and
+the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> relay forward already name <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and .92.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code>,
+<code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver:</span> <span class="pre">false</span></code> (unless it is a QNAP again); leave
+<code class="docutils literal notranslate"><span class="pre">nas_backup_pool_disks</span></code> empty until there is a backup disk. Leave
+<code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code> and <code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code> alone: they name <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> at .92,
+and the entries for the missing hosts admit nobody.</p></li>
+<li><p>The defaults that keep in step with these for a standalone
+<code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">template</span></code>: <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/local-storage/values.yaml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/values.yaml</span></code>.</p></li>
+</ul>
+</section>
+<section id="why-not-one-box">
+<span id="dr-single-box"></span><h3>Why not one box<a class="headerlink" href="#why-not-one-box" title="Link to this heading">#</a></h3>
+<p>One x86 box running both <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> and K3s is not possible without
+changing the roles, on purpose. The blockers:</p>
+<ol class="arabic simple">
+<li><p><strong>The <code class="docutils literal notranslate"><span class="pre">nas</span></code> role refuses.</strong> Its first task asserts that the host is in
+<code class="docutils literal notranslate"><span class="pre">nas</span></code> and not in <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code>.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> refuses.</strong> <code class="docutils literal notranslate"><span class="pre">scripts/check-no-destroy</span></code> fails if any
+cluster playbook (every <code class="docutils literal notranslate"><span class="pre">pb_*.yml</span></code> but <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>) targets a host of
+the <code class="docutils literal notranslate"><span class="pre">nas</span></code> group, and each of them targets cluster nodes.</p></li>
+<li><p><strong>That guard is there for a reason.</strong> <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> would run on
+the NAS: it uninstalls K3s, removes <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/var/lib/kubelet</span></code>, and with <code class="docutils literal notranslate"><span class="pre">wipe_local_data=true</span></code> deletes the local
+data directories. Two inventory names for one address would get past
+both checks, and past their purpose with them.</p></li>
+<li><p><strong>The two roles fight over unattended-upgrades.</strong> Both <code class="docutils literal notranslate"><span class="pre">nas</span></code> and
+<code class="docutils literal notranslate"><span class="pre">update_packages</span></code> write <code class="docutils literal notranslate"><span class="pre">/etc/apt/apt.conf.d/20auto-upgrades</span></code>. The NAS
+is set never to reboot itself, while kured reboots every node in its
+nightly window.</p></li>
+<li><p><strong>Port 9100 clashes.</strong> The <code class="docutils literal notranslate"><span class="pre">nas</span></code> role installs Ubuntu’s
+<code class="docutils literal notranslate"><span class="pre">prometheus-node-exporter</span></code> on port 9100; the cluster’s node-exporter
+DaemonSet listens on the host’s port 9100 too.</p></li>
+<li><p><strong>NFS to itself.</strong> Every pod would mount 192.168.1.3 from the same
+kernel. Loopback NFS works, but can deadlock under memory pressure.</p></li>
+<li><p><strong>The OS settings are for a NAS.</strong> The journal is kept in RAM only, so
+K3s’s logs would be lost on every reboot.</p></li>
+<li><p><strong>The design loses a copy.</strong> The NAS is there to be a different machine
+from every node, and scrap’s off-NAS copy (<code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code>) would
+land on the same disks. Off site would be the only second copy.</p></li>
+</ol>
+<p>A way round that needs no role changes, untested: run the cluster node as
+a virtual machine on the NAS box, with its own address (.92). Ansible then
+sees two hosts and every guard holds. Jellyfin’s iGPU would need passing
+through to the VM, so plan to run it without hardware transcoding, or
+not at all.</p>
+</section>
+</section>
+<section id="the-rebuild-in-order">
+<h2>The rebuild, in order<a class="headerlink" href="#the-rebuild-in-order" title="Link to this heading">#</a></h2>
+<pre  class="mermaid">
+        flowchart LR
+    kit[&quot;1. The&lt;br/&gt;paper kit&quot;] --&gt; laptop[&quot;2. Laptop&lt;br/&gt;devcontainer&quot;]
+    laptop --&gt; keys[&quot;3. age key,&lt;br/&gt;sealing keys,&lt;br/&gt;rclone config&quot;]
+    keys --&gt; hw[&quot;4. Buy the&lt;br/&gt;hardware&quot;]
+    hw --&gt; cfg[&quot;5. Inventory and&lt;br/&gt;install stick&quot;]
+    cfg --&gt; nas[&quot;6. NAS&lt;br/&gt;pb_nas.yml&quot;]
+    nas --&gt; data1[&quot;Unpack scrap&lt;br/&gt;and Minecraft&lt;br/&gt;onto the NAS&quot;]
+    data1 --&gt; k3s[&quot;7. Cluster&lt;br/&gt;pb_all.yml&quot;]
+    k3s --&gt; edge[&quot;8. Edge&lt;br/&gt;and relay&quot;]
+    edge --&gt; data2[&quot;9. Restore scrap,&lt;br/&gt;Grafana, Jellyfin&quot;]
+    data2 --&gt; done[&quot;10. Back to main,&lt;br/&gt;backups running&quot;]
+    </pre><section id="get-the-paper-kit">
+<h3>1. Get the paper kit<a class="headerlink" href="#get-the-paper-kit" title="Link to this heading">#</a></h3>
+<p>Fetch a printed copy of the paper kit (<a class="reference internal" href="#dr-paper-kit"><span class="std std-ref">The paper kit</span></a>); its page 1
+says where the copies are. Recover the Google account first, with its
+backup codes: the Drive copy is in it. Then GitHub, and the others as they
+are needed. Cross out each recovery code as it is used.</p>
+</section>
+<section id="a-laptop-with-the-repository">
+<h3>2. A laptop with the repository<a class="headerlink" href="#a-laptop-with-the-repository" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Install a Linux desktop, podman, VS Code and the Dev Containers
+extension (with <code class="docutils literal notranslate"><span class="pre">dev.containers.dockerPath</span></code> set to <code class="docutils literal notranslate"><span class="pre">podman</span></code>), as in
+<a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>.</p></li>
+<li><p>Sign in to GitHub in the browser with the kit’s login, and clone the
+repository.</p></li>
+<li><p>Put the Ansible SSH key from the kit on the laptop: scan its QR codes
+in order into <code class="docutils literal notranslate"><span class="pre">~/.ssh/ansible_rsa</span></code>, as the kit says, then check its
+fingerprint against the one printed and load it into the laptop’s
+agent, before the container opens (it forwards the agent):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.ssh/ansible_rsa
+ssh-keygen<span class="w"> </span>-lf<span class="w"> </span>~/.ssh/ansible_rsa<span class="w">   </span><span class="c1"># the fingerprint in the kit</span>
+ssh-add<span class="w"> </span>~/.ssh/ansible_rsa
+</pre></div>
+</div>
+<p>Its public half is already <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code>, which the
+<a class="reference internal" href="install-stick.html"><span class="doc">install stick</span></a> puts on the machines.</p>
+</li>
+<li><p>Open the repository in its container (<strong>Reopen in Container</strong>). There,
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">setup</span></code> checks the forwarded agent and signs <code class="docutils literal notranslate"><span class="pre">gh</span></code> in. The Claude
+sandbox gets its own key once the node exists (step 7;
+<a class="reference internal" href="claude-code.html"><span class="doc">Set up and run Claude Code</span></a>).</p></li>
+</ol>
+<p>The container has <code class="docutils literal notranslate"><span class="pre">age</span></code>, <code class="docutils literal notranslate"><span class="pre">rclone</span></code>, <code class="docutils literal notranslate"><span class="pre">kubeseal</span></code>, <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">yq</span></code> and <code class="docutils literal notranslate"><span class="pre">jq</span></code>.</p>
+<p>The <a class="reference internal" href="install-stick.html"><span class="doc">install stick</span></a> is built on the laptop
+itself, in its clone, not in the container: the script needs the
+internet, <code class="docutils literal notranslate"><span class="pre">sudo</span></code> and the stick. Install what it needs there:
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">xorriso</span> <span class="pre">curl</span> <span class="pre">python3-yaml</span></code> (its “Build the stick” runs
+it on <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, which is gone).</p>
+</section>
+<section id="the-keys-and-a-way-to-read-the-off-site-copies">
+<h3>3. The keys, and a way to read the off-site copies<a class="headerlink" href="#the-keys-and-a-way-to-read-the-off-site-copies" title="Link to this heading">#</a></h3>
+<p>Do this before buying anything: it proves the backups can be read.</p>
+<ol class="arabic">
+<li><p><strong>The age key.</strong> Type it from the kit’s page 1 (or scan its QR code)
+into RAM, and check it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>&gt;/dev/shm/age.key<span class="o">)</span><span class="w">    </span><span class="c1"># type the key, then Ctrl-D</span>
+age-keygen<span class="w"> </span>-y<span class="w"> </span>/dev/shm/age.key<span class="w">        </span><span class="c1"># must equal etcd_backup_age_recipient</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>The sealing keys.</strong> In Google Drive’s web page (the Google account
+from step 1; the kit has no Backblaze login), open
+<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite/backups/etcd/sealed-secrets-keys/</span></code> and download
+the newest <code class="docutils literal notranslate"><span class="pre">sealed-secrets-keys-&lt;UTC</span> <span class="pre">time&gt;.yaml.age</span></code>. The browser saves
+it on the laptop, which the container cannot see: move it into the
+clone’s gitignored <code class="docutils literal notranslate"><span class="pre">build/</span></code> folder. It is encrypted, so it may sit on
+disk.</p>
+<p>If Drive is gone too, take the same file from B2 with the B2 key from
+the kit’s appendix (<a class="reference internal" href="#dr-gaps"><span class="std std-ref">Gaps</span></a>): make <code class="docutils literal notranslate"><span class="pre">.env</span></code> from the appendix as
+in step 7, path B, then:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;^OFFSITE_BACKUP_B2_RCLONE_CONF_B64=&#39;</span><span class="w"> </span>.env<span class="w"> </span><span class="p">|</span><span class="w"> </span>cut<span class="w"> </span>-d<span class="o">=</span><span class="w"> </span>-f2-<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>base64<span class="w"> </span>-d<span class="w"> </span>&gt;/dev/shm/rclone.conf<span class="o">)</span>
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>ls<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>b2:gk-cluster-offsite/backups/etcd/sealed-secrets-keys/
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>copy<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>b2:gk-cluster-offsite/backups/etcd/sealed-secrets-keys/sealed-secrets-keys-&lt;time&gt;.yaml.age<span class="w"> </span>build/
+</pre></div>
+</div>
+<p>Check that it opens every SealedSecret in Git:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>unseal-check<span class="w"> </span>--keys<span class="w"> </span>build/sealed-secrets-keys-&lt;time&gt;.yaml.age<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--identity<span class="w"> </span>/dev/shm/age.key<span class="w"> </span>--all
+</pre></div>
+</div>
+<p>Then decrypt it into RAM for later steps:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>build/sealed-secrets-keys-&lt;time&gt;.yaml.age<span class="w"> </span>&gt;/dev/shm/keys.yaml<span class="o">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>rclone’s config, from Git.</strong> The off-site jobs’ rclone configs are
+SealedSecrets in Git, and the keys open them. This needs no browser
+consent and no new key:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>s<span class="w"> </span><span class="k">in</span><span class="w"> </span>offsite-backup-rclone<span class="w"> </span>offsite-backup-b2<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="nv">KUBECONFIG</span><span class="o">=</span>/nonexistent<span class="w"> </span>kubeseal<span class="w"> </span>--recovery-unseal<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--recovery-private-key<span class="w"> </span>/dev/shm/keys.yaml<span class="w"> </span>-o<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>&lt;<span class="w"> </span>kubernetes-services/additions/backups/templates/<span class="nv">$s</span>-secret.yaml<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.data[&quot;rclone.conf&quot;]&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d
+<span class="w">    </span><span class="nb">echo</span>
+<span class="k">done</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>&gt;/dev/shm/rclone.conf<span class="o">)</span>
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>listremotes<span class="w">   </span><span class="c1"># drive: and b2:</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">b2</span></code> remote uses the job’s own key, which can write and hide
+files. After a fire that is fine. If an attack is possible, make a
+read-only key in the web UI instead (<a class="reference internal" href="backup-restore.html#offsite-b2-restore"><span class="std std-ref">Restore from B2</span></a>), and
+follow <a class="reference internal" href="backup-restore.html#restore-after-attack"><span class="std std-ref">After an attacker wiped Drive and the NAS</span></a>.</p>
+</li>
+<li><p><strong>Prove a restore.</strong> Both off-site copies, without the cluster:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>restore-test<span class="w"> </span>--target<span class="w"> </span>b2<span class="w"> </span>--rclone-config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+just<span class="w"> </span>restore-test<span class="w"> </span>--target<span class="w"> </span>drive<span class="w"> </span>--with-minecraft<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rclone-config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+</pre></div>
+</div>
+</li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">/dev/shm</span></code> here is the container’s own, so it empties whenever the
+container or the laptop restarts. Repeat these steps then.</p>
+</section>
+<section id="buy-the-hardware">
+<h3>4. Buy the hardware<a class="headerlink" href="#buy-the-hardware" title="Link to this heading">#</a></h3>
+<p>See <a class="reference internal" href="#the-smallest-rebuild-two-x86-boxes">the smallest rebuild</a>. Set the
+new router up: fixed DHCP leases by MAC (192.168.1.3 for the NAS,
+192.168.1.92 for the cluster node; the MACs are read in step 5, so add
+the leases then, before installing either machine), local DNS for bare names and <code class="docutils literal notranslate"><span class="pre">.lan</span></code>
+names (<code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> looks up <code class="docutils literal notranslate"><span class="pre">&lt;host&gt;.lan</span></code> and Ansible connects to bare
+<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and <code class="docutils literal notranslate"><span class="pre">gknas</span></code>), and a <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> record pointing at 192.168.1.92. On
+OpenWrt, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">192.168.1.92</span></code> adds the last one later.</p>
+</section>
+<section id="the-inventory-and-the-install-stick">
+<h3>5. The inventory and the install stick<a class="headerlink" href="#the-inventory-and-the-install-stick" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Branch, as nothing is committed to <code class="docutils literal notranslate"><span class="pre">main</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>rebuild-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>
+</pre></div>
+</div>
+</li>
+<li><p>Make the edits listed under
+<a class="reference internal" href="#the-smallest-rebuild-two-x86-boxes">the smallest rebuild</a>, all but
+the new disks and MACs (item 4).</p></li>
+<li><p>Read the new machines with the install stick
+(<a class="reference internal" href="install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>). Its host entries match only the old
+machines, so first build a stick just to read the new ones. On the
+laptop, outside the container, find the stick and write it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lsblk<span class="w"> </span>-o<span class="w"> </span>NAME,SIZE,MODEL,SERIAL,TRAN<span class="w">   </span><span class="c1"># the stick, e.g. /dev/sdb</span>
+scripts/make-install-stick<span class="w"> </span>--write<span class="w"> </span>/dev/sdb
+</pre></div>
+</div>
+<p>The laptop has no Claude sandbox key, so the script warns and puts only
+<code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> on the machines; <code class="docutils literal notranslate"><span class="pre">--claude-key</span> <span class="pre">FILE</span></code> adds
+one if there is. The menu has no default: nothing installs until an
+entry is picked. Boot each new machine from the stick in UEFI mode and
+pick <code class="docutils literal notranslate"><span class="pre">New</span> <span class="pre">hardware</span></code>, open a shell from the installer’s <strong>Help</strong> menu
+(<strong>Enter shell</strong>), and note the OS disk and the network ports:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lsblk<span class="w"> </span>-o<span class="w"> </span>NAME,SIZE,MODEL,SERIAL,TRAN
+cat<span class="w"> </span>/sys/class/net/*/address
+</pre></div>
+</div>
+<p>Then power off without installing. Never note a USB network dongle’s
+MAC.</p>
+</li>
+<li><p>Set them on the branch, in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code>,
+<code class="docutils literal notranslate"><span class="pre">install_disk_model</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> (lower case) for
+<code class="docutils literal notranslate"><span class="pre">gknas</span></code> and <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, and the NAS’s MACs in <code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code>
+(<code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>) too.
+The NAS’s pool disk ids are read on the NAS once it runs (step 6).</p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">scripts/test-make-install-stick</span></code> to match, or every
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> fails. It requires <code class="docutils literal notranslate"><span class="pre">gknas</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> and <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> to have
+<code class="docutils literal notranslate"><span class="pre">install_profile</span></code>: drop <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>. Its <code class="docutils literal notranslate"><span class="pre">guard_case</span></code> fixtures hold the old
+machines’ disks and MACs: delete the <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> cases (and the <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> case
+that uses <code class="docutils literal notranslate"><span class="pre">nuc1</span></code>’s MAC, or give it another MAC), and in the <code class="docutils literal notranslate"><span class="pre">gknas</span></code> and
+<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> cases put the new MACs (<code class="docutils literal notranslate"><span class="pre">nas_mac</span></code> and the <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> lines) and the
+new OS disk’s serial, udev <code class="docutils literal notranslate"><span class="pre">ID_SERIAL</span></code> (as
+<code class="docutils literal notranslate"><span class="pre">udevadm</span> <span class="pre">info</span> <span class="pre">-q</span> <span class="pre">property</span> <span class="pre">-n</span> <span class="pre">&lt;disk&gt;</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">ID_SERIAL=</span></code> shows it) and
+model. Then run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> (the test renders each host’s install
+from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and checks it), commit, and push the branch: ArgoCD
+will track it.</p></li>
+<li><p>Add the DHCP leases for the new MACs on the router (step 4).</p></li>
+<li><p>Build the <a class="reference internal" href="install-stick.html"><span class="doc">install stick</span></a> again, now with an <code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">gknas</span></code> and an
+<code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">nuc2</span></code> entry for the new machines:
+<code class="docutils literal notranslate"><span class="pre">scripts/make-install-stick</span> <span class="pre">--write</span> <span class="pre">/dev/sdb</span></code>.</p></li>
+</ol>
+</section>
+<section id="the-nas">
+<h3>6. The NAS<a class="headerlink" href="#the-nas" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Install Ubuntu from the <a class="reference internal" href="install-stick.html"><span class="doc">install stick</span></a>,
+with the data disks out: boot the stick
+in UEFI mode, pick <code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">gknas</span></code>, and it installs on its own and
+powers off (<a class="reference internal" href="nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>, step 1). Remove the stick,
+power on, and configure the OS from the container (step 2 there; the
+<code class="docutils literal notranslate"><span class="pre">nas_fan</span></code> tag does nothing with <code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver:</span> <span class="pre">false</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>known_hosts
+ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_os,nas_fan
+</pre></div>
+</div>
+</li>
+<li><p>Put the data disks in, read their ids
+(<code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-l</span> <span class="pre">/dev/disk/by-id/</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">-v</span> <span class="pre">--</span> <span class="pre">-part</span></code> on the NAS), set
+<code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code> on the branch, then create the pool and everything on
+it (run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code> before pushing, as for every push). New disks are
+blank, so <code class="docutils literal notranslate"><span class="pre">nas_force</span></code> is not needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_pool</span><span class="o">=</span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>This makes the datasets, the cluster’s directories with their owners
+(<a class="reference internal" href="nas-setup.html"><span class="doc">The cluster’s directories on the NAS</span></a>), the exports, snapshots and health checks.</p>
+</li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Host</span> <span class="pre">nas</span></code> to the container’s <code class="docutils literal notranslate"><span class="pre">~/.ssh/config</span></code>
+(<code class="docutils literal notranslate"><span class="pre">HostName</span> <span class="pre">192.168.1.3</span></code>, <code class="docutils literal notranslate"><span class="pre">User</span> <span class="pre">ansible</span></code>, <code class="docutils literal notranslate"><span class="pre">HostKeyAlias</span> <span class="pre">gknas</span></code>: the
+<code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> tag recorded the key under that name), as the other restore pages use <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">nas</span></code>. A rebuilt container loses
+it: add it again then.</p></li>
+</ol>
+<p>Put back the data that only lived on the NAS now, before the cluster
+starts. Pick the newest of each with <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">lsf</span></code>.</p>
+<p><strong>scrap’s newest run</strong>, into <code class="docutils literal notranslate"><span class="pre">backups/</span></code> (its paths start <code class="docutils literal notranslate"><span class="pre">scrap/&lt;run&gt;/</span></code>).
+scrap then refuses to start empty, and step 9 restores it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>lsf<span class="w"> </span>b2:gk-cluster-offsite/backups/scrap
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span>b2:gk-cluster-offsite/backups/scrap/&lt;run&gt;.tar.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo tar -xf - -C /bigdisk/k8s-cluster/backups &amp;&amp;</span>
+<span class="s2">             sudo chown -R 10001:10001 /bigdisk/k8s-cluster/backups/scrap&quot;</span>
+</pre></div>
+</div>
+<p><strong>Minecraft</strong>, from Drive only. Stage the newest nightly on the NAS, then
+unpack each part into its place (<a class="reference internal" href="backup-restore.html#restore-after-nas-loss"><span class="std std-ref">After losing the NAS</span></a> says what
+each part is):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">S</span><span class="o">=</span>/bigdisk/k8s-cluster/restore-scratch
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo mkdir -p </span><span class="nv">$S</span><span class="s2"> &amp;&amp; sudo chown \$(id -u) </span><span class="nv">$S</span><span class="s2">&quot;</span>
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>lsf<span class="w"> </span>drive:home-cluster-offsite/minecraft/nightly
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>drive:home-cluster-offsite/minecraft/nightly/minecraft-&lt;time&gt;.tar.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="p">|</span><span class="w"> </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;cat &gt;</span><span class="nv">$S</span><span class="s2">/mc.tar&quot;</span>
+ssh<span class="w"> </span>-t<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;set -e</span>
+<span class="s2">  sudo tar --numeric-owner -xpf </span><span class="nv">$S</span><span class="s2">/mc.tar -C /bigdisk/k8s-cluster/minecraft --strip-components=1 store</span>
+<span class="s2">  sudo tar --numeric-owner -xpf </span><span class="nv">$S</span><span class="s2">/mc.tar -C /k8s-dynamic stable</span>
+<span class="s2">  sudo rm </span><span class="nv">$S</span><span class="s2">/mc.tar&quot;</span>
+</pre></div>
+</div>
+<p>Then the world archive. <code class="docutils literal notranslate"><span class="pre">CURRENT.age</span></code> names the copy to restore:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span>drive:home-cluster-offsite/minecraft/archive/CURRENT.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>drive:home-cluster-offsite/minecraft/archive/minecraft-archive-&lt;fingerprint&gt;.tar.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>ssh<span class="w"> </span>nas<span class="w"> </span><span class="s2">&quot;sudo tar --numeric-owner -xpf - -C /bigdisk/minecraft-archive --strip-components=1 archive &amp;&amp;</span>
+<span class="s2">             sudo chmod -R a-w /bigdisk/minecraft-archive&quot;</span>
+</pre></div>
+</div>
+<p>The store and the worlds must be owned by <code class="docutils literal notranslate"><span class="pre">1000:1000</span></code>; <code class="docutils literal notranslate"><span class="pre">ls</span> <span class="pre">-ln</span></code> them to
+check. Remove the scratch folder: <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">-t</span> <span class="pre">nas</span> <span class="pre">&quot;sudo</span> <span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">${S:?}&quot;</span></code>.</p>
+<p>Grafana, Jellyfin and the etcd bundles need nothing on the NAS: the nightly
+jobs refill <code class="docutils literal notranslate"><span class="pre">backups/</span></code>.</p>
+</section>
+<section id="the-cluster">
+<h3>7. The cluster<a class="headerlink" href="#the-cluster" title="Link to this heading">#</a></h3>
+<p>Install the cluster box from the <a class="reference internal" href="install-stick.html"><span class="doc">install stick</span></a>: boot it in UEFI mode, pick
+<code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">nuc2</span></code>, and it installs on its own and powers off. The install
+made the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account with the key from the kit, so
+<code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> is not needed. Remove the stick, power on, and build
+it up to K3s, without the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> stage yet:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>tools,known_hosts,servers,k3s
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">servers</span></code> makes <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code>, and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> installs the server and the
+nightly etcd backup timer. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role stops unless <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>
+resolves to the server.</p>
+<p>The sealing keys can come back in two ways:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p></p></th>
+<th class="head"><p>A: restore the old keys</p></th>
+<th class="head"><p>B: reseal everything fresh</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Needs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/dev/shm/keys.yaml</span></code> from step 3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.env</span></code>, from the kit’s appendix, plus the B2 key’s config</p></td>
+</tr>
+<tr class="row-odd"><td><p>Git</p></td>
+<td><p>Nothing to commit but one stale Dex secret</p></td>
+<td><p>Every SealedSecret is resealed and committed</p></td>
+</tr>
+<tr class="row-even"><td><p>Tokens held outside (scrap MCP, ntfy, the Drive consent, the B2 key)</p></td>
+<td><p>Kept as they are now</p></td>
+<td><p>Kept as they were when the kit was printed</p></td>
+</tr>
+<tr class="row-odd"><td><p>How well trodden</p></td>
+<td><p>Never run end to end: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">unseal-check</span></code> proves the keys offline</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> runs it every time</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Use A. Fall back to B if A fails.</p>
+<p><strong>A: restore the old keys.</strong> Put the keys in before the controller starts,
+so it uses them and makes none of its own, then run the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> stage.
+This is a one-off write to a fresh cluster, of Secrets ArgoCD does not
+manage:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>yq<span class="w"> </span><span class="s1">&#39;del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp,</span>
+<span class="s1">        .items[].metadata.resourceVersion, .items[].metadata.uid,</span>
+<span class="s1">        .items[].metadata.creationTimestamp)&#39;</span><span class="w"> </span>/dev/shm/keys.yaml<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>-
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span><span class="k">$(</span>git<span class="w"> </span>branch<span class="w"> </span>--show-current<span class="k">)</span>
+just<span class="w"> </span>set-admin-password
+</pre></div>
+</div>
+<p>The export is <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">-o</span> <span class="pre">yaml</span></code> output (one Secret, or a List of
+several), so <code class="docutils literal notranslate"><span class="pre">yq</span></code> drops the fields the API server refuses on a create.
+When <code class="docutils literal notranslate"><span class="pre">set-admin-password</span></code> asks, give the admin password from the kit’s
+appendix, or a new one.</p>
+<p>If the controller made a key of its own anyway, it seals new secrets with
+that one, and the restored keys still decrypt the SealedSecrets in Git
+(<a class="reference internal" href="backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>). <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> is not in Git, so
+<code class="docutils literal notranslate"><span class="pre">set-admin-password</span></code> makes it again. One
+SealedSecret is stale: <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code>’s <code class="docutils literal notranslate"><span class="pre">argo-cd.clientSecret</span></code> is
+derived from the old ArgoCD’s <code class="docutils literal notranslate"><span class="pre">server.secretkey</span></code>. Sign-in still works, as
+the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role writes the value derived from the new key straight into
+ArgoCD’s and Dex’s config, but Git should match. Re-derive it, run
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>, commit, push, then restart Dex once ArgoCD has synced:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>seal-argocd-dex<span class="w"> </span>argocd
+git<span class="w"> </span>add<span class="w"> </span>kubernetes-services/additions/argocd/argocd-dex-secret.yaml
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Re-derive the Dex argo-cd client secret&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>push
+just<span class="w"> </span>argocd-sync<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>just<span class="w"> </span>restart-dex
+</pre></div>
+</div>
+<p><strong>B: reseal fresh.</strong> Make <code class="docutils literal notranslate"><span class="pre">.env</span></code> from the kit’s appendix, as the kit
+says (scan the QR codes into <code class="docutils literal notranslate"><span class="pre">build/creds.age</span></code>, decrypt it, and turn the JSON
+into <code class="docutils literal notranslate"><span class="pre">.env</span></code> with <code class="docutils literal notranslate"><span class="pre">jq</span></code>; delete it once the rebuild is verified). If the appendix has no B2 key,
+add it from Git with the sealing keys:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;OFFSITE_BACKUP_B2_RCLONE_CONF_B64=%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nv">KUBECONFIG</span><span class="o">=</span>/nonexistent<span class="w"> </span>kubeseal<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--recovery-unseal<span class="w"> </span>--recovery-private-key<span class="w"> </span>/dev/shm/keys.yaml<span class="w"> </span>-o<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;<span class="w"> </span>kubernetes-services/additions/backups/templates/offsite-backup-b2-secret.yaml<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.data[&quot;rclone.conf&quot;]&#39;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;.env
+</pre></div>
+</div>
+<p>A value changed since the kit was printed is stale in <code class="docutils literal notranslate"><span class="pre">.env</span></code>: read the
+current one from the SealedSecret the same way
+(<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>, “Decrypt SealedSecrets without a
+cluster”). Then run the rest as in <a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">set</span><span class="w"> </span>-a<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.env<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a
+<span class="nv">GENERATE_SECRETS</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">repo_branch</span><span class="o">=</span><span class="k">$(</span>git<span class="w"> </span>branch<span class="w"> </span>--show-current<span class="k">)</span>
+</pre></div>
+</div>
+<p>Either way, give the Claude sandbox its key on the node:
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">claude-ssh-bootstrap</span></code> (<a class="reference internal" href="claude-code.html"><span class="doc">Set up and run Claude Code</span></a>). It reaches only
+the cluster’s nodes, and the stick was built without a Claude key, so add
+the key that run made to the NAS by hand if Claude is to reach it:
+<code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">nas</span> <span class="pre">'cat</span> <span class="pre">&gt;&gt;~/.ssh/authorized_keys'</span> <span class="pre">&lt;/root/.config/claude-ssh/id_ed25519.pub</span></code>
+from the container.</p>
+<p>Then check the result as in <a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a>,
+“Verify”: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">sealedsecrets</span> <span class="pre">-A</span></code> (every one
+<code class="docutils literal notranslate"><span class="pre">True</span></code>), <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">certificate</span> <span class="pre">-A</span></code> (a new wildcard certificate from
+Let’s Encrypt in a few minutes), <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code> (all <code class="docutils literal notranslate"><span class="pre">Bound</span></code>). One
+<code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod stays <code class="docutils literal notranslate"><span class="pre">Pending</span></code>: the two tunnel connectors must run on
+different nodes, and there is one. The other serves the tunnel.</p>
+<section id="the-etcd-bundle-is-not-used">
+<span id="dr-etcd"></span><h4>The etcd bundle is not used<a class="headerlink" href="#the-etcd-bundle-is-not-used" title="Link to this heading">#</a></h4>
+<p>Restoring it
+(<a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the control plane</span></a>) brings back the old cluster’s
+state: six Node objects, five of them dead, and PersistentVolumes pinned
+to node04, whose node affinity cannot be changed. It would also bring back
+the old keys and <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code>, which A gets more simply. Keep the bundle
+for the case it is made for: the same cluster with a lost control plane.</p>
+</section>
+</section>
+<section id="dns-the-tunnel-and-the-relay">
+<h3>8. DNS, the tunnel and the relay<a class="headerlink" href="#dns-the-tunnel-and-the-relay" title="Link to this heading">#</a></h3>
+<p>With path A nothing at Cloudflare changes. The zone, the tunnel, its
+hostnames and Access are all at Cloudflare, and <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> connects
+with the restored tunnel token. Check from outside the house that
+<a class="reference external" href="https://home.gkcluster.org">https://home.gkcluster.org</a> asks for a login.</p>
+<p>The OpenTofu state is needed only to change the edge. Restore the newest
+copy from <code class="docutils literal notranslate"><span class="pre">backups/config/cloudflare/</span></code> (decrypt it with the age key) to
+<code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code>, with <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code> beside it in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>. The state itself is also encrypted, with the OpenTofu state
+passphrase from the kit: put it in <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code>
+(<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>, “State and its encryption key”). Then expect <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> to show no changes. If
+there is no copy, re-import (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>, steps 3
+and 4); that apply rotates the tunnel token, so finish with
+<a class="reference internal" href="cloudflare-as-code.html#cf-rotate-tunnel-token"><span class="std std-ref">the rotation steps</span></a>.</p>
+<p>The VPS is not in the house. The relay pod reconnects over the tailnet with
+its restored credentials, and its <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward still targets
+192.168.1.92. Install Tailscale on the new node by hand and sign it in
+(Ansible does not manage it), for Jellyfin over the tailnet.</p>
+</section>
+<section id="restore-the-applications-data">
+<h3>9. Restore the applications’ data<a class="headerlink" href="#restore-the-applications-data" title="Link to this heading">#</a></h3>
+<p><strong>scrap.</strong> Follow “Restore scrap” in <a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>: pause
+it through Git, run the staged restore from the run unpacked in step 6
+(<code class="docutils literal notranslate"><span class="pre">/backups/&lt;run&gt;</span></code>, with the <code class="docutils literal notranslate"><span class="pre">scrap-backups-nfs</span></code> claim), and revert the
+pause. Pages written after that run are lost.</p>
+<p><strong>Grafana.</strong> Grafana’s volume is new and empty. Restore the newest daily
+tarball from before the loss, by its <code class="docutils literal notranslate"><span class="pre">&lt;date&gt;_&lt;HHMM&gt;</span></code> name: once the
+cluster runs, its own nightly backups of the empty volume reach the
+off-site copies too. Restore it the same way as
+<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>, “Restore — Grafana sqlite”: stop it through Git, then put <code class="docutils literal notranslate"><span class="pre">grafana.db</span></code> on the volume. On the
+single node the volume is <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/grafana</span></code>, so with Grafana stopped
+the restore pod can be replaced by:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>lsf<span class="w"> </span>b2:gk-cluster-offsite/backups/grafana
+rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span>b2:gk-cluster-offsite/backups/grafana/&lt;date&gt;_&lt;HHMM&gt;.tar.gz.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>ssh<span class="w"> </span>ansible@nuc2<span class="w"> </span><span class="s2">&quot;sudo rm -f /home/k8s-data/grafana/grafana.db-journal /home/k8s-data/grafana/grafana.db-wal /home/k8s-data/grafana/grafana.db-shm &amp;&amp;</span>
+<span class="s2">        sudo tar -xzf - -C /home/k8s-data/grafana grafana.db &amp;&amp;</span>
+<span class="s2">        sudo chown 472:472 /home/k8s-data/grafana/grafana.db&quot;</span>
+</pre></div>
+</div>
+<p><strong>Jellyfin.</strong> Follow <a class="reference internal" href="jellyfin.html"><span class="doc">Run Jellyfin</span></a>, “Restore from a backup”:
+<code class="docutils literal notranslate"><span class="pre">enable_jellyfin:</span> <span class="pre">false</span></code>, unpack the newest daily tarball from before
+the loss (as for Grafana) over <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code> as uid 122, then turn it back on. The new box
+may have no <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> account, so use numbers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rclone<span class="w"> </span>--config<span class="w"> </span>/dev/shm/rclone.conf<span class="w"> </span>cat<span class="w"> </span>b2:gk-cluster-offsite/backups/jellyfin/&lt;date&gt;_&lt;time&gt;.tar.gz.age<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>/dev/shm/age.key<span class="w"> </span><span class="p">|</span>
+<span class="w">    </span>ssh<span class="w"> </span>ansible@nuc2<span class="w"> </span><span class="s2">&quot;sudo tar --numeric-owner --no-overwrite-dir -xzf - -C /home/k8s-data/jellyfin &amp;&amp;</span>
+<span class="s2">        sudo rm -f /home/k8s-data/jellyfin/data/data/jellyfin.db-wal /home/k8s-data/jellyfin/data/data/jellyfin.db-shm &amp;&amp;</span>
+<span class="s2">        sudo chown -R 122:124 /home/k8s-data/jellyfin&quot;</span>
+</pre></div>
+</div>
+<p>The library itself is gone, so Jellyfin shows empty libraries until media
+is copied back to <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code>. Check <code class="docutils literal notranslate"><span class="pre">jellyfin.render_gid</span></code>
+(<code class="docutils literal notranslate"><span class="pre">getent</span> <span class="pre">group</span> <span class="pre">render</span></code> on the node) if the new box has an Intel iGPU.</p>
+<p><strong>Minecraft.</strong> The worlds were unpacked in step 6. If the dashboard
+started before that, restart it:
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">minecraft</span> <span class="pre">rollout</span> <span class="pre">restart</span> <span class="pre">deploy/minecraft-dashboard</span></code>.</p>
+</section>
+<section id="back-to-normal">
+<h3>10. Back to normal<a class="headerlink" href="#back-to-normal" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p>Take the first backups, and prove them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>etcd-backup-now
+just<span class="w"> </span>offsite-backup-now
+just<span class="w"> </span>offsite-backup-now<span class="w"> </span>b2
+just<span class="w"> </span>restore-test<span class="w"> </span>--target<span class="w"> </span>b2<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+just<span class="w"> </span>unseal-check<span class="w"> </span>--target<span class="w"> </span>b2<span class="w"> </span>--all<span class="w"> </span>--identity<span class="w"> </span>/dev/shm/age.key
+</pre></div>
+</div>
+<p>With the cluster up, both read rclone’s config from the cluster.</p>
+<p>While the cluster was down nothing pruned the off-site copies. Now it
+runs again: a file whose source is gone from the NAS is deleted once it
+was uploaded over 180 days ago (<code class="docutils literal notranslate"><span class="pre">prune_days</span></code>), but never the 4 newest of
+its series (<code class="docutils literal notranslate"><span class="pre">keep_min</span></code>), so the older copies thin out from here on.</p>
+</li>
+<li><p>Path B made a new sealing key: make a new offline copy of it
+(<a class="reference internal" href="backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>). Either way, make new recovery
+codes for any account whose codes were used, then regenerate and
+reprint the paper kit.</p></li>
+<li><p>Open a pull request from the rebuild branch, tidy it with
+<code class="docutils literal notranslate"><span class="pre">/pr-squash</span></code>, have a fresh review of it, merge it with
+<code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">pr</span> <span class="pre">merge</span> <span class="pre">--merge</span></code>, and put ArgoCD back
+on <code class="docutils literal notranslate"><span class="pre">main</span></code>: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">switch-branch</span> <span class="pre">main</span></code>.</p></li>
+<li><p>Wipe the RAM copies: <code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-f</span> <span class="pre">/dev/shm/age.key</span> <span class="pre">/dev/shm/keys.yaml</span> <span class="pre">/dev/shm/rclone.conf</span></code>.</p></li>
+<li><p>Write down what went wrong, and what took how long, in a GitHub issue.
+Correct this page, and update <code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> (its list of pinned local
+PVs and the RK1 data paths) and every page that names the old nodes:
+the docs describe this cluster.</p></li>
+</ol>
+</section>
+</section>
+<section id="how-long-it-takes">
+<h2>How long it takes<a class="headerlink" href="#how-long-it-takes" title="Link to this heading">#</a></h2>
+<p>From the repo’s own measurements and the NAS switchover of 17 November
+2026. Buying the hardware is the long pole; the rest fits in a day.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>Time</p></th>
+<th class="head"><p>Evidence</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Laptop, devcontainer</p></td>
+<td><p>An hour or two, mostly the container build</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p>Prove the off-site copies (<code class="docutils literal notranslate"><span class="pre">restore-test</span></code>)</p></td>
+<td><p>Minutes: it downloads about 350 MB from B2</p></td>
+<td><p>The B2 run of 16 November 2026: scrap 249 MB, Jellyfin 67 MB, etcd 39 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>Install Ubuntu on the NAS</p></td>
+<td><p>About 20 minutes</p></td>
+<td><p>The NAS switchover</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code>, OS and pool</p></td>
+<td><p>About 10 minutes</p></td>
+<td><p>The NAS switchover</p></td>
+</tr>
+<tr class="row-even"><td><p>scrap and Minecraft onto the NAS</p></td>
+<td><p>The download: about 0.25 GB for scrap, 3.7 GB for the Minecraft nightly, about 6 GB for the archive</p></td>
+<td><p><a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Install Ubuntu on the cluster node</p></td>
+<td><p>About 20 minutes</p></td>
+<td><p>As the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>, K3s and cluster stages</p></td>
+<td><p>10 to 20 minutes, then a few minutes for ArgoCD to settle</p></td>
+<td><p><a class="reference internal" href="../tutorials/build-the-cluster.html"><span class="doc">Build the cluster from bare metal</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Restores of scrap, Grafana, Jellyfin</p></td>
+<td><p>Minutes each</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p>First off-site run</p></td>
+<td><p>Minutes; a full first upload of <code class="docutils literal notranslate"><span class="pre">backups/</span></code> (about 3.3 GB) takes longer</p></td>
+<td><p><a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="recover-control-plane.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Recover the control plane</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="node-operations.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Node operations</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-comes-back-and-what-does-not">What comes back, and what does not</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#before-a-disaster-what-must-be-off-site">Before a disaster: what must be off site</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-paper-kit">The paper kit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-it-and-the-off-site-copies">Check it, and the off-site copies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gaps">Gaps</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware">Hardware</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-tied-to-the-old-hardware">What is tied to the old hardware</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-smallest-rebuild-two-x86-boxes">The smallest rebuild: two x86 boxes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-not-one-box">Why not one box</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rebuild-in-order">The rebuild, in order</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#get-the-paper-kit">1. Get the paper kit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-laptop-with-the-repository">2. A laptop with the repository</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-keys-and-a-way-to-read-the-off-site-copies">3. The keys, and a way to read the off-site copies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#buy-the-hardware">4. Buy the hardware</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-inventory-and-the-install-stick">5. The inventory and the install stick</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-nas">6. The NAS</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cluster">7. The cluster</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#the-etcd-bundle-is-not-used">The etcd bundle is not used</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dns-the-tunnel-and-the-relay">8. DNS, the tunnel and the relay</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-the-applications-data">9. Restore the applications’ data</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#back-to-normal">10. Back to normal</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-long-it-takes">How long it takes</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/rebuild-from-nothing.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/rebuild-from-nothing.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
