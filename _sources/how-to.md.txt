@@ -36,6 +36,7 @@ how-to/recover-control-plane
 how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild
+how-to/install-stick
 how-to/nfs-stable-paths
 ```
 

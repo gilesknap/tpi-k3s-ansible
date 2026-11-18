@@ -350,6 +350,7 @@
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Node operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
@@ -712,9 +713,13 @@ the reasoning.</p>
 for the details and making the edits. <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> was the last node added this
 way; the examples use it. The node needs a fixed address and a name on the
 router, since the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role looks it up as <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code>. A node
-outside the Turing Pi also needs Ubuntu installed (24.04 or later) and a
-login with sudo. A new RK1 needs neither: the flash in step 4 installs
-Ubuntu and creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, so it skips steps 3 and 5.</p>
+outside the Turing Pi also needs Ubuntu installed (24.04 or later). Install
+an x86 node from the install stick (<a class="reference internal" href="install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>): give it
+<code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> in
+step 1, rebuild the stick and install it. The stick creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code>
+account with both keys, so the node skips steps 3 and 5. A node installed some other way needs a login
+with sudo for step 3. A new RK1 needs neither: the flash in step 4 installs
+Ubuntu and creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account, so it also skips steps 3 and 5.</p>
 <ol class="arabic">
 <li><p><strong>Inventory.</strong> Add the node to <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> under <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>, with
 only the variables it needs:</p>
@@ -727,9 +732,19 @@ only the variables it needs:</p>
 <span class="w">      </span><span class="nt">node_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w"> </span><span class="c1"># multi-homed: force K3s onto this subnet</span>
 <span class="w">      </span><span class="nt">flannel_iface</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enp3s0</span><span class="w"> </span><span class="c1"># the interface carrying node_ip</span>
 <span class="w">      </span><span class="nt">intel_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Iris Xe: runs the Intel GPU device plugin</span>
-<span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span><span class="w"> </span><span class="c1"># single NIC, nothing special</span>
+<span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span><span class="w"> </span><span class="c1"># single NIC</span>
+<span class="w">      </span><span class="nt">install_profile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">desktop</span><span class="w"> </span><span class="c1"># the install stick&#39;s entry</span>
+<span class="w">      </span><span class="nt">install_disk_serial</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">S5GFNG0N302036V</span>
+<span class="w">      </span><span class="nt">install_machine_macs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;1c:69:7a:61:65:d4&quot;</span><span class="p p-Indicator">]</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> give
+the node its entry on the install stick. Read the serial with
+<code class="docutils literal notranslate"><span class="pre">lsblk</span> <span class="pre">-o</span> <span class="pre">NAME,SIZE,MODEL,SERIAL</span></code> and the MACs with
+<code class="docutils literal notranslate"><span class="pre">cat</span> <span class="pre">/sys/class/net/*/address</span></code>; for a machine with no OS yet, see
+<a class="reference internal" href="install-stick.html#new-hardware"><span class="std std-ref">New hardware</span></a>. A node with more disks lists their
+fstab entries in <code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code> (see <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>); step 4
+mounts them.</p>
 <p>A node with interfaces on two subnets needs both <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and
 <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code>. Without them K3s and flannel pick the default-route
 interface, and cross-node pod networking fails. A new RK1 goes under
@@ -743,8 +758,9 @@ terminal (it takes effect at the next sandbox launch):</p>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Ansible access</strong> (not for an RK1: the playbook only targets
-<code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>). <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account
+<li><p><strong>Ansible access</strong> (not for an RK1 or a node from the install stick:
+the playbook only targets <code class="docutils literal notranslate"><span class="pre">extra_nodes</span></code>, and the stick already did
+this). <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> creates the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account
 with the key from <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> and passwordless sudo. Run
 it yourself in a devcontainer terminal: <code class="docutils literal notranslate"><span class="pre">-K</span></code> prompts for a sudo
 password, which Claude Code’s shell cannot answer.</p>
@@ -777,7 +793,8 @@ the run joins it as above.</p>
 </li>
 <li><p><strong>Claude’s SSH key.</strong> Add the sandbox’s key to the node’s <code class="docutils literal notranslate"><span class="pre">ansible</span></code>
 account, so Claude sessions can run Ansible against it. Skip this for a
-freshly flashed RK1, whose cloud-init seed already carries the key:</p>
+freshly flashed RK1 or a node from the install stick, whose install
+already carries the key:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>claude_key<span class="w"> </span>--limit<span class="w"> </span>nuc1
 </pre></div>
 </div>

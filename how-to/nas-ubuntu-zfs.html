@@ -350,6 +350,7 @@
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
@@ -596,29 +597,34 @@ SLAAC address) is refused: use the address.</p></li>
 devcontainer on <code class="docutils literal notranslate"><span class="pre">ws03</span></code>.</p>
 <section id="install-ubuntu">
 <h3>1. Install Ubuntu<a class="headerlink" href="#install-ubuntu" title="Link to this heading">#</a></h3>
-<p>The install is unattended. The autoinstall stick
-(Ubuntu Server 26.04 live ISO plus an <code class="docutils literal notranslate"><span class="pre">autoinstall.yaml</span></code>) creates:</p>
+<p>The install runs on its own once you pick the install stick’s
+<code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">gknas</span></code> entry (<a class="reference internal" href="install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>). It creates:</p>
 <ul class="simple">
 <li><p>hostname <code class="docutils literal notranslate"><span class="pre">gknas</span></code>, DHCP (the router reserves 192.168.1.3 for it);</p></li>
 <li><p>the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account with passwordless sudo, no password, and the keys in
 <code class="docutils literal notranslate"><span class="pre">pub_keys/ansible_rsa.pub</span></code> plus the Claude sandbox’s key;</p></li>
-<li><p>the packages <code class="docutils literal notranslate"><span class="pre">smartmontools</span> <span class="pre">nvme-cli</span> <span class="pre">lm-sensors</span> <span class="pre">ethtool</span> <span class="pre">zfsutils-linux</span></code>;</p></li>
-<li><p>the whole of the 200 to 300 GB disk with model <code class="docutils literal notranslate"><span class="pre">Tech</span></code> (the NVMe’s USB
-enclosure) as the OS disk. It refuses to install if any disk over 2 TB is
-attached, so the drive trays and the LaCie must be out.</p></li>
+<li><p>the whole of the disk with serial <code class="docutils literal notranslate"><span class="pre">DD564198838AA</span></code> as the OS disk. That
+serial and the model <code class="docutils literal notranslate"><span class="pre">Tech</span></code> are the JMicron USB enclosure’s, not the
+NVMe’s. The install refuses unless exactly one disk has that serial and
+one of the NAS’s ports has its MAC (<code class="docutils literal notranslate"><span class="pre">enp3s0</span></code> or <code class="docutils literal notranslate"><span class="pre">enp2s0</span></code>).</p></li>
 </ul>
+<p><code class="docutils literal notranslate"><span class="pre">nas_os</span></code> installs the NAS’s packages (ZFS, smartmontools and the rest) in
+step 2.</p>
+<p>Plug a keyboard and screen into the NAS for the install: you pick the
+stick in the firmware’s boot menu and the entry in the stick’s menu.</p>
 <p>The rear panel has one blue USB 3 port and two black USB 2 ports; the front
 port is USB 3. The firmware setup opens with <strong>Del</strong> at power-on.</p>
 <ol class="arabic simple">
-<li><p>Power the NAS off. Pull both drive trays and unplug the LaCie.</p></li>
+<li><p>Power the NAS off. Pull both drive trays and unplug the LaCie. The
+guard would refuse to install onto them, but with them out no mistake
+can reach them.</p></li>
 <li><p>Plug the NVMe enclosure into the rear blue (USB 3) port and the install
 stick into another, power on, and boot the stick in <strong>UEFI</strong> mode (its
-<code class="docutils literal notranslate"><span class="pre">UEFI:</span></code> entry in the boot menu). Its legacy entry also boots, but installs
-a BIOS-booting system: the first install, from that entry, had to be
-done again. The install runs on its own and
-reboots.</p></li>
-<li><p>Remove the stick. In the firmware setup, put the NVMe’s UEFI entry
-first in the boot order, before the DOM (QTS).</p></li>
+<code class="docutils literal notranslate"><span class="pre">UEFI:</span></code> entry in the boot menu). Booted the legacy way, it shows no host
+entries. Pick <code class="docutils literal notranslate"><span class="pre">Install</span> <span class="pre">gknas</span></code>: the install runs on its own and powers
+off.</p></li>
+<li><p>Remove the stick and power on. In the firmware setup, put the NVMe’s
+UEFI entry first in the boot order, before the DOM (QTS).</p></li>
 </ol>
 <p>The NAS has two 2.5GbE ports, <code class="docutils literal notranslate"><span class="pre">enp2s0</span></code> and <code class="docutils literal notranslate"><span class="pre">enp3s0</span></code>; the install takes DHCP
 on whichever is cabled. The router’s reservation for 192.168.1.3 is by

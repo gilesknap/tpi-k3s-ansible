@@ -17,8 +17,10 @@ force flags below override that.
 | `-e wipe_local_data=true` | `pb_decommission.yml` only: also deletes `/home/k8s-data` and `/var/lib/k8s-data`. |
 
 Flashing applies only to the RK1s (`node02`, `node03`, `node04`), through
-the BMC `turingpi`. `nuc1`, `nuc2` and `ws03` are reinstalled by hand from
-an Ubuntu installer, then joined as in {doc}`/how-to/node-operations`.
+the BMC `turingpi`. `nuc1` and `nuc2` are reinstalled from the install
+stick ({doc}`/how-to/install-stick`), which erases only the OS disk named
+in `hosts.yml`. `ws03` is reinstalled by hand from an Ubuntu installer.
+Each is then joined as in {doc}`/how-to/node-operations`.
 
 :::{important}
 Always give a `--limit` when flashing, and include `turingpi`: the flash

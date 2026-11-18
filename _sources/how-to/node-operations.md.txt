@@ -292,9 +292,13 @@ The `/add-node` command in Claude Code walks through this checklist, asking
 for the details and making the edits. `nuc1` was the last node added this
 way; the examples use it. The node needs a fixed address and a name on the
 router, since the `known_hosts` role looks it up as `<node>.lan`. A node
-outside the Turing Pi also needs Ubuntu installed (24.04 or later) and a
-login with sudo. A new RK1 needs neither: the flash in step 4 installs
-Ubuntu and creates the `ansible` account, so it skips steps 3 and 5.
+outside the Turing Pi also needs Ubuntu installed (24.04 or later). Install
+an x86 node from the install stick ({doc}`/how-to/install-stick`): give it
+`install_profile`, `install_disk_serial` and `install_machine_macs` in
+step 1, rebuild the stick and install it. The stick creates the `ansible`
+account with both keys, so the node skips steps 3 and 5. A node installed some other way needs a login
+with sudo for step 3. A new RK1 needs neither: the flash in step 4 installs
+Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
 
 1. **Inventory.** Add the node to `hosts.yml` under `extra_nodes`, with
    only the variables it needs:
@@ -309,8 +313,19 @@ Ubuntu and creates the `ansible` account, so it skips steps 3 and 5.
          node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
          flannel_iface: enp3s0 # the interface carrying node_ip
          intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
-       nuc1: # single NIC, nothing special
+       nuc1: # single NIC
+         install_profile: desktop # the install stick's entry
+         install_disk_serial: S5GFNG0N302036V
+         install_machine_macs: ["1c:69:7a:61:65:d4"]
    ```
+
+   `install_profile`, `install_disk_serial` and `install_machine_macs` give
+   the node its entry on the install stick. Read the serial with
+   `lsblk -o NAME,SIZE,MODEL,SERIAL` and the MACs with
+   `cat /sys/class/net/*/address`; for a machine with no OS yet, see
+   [](install-stick.md#new-hardware). A node with more disks lists their
+   fstab entries in `extra_mounts` (see `nuc2` in `hosts.yml`); step 4
+   mounts them.
 
    A node with interfaces on two subnets needs both `node_ip` and
    `flannel_iface`. Without them K3s and flannel pick the default-route
@@ -325,8 +340,9 @@ Ubuntu and creates the `ansible` account, so it skips steps 3 and 5.
    just sandbox-conf
    ```
 
-3. **Ansible access** (not for an RK1: the playbook only targets
-   `extra_nodes`). `pb_add_nodes.yml` creates the `ansible` account
+3. **Ansible access** (not for an RK1 or a node from the install stick:
+   the playbook only targets `extra_nodes`, and the stick already did
+   this). `pb_add_nodes.yml` creates the `ansible` account
    with the key from `pub_keys/ansible_rsa.pub` and passwordless sudo. Run
    it yourself in a devcontainer terminal: `-K` prompts for a sudo
    password, which Claude Code's shell cannot answer.
@@ -364,7 +380,8 @@ Ubuntu and creates the `ansible` account, so it skips steps 3 and 5.
    the run joins it as above.
 5. **Claude's SSH key.** Add the sandbox's key to the node's `ansible`
    account, so Claude sessions can run Ansible against it. Skip this for a
-   freshly flashed RK1, whose cloud-init seed already carries the key:
+   freshly flashed RK1 or a node from the install stick, whose install
+   already carries the key:
 
    ```bash
    ansible-playbook pb_all.yml --tags claude_key --limit nuc1
