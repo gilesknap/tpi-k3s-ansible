@@ -1308,6 +1308,9 @@ full drill or a `/rebuild-cluster`.
 If only the control plane is lost, restore it from the nightly etcd backup
 instead: {doc}`/how-to/recover-control-plane`. If someone took over the
 cluster and deleted the backups, start with {ref}`restore-after-attack`.
+If the house and every machine in it are gone, with only the paper kit,
+a laptop, GitHub and the off-site copies left, follow
+{doc}`/how-to/rebuild-from-nothing`.
 
 To rebuild the cluster from scratch (the full walk-through is
 {doc}`/tutorials/build-the-cluster`; a planned rebuild of the running

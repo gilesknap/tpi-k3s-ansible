@@ -33,6 +33,7 @@ how-to/add-remove-services
 
 how-to/backup-restore
 how-to/recover-control-plane
+how-to/rebuild-from-nothing
 how-to/node-operations
 how-to/upgrade-k3s
 how-to/reflash-rebuild
