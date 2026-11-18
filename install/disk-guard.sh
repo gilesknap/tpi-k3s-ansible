@@ -18,15 +18,18 @@
 #
 # POSIX sh: Subiquity runs each early-command with `sh -c`.
 set -eu
+# INSTALL_CONSOLE, INSTALL_EFI_DIR and INSTALL_NET_DIR are for
+# scripts/test-make-install-stick only: the test points INSTALL_CONSOLE at
+# /dev/null, so the guard's messages for the operator don't reach the
+# terminal of whoever runs the test.
+console=${INSTALL_CONSOLE:-/dev/console}
 say() {
     echo "install-stick: $*" >&2
-    echo "install-stick: $*" >/dev/console 2>/dev/null || true
+    echo "install-stick: $*" >"$console" 2>/dev/null || true
 }
 serial=${INSTALL_DISK_SERIAL:?}
 model=${INSTALL_DISK_MODEL:-}
 macs=${INSTALL_MACHINE_MACS:?}
-# INSTALL_EFI_DIR and INSTALL_NET_DIR are for scripts/test-make-install-stick
-# only.
 if [ ! -d "${INSTALL_EFI_DIR:-/sys/firmware/efi}" ]; then
     say "booted in legacy BIOS mode: boot the stick's UEFI entry; refusing to install"
     exit 1
@@ -61,7 +64,7 @@ done
 if [ "$n" -ne 1 ]; then
     say "expected exactly one disk with serial $serial, found $n:$found; refusing to install"
     lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN >&2 || true
-    lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN >/dev/console 2>/dev/null || true
+    lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN >"$console" 2>/dev/null || true
     exit 1
 fi
 dev=${found# }
