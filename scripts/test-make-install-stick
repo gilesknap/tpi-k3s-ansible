@@ -183,36 +183,42 @@ guard_case() {
     fi
 }
 nas_mac=24:5e:be:47:a3:05
+# gknas: the Fanxiang NVMe in the PCIe slot, among the NAS's other disks.
 guard_case gknas 0 "one matching disk installs" $nas_mac <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
-sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+sda S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+sdb S5STNF0W503712A Samsung_SSD_870_S5STNF0W503712A Samsung SSD 870
+sdc 00000000NT12349D LaCie_Mobile_Drive_00000000NT12349D Mobile Drive
 mmcblk0 0x8cdbed67 0x8cdbed67 DOM
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 0 "an upper-case MAC still matches" 24:5E:BE:47:A3:04 <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 1 "the disk on another machine (no MAC matches) refuses" 54:b2:03:fd:53:1c <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 0 "a disk whose serial is only in udev's ID_SERIAL installs" $nas_mac <<'EOF'
-sdc XXXX 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 XXXX Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 1 "two disks, one matching only in ID_SERIAL, refuse" $nas_mac <<'EOF'
-sdc XXXX 1JMicron_Tech_DD564198838AA Tech
-sdd DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 XXXX Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
+nvme1n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 1 "no matching disk refuses" $nas_mac <<'EOF'
-sdd S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+sda S5STNF0W510784T Samsung_SSD_870_S5STNF0W510784T Samsung SSD 870
+EOF
+guard_case gknas 1 "the NVMe back in its USB enclosure (the enclosure's serial) refuses" $nas_mac <<'EOF'
+sdd DD564198838AA JMicron_Tech_DD564198838AA Tech
 EOF
 guard_case gknas 1 "two matching disks refuse" $nas_mac <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
-sdf DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
+nvme1n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 guard_case gknas 1 "the serial on the wrong model refuses" $nas_mac <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Other
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Other
 EOF
 efi=$tmp/no-such-dir guard_case gknas 1 "a legacy BIOS boot refuses" $nas_mac <<'EOF'
-sdc DD564198838AA 1JMicron_Tech_DD564198838AA Tech
+nvme0n1 26100800643000458 Fanxiang_S500Pro_256GB_26100800643000458_1 Fanxiang S500Pro 256GB
 EOF
 # nuc2: the 980 PRO among the 870 QVO and the Crucial X6.
 nuc2_disks='sda S5RRNF0RC38740V Samsung_SSD_870_QVO_1TB_S5RRNF0RC38740V Samsung SSD 870 QVO 1TB

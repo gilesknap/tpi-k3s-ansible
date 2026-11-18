@@ -26,14 +26,15 @@ build warns and leaves the host out.
 
 | Host | Profile | OS disk | Other disks, never touched |
 |------|---------|---------|-----------------------------|
-| `gknas` | server | 256 GB NVMe in a JMicron USB enclosure. Serial `DD564198838AA` and model `Tech` are the enclosure's. | The DOM (QTS), the data SSDs, the LaCie |
+| `gknas` | server | Fanxiang S500Pro 256GB NVMe in the PCIe slot, serial `26100800643000458` | The DOM (QTS), the data SSDs, the LaCie |
 | `nuc1` | desktop | Samsung SSD 860 EVO M.2 250GB, serial `S5GFNG0N302036V` | None |
 | `nuc2` | server | Samsung SSD 980 PRO 1TB, serial `S5GXNF0RA03936L` | The 870 QVO (`/home`), the Crucial X6 |
 
-`gknas`'s serial and model belong to the USB enclosure, not to the NVMe
-inside it. The NVMe's own serial, `26100800643000458`, shows only through
-`smartctl -d sntjmicron -i`. Any drive in that enclosure would match, so
-the MAC check is what keeps `gknas`'s entry to `gknas`.
+`gknas`'s NVMe used to sit in a JMicron USB enclosure, which reported its
+own serial (`DD564198838AA`) and model (`Tech`) in place of the NVMe's.
+Put back in that enclosure, the NVMe would not match `gknas`'s entry: the
+install would refuse, and the entry would need the enclosure's serial and
+model again.
 
 Every install:
 
@@ -114,8 +115,8 @@ Without `--write` it only builds `build/install-stick/install-stick.iso`.
 
 Before you rely on a rebuilt stick, boot its ISO once in QEMU on `ws03`.
 This confirms that the menu, the seed and the guard work. The VM gets a
-disk with `gknas`'s serial and model, a decoy disk, and a network port with
-`gknas`'s MAC (it needs `qemu-system-x86` and `ovmf`):
+disk with `gknas`'s serial and model (a SATA disk: QEMU cannot set an
+NVMe's model), a decoy disk, and a network port with `gknas`'s MAC (it needs `qemu-system-x86` and `ovmf`):
 
 ```bash
 cd build/install-stick
@@ -127,7 +128,7 @@ qemu-system-x86_64 -enable-kvm -machine q35 -m 4096 -smp 2 \
   -cdrom install-stick.iso \
   -device virtio-scsi-pci \
   -drive if=none,id=os,file=os.img,format=raw \
-  -device scsi-hd,drive=os,serial=DD564198838AA,product=Tech \
+  -device 'ide-hd,drive=os,bus=ide.0,serial=26100800643000458,model=Fanxiang S500Pro 256GB' \
   -drive if=none,id=decoy,file=decoy.img,format=raw \
   -device scsi-hd,drive=decoy,serial=DECOY0000001,product=Decoy \
   -nic user,model=virtio-net-pci,mac=24:5e:be:47:a3:05
@@ -194,7 +195,8 @@ To read a machine's disks and MACs before it has an entry:
    ```
 
    A disk in a USB enclosure may report the enclosure's serial, as
-   `gknas`'s does. The MACs still pin the entry to the machine.
+   `gknas`'s NVMe did in its old enclosure: any drive in that enclosure
+   would match, so only the MACs pin the entry to the machine.
 2. Run `just check`. Its `scripts/test-make-install-stick` renders every
    host's install from `hosts.yml` and checks it.
 3. Rebuild the stick on `ws03`: `scripts/make-install-stick --write /dev/sdX`.
