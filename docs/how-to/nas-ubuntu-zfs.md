@@ -126,8 +126,8 @@ port is USB 3. The firmware setup opens with **Del** at power-on.
    can reach them.
 2. Plug the install stick into a USB port, power on, and boot the stick
    in **UEFI** mode (its `UEFI:` entry in the boot menu). Booted the
-   legacy way, it shows no host entries. Pick `Install gknas`: the install runs on its own and powers
-   off.
+   legacy way, it shows no host entries. Pick `Install gknas`: the
+   install runs on its own and powers off.
 3. Remove the stick and power on. In the firmware setup, put the NVMe's
    UEFI entry first in the boot order, before the DOM (QTS).
 
@@ -318,8 +318,8 @@ node-exporter runs on the NAS on port 9100, with its ZFS collector (pool
 states), the `smartmon` collector, and three textfile metrics files the role
 adds (below). The packaged `smartmon.sh` stops at the first disk type it does not
 know, and the OS disk's `sntjmicron` came first while it was in its USB
-enclosure, so on its own it reported only that disk; the role runs an edited copy, `/usr/local/sbin/nas-smartmon`,
-that reports every disk (`smartmon_device_smart_healthy` for each). The
+enclosure, so on its own it reported only that disk; the role runs an
+edited copy, `/usr/local/sbin/nas-smartmon`, that reports every disk (`smartmon_device_smart_healthy` for each). The
 role's own files are `nas_zpool.prom` (every 5 minutes: each pool's size
 and allocated bytes from `zpool list`, its error counts, and its last
 finished scrub, kept through a resilver or a scrub in progress),

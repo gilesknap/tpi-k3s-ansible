@@ -12,9 +12,10 @@
 # database, so entries there, by USB ID, tell them how to reach a disk
 # behind a USB bridge, for smartd's DEVICESCAN and node-exporter's smartmon
 # collector alike, without naming the disk:
-# - The OS disk's enclosure (152d:0562) is a JMicron NVMe bridge, but the
-#   packaged database lists that ID as a SATA bridge (-d sat), so smartd's
-#   DEVICESCAN failed on it and exited with no disk to watch.
+# - The OS NVMe's old enclosure (152d:0562) is a JMicron NVMe bridge, but
+#   the packaged database lists that ID as a SATA bridge (-d sat), so
+#   smartd's DEVICESCAN failed on it and exited with no disk to watch. The
+#   NVMe is in the PCIe slot now: the entry stays for if it goes back.
 # - The LaCie (059f:1106) is not in the packaged database at all ("Unknown
 #   USB bridge"), so DEVICESCAN skipped it. It is a SATA disk (a Seagate
 #   ST4000LM024) behind a SAT bridge: -d sat reads it.
@@ -131,9 +132,9 @@
     state: started
 
 # The packaged smartmon.sh collector stops at the first disk whose smartctl
-# type it does not know (`exit` in its catch-all case): the OS disk comes
-# first, as sntjmicron, so it reported that disk alone and none of the SSDs
-# or the LaCie. The role installs a copy that reads sntjmicron like the
+# type it does not know (`exit` in its catch-all case): the OS disk, in its
+# USB enclosure, came first as sntjmicron, so it reported that disk alone
+# and none of the SSDs or the LaCie. The role installs a copy that reads sntjmicron like the
 # other NVMe types and skips (continue) an unknown type instead of stopping,
 # and points the package's timer at the copy. Both edits must match, so a
 # changed upstream script fails here rather than quietly dropping disks.

@@ -116,7 +116,8 @@ Without `--write` it only builds `build/install-stick/install-stick.iso`.
 Before you rely on a rebuilt stick, boot its ISO once in QEMU on `ws03`.
 This confirms that the menu, the seed and the guard work. The VM gets a
 disk with `gknas`'s serial and model (a SATA disk: QEMU cannot set an
-NVMe's model), a decoy disk, and a network port with `gknas`'s MAC (it needs `qemu-system-x86` and `ovmf`):
+NVMe's model), a decoy disk, and a network port with `gknas`'s MAC (it
+needs `qemu-system-x86` and `ovmf`):
 
 ```bash
 cd build/install-stick
