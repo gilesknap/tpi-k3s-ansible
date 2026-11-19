@@ -3,9 +3,10 @@
 # Copy every dataset of {{ nas_pool }} to {{ nas_backup_pool }}/{{ nas_pool }}
 # with syncoid (zfs send | zfs receive; incremental after the first run).
 # The received datasets are read-only, mounted under
-# {{ nas_backup_pool_mountpoint }} (the pool's root and $dst are not mounted:
-# read-only, they could not hold their children's mount points). Writes the time of the last success for
-# node-exporter's textfile collector.
+# {{ nas_backup_pool_mountpoint }}. The pool's root and $dst are not
+# mounted: read-only, they could not hold their children's mount points.
+# Writes the time of the last success for node-exporter's textfile
+# collector.
 set -euo pipefail
 
 src={{ nas_pool }}
@@ -41,11 +42,18 @@ if ! zpool list -H -o name "{{ nas_backup_pool }}" >/dev/null 2>&1; then
     exit 1
 fi
 
-syncoid --recursive --identifier={{ nas_backup_pool }} "$src" "$dst"
-# The first receive creates $dst mountable (canmount is not sent); like
-# $src's root it holds no files.
-if [ "$(zfs get -H -o value canmount "$dst")" != off ]; then
+rc=0
+syncoid --recursive --identifier={{ nas_backup_pool }} "$src" "$dst" || rc=$?
+# The first receive creates $dst mountable (canmount is not sent), so its
+# children then fail to mount and syncoid fails; like $src's root it holds
+# no files.
+if zfs list -H "$dst" >/dev/null 2>&1 \
+    && [ "$(zfs get -H -o value canmount "$dst")" != off ]; then
     zfs set canmount=off "$dst"
     zfs mount -a
+fi
+if [ "$rc" != 0 ]; then
+    metric 0
+    exit "$rc"
 fi
 metric 1
