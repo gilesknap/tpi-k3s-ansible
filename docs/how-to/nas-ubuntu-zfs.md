@@ -18,10 +18,10 @@ Its notes on QTS describe the move from it.
 |------|-------|-------|
 | Fanxiang S500Pro 256 GB NVMe, on an x4 PCIe adapter (`nvme0n1`) | The OS disk | Ubuntu Server |
 | Two Samsung 870 QVO 4 TB SSDs, in the bays | ZFS pool `tank`, a mirror | Everything the NAS serves |
-| LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk: **not yet created**, as the LaCie still holds the migration's tar copies | A nightly copy of every dataset of `tank`, once the pool exists |
+| LaCie 4 TB USB drive, front USB 3 port | ZFS pool `backup`, one disk, created with `pb_nas.yml -e nas_create_backup_pool=true -e nas_force=true` | A nightly copy of every dataset of `tank` |
 | The internal DOM | Not used | QTS's firmware (still there: see the migration's back-out) |
 
-`tank` has (and `backup` will have) `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`,
+`tank` and `backup` have `ashift=12`, `compression=lz4`, `atime=off`, `xattr=sa`,
 `acltype=posixacl` and `overlay=off` (a dataset never mounts over a directory
 with files in it). The datasets keep the paths the cluster already mounts, so
 no PersistentVolume changes:
@@ -203,7 +203,7 @@ so it catches mistakes rather than proving the negative.
 # The main pool. Disks from QTS carry its RAID, so they need nas_force.
 ansible-playbook pb_nas.yml -e nas_create_pool=true -e nas_force=true
 
-# The backup pool, once the LaCie holds nothing that is needed.
+# The backup pool, on the LaCie. It is not blank (NTFS), so it needs nas_force.
 ansible-playbook pb_nas.yml -e nas_create_backup_pool=true -e nas_force=true
 ```
 
