@@ -20,13 +20,14 @@ nas_pool_disks:
 nas_pool_vdev: mirror
 
 # The backup pool: the LaCie 4 TB USB drive, a single disk. It receives a
-# nightly copy of every dataset of nas_pool. It is optional: until it
-# exists (it holds the migration's tar copies until then), the role leaves
-# the replication timer off and says so.
+# nightly copy of every dataset of nas_pool. It is optional: while it does
+# not exist, the role leaves the replication timer off and says so.
 nas_backup_pool: backup
-# Not set until the LaCie stops holding the migration's tar copies (runbook
-# 5.2); then: /dev/disk/by-id/usb-LaCie_Mobile_Drive_00000000NT12349D-0:0
-nas_backup_pool_disks: []
+# The LaCie (serial 00000000NT12349D). Its migration copy is no longer
+# needed; the pool is created with
+# pb_nas.yml -e nas_create_backup_pool=true -e nas_force=true.
+nas_backup_pool_disks:
+  - /dev/disk/by-id/usb-LaCie_Mobile_Drive_00000000NT12349D-0:0
 # Where the received datasets are mounted, read-only, for restores.
 nas_backup_pool_mountpoint: /srv/backup
 
