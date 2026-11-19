@@ -24,8 +24,8 @@ This chart's `templates/` must contain a SealedSecret `scrap-secret.yaml` that u
 `scrap-secrets` in the `scrap` namespace with the keys `ANTHROPIC_API_KEY` (the
 Claude API key for ingest), `SCRAP_MCP_TOKEN` (the main `/mcp` bearer token),
 optionally `SCRAP_MCP_TOKEN_CANARY` (the claude-canary VPS's own token), and
-`SCRAP_MCP_TOKENS` (the two comma separated, or the main one alone: the key
-scrap reads). A rebuild seals it through `just generate-and-seal-all`. To
+`SCRAP_MCP_TOKENS` (the two comma separated, or the main one alone, which the
+chart passes to scrap as its `SCRAP_MCP_TOKEN` variable). A rebuild seals it through `just generate-and-seal-all`. To
 reseal it from the live Secret, keeping the MCP tokens every client holds:
 
 ```bash
