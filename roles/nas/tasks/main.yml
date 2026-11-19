@@ -61,11 +61,12 @@
     nas_pool_vdev_type: ""
     nas_pool_create: "{{ nas_create_backup_pool | bool }}"
     nas_pool_required: false
-    # Received datasets are read-only and mounted under one directory, never
-    # over the live paths.
+    # Received datasets inherit readonly and the mountpoint from the root, so
+    # they are read-only and mounted under one directory, never over the live
+    # paths. The root itself is never mounted (snapshots.yml).
     nas_pool_root_properties: >-
       {{ nas_pool_fs_properties | combine({'mountpoint': nas_backup_pool_mountpoint,
-         'readonly': 'on'}) }}
+         'readonly': 'on', 'canmount': 'off'}) }}
   tags: [nas_pool, nas_datasets, nas_nfs, nas_snapshots, nas_health]
 
 - name: Create the datasets and the cluster's directories

@@ -68,6 +68,41 @@
 - name: Flush handlers so systemd sees the new units
   ansible.builtin.meta: flush_handlers
 
+# The backup pool's root and backup/tank (the copy of tank's root, which
+# holds no files) are never mounted: read-only, they could not hold the
+# mount points of the datasets below them, which would then fail to mount.
+# Unmounted, those mount points are plain directories on the OS disk under
+# /srv/backup. canmount is not inherited, and the received datasets still
+# inherit readonly and their mountpoint from the pool's root (syncoid does
+# not send properties), never tank's live paths. The nightly copy does the
+# same for backup/tank after its first receive.
+- name: Read whether the backup pool's top datasets can be mounted
+  ansible.builtin.command: >-
+    zfs get -H -o name,value canmount {{ nas_backup_pool }} {{ nas_backup_pool }}/{{ nas_pool }}
+  register: nas_backup_canmount
+  changed_when: false
+  # backup/tank exists only after the first copy.
+  failed_when: false
+  check_mode: false
+  when: nas_pools_present[nas_backup_pool] | default(false)
+
+- name: Stop the backup pool's top datasets being mounted
+  ansible.builtin.command: zfs set canmount=off {{ item.split('\t') | first }}
+  loop: "{{ nas_backup_canmount.stdout_lines | default([]) | reject('match', '.*\toff$') | list }}"
+  changed_when: true
+
+- name: Read which backup datasets are mounted
+  ansible.builtin.command: zfs list -H -r -o name,canmount,mounted {{ nas_backup_pool }}
+  register: nas_backup_mounted
+  changed_when: false
+  check_mode: false
+  when: nas_pools_present[nas_backup_pool] | default(false)
+
+- name: Mount the backup datasets
+  ansible.builtin.command: zfs mount -a
+  when: nas_backup_mounted.stdout_lines | default([]) | select('match', '.*\ton\tno$') | list | length > 0
+  changed_when: true
+
 # Only once the backup pool exists (docs/how-to/nas-ubuntu-zfs.md).
 - name: Enable or disable the nightly copy to the backup pool
   ansible.builtin.systemd_service:
