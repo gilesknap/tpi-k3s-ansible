@@ -175,7 +175,7 @@ supplied:
 | `CLOUDFLARE_API_TOKEN` | cert-manager's DNS-01 token ({ref}`cf-dns01-token`) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | The tunnel's token, held in the OpenTofu state |
 | `VPS_RELAY_TS_OAUTH_CLIENT_SECRET`, `VPS_RELAY_FRP_TOKEN` | The Tailscale OAuth client and the frp token (optional: without them the relay's secret is skipped) |
-| `SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN`, `SCRAP_PUBLISH_TOKEN` | scrap's Claude API key and its two tokens (optional: without the API key scrap's secrets are skipped) |
+| `SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN`, `SCRAP_MCP_TOKEN_CANARY`, `SCRAP_PUBLISH_TOKEN` | scrap's Claude API key and its tokens (optional: without the API key scrap's secrets are skipped; the canary token only if the claude-canary VPS has one) |
 | `OFFSITE_BACKUP_RCLONE_CONF_B64` | rclone's Google Drive credentials for the off-site backup (optional) |
 | `NTFY_<USER>_TOKEN` | ntfy's access tokens; any that are missing are generated |
 

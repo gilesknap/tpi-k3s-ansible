@@ -61,6 +61,7 @@ scrap has no login of its own, so access control is layered in front of it.
 |------|----------------------|-------------------------|
 | Web UI and PWA | Cloudflare Access: the Owner policy of the `clusterapps` application | oauth2-proxy GitHub login, limited to `admin_emails` |
 | `/mcp` | Cloudflare Access service token (`CF-Access-Client-Id` and `CF-Access-Client-Secret` headers) | scrap's bearer token, `SCRAP_MCP_TOKEN` |
+| `/mcp` from the claude-canary VPS, over the tailnet ({ref}`scrap-canary`) | None: the tailnet policy lets the VPS reach nuc2's ingress-nginx, not Cloudflare | The VPS's own bearer token, `SCRAP_MCP_TOKEN_CANARY` |
 | `pages.gkcluster.org` | None: a bypass Access application, as the site is public | None: static files only, and nothing on that side can reach scrap |
 
 The `/mcp` path cannot use oauth2-proxy, because an MCP client cannot complete
@@ -126,6 +127,69 @@ a hostname with a path beats the bare hostname for that path.
 
 {ref}`cf-access-bypass` explains the pattern, and {ref}`cf-add-service` the
 `just cf-plan` and `just cf-apply` routine.
+
+(scrap-canary)=
+## The claude-canary VPS
+
+The owner's VPS (claude-canary, deliberately the riskier box) reaches scrap's
+`/mcp` with a token of its own and over the tailnet, so it holds no copy of the
+main MCP token and no Cloudflare service token.
+
+**Its token.** `scrap-secrets` holds it as `SCRAP_MCP_TOKEN_CANARY`, next to
+the main `SCRAP_MCP_TOKEN`. A third key, `SCRAP_MCP_TOKENS`, holds the two
+comma separated (or the main token alone); it is the chart's
+`mcp.tokenSecret.key`, so scrap gets it as its `SCRAP_MCP_TOKEN` variable and
+accepts either token. `just seal-scrap-secrets` reseals `scrap-secrets` from
+the live Secret and builds that key:
+
+```bash
+just seal-scrap-secrets --canary new     # a new canary token (or a rotation)
+just seal-scrap-secrets --canary revoke  # drop it
+```
+
+Commit and push the sealed file, wait for ArgoCD to sync it, then restart
+scrap, which reads its tokens at start (`kubectl -n scrap rollout restart
+deploy/scrap`). After a revoke, `/mcp` answers 401 to the canary's token and
+every other client is untouched. `just scrap-canary-token` prints the token
+from the live Secret, for the VPS's scrap MCP entry; run it in a terminal of
+your own, as its output is a secret. A rebuild keeps the token
+(`scripts/export-external-creds` exports it) and never makes one.
+
+**Its path.** On the VPS, `/etc/hosts` maps the real hostname to nuc2's tailnet
+IP:
+
+```text
+100.125.90.58  scrap.gkcluster.org
+```
+
+nuc2 runs a ServiceLB pod for ingress-nginx's LoadBalancer Service, which
+takes port 443 on every address of the node, `tailscale0` included. The VPS
+therefore talks to ingress-nginx directly: the wildcard certificate matches,
+the `Host` is the one scrap's DNS-rebinding check expects, and nginx routes
+`/mcp` to `scrap-mcp-ingress` as for any other client. The MCP entry is the
+usual `https://scrap.gkcluster.org/mcp` with only the
+`Authorization: Bearer <canary token>` header.
+
+The tailnet policy is set by hand in the Tailscale admin console (Access
+controls). The VPS is tagged `tag:vps`, and the only grant from that tag is
+nuc2's tailnet IP on TCP 443; {doc}`vps-relay` (Step 1) has the whole policy
+with its `tests`, which check that the VPS still cannot reach SSH on nuc2,
+Jellyfin, the relay or the LAN behind nuc2's subnet route.
+
+Limits:
+
+- **The canary loses scrap whenever nuc2 is down** (or its ServiceLB pod, or
+  Tailscale on nuc2). The path names one node, so nothing fails over;
+  other clients, through Cloudflare, are unaffected.
+- **nuc2's tailnet IP is written in two places** by hand: the policy's
+  `nuc2` host alias and the VPS's `/etc/hosts`. If nuc2 rejoins the tailnet
+  with a new IP (a reinstall or a logout), update both; until then the VPS
+  just loses scrap.
+- **The grant opens all of ingress-nginx on nuc2, not only scrap.** Every
+  `*.gkcluster.org` host is reachable from the VPS without Cloudflare Access,
+  as from the LAN. Hosts with a login of their own (oauth2-proxy, Argo CD's
+  Dex, Grafana, ntfy's tokens) still ask for it; hosts that rely on
+  Cloudflare Access alone (`echo`, `home`, `argocd-monitor`) are readable.
 
 ## Data, backups and failover
 
@@ -207,12 +271,14 @@ package on GitHub, so no pull secret is needed.
 
 | SealedSecret | Namespace | Keys |
 |--------------|-----------|------|
-| `scrap-secrets` (`scrap-secret.yaml`) | `scrap` | `ANTHROPIC_API_KEY` (Claude ingest), `SCRAP_MCP_TOKEN` (the `/mcp` bearer token) |
+| `scrap-secrets` (`scrap-secret.yaml`) | `scrap` | `ANTHROPIC_API_KEY` (Claude ingest), `SCRAP_MCP_TOKEN` (the main `/mcp` bearer token), `SCRAP_MCP_TOKEN_CANARY` (the claude-canary VPS's, optional) and `SCRAP_MCP_TOKENS` (those two, comma separated: the chart passes this key to scrap as its `SCRAP_MCP_TOKEN` variable) |
 | `scrap-publish` | `scrap` and `scrap-public` | `token` (the public-pages upload token) |
 | `scrap-ntfy` (`scrap-ntfy-secret.yaml`) | `scrap` | `url` (`SCRAP_NOTIFY_URL`, the ntfy topic URL with the token in it), `token` (the ntfy `scrap` user's token) |
 
-`kubernetes-services/additions/scrap/README.md` has the commands that reseal
-the first two by hand; {doc}`/how-to/manage-sealed-secrets` covers the general rules.
+`just seal-scrap-secrets` reseals the first from the live Secret (with
+`--api-key` for a new Claude API key), and
+`kubernetes-services/additions/scrap/README.md` has the command that reseals
+the second by hand; {doc}`/how-to/manage-sealed-secrets` covers the general rules.
 Without `scrap-secrets` the pod sits in `CreateContainerConfigError`.
 
 `scrap-ntfy` is never sealed by hand: `just seal-ntfy` seals it together with
@@ -224,10 +290,12 @@ the phone on the `cluster-alerts` topic ({ref}`ntfy-scrap`). The variable is
 optional: without the Secret, scrap runs and announces nothing.
 
 A cluster rebuild reseals them: `scripts/export-external-creds` exports
-`SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN` and `SCRAP_PUBLISH_TOKEN` from
-the running cluster, and `just generate-and-seal-all` seals them again. The
-MCP token is kept, so MCP clients keep working; set
-`SCRAP_ROTATE_MCP_TOKEN=true` to replace it, then update every client.
+`SCRAP_ANTHROPIC_API_KEY`, `SCRAP_MCP_TOKEN`, `SCRAP_MCP_TOKEN_CANARY` and
+`SCRAP_PUBLISH_TOKEN` from the running cluster, and
+`just generate-and-seal-all` seals them again. The MCP tokens are kept, so
+MCP clients keep working; set
+`SCRAP_ROTATE_MCP_TOKEN=true` to replace the main one, then update every
+client (rotate the canary's with `just seal-scrap-secrets --canary new`).
 Without `SCRAP_ANTHROPIC_API_KEY`, scrap's secrets are skipped.
 
 ## Upgrade scrap

@@ -110,6 +110,10 @@ seal-argocd-dex target:
 seal-ntfy *args:
     scripts/seal-ntfy {{ args }}
 
+# Reseal scrap-secrets, keeping live values (--api-key, --canary new|revoke)
+seal-scrap-secrets *args:
+    scripts/seal-scrap-secrets {{ args }}
+
 # Seal rclone's Google Drive token for the off-site backup (prints nothing secret)
 seal-rclone-drive client_secret_json:
     scripts/seal-rclone-drive "{{ client_secret_json }}"
@@ -232,6 +236,14 @@ paper-kit *args:
 # Print ntfy's phone and VPS access tokens (reads the live secret only)
 ntfy-tokens:
     @scripts/ntfy-tokens
+
+# Print scrap's MCP token for the claude-canary VPS (reads the live secret only)
+scrap-canary-token:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    token=$(kubectl get secret scrap-secrets -n scrap -o jsonpath='{.data.SCRAP_MCP_TOKEN_CANARY}' | base64 -d)
+    [ -n "$token" ] || { echo "no canary token: just seal-scrap-secrets --canary new" >&2; exit 1; }
+    echo "$token"
 
 # Asks you to type the node name (and `RESET <node>` if the node is in use)
 # before changing anything; DRY_RUN=1 previews, FORCE=1 skips the second prompt.

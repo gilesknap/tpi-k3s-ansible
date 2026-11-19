@@ -59,6 +59,7 @@ spec = [
     ("VPS_RELAY_FRP_TOKEN", "vps-relay", "vps-relay-credentials", "frp-token"),
     ("SCRAP_ANTHROPIC_API_KEY", "scrap", "scrap-secrets", "ANTHROPIC_API_KEY"),
     ("SCRAP_MCP_TOKEN", "scrap", "scrap-secrets", "SCRAP_MCP_TOKEN"),
+    ("SCRAP_MCP_TOKEN_CANARY", "scrap", "scrap-secrets", "SCRAP_MCP_TOKEN_CANARY"),
     ("SCRAP_PUBLISH_TOKEN", "scrap", "scrap-publish", "token"),
 ]
 for user in os.environ["NTFY_USERS"].split():

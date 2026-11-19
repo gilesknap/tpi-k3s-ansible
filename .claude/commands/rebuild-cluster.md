@@ -167,6 +167,9 @@ the rebuild keeps them:
   `SCRAP_ROTATE_MCP_TOKEN=true`; the new token is written to
   `/tmp/cluster-secrets/scrap-mcp-token.txt` and every client must be
   updated with it.
+- `SCRAP_MCP_TOKEN_CANARY` (the claude-canary VPS's own `/mcp` token):
+  kept as exported; empty means the VPS has none, and the rebuild never
+  generates one.
 - `SCRAP_PUBLISH_TOKEN` (scrap's public-pages upload token): sealed into
   both `scrap` and `scrap-public`, generated if not set.
 - `NTFY_<USER>_TOKEN`, one per user in `SENDERS` in
