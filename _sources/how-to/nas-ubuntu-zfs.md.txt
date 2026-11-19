@@ -241,8 +241,11 @@ longer than `NasDown` should report.
 - **The copy to the backup pool**: `nas-replicate.timer` runs `syncoid` at
   06:30, after the cluster's nightly backups, sending every dataset of `tank`
   to `backup/tank` (incrementally). The copies are read-only, mounted under
-  `/srv/backup`, and sanoid keeps 60 daily and 24 monthly snapshots of them
-  (and prunes the weeklies that arrive).
+  `/srv/backup` (`/srv/backup/tank/bigdisk` and so on), and sanoid keeps 60
+  daily and 24 monthly snapshots of them (and prunes the weeklies that
+  arrive). `backup` and `backup/tank` themselves hold no files and are not
+  mounted (`canmount=off`): read-only, they could not hold the mount points
+  below them, so those are plain directories on the OS disk.
   `journalctl -u nas-replicate` shows the last run.
 - **Scrubs**: `zfs-scrub-monthly@tank.timer` and `zfs-scrub-monthly@backup.timer`
   (Ubuntu's own cron scrub is turned off per pool with the

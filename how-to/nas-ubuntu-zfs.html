@@ -733,8 +733,11 @@ newest weekly snapshot of each dataset is held (<a class="reference internal" hr
 <li><p><strong>The copy to the backup pool</strong>: <code class="docutils literal notranslate"><span class="pre">nas-replicate.timer</span></code> runs <code class="docutils literal notranslate"><span class="pre">syncoid</span></code> at
 06:30, after the cluster’s nightly backups, sending every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code>
 to <code class="docutils literal notranslate"><span class="pre">backup/tank</span></code> (incrementally). The copies are read-only, mounted under
-<code class="docutils literal notranslate"><span class="pre">/srv/backup</span></code>, and sanoid keeps 60 daily and 24 monthly snapshots of them
-(and prunes the weeklies that arrive).
+<code class="docutils literal notranslate"><span class="pre">/srv/backup</span></code> (<code class="docutils literal notranslate"><span class="pre">/srv/backup/tank/bigdisk</span></code> and so on), and sanoid keeps 60
+daily and 24 monthly snapshots of them (and prunes the weeklies that
+arrive). <code class="docutils literal notranslate"><span class="pre">backup</span></code> and <code class="docutils literal notranslate"><span class="pre">backup/tank</span></code> themselves hold no files and are not
+mounted (<code class="docutils literal notranslate"><span class="pre">canmount=off</span></code>): read-only, they could not hold the mount points
+below them, so those are plain directories on the OS disk.
 <code class="docutils literal notranslate"><span class="pre">journalctl</span> <span class="pre">-u</span> <span class="pre">nas-replicate</span></code> shows the last run.</p></li>
 <li><p><strong>Scrubs</strong>: <code class="docutils literal notranslate"><span class="pre">zfs-scrub-monthly&#64;tank.timer</span></code> and <code class="docutils literal notranslate"><span class="pre">zfs-scrub-monthly&#64;backup.timer</span></code>
 (Ubuntu’s own cron scrub is turned off per pool with the

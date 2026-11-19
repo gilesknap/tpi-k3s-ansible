@@ -931,7 +931,9 @@ it to the forward’s <code class="docutils literal notranslate"><span class="pr
 initiates a connection into the home network, the tailnet policy gives the
 VPS no access to the relay node, and the relay node advertises no subnet
 routes. A compromised VPS can therefore reach only what the relay already
-forwards to it: the game ports on nuc2.</p>
+forwards to it, the game ports on nuc2, and the one thing the policy grants
+it: ingress-nginx on nuc2’s tailnet IP, for scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>
+(<a class="reference internal" href="scrap.html#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>).</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Piece</p></th>
@@ -954,7 +956,7 @@ forwards to it: the game ports on nuc2.</p>
 </tr>
 <tr class="row-odd"><td><p>Tailnet policy</p></td>
 <td><p>Tailscale admin console</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> may reach only the VPS’s frp port</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> may reach only the VPS’s frp port; <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> only nuc2’s tailnet IP on 443</p></td>
 </tr>
 <tr class="row-even"><td><p>Public DNS name</p></td>
 <td><p>The <code class="docutils literal notranslate"><span class="pre">mc</span></code> entry in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>)</p></td>
@@ -997,6 +999,9 @@ expiring; Tailscale SSH rules that reach it must then name the tag.</p>
 <p>In the Tailscale admin console, <strong>Access controls</strong>, the policy file
 has:</p>
 <div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="s2">&quot;hosts&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="s2">&quot;nuc2&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;100.125.90.58&quot;</span><span class="w">   </span><span class="c1">// nuc2&#39;s tailnet IP</span>
+<span class="w">  </span><span class="p">},</span>
 <span class="w">  </span><span class="s2">&quot;tagOwners&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="s2">&quot;tag:vps&quot;</span><span class="o">:</span><span class="w">       </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">],</span>
 <span class="w">    </span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">]</span>
@@ -1006,16 +1011,27 @@ has:</p>
 <span class="w">    </span><span class="c1">// so this does not cover the VPS.</span>
 <span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:member&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
 <span class="w">    </span><span class="c1">// The relay may reach only frps on the VPS.</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp:7000&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
-<span class="w">    </span><span class="c1">// Deliberately nothing with src tag:vps.</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp:7000&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="c1">// The VPS (claude-canary) may reach only ingress-nginx on nuc2&#39;s tailnet</span>
+<span class="w">    </span><span class="c1">// IP, for scrap&#39;s /mcp (docs/how-to/scrap.md). Nothing else with src tag:vps.</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;nuc2&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp:443&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 <span class="w">  </span><span class="p">],</span>
 <span class="w">  </span><span class="s2">&quot;tests&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;accept&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps:7000&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;deny&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps:22&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;tag:vps&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;deny&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay:1055&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;tag:vps-relay:22&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;tag:vps&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="s2">&quot;accept&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;nuc2:443&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="s2">&quot;deny&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay:1055&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;tag:vps-relay:22&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nuc2:22&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nuc2:80&quot;</span><span class="p">,</span>
+<span class="w">               </span><span class="s2">&quot;nuc2:8096&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;192.168.1.92:443&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;192.168.1.1:80&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
 <span class="w">  </span><span class="p">]</span>
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>The <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> grant is the claude-canary VPS’s path to scrap without
+Cloudflare (<a class="reference internal" href="scrap.html#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>); leave it out if the VPS needs no scrap. It
+names nuc2’s tailnet IP only, so it does not reach the LAN through a subnet
+route that nuc2 advertises (the <code class="docutils literal notranslate"><span class="pre">192.168.1.92:443</span></code> test).</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">tests</span></code> are checked on every save, so a later policy edit cannot quietly
 let the VPS dial in. In a file that uses <code class="docutils literal notranslate"><span class="pre">acls</span></code> rather than <code class="docutils literal notranslate"><span class="pre">grants</span></code>, the
 relay rule is <code class="docutils literal notranslate"><span class="pre">{&quot;action&quot;:</span> <span class="pre">&quot;accept&quot;,</span> <span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;tag:vps-relay&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;tag:vps:7000&quot;]}</span></code>.</p>
