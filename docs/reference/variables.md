@@ -256,6 +256,7 @@ secret prompts for it when the variable is unset.
 | `VPS_RELAY_TS_OAUTH_CLIENT_SECRET`, `VPS_RELAY_FRP_TOKEN` | `generate-secrets` | The VPS relay's Tailscale OAuth client secret and frp token: both or neither |
 | `SCRAP_ANTHROPIC_API_KEY` | `generate-secrets` | Claude API key for scrap's ingest; scrap's secrets are sealed only if it is set |
 | `SCRAP_MCP_TOKEN`, `SCRAP_PUBLISH_TOKEN` | `generate-secrets` | Kept as given, since clients hold copies; generated if unset |
+| `SCRAP_MCP_TOKEN_CANARY` | `generate-secrets` | The claude-canary VPS's own `/mcp` token; kept as given, never generated (unset: none) |
 | `SCRAP_ROTATE_MCP_TOKEN` | `generate-secrets` | `true` replaces `SCRAP_MCP_TOKEN` with a new one |
 | `OFFSITE_BACKUP_RCLONE_CONF_B64` | `generate-secrets` | The off-site backup's `rclone.conf`, base64-encoded; resealed as given |
 | `OFFSITE_BACKUP_B2_RCLONE_CONF_B64` | `generate-secrets` | The B2 off-site copy's `rclone.conf` (its application key), base64-encoded; resealed as given |

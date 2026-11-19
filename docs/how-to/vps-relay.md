@@ -56,14 +56,16 @@ flowchart LR
 initiates a connection into the home network, the tailnet policy gives the
 VPS no access to the relay node, and the relay node advertises no subnet
 routes. A compromised VPS can therefore reach only what the relay already
-forwards to it: the game ports on nuc2.
+forwards to it, the game ports on nuc2, and the one thing the policy grants
+it: ingress-nginx on nuc2's tailnet IP, for scrap's `/mcp`
+({ref}`scrap-canary`).
 
 | Piece | Where | Notes |
 |-------|-------|-------|
 | `vps-relay` Deployment and `vps-relay-frpc` ConfigMap | `kubernetes-services/additions/vps-relay/`, namespace `vps-relay` | `frpc.toml` is generated from `vps_relay.forwards` |
 | `vps-relay-credentials` SealedSecret | `additions/vps-relay/templates/vps-relay-secret.yaml` | Tailscale OAuth client secret and the frp token |
 | `frps` | The VPS (Podman Quadlet, run by systemd) | Control port bound to the VPS's tailnet IP only |
-| Tailnet policy | Tailscale admin console | `tag:vps-relay` may reach only the VPS's frp port |
+| Tailnet policy | Tailscale admin console | `tag:vps-relay` may reach only the VPS's frp port; `tag:vps` only nuc2's tailnet IP on 443 |
 | Public DNS name | The `mc` entry in `dns_only_records` ({doc}`cloudflare-as-code`) | A DNS-only A record on the VPS's public address |
 
 ### Trade-offs
@@ -101,6 +103,9 @@ has:
 
 ```javascript
 {
+  "hosts": {
+    "nuc2": "100.125.90.58"   // nuc2's tailnet IP
+  },
   "tagOwners": {
     "tag:vps":       ["autogroup:admin"],
     "tag:vps-relay": ["autogroup:admin"]
@@ -110,15 +115,27 @@ has:
     // so this does not cover the VPS.
     { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
     // The relay may reach only frps on the VPS.
-    { "src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"] }
-    // Deliberately nothing with src tag:vps.
+    { "src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"] },
+    // The VPS (claude-canary) may reach only ingress-nginx on nuc2's tailnet
+    // IP, for scrap's /mcp (docs/how-to/scrap.md). Nothing else with src tag:vps.
+    { "src": ["tag:vps"], "dst": ["nuc2"], "ip": ["tcp:443"] }
   ],
   "tests": [
     { "src": "tag:vps-relay", "accept": ["tag:vps:7000"], "deny": ["tag:vps:22"] },
-    { "src": "tag:vps", "deny": ["tag:vps-relay:1055", "tag:vps-relay:22"] }
+    {
+      "src": "tag:vps",
+      "accept": ["nuc2:443"],
+      "deny": ["tag:vps-relay:1055", "tag:vps-relay:22", "nuc2:22", "nuc2:80",
+               "nuc2:8096", "192.168.1.92:443", "192.168.1.1:80"]
+    }
   ]
 }
 ```
+
+The `tag:vps` grant is the claude-canary VPS's path to scrap without
+Cloudflare ({ref}`scrap-canary`); leave it out if the VPS needs no scrap. It
+names nuc2's tailnet IP only, so it does not reach the LAN through a subnet
+route that nuc2 advertises (the `192.168.1.92:443` test).
 
 The `tests` are checked on every save, so a later policy edit cannot quietly
 let the VPS dial in. In a file that uses `acls` rather than `grants`, the

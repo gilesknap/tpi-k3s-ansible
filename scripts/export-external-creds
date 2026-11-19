@@ -5,7 +5,8 @@
 # off-site backup's two rclone.conf files are exported base64-encoded, as
 # one line each. scrap's MCP and publish tokens and ntfy's access tokens
 # are not external, but they are exported too so that a rebuild keeps them:
-# every MCP client holds a copy of SCRAP_MCP_TOKEN, and each ntfy client
+# every MCP client holds a copy of SCRAP_MCP_TOKEN (the claude-canary VPS
+# of SCRAP_MCP_TOKEN_CANARY, empty when it has none), and each ntfy client
 # (the phone app, the VPS) holds a copy of its token.
 set -euo pipefail
 get_key() { kubectl get secret "$1" -n "$2" -o jsonpath="{.data.$3}" | base64 -d; }
@@ -43,6 +44,7 @@ VPS_RELAY_TS_OAUTH_CLIENT_SECRET=$(get_key_opt vps-relay-credentials vps-relay t
 VPS_RELAY_FRP_TOKEN=$(get_key_opt vps-relay-credentials vps-relay frp-token)
 SCRAP_ANTHROPIC_API_KEY=$(get_key_opt scrap-secrets scrap ANTHROPIC_API_KEY)
 SCRAP_MCP_TOKEN=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN)
+SCRAP_MCP_TOKEN_CANARY=$(get_key_opt scrap-secrets scrap SCRAP_MCP_TOKEN_CANARY)
 SCRAP_PUBLISH_TOKEN=$(get_key_opt scrap-publish scrap token)
 OFFSITE_BACKUP_RCLONE_CONF_B64=$rclone_conf_b64
 OFFSITE_BACKUP_B2_RCLONE_CONF_B64=$b2_rclone_conf_b64

@@ -110,9 +110,21 @@ if has_secret scrap-secrets scrap; then
     echo "Sealing: scrap-secrets..."
     v_anthropic_api_key=$(get_key scrap-secrets scrap ANTHROPIC_API_KEY) || exit 1
     v_scrap_mcp_token=$(get_key scrap-secrets scrap SCRAP_MCP_TOKEN) || exit 1
+    # The claude-canary VPS's own token, optional. scrap reads SCRAP_MCP_TOKENS:
+    # the main token and the canary's, comma separated.
+    v_scrap_mcp_canary=$(jq -r '.[] | select(.name == "scrap-secrets" and .namespace == "scrap")
+        | .data.SCRAP_MCP_TOKEN_CANARY // empty' "$JSON")
+    canary_args=()
+    v_scrap_mcp_tokens=$v_scrap_mcp_token
+    if [ -n "$v_scrap_mcp_canary" ]; then
+        canary_args=(--from-literal=SCRAP_MCP_TOKEN_CANARY="$v_scrap_mcp_canary")
+        v_scrap_mcp_tokens="$v_scrap_mcp_token,$v_scrap_mcp_canary"
+    fi
     kubectl create secret generic scrap-secrets --namespace=scrap \
         --from-literal=ANTHROPIC_API_KEY="$v_anthropic_api_key" \
         --from-literal=SCRAP_MCP_TOKEN="$v_scrap_mcp_token" \
+        "${canary_args[@]}" \
+        --from-literal=SCRAP_MCP_TOKENS="$v_scrap_mcp_tokens" \
         --dry-run=client -o yaml | seal_to "$BASE/scrap/templates/scrap-secret.yaml"
     echo "  -> $BASE/scrap/templates/scrap-secret.yaml"
 else
