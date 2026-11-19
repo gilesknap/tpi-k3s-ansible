@@ -203,7 +203,7 @@ so it catches mistakes rather than proving the negative.
 # The main pool. Disks from QTS carry its RAID, so they need nas_force.
 ansible-playbook pb_nas.yml -e nas_create_pool=true -e nas_force=true
 
-# The backup pool, on the LaCie. Its old contents are wiped, so it needs nas_force.
+# The backup pool, on the LaCie. It is not blank (NTFS), so it needs nas_force.
 ansible-playbook pb_nas.yml -e nas_create_backup_pool=true -e nas_force=true
 ```
 
