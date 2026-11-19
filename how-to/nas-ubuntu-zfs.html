@@ -451,8 +451,8 @@ Its notes on QTS describe the move from it.</p>
 <td><p>Everything the NAS serves</p></td>
 </tr>
 <tr class="row-even"><td><p>LaCie 4 TB USB drive, front USB 3 port</p></td>
-<td><p>ZFS pool <code class="docutils literal notranslate"><span class="pre">backup</span></code>, one disk: <strong>not yet created</strong>, as the LaCie still holds the migration’s tar copies</p></td>
-<td><p>A nightly copy of every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code>, once the pool exists</p></td>
+<td><p>ZFS pool <code class="docutils literal notranslate"><span class="pre">backup</span></code>, one disk, created with <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span> <span class="pre">-e</span> <span class="pre">nas_create_backup_pool=true</span> <span class="pre">-e</span> <span class="pre">nas_force=true</span></code></p></td>
+<td><p>A nightly copy of every dataset of <code class="docutils literal notranslate"><span class="pre">tank</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>The internal DOM</p></td>
 <td><p>Not used</p></td>
@@ -461,7 +461,7 @@ Its notes on QTS describe the move from it.</p>
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">tank</span></code> has (and <code class="docutils literal notranslate"><span class="pre">backup</span></code> will have) <code class="docutils literal notranslate"><span class="pre">ashift=12</span></code>, <code class="docutils literal notranslate"><span class="pre">compression=lz4</span></code>, <code class="docutils literal notranslate"><span class="pre">atime=off</span></code>, <code class="docutils literal notranslate"><span class="pre">xattr=sa</span></code>,
+<p><code class="docutils literal notranslate"><span class="pre">tank</span></code> and <code class="docutils literal notranslate"><span class="pre">backup</span></code> have <code class="docutils literal notranslate"><span class="pre">ashift=12</span></code>, <code class="docutils literal notranslate"><span class="pre">compression=lz4</span></code>, <code class="docutils literal notranslate"><span class="pre">atime=off</span></code>, <code class="docutils literal notranslate"><span class="pre">xattr=sa</span></code>,
 <code class="docutils literal notranslate"><span class="pre">acltype=posixacl</span></code> and <code class="docutils literal notranslate"><span class="pre">overlay=off</span></code> (a dataset never mounts over a directory
 with files in it). The datasets keep the paths the cluster already mounts, so
 no PersistentVolume changes:</p>
@@ -693,7 +693,7 @@ so it catches mistakes rather than proving the negative.
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># The main pool. Disks from QTS carry its RAID, so they need nas_force.</span>
 ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_pool</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_force</span><span class="o">=</span><span class="nb">true</span>
 
-<span class="c1"># The backup pool, once the LaCie holds nothing that is needed.</span>
+<span class="c1"># The backup pool, on the LaCie. It is not blank (NTFS), so it needs nas_force.</span>
 ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_create_backup_pool</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">nas_force</span><span class="o">=</span><span class="nb">true</span>
 </pre></div>
 </div>
