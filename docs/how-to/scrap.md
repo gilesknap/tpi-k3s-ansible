@@ -187,9 +187,10 @@ Limits:
   just loses scrap.
 - **The grant opens all of ingress-nginx on nuc2, not only scrap.** Every
   `*.gkcluster.org` host is reachable from the VPS without Cloudflare Access,
-  as from the LAN. Hosts with a login of their own (oauth2-proxy, Argo CD's
-  Dex, Grafana, ntfy's tokens) still ask for it; hosts that rely on
-  Cloudflare Access alone (`echo`, `home`, `argocd-monitor`) are readable.
+  as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
+  argocd-monitor's own oauth2-proxy sidecar, Argo CD's Dex, Grafana, ntfy's
+  tokens) still ask for it; only `echo` and `home`, which rely on Cloudflare
+  Access alone, are readable without a login.
 
 ## Data, backups and failover
 
