@@ -727,8 +727,6 @@ Bootstraps ArgoCD and the entire service stack:
 10. **CoreDNS split-horizon** — once ArgoCD has provisioned ingress-nginx,
     creates the `coredns-custom` ConfigMap that resolves `argocd.<cluster_domain>`
     to the ingress ClusterIP from inside the cluster.
-11. **Prometheus admission secret** — creates the kube-prometheus-stack
-    admission webhook TLS secret.
 
 After this role completes, ArgoCD takes over and syncs all services defined in
 `kubernetes-services/templates/`: see {doc}`/explanations/architecture/gitops`.

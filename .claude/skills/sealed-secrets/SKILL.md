@@ -105,5 +105,4 @@ the generator script or compare decrypted `Secret` contents on-cluster.
 
 - `scripts/seal-argocd-dex` — main Dex/OAuth sealing entry point
 - `scripts/seal-from-json` — batch sealing from `/tmp/cluster-secrets/`
-- `scripts/create-prometheus-admission-secret` — one-shot webhook TLS
 - `kubernetes-services/additions/*/`-secret.yaml` — committed sealed secrets

@@ -138,13 +138,3 @@
 # exchanges resolve the new in-cluster IP.
 - name: Flush handlers to restart ArgoCD server before continuing
   ansible.builtin.meta: flush_handlers
-
-# kube-prometheus-stack's webhook TLS secret is normally created by a Helm
-# hook job, but ArgoCD prunes hook jobs so the secret never appears.
-# Delegate to the script to keep cert generation (including the SAN list
-# required by the operator ServiceMonitor) in one place. (#6 rebuild checklist)
-- name: Create Prometheus admission webhook TLS secret
-  ansible.builtin.command:
-    cmd: scripts/create-prometheus-admission-secret
-    chdir: "{{ playbook_dir }}"
-  changed_when: true

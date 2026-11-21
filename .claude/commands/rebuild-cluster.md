@@ -460,9 +460,6 @@ kubectl rollout restart deployment cert-manager -n cert-manager
   the on-disk UID/mode set by `k8s_data_dirs` does not match what the
   pod wants. Verify with `kubectl get pod <name> -o jsonpath='{.spec.securityContext}'`
   and fix `roles/k8s_data_dirs/tasks/main.yml`.
-- **Prometheus operator CrashLoop** — the admission webhook secret is
-  created automatically by `--tags cluster`. If it is still missing,
-  run `just create-prometheus-admission-secret` then delete the stuck pod.
 - **ArgoCD Monitor OAuth login loop** — if argocd-monitor loops back to
   Dex after "Grant Access", check the oauth2-proxy sidecar logs for
   "cookie signature not valid". The shared oauth2-proxy sets

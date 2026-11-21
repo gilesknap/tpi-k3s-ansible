@@ -301,6 +301,12 @@ spec:
               deployment:
                 image:
                   tag: v0.94.2
+            # Off with the webhooks: operator TLS needs a cert from the certgen
+            # job or cert-manager, and since chart 93.5.0 the render fails
+            # without one. The operator serves its metrics over plain HTTP.
+            # Re-enable this together with the webhooks, not on its own.
+            tls:
+              enabled: false
             # No workstation toleration here or on kube-state-metrics:
             # workstation nodes reboot outside the kured window, so both stay
             # on cluster nodes.

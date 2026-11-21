@@ -95,7 +95,6 @@ Used when the cluster is built or rebuilt
 | `just export-external-creds` | Writes the credentials a rebuild cannot regenerate (GitHub OAuth, Cloudflare, VPS relay, scrap, ntfy tokens, the Drive token) from the live Secrets into `.env` | `.env` is gitignored; do this before a decommission |
 | `just generate-and-seal-all [output_dir]` | Generates every secret, seals them all and sets the admin password | Needs the `.env` variables exported ({doc}`/reference/variables`) |
 | `just seal-from-json <json_file>` | Seals every cluster secret from the JSON that `scripts/generate-secrets` writes | The second step of the recipe above |
-| `just create-prometheus-admission-secret` | Creates the Prometheus operator's admission webhook TLS Secret | Fresh installs only: ArgoCD prunes the hook Job that would make it |
 | `just gpu-setup` | Re-runs `--tags servers` on the NVIDIA node and restarts the device plugin pods | After a K3s reinstall on `ws03`; devcontainer terminal |
 | `just vps-relay-forwards` | Prints `vps_relay.forwards` as `PROTO:PORTS` arguments for `scripts/vps-relay-setup` | {doc}`/how-to/vps-relay` |
 
