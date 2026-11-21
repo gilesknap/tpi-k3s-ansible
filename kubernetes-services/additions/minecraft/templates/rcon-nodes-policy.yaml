@@ -1,0 +1,40 @@
+{{- /*
+World RCON (25575) from the hosts of the nodes in rcon_allowed_nodes.
+
+The dashboard chart's NetworkPolicy, minecraft-dashboard-worlds, admits RCON
+by ipBlock. That no longer covers a client on another node's host: with
+Cilium's kube-proxy replacement, the client node's socket load balancer
+sends a NodePort connection straight to the world pod through the tunnel,
+from that node's CiliumInternalIP and with its node identity, and no ipBlock
+matches that. fromNodes selects the node by its labels instead, which needs
+nodeSelectorLabels in templates/cilium.yaml. Allow rules add up, so this
+only widens the chart's policy, by these nodes.
+
+The world's own node needs no entry: Cilium always admits a pod's own host.
+*/}}
+{{- if .Values.rcon_allowed_nodes }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: minecraft-rcon-nodes
+  namespace: minecraft
+spec:
+  # The same world pods as minecraft-dashboard-worlds selects.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: minecraft
+    matchExpressions:
+      - key: mcdash/world
+        operator: Exists
+  ingress:
+    - fromNodes:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                {{- toYaml .Values.rcon_allowed_nodes | nindent 16 }}
+      toPorts:
+        - ports:
+            - port: "25575"
+              protocol: TCP
+{{- end }}

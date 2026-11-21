@@ -41,6 +41,16 @@ Grafana/Prometheus come up empty.
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
 
+### Cloudflare prerequisite
+
+The Hubble UI (`hubble.<domain>`) needs its tunnel route: the `hubble`
+entry in `tunnel_services` in `cloudflare/locals.tf`. The user runs
+`just cf-plan` and then `just cf-apply` **from the main clone**, which is
+where the OpenTofu state lives, with that `hubble` line present there (the
+branch checked out, or merged). Never from a worktree: it has no state, so
+tofu would try to create everything again. Without the route, only the
+Hubble UI check in Phase 5b fails.
+
 ### NAS prerequisite
 
 The NAS (`gknas`, Ubuntu + ZFS) must already serve the directories the
@@ -442,6 +452,50 @@ If any SealedSecrets show `False` with "no key could decrypt":
 - [ ] Jellyfin (skip if `enable_jellyfin` is false) back on its config: the `jellyfin` app is Healthy and its
       config PVC is Bound to the `jellyfin-local` PV
       (`kubectl get pvc -n jellyfin`)
+
+- [ ] Cilium healthy on every node, kube-proxy replacement on, and the
+      `cilium` app Synced with nothing to change (ArgoCD adopted the
+      resources the `k3s` role installed):
+      ```bash
+      kubectl -n kube-system get ds cilium cilium-envoy   # DESIRED = READY = the number of nodes up
+      for p in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
+        kubectl -n kube-system exec "$p" -c cilium-agent -- cilium-dbg status --brief
+      done
+      kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -E 'KubeProxyReplacement|Host Routing|Masquerading'
+      kubectl -n argo-cd get app cilium hubble-ui
+      ```
+- [ ] ingress-nginx answers on every ServiceLB node IP from the LAN (k3s
+      servicelb with Cilium in kube-proxy's place):
+      `for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do curl -s -o /dev/null -w "$ip %{http_code}\n" -H 'Host: echo.<domain>' http://$ip/; done`
+      (200 each).
+- [ ] Hubble shows flows: the Hubble UI at `https://hubble.<domain>` (needs
+      the `hubble` tunnel route: see "Cloudflare prerequisite"), or
+      `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20`.
+- [ ] The backups egress rule: both off-site jobs succeed
+      (`just offsite-backup-now` and `just offsite-backup-now b2`), and a
+      test pod in `backups` reaches Drive and B2 but nothing else:
+      ```bash
+      kubectl -n backups run egress-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- sh -c '
+        for u in https://www.googleapis.com/generate_204 https://api.backblazeb2.com/ https://example.com/; do
+          if wget -q -T 10 -O /dev/null "$u" 2>/dev/null || wget -T 10 -O /dev/null "$u" 2>&1 | grep -q "server returned error"; then
+            echo "$u reachable"; else echo "$u blocked"; fi
+        done'
+      ```
+      googleapis and backblazeb2 reachable, example.com blocked. Hubble on
+      the pod's node shows the drop:
+      `hubble observe -n backups --verdict DROPPED --last 20` in that node's
+      `cilium-agent` container.
+- [ ] World RCON (skip if no world with RCON runs; its NodePort is in
+      `minecraft.worlds.rcon_port_min`-`max`, `kubectl get svc -n minecraft`):
+      from the devcontainer (a LAN client) `nc -z -w5 192.168.1.92 <port>`
+      succeeds; from another node, e.g.
+      `ssh ansible@node03 nc -z -w5 192.168.1.92 <port>`, it fails; and from
+      a pod it fails:
+      `kubectl -n default run rcon-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- nc -z -w5 192.168.1.92 <port> && echo LEAK || echo blocked`.
+- [ ] The five NetworkPolicies still hold: scrap and ntfy load through
+      their Ingresses (Phase 6/7), and a pod outside `ingress-nginx` is
+      refused by scrap:
+      `kubectl -n default run np-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- wget -q -T 5 -O /dev/null http://scrap.scrap.svc.cluster.local/ && echo LEAK || echo blocked`.
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash

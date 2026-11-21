@@ -132,6 +132,12 @@
       {{ (k3s_installed_version.stdout.split()[2] | regex_replace('^v', '')).split('.')[:2] | join('.') }}
   when: k3s_installed_version.rc == 0
 
+# Before the k3s install, so Cilium's proxy works from the first pod on a
+# node that runs Tailscale. Tagged so it can run alone: --tags tailscale.
+- name: Configure Tailscale for Cilium's proxy
+  ansible.builtin.import_tasks: tailscale.yml
+  tags: tailscale
+
 # Before the k3s install, so containerd's first container already gets the
 # corrected profile. Tagged so it can run alone: --tags apparmor.
 - name: Install the containerd AppArmor profile
@@ -161,6 +167,42 @@
   ansible.builtin.include_tasks: worker.yml
   when: not k3s_is_control_plane
 
+# Cilium must never be installed beside flannel. control.yml's gate stops
+# the control plane, but a --limit run without it, or the workers left in
+# the play after it fails, would still get here: check the control plane's
+# own configuration (run_once, so a failure stops every host).
+- name: Read the control plane's k3s configuration
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/config.yaml
+  delegate_to: "{{ control_plane }}"
+  run_once: true
+  register: k3s_control_plane_config
+  failed_when: false
+
+- name: Refuse to install Cilium on a flannel cluster
+  ansible.builtin.assert:
+    that:
+      - k3s_control_plane_config.content is defined
+      - (k3s_control_plane_config.content | b64decode | from_yaml | default({}, true)).get('flannel-backend') == 'none'
+    fail_msg: >-
+      {{ control_plane }}'s k3s still runs flannel (or has no
+      /etc/rancher/k3s/config.yaml), so Cilium is not installed beside it.
+      Move to Cilium by rebuilding the cluster (ADR 0015).
+    quiet: true
+  run_once: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# Once, from the controller, after every node has joined: until Cilium runs
+# no node is Ready, so the waits below would time out.
+- name: Install Cilium on a cluster without it
+  ansible.builtin.include_tasks:
+    file: cilium.yml
+    apply:
+      delegate_to: localhost
+      become: false
+      run_once: true
+  run_once: true
+
 - name: Wait for all kube-system pods become created
   ansible.builtin.command:
     kubectl get pod -n kube-system --output jsonpath='{.items[*].metadata.name}'
@@ -178,9 +220,13 @@
   # Read-only: run in --check too, so later tasks see real data.
   check_mode: false
 
-- name: Wait for all pods become ready
+# Only k3s's own Deployments: kube-system also holds pods that are never
+# Ready, such as Cilium's finished certificate Job and, on a one-node
+# cluster, the second cilium-operator replica that has no node to go to.
+- name: Wait for the k3s system Deployments to become ready
   ansible.builtin.command:
-    kubectl wait -n kube-system pods --all --for condition=Ready --timeout=100s
+    kubectl rollout status -n kube-system --timeout=300s
+    deployment/coredns deployment/local-path-provisioner deployment/metrics-server
   delegate_to: localhost
   run_once: true
   register: k3s_control_plane_pods_ready

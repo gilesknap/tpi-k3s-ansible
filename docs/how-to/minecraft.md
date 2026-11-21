@@ -199,7 +199,10 @@ RCON is plain text, so two rules keep it on the LAN:
 - **Never add the RCON range to `vps_relay.forwards`.**
 - The chart's NetworkPolicy `minecraft-dashboard-worlds` admits the game port
   (25565) from anywhere, but RCON (25575) only from the dashboard pod, the
-  world's own node, and `minecraft.worlds.rcon_allowed_cidrs`.
+  world's own node, and `minecraft.worlds.rcon_allowed_cidrs`. A
+  CiliumNetworkPolicy beside it, `minecraft-rcon-nodes`
+  (`additions/minecraft`), also admits the hosts of the nodes in
+  `minecraft.worlds.rcon_allowed_nodes` (ws03).
 
 `rcon_allowed_cidrs` is the LAN minus the cluster nodes, plus nuc2's second
 LAN:
@@ -216,17 +219,26 @@ rcon_allowed_cidrs:
   - cidr: 192.168.0.0/24  # nuc2's second LAN
 ```
 
-NodePort clients keep their own address (`externalTrafficPolicy: Local`), but
-a pod on another cluster node arrives as that node's address. Excepting the
-node addresses therefore stops every other workload in the cluster from
-reaching RCON. Two nodes are left allowed on purpose, so RCON clients can run
-on the hosts themselves: nuc2 (the world node) and ws03, whose
-`workstation` taint keeps workload pods off it.
+NodePort clients on the LAN keep their own address
+(`externalTrafficPolicy: Local`). Pods keep their pod identity, and other
+nodes' hosts reach the world through Cilium's tunnel with their node identity;
+no ipBlock matches either, so both are refused. The `except` list covers a
+node whose traffic arrives from its LAN address instead (one with no Cilium
+agent running, say). Two nodes' hosts are allowed on purpose, so RCON clients can run
+there: nuc2, the world node, whose own host Cilium always admits, and ws03,
+whose `workstation` taint keeps workload pods off it. ws03's connection
+reaches the world pod through Cilium's tunnel from ws03's Cilium address, not
+192.168.1.10, so it is admitted by node name, `rcon_allowed_nodes`:
+
+```yaml
+rcon_allowed_nodes:
+  - ws03
+```
 
 :::{important}
 **A new node must be added to the `except` list** when it joins the cluster
-(the `/add-node` command covers it). Until then, any pod scheduled on it can
-reach every world's RCON port.
+(the `/add-node` command covers it). Until then, that node's host can reach
+every world's RCON port from its LAN address.
 :::
 
 ## Day-to-day checks

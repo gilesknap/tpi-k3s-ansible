@@ -311,7 +311,6 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
          workstation: true # taint NoSchedule, never rebooted or upgraded for you
        nuc2:
          node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
-         flannel_iface: enp3s0 # the interface carrying node_ip
          intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
        nuc1: # single NIC
          install_profile: desktop # the install stick's entry
@@ -327,9 +326,9 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
    fstab entries in `extra_mounts` (see `nuc2` in `hosts.yml`); step 4
    mounts them.
 
-   A node with interfaces on two subnets needs both `node_ip` and
-   `flannel_iface`. Without them K3s and flannel pick the default-route
-   interface, and cross-node pod networking fails. A new RK1 goes under
+   A node with interfaces on two subnets needs `node_ip`. Without it K3s
+   may advertise the default-route interface's address, and Cilium's tunnel
+   to the node, so cross-node pod networking, fails. A new RK1 goes under
    `turingpi_nodes` instead, with `slot_num`, `type: rk1` and `root_dev`.
 2. **Sandbox allow-list.** The claude-sandbox blocks every private address
    that is not listed, so add the node's IP as an `allow-ip` line in
@@ -387,12 +386,13 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
    ansible-playbook pb_all.yml --tags claude_key --limit nuc1
    ```
 
-6. **Minecraft RCON exception list.** Pods on a cluster node reach a
-   world's RCON port as that node's IP, so every node's IP is in the
-   `except` list of `minecraft.worlds.rcon_allowed_cidrs` in
-   `kubernetes-services/values.yaml`. Add the new node as a `/32`. Two nodes
-   stay allowed on purpose, so RCON clients can run on them: `nuc2`, where
-   the worlds run, and `ws03`, whose taint keeps workload pods off it.
+6. **Minecraft RCON exception list.** Every node's IP is in the `except`
+   list of `minecraft.worlds.rcon_allowed_cidrs` in
+   `kubernetes-services/values.yaml`, so its host cannot reach a world's
+   RCON port. Add the new node as a `/32`. Two nodes' hosts stay allowed on
+   purpose, so RCON clients can run on them: `nuc2`, where the worlds run,
+   and `ws03`, whose taint keeps workload pods off it and which is admitted
+   by name through `minecraft.worlds.rcon_allowed_nodes`.
 7. **Commit.** `hosts.yml`, `claude-sandbox.conf` and `values.yaml` go
    through a branch and a PR like any other change
    ({doc}`/how-to/work-in-branches`).
@@ -427,8 +427,8 @@ until a workload is given a `local-nvme` PV pinned to it.
    `k3s-apparmor-profile.service` is still installed: see
    [](recover-control-plane.md#k3s-uninstall-leaves-files-behind).
 4. Remove the node from `hosts.yml`, its `allow-ip` line from
-   `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`,
-   and `standby_control_plane` in `group_vars/all.yml` if it named this
+   `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`
+   (and in `rcon_allowed_nodes`, if any), and `standby_control_plane` in `group_vars/all.yml` if it named this
    node. Commit the change.
 
 (what-never-applies-to-ws03)=

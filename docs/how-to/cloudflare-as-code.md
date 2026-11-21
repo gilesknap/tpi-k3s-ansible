@@ -43,7 +43,7 @@ flowchart LR
   (`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`),
   never straight at a Service, so the ingress rules and oauth2-proxy
   apply to everything.
-- **Twelve public hostnames**, the `tunnel_services` list in
+- **Thirteen public hostnames**, the `tunnel_services` list in
   `cloudflare/locals.tf`. Each is a tunnel route and a proxied CNAME to
   the tunnel:
 
@@ -52,6 +52,7 @@ flowchart LR
   | `echo.gkcluster.org` | echo test server | Owner |
   | `grafana.gkcluster.org` | Grafana | Viewers, Owner |
   | `headlamp.gkcluster.org` | Headlamp | Owner |
+  | `hubble.gkcluster.org` | Hubble UI (Cilium's flows) | Owner |
   | `oauth2.gkcluster.org` | oauth2-proxy's sign-in and callback | Owner |
   | `argocd-monitor.gkcluster.org` | argocd-monitor | Viewers, Owner |
   | `home.gkcluster.org` | The cluster home page | Owner |

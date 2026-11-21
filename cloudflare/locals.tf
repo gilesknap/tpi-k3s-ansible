@@ -18,6 +18,7 @@ locals {
     { name = "echo" },
     { name = "grafana", service = "${local.ingress_nginx}:80" },
     { name = "headlamp" },
+    { name = "hubble" },
     { name = "oauth2" },
     { name = "argocd-monitor" },
     { name = "home" },

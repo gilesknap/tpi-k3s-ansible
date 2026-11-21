@@ -1,0 +1,51 @@
+{{- /*
+Egress allowlist for every pod in the backups namespace (ADR 0015), by DNS
+name. Cilium allows only what is listed here and drops the rest, which
+Hubble shows as policy drops (`hubble observe -n backups --verdict DROPPED`).
+
+- Cluster DNS, through Cilium's DNS proxy, which is how it learns the
+  addresses behind the names below.
+- Google Drive (offsite-backup): rclone calls the Drive API on
+  www.googleapis.com and refreshes its OAuth token at oauth2.googleapis.com.
+- Backblaze B2 (offsite-backup-b2): rclone authorises at
+  api.backblazeb2.com, then uses the API and download hosts that answer
+  gives (apiNNN / fNNN.backblazeb2.com) and uploads to pod-*.backblaze.com.
+- GitHub, for the install-age init container of both off-site jobs, which
+  downloads the pinned age release (checked against its sha256): github.com
+  redirects to release-assets.githubusercontent.com. A policy applies to
+  the whole pod, so the rclone containers may reach these too.
+
+The NFS volumes are mounted by the kubelet on the node, not from the pods,
+so they need nothing here. The grafana and jellyfin CronJobs make no network
+connections at all and get no more than the above.
+*/}}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backups-egress
+  namespace: backups
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+        - matchName: www.googleapis.com
+        - matchName: oauth2.googleapis.com
+        - matchPattern: "*.backblazeb2.com"
+        - matchPattern: "pod-*.backblaze.com"
+        - matchName: github.com
+        - matchName: release-assets.githubusercontent.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

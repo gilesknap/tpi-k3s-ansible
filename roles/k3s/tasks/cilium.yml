@@ -1,0 +1,69 @@
+# Bootstrap Cilium, the cluster's CNI (ADR 0015).
+#
+# k3s runs no CNI of its own (flannel-backend: none), so every node stays
+# NotReady, and no pod but a host-network one can start, until Cilium runs.
+# That rules out ArgoCD as its installer: ArgoCD itself needs pod networking.
+# So this installs the chart once, on a cluster that has no Cilium yet, from
+# the ArgoCD Application in kubernetes-services/templates/cilium.yaml: the
+# same chart, version and values, so there is one copy of each. When the
+# root Application syncs, ArgoCD applies the same resources and owns them
+# from then on. Here nothing changes a running Cilium; upgrades and value
+# changes go through Git like any other app.
+#
+# Helm's release record is deleted after the install: ArgoCD keeps no Helm
+# releases, and a stale record would show the bootstrap version in
+# `helm list` for ever and invite a `helm upgrade` that fights ArgoCD.
+
+- name: Read the Cilium Application
+  ansible.builtin.set_fact:
+    k3s_cilium_app: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/kubernetes-services/templates/cilium.yaml') | from_yaml }}"
+
+# The agents reach the API server by this name, not through the kubernetes
+# Service (there is no kube-proxy). main.yml has already checked that
+# k3s_api_name resolves to the control plane and that its certificate
+# covers it.
+- name: Check Cilium's k8sServiceHost is the API name
+  ansible.builtin.assert:
+    that:
+      - k3s_cilium_app.spec.source.helm.valuesObject.k8sServiceHost == k3s_api_name
+    fail_msg: >-
+      k8sServiceHost in kubernetes-services/templates/cilium.yaml is
+      {{ k3s_cilium_app.spec.source.helm.valuesObject.k8sServiceHost }}, but
+      k3s_api_name is {{ k3s_api_name }}. Make them the same.
+    quiet: true
+
+- name: Look for a running Cilium
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: DaemonSet
+    namespace: kube-system
+    name: cilium
+  register: k3s_cilium_ds
+  # Read-only: run in --check too.
+  check_mode: false
+
+- name: Install Cilium {{ k3s_cilium_app.spec.source.targetRevision }}
+  when: k3s_cilium_ds.resources | length == 0
+  block:
+    # Waits for the agents and operator, and for Hubble Relay and UI, which
+    # can only start once the agents have made the nodes Ready.
+    - name: Install the Cilium chart
+      kubernetes.core.helm:
+        chart_ref: "{{ k3s_cilium_app.spec.source.chart }}"
+        chart_repo_url: "{{ k3s_cilium_app.spec.source.repoURL }}"
+        chart_version: "{{ k3s_cilium_app.spec.source.targetRevision }}"
+        release_name: "{{ k3s_cilium_app.spec.source.helm.releaseName }}"
+        release_namespace: "{{ k3s_cilium_app.spec.destination.namespace }}"
+        values: "{{ k3s_cilium_app.spec.source.helm.valuesObject }}"
+        wait: true
+        wait_timeout: 10m
+
+    # By name, never by label: kube-system also holds the sealing keys.
+    # A first install is always revision 1.
+    - name: Delete Helm's release record for Cilium
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ k3s_cilium_app.spec.destination.namespace }}"
+        name: sh.helm.release.v1.{{ k3s_cilium_app.spec.source.helm.releaseName }}.v1
+        state: absent

@@ -1,0 +1,77 @@
+# Keep Tailscale from breaking Cilium's L7 proxy on nodes that run it
+# (nuc2 and ws03; Tailscale itself is installed by hand, ADR 0015).
+#
+# Why: in netfilter mode "on", tailscaled sets
+# net.ipv4.conf.all.src_valid_mark=1 for its rp_filter workaround
+# (wgengine/router/osrouter/router_linux.go). Cilium redirects pod traffic
+# to its DNS and Envoy proxies with TPROXY: mark 0x200, an ip rule to
+# table 2004 (`local default dev lo`). With src_valid_mark=1 the kernel's
+# source check takes the mark into account, finds the pod's address
+# "local" through that table and drops the packet (IP_LOCAL_SOURCE in
+# ip_rcv_finish_core). So pods under a toFQDNs policy (backups-egress)
+# get no DNS at all on these nodes.
+#
+# Netfilter mode "off" stops tailscaled adding its iptables rules and
+# setting the sysctl. Turning it off does not reset the sysctl, so it is
+# set back to 0 here. A sysctl.d file alone would not do: tailscaled
+# rewrites the value every time it starts with netfilter on. With it off,
+# tailscaled never writes the sysctl (only its netfilter-on path does), the
+# mode is kept in Tailscale's prefs and the kernel's default is 0, so both
+# hold across reboots. The cost is Tailscale's own iptables rules, such as
+# the one dropping tailnet (100.64.0.0/10) sources on other interfaces;
+# tailnet access rules are enforced in tailscaled and are unaffected.
+#
+# The rules netfilter mode adds are what a subnet router or exit node
+# needs (forwarding and masquerading), so a node that advertises routes
+# or uses an exit node is refused rather than guessed about.
+- name: Check whether Tailscale is installed
+  ansible.builtin.command: which tailscale
+  register: k3s_tailscale_which
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Configure Tailscale for Cilium
+  when: k3s_tailscale_which.rc == 0
+  block:
+    - name: Read the Tailscale preferences
+      ansible.builtin.command: tailscale debug prefs
+      register: k3s_tailscale_prefs_raw
+      changed_when: false
+      check_mode: false
+
+    - name: Refuse a node that routes for the tailnet
+      ansible.builtin.assert:
+        that:
+          - not (k3s_tailscale_prefs.AdvertiseRoutes | default([], true))
+          - not (k3s_tailscale_prefs.ExitNodeID | default('', true))
+          - not (k3s_tailscale_prefs.ExitNodeIP | default('', true))
+        fail_msg: >-
+          {{ inventory_hostname }} advertises Tailscale routes
+          ({{ k3s_tailscale_prefs.AdvertiseRoutes | default([], true) | join(', ') }})
+          or uses an exit node ({{ k3s_tailscale_prefs.ExitNodeID | default('', true) }}
+          {{ k3s_tailscale_prefs.ExitNodeIP | default('', true) }}).
+          Those need Tailscale's netfilter rules, and netfilter mode "on"
+          breaks Cilium's proxy redirect (roles/k3s/tasks/tailscale.yml), so
+          this role will not choose. Stop advertising them, or decide by
+          hand how this node should run.
+        quiet: true
+      vars:
+        k3s_tailscale_prefs: "{{ k3s_tailscale_prefs_raw.stdout | from_json }}"
+
+    # NetfilterMode in the prefs: 0 off, 1 nodivert, 2 on.
+    - name: Turn off Tailscale's netfilter mode
+      ansible.builtin.command: tailscale set --netfilter-mode=off
+      when: (k3s_tailscale_prefs_raw.stdout | from_json).NetfilterMode | int != 0
+      changed_when: true
+
+    - name: Read src_valid_mark
+      ansible.builtin.command: sysctl -n net.ipv4.conf.all.src_valid_mark
+      register: k3s_src_valid_mark
+      changed_when: false
+      check_mode: false
+
+    - name: Turn src_valid_mark back off
+      ansible.builtin.command: sysctl -w net.ipv4.conf.all.src_valid_mark=0
+      when: k3s_src_valid_mark.stdout | trim == '1'
+      changed_when: true

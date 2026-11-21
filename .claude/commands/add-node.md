@@ -49,7 +49,6 @@ extra_nodes:
       nvidia_gpu_node: true   # only if GPU
       workstation: true        # only if workstation
       node_ip: 192.168.1.x    # only if multi-homed (see below)
-      flannel_iface: enp3s0   # only if multi-homed (see below)
   vars:
     ansible_user: "{{ ansible_account }}"
 ```
@@ -59,15 +58,14 @@ Ensure `extra_nodes` is listed under `all_nodes.children`.
 ### Multi-homed nodes
 
 If the node has multiple network interfaces on different subnets, ask the user
-which subnet the cluster uses. K3s and flannel auto-detect the IP from the
-default route interface, which may be the wrong subnet. Set:
+which subnet the cluster uses. K3s auto-detects the IP from the default
+route interface, which may be the wrong subnet. Set:
 
 - `node_ip` — the IP on the cluster subnet (passed as `--node-ip` to K3s)
-- `flannel_iface` — the interface name carrying that IP (passed as
-  `--flannel-iface` to K3s)
 
-Without `flannel_iface`, flannel's VXLAN tunnel will use the wrong endpoint
-and cross-node pod networking will fail.
+Cilium's VXLAN tunnel uses the node's advertised IP, so without `node_ip`
+cross-node pod networking to the node will fail. The Cilium agent
+DaemonSet tolerates every taint, so it runs on the new node by itself.
 
 ## Phase 3: Bootstrap access
 
@@ -150,11 +148,13 @@ plane, so a single new worker is still the only place cloudflared can run.
 
 ### Minecraft RCON allow-list
 
-Pods on a cluster node reach world RCON as that node's IP, so cluster node
-IPs must be in the `except` list of `minecraft.worlds.rcon_allowed_cidrs` in
-`kubernetes-services/values.yaml`. Add the new node's IP there, unless it is
-the world node or a tainted workstation that runs RCON clients (like ws03),
-which stay allowed on purpose.
+Cluster node IPs must be in the `except` list of
+`minecraft.worlds.rcon_allowed_cidrs` in `kubernetes-services/values.yaml`,
+so their hosts cannot reach world RCON from their LAN addresses (through
+Cilium's tunnel they carry a node identity, which no CIDR matches). Add the new node's IP there, unless it
+is the world node or a tainted workstation that runs RCON clients (like ws03).
+Such a workstation also needs its name in
+`minecraft.worlds.rcon_allowed_nodes`, which admits its host by node name.
 
 ### Newly unlocked features
 

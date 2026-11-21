@@ -6,6 +6,31 @@
     removes: /usr/local/bin/k3s-uninstall.sh
   when: k3s_force | bool
 
+# The server configuration turns flannel, k3s's policy controller and
+# kube-proxy off (Cilium does their work, ADR 0015). Applying that to a
+# server that still runs flannel would cut every pod off the network, with
+# no Cilium to take over, so it is refused: the cluster moves to Cilium by a
+# rebuild (docs/how-to/rebuild-from-nothing.md). A fresh install, or a
+# server already on Cilium, passes. Only warns in --check.
+- name: Read the current k3s server configuration
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/config.yaml
+  register: k3s_server_config_old
+  failed_when: false
+
+- name: Refuse to switch a running flannel cluster to Cilium in place
+  ansible.builtin.assert:
+    that:
+      - k3s_server_config_old.content is not defined
+        or (k3s_server_config_old.content | b64decode | from_yaml | default({}, true)).get('flannel-backend') == 'none'
+    fail_msg: >-
+      {{ inventory_hostname }} runs k3s with flannel. This repo now uses
+      Cilium (flannel-backend: none), and changing that on a live cluster
+      would cut pod networking. Move to Cilium by rebuilding the cluster
+      (pb_decommission.yml, then pb_all.yml), not with --tags k3s.
+    quiet: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
 - name: Create K3s config directory
   ansible.builtin.file:
     path: /etc/rancher/k3s

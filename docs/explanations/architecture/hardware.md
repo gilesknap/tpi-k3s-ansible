@@ -28,8 +28,8 @@ Taints, the labels this repository sets, and what is tied to each node:
 | `ws03` | `workstation=true:NoSchedule` | `node-role=workstation`, `nvidia.com/gpu.present=true`, one `nvidia.com/gpu` | The NVIDIA device plugin |
 
 The inventory (`hosts.yml`) is where these properties come from:
-`workstation: true`, `nvidia_gpu_node: true`, `intel_gpu_node: true`,
-`node_ip` and `flannel_iface` are host variables that the `k3s` role turns
+`workstation: true`, `nvidia_gpu_node: true`, `intel_gpu_node: true`
+and `node_ip` are host variables that the `k3s` role turns
 into agent flags, labels and taints. The control plane and its standby are
 named by `control_plane` and `standby_control_plane` in
 `group_vars/all.yml`. See {doc}`/reference/inventory`.
@@ -119,8 +119,8 @@ which makes it the spare capacity that drained pods move to.
 **nuc2** has the most memory and carries the node-bound workloads. It is
 multi-homed: `enp3s0` is on the cluster LAN and a second interface is on
 192.168.0.0/24. K3s must use the cluster LAN address, so
-the inventory sets `node_ip: 192.168.1.92` and `flannel_iface: enp3s0`,
-which become `--node-ip` and `--flannel-iface` on its agent. Its Iris Xe
+the inventory sets `node_ip: 192.168.1.92`, which becomes `--node-ip` on
+its agent (Cilium tunnels to the address the node advertises). Its Iris Xe
 iGPU is advertised by the Intel GPU device plugin as `gpu.intel.com/i915`
 and used by Jellyfin for hardware transcoding. Jellyfin runs on the host
 network there, so it listens on both LANs and on the tailnet interface. The

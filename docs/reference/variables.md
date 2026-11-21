@@ -37,7 +37,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 ### Host variables (`hosts.yml`)
 
 Set per host: `slot_num`, `type`, `root_dev`, `nvidia_gpu_node`,
-`intel_gpu_node`, `workstation`, `node_ip` and `flannel_iface`. They are
+`intel_gpu_node`, `workstation` and `node_ip`. They are
 described, with the values each node has, in {doc}`/reference/inventory`.
 
 ### `tools` role (`roles/tools/vars/main.yml`)
@@ -215,7 +215,8 @@ applies to that run only.
 | `minecraft.worlds.node` | `nuc2` | Node all worlds are pinned to: the VPS relay forward's target |
 | `minecraft.worlds.port_min` / `port_max` | `30565` / `30584` | Inclusive NodePort range for game ports |
 | `minecraft.worlds.rcon_port_min` / `rcon_port_max` | `30600` / `30619` | Inclusive NodePort range for per-world RCON (LAN only; never relay it) |
-| `minecraft.worlds.rcon_allowed_cidrs` | `192.168.1.0/24` except the other nodes, and `192.168.0.0/24` | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`); except every cluster node's IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node's IP |
+| `minecraft.worlds.rcon_allowed_cidrs` | `192.168.1.0/24` except the other nodes, and `192.168.0.0/24` | Sources allowed to reach world RCON through the dashboard's NetworkPolicy (CIDR or `{cidr, except}`); except every cluster node's IP other than the world node and RCON-client workstations, for node traffic that arrives from a LAN address (through Cilium's tunnel it carries a node identity, which no CIDR matches) |
+| `minecraft.worlds.rcon_allowed_nodes` | `[ws03]` | Nodes (by `kubernetes.io/hostname`) whose hosts may reach world RCON, through the `minecraft-rcon-nodes` CiliumNetworkPolicy (`fromNodes`); their connections arrive from their Cilium address, which no CIDR matches |
 | `enable_vps_relay` | `true` | Deploy the VPS relay ({doc}`/how-to/vps-relay`); needs the `vps-relay-credentials` SealedSecret |
 | `vps_relay.vps_tailnet_host` | *(tailnet address)* | The VPS's tailnet IP or MagicDNS name, where frps listens |
 | `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |

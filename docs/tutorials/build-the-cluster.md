@@ -85,7 +85,6 @@ extra_nodes:
       workstation: true           # taint NoSchedule
     nuc2:
       node_ip: 192.168.1.92       # multi-homed: use this subnet
-      flannel_iface: enp3s0
       intel_gpu_node: true        # Iris Xe for Jellyfin
     nuc1:
 ```
@@ -235,7 +234,7 @@ flowchart LR
     kh --> servers["servers<br/>Ubuntu on NVMe, packages,<br/>data directories"]
     servers --> k3s["k3s<br/>control plane, workers,<br/>etcd backup timer"]
     k3s --> cluster["cluster<br/>ArgoCD, sealed secrets,<br/>root application"]
-    cluster --> argo["ArgoCD syncs<br/>the 24 child applications"]
+    cluster --> argo["ArgoCD syncs<br/>the 26 child applications"]
 ```
 
 Each stage is a tag in `pb_all.yml` and can be run on its own
@@ -247,7 +246,7 @@ Each stage is a tag in `pb_all.yml` and can be run on its own
 | `flash` | For each RK1 that does not answer SSH: builds an eMMC image from two pinned downloads (Ubuntu's 26.04 preinstalled server image and Armbian's build of mainline U-Boot), copies it to the BMC, flashes it with `tpi flash` and boots it. This is a staging copy of Ubuntu; the eMMC ends up holding only U-Boot. The RK1s are flashed one after another |
 | `known_hosts` | Records each node's host key for the devcontainer and for the Claude sandbox |
 | `servers` | On each RK1, writes the same Ubuntu image to the NVMe, clears the eMMC's partition table so U-Boot boots the NVMe, and reboots into it. Then on every node: package upgrades, unattended-upgrades, the NVIDIA runtime on ws03, and the `k8s_data_dirs` directories on node04 and nuc2 |
-| `k3s` | Installs K3s on node02, joins the other five through `k3s.lan` with their labels (and ws03's `workstation` taint), and installs the nightly encrypted etcd backup on node02 |
+| `k3s` | Installs K3s on node02 without flannel, kube-proxy or its policy controller, joins the other five through `k3s.lan` with their labels (and ws03's `workstation` taint), installs Cilium so the nodes become `Ready` (ArgoCD adopts it later), and installs the nightly encrypted etcd backup on node02 |
 | `cluster` | Taints node02 `NoSchedule` and node03 `PreferNoSchedule`, installs ArgoCD with its Dex login and RBAC, waits for the Sealed Secrets controller, generates and seals every secret, commits and pushes them, then creates the root application `all-cluster-services` |
 
 The root application is created last on purpose: if ArgoCD started syncing
@@ -359,13 +358,17 @@ Secrets controller, so it cannot stand in for the step above.
 Work down this list; each item depends on the ones above it.
 
 1. **Nodes.** Six nodes `Ready`; node02 has the roles
-   `control-plane,etcd`.
+   `control-plane,etcd`. Cilium runs on all six and reports itself healthy,
+   with kube-proxy replacement on.
 
    ```bash
    kubectl get nodes -o wide
+   kubectl -n kube-system get ds cilium
+   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief
+   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep KubeProxyReplacement
    ```
 
-2. **Applications and secrets.** All 25 applications `Synced` and
+2. **Applications and secrets.** All 27 applications `Synced` and
    `Healthy`, and every SealedSecret decrypted.
 
    ```bash

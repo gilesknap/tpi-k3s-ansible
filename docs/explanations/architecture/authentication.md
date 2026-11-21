@@ -251,6 +251,7 @@ Three services add something on top:
 | `grafana` | Viewers or Owner | Dex (GitHub) | `Admin` for `admin_emails`, else `Viewer` |
 | `headlamp` | Owner | oauth2-proxy | Pasted ServiceAccount token: `cluster-admin` |
 | `alertmanager` | Owner | oauth2-proxy | None |
+| `hubble` | Owner | oauth2-proxy | None; the Hubble UI has no login and shows every flow |
 | `minecraft` (dashboard) | Owner | oauth2-proxy | None; actions logged by email |
 | `scrap` | Owner | oauth2-proxy | None; scrap has no login |
 | `scrap` `/mcp` | Service token | scrap's bearer token | None |
