@@ -177,7 +177,6 @@ order that matters:
 7. Wait for ingress-nginx, then write the `coredns-custom` ConfigMap that
    resolves `argocd.gkcluster.org` to the ingress controller inside the
    cluster, so ArgoCD's sign-in does not loop out through Cloudflare.
-8. Create the Prometheus admission webhook's TLS secret.
 
 ```mermaid
 flowchart LR
