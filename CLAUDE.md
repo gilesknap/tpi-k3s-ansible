@@ -14,10 +14,12 @@
   `just node-fence <node>` / `just node-unfence <node>` (the
   `out-of-service` taint), only for a node the user has confirmed is
   powered off (see `docs/how-to/node-operations.md`).
-- **Never commit to `main`** — work in branches, merge when verified. Use
-  `/pr-squash` to tidy history before merging, then merge with
-  `gh pr merge --merge` to preserve the curated commits. Only use
-  `--squash` for PRs that haven't been through `/pr-squash`.
+- **Never commit to `main`** — work in branches, merge when verified.
+  Merge with `gh pr merge --merge` by default, keeping the branch's
+  commits as they are. `/pr-squash` is optional, only for a branch with
+  exploratory commits ("fix typo", "try again"); merge its PR with
+  `--merge` too. Use `--squash` only for a short PR where one commit is
+  wanted.
 - **Rebase over `main` before new work** — merged commits have different
   SHAs from the originals, so skipping rebase causes phantom conflicts.
 - **Chrome browser is not incognito** — never navigate to Google services.
