@@ -2,8 +2,8 @@
 
 Everything ArgoCD runs on the cluster, plus ArgoCD itself: where each service
 comes from, which version is pinned, how it is reached and who may use it.
-The live cluster has 25 Applications: the root `all-cluster-services` and the
-24 children it renders from `kubernetes-services/templates/`. Versions here
+The live cluster has 27 Applications: the root `all-cluster-services` and the
+26 children it renders from `kubernetes-services/templates/`. Versions here
 are the pins in those templates and in `kubernetes-services/values.yaml`;
 when this page and the code disagree, the code is right.
 
@@ -21,6 +21,8 @@ anti-affinity rule asks for a second node, and otherwise prefers the others.
 | Application | Source | Version | Namespace | Replicas and placement |
 |-------------|--------|---------|-----------|------------------------|
 | `all-cluster-services` | This repository, `kubernetes-services/` (the root app, created by Ansible) | branch `main` | `argo-cd` | Renders the Applications below |
+| `cilium` | `cilium/cilium` chart (installed first by the `k3s` role, then adopted) | 1.20.5 | `kube-system` | Agent and Envoy on every node; operator 2, on different nodes; Hubble Relay and UI 1 each |
+| `hubble-ui` | This repository, the `ingress` sub-chart | n/a | `kube-system` | The Hubble UI's Ingress, `hubble.gkcluster.org`, behind oauth2-proxy |
 | `sealed-secrets` | `bitnami-labs/sealed-secrets` chart | 2.22.0 | `kube-system` | 1, any worker |
 | `cert-manager` | `jetstack/cert-manager` chart | v1.21.3 | `cert-manager` | 1 each of controller, cainjector and webhook, any worker |
 | `ingress` | `kubernetes/ingress-nginx` chart | 4.15.1 | `ingress-nginx` | 2, on different nodes, with a PodDisruptionBudget. K3s ServiceLB publishes its ports 80 and 443 on node03, node04, nuc1 and nuc2 |

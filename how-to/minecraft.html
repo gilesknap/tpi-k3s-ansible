@@ -1093,7 +1093,10 @@ per command), too slow for building.</p>
 <li><p><strong>Never add the RCON range to <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>.</strong></p></li>
 <li><p>The chart’s NetworkPolicy <code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code> admits the game port
 (25565) from anywhere, but RCON (25575) only from the dashboard pod, the
-world’s own node, and <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>.</p></li>
+world’s own node, and <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>. A
+CiliumNetworkPolicy beside it, <code class="docutils literal notranslate"><span class="pre">minecraft-rcon-nodes</span></code>
+(<code class="docutils literal notranslate"><span class="pre">additions/minecraft</span></code>), also admits the hosts of the nodes in
+<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code> (ws03).</p></li>
 </ul>
 <p><code class="docutils literal notranslate"><span class="pre">rcon_allowed_cidrs</span></code> is the LAN minus the cluster nodes, plus nuc2’s second
 LAN:</p>
@@ -1108,17 +1111,25 @@ LAN:</p>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.0.0/24</span><span class="w">  </span><span class="c1"># nuc2&#39;s second LAN</span>
 </pre></div>
 </div>
-<p>NodePort clients keep their own address (<code class="docutils literal notranslate"><span class="pre">externalTrafficPolicy:</span> <span class="pre">Local</span></code>), but
-a pod on another cluster node arrives as that node’s address. Excepting the
-node addresses therefore stops every other workload in the cluster from
-reaching RCON. Two nodes are left allowed on purpose, so RCON clients can run
-on the hosts themselves: nuc2 (the world node) and ws03, whose
-<code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint keeps workload pods off it.</p>
+<p>NodePort clients on the LAN keep their own address
+(<code class="docutils literal notranslate"><span class="pre">externalTrafficPolicy:</span> <span class="pre">Local</span></code>). Pods keep their pod identity, and other
+nodes’ hosts reach the world through Cilium’s tunnel with their node identity;
+no ipBlock matches either, so both are refused. The <code class="docutils literal notranslate"><span class="pre">except</span></code> list covers a
+node whose traffic arrives from its LAN address instead (one with no Cilium
+agent running, say). Two nodes’ hosts are allowed on purpose, so RCON clients can run
+there: nuc2, the world node, whose own host Cilium always admits, and ws03,
+whose <code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint keeps workload pods off it. ws03’s connection
+reaches the world pod through Cilium’s tunnel from ws03’s Cilium address, not
+192.168.1.10, so it is admitted by node name, <code class="docutils literal notranslate"><span class="pre">rcon_allowed_nodes</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rcon_allowed_nodes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ws03</span>
+</pre></div>
+</div>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p><strong>A new node must be added to the <code class="docutils literal notranslate"><span class="pre">except</span></code> list</strong> when it joins the cluster
-(the <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> command covers it). Until then, any pod scheduled on it can
-reach every world’s RCON port.</p>
+(the <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> command covers it). Until then, that node’s host can reach
+every world’s RCON port from its LAN address.</p>
 </div>
 </section>
 <section id="day-to-day-checks">

@@ -1095,8 +1095,8 @@ untried.</p></li>
 <td><p>Not needed: only GPU and monitoring pods ran there</p></td>
 </tr>
 <tr class="row-even"><td><p>nuc2’s two NICs</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code>, <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
-<td><p>Drop both on a single-NIC box</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
+<td><p>Drop it on a single-NIC box</p></td>
 </tr>
 <tr class="row-odd"><td><p>Fixed addresses</p></td>
 <td><p>DHCP leases on the router; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code>, <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code></p></td>
@@ -1104,7 +1104,7 @@ untried.</p></li>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>, <code class="docutils literal notranslate"><span class="pre">dns_router</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>; <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span></code> assumes OpenWrt</p></td>
-<td><p>On another router, add the record by hand, or set <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the server’s IP</p></td>
+<td><p>On another router, add the record by hand, or set <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the server’s IP, and <code class="docutils literal notranslate"><span class="pre">k8sServiceHost</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/cilium.yaml</span></code> to the same</p></td>
 </tr>
 </tbody>
 </table>
@@ -1139,7 +1139,7 @@ server runs every workload.</p>
 <p>The edits, made on a branch (step 5):</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>: remove <code class="docutils literal notranslate"><span class="pre">turingpi</span></code>, <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">node03</span></code>, <code class="docutils literal notranslate"><span class="pre">node04</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> and
-<code class="docutils literal notranslate"><span class="pre">ws03</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, without <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> if it has one
+<code class="docutils literal notranslate"><span class="pre">ws03</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, without <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> if it has one
 NIC, with <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code> only if it has an Intel iGPU, and
 without <code class="docutils literal notranslate"><span class="pre">install_ansible_uid</span></code> and <code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">gknas</span></code> in <code class="docutils literal notranslate"><span class="pre">nas</span></code>.
 On both, keep <code class="docutils literal notranslate"><span class="pre">install_profile:</span> <span class="pre">server</span></code>, and set <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code>,
@@ -1468,9 +1468,10 @@ it up to K3s, without the <code class="docutils literal notranslate"><span class
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>tools,known_hosts,servers,k3s
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">servers</span></code> makes <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code>, and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> installs the server and the
-nightly etcd backup timer. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role stops unless <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>
-resolves to the server.</p>
+<p><code class="docutils literal notranslate"><span class="pre">servers</span></code> makes <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/*</span></code>, and <code class="docutils literal notranslate"><span class="pre">k3s</span></code> installs the server, Cilium
+(the CNI: the node stays <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> until it runs) and the nightly etcd
+backup timer. The <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role stops unless <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> resolves to the
+server: Cilium’s agents reach the API server by that name too.</p>
 <p>The sealing keys can come back in two ways:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -1561,7 +1562,9 @@ from the container.</p>
 <code class="docutils literal notranslate"><span class="pre">True</span></code>), <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">certificate</span> <span class="pre">-A</span></code> (a new wildcard certificate from
 Let’s Encrypt in a few minutes), <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pv</span></code> (all <code class="docutils literal notranslate"><span class="pre">Bound</span></code>). One
 <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pod stays <code class="docutils literal notranslate"><span class="pre">Pending</span></code>: the two tunnel connectors must run on
-different nodes, and there is one. The other serves the tunnel.</p>
+different nodes, and there is one. The other serves the tunnel. One
+<code class="docutils literal notranslate"><span class="pre">cilium-operator</span></code> pod stays <code class="docutils literal notranslate"><span class="pre">Pending</span></code> for the same reason; the other does
+the work.</p>
 <section id="the-etcd-bundle-is-not-used">
 <span id="dr-etcd"></span><h4>The etcd bundle is not used<a class="headerlink" href="#the-etcd-bundle-is-not-used" title="Link to this heading">#</a></h4>
 <p>Restoring it
@@ -1590,7 +1593,10 @@ and 4); that apply rotates the tunnel token, so finish with
 <p>The VPS is not in the house. The relay pod reconnects over the tailnet with
 its restored credentials, and its <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward still targets
 192.168.1.92. Install Tailscale on the new node by hand and sign it in
-(Ansible does not manage it), for Jellyfin over the tailnet.</p>
+(Ansible does not install it), for Jellyfin over the tailnet. Then run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">tailscale</span> <span class="pre">--limit</span> <span class="pre">nuc2</span></code>: it turns
+Tailscale’s netfilter mode off, without which pods there under a DNS-name
+egress policy get no DNS (ADR 0015).</p>
 </section>
 <section id="restore-the-applications-data">
 <h3>9. Restore the applications’ data<a class="headerlink" href="#restore-the-applications-data" title="Link to this heading">#</a></h3>

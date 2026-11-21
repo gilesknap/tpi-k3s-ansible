@@ -598,14 +598,19 @@ file has the upstream issues and when the workaround can go.
 - `cluster-init` enables embedded etcd.
 - `tls-san` adds `k3s_api_name` to the API server certificate. A config
   change restarts k3s before the workers are touched.
+- `flannel-backend: none`, `disable-network-policy` and `disable-kube-proxy`
+  leave networking to Cilium. The agents take these from the server. Before
+  writing the file, the role reads the current one and refuses to go on if
+  it still runs flannel: switching a live cluster would cut pod networking,
+  so the move to Cilium is a rebuild.
 
 ### Workers (`worker.yml`)
 
 - Checks if the node is already in the cluster (skip if so, unless force).
   A node that is listed but `NotReady` has its Node object deleted, so it
   registers afresh.
-- Passes `--node-ip` and `--flannel-iface` from the inventory's `node_ip`
-  and `flannel_iface`, which `nuc2` sets because it is on two LANs.
+- Passes `--node-ip` from the inventory's `node_ip`, which `nuc2` sets
+  because it is on two LANs.
 - Gets the join token from the control plane.
 - Runs the K3s agent installer with `K3S_URL=https://<k3s_api_name>:6443`.
   A new Node object registers with its inventory-driven labels and taint

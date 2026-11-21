@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -974,8 +975,8 @@ is pinned to it, and why.</p>
 </table>
 </div>
 <p>The inventory (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>) is where these properties come from:
-<code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code>,
-<code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> are host variables that the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role turns
+<code class="docutils literal notranslate"><span class="pre">workstation:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node:</span> <span class="pre">true</span></code>
+and <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> are host variables that the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role turns
 into agent flags, labels and taints. The control plane and its standby are
 named by <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in
 <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. See <a class="reference internal" href="../../reference/inventory.html"><span class="doc">Inventory reference</span></a>.</p>
@@ -1060,8 +1061,8 @@ which makes it the spare capacity that drained pods move to.</p>
 <p><strong>nuc2</strong> has the most memory and carries the node-bound workloads. It is
 multi-homed: <code class="docutils literal notranslate"><span class="pre">enp3s0</span></code> is on the cluster LAN and a second interface is on
 192.168.0.0/24. K3s must use the cluster LAN address, so
-the inventory sets <code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface:</span> <span class="pre">enp3s0</span></code>,
-which become <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> and <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code> on its agent. Its Iris Xe
+the inventory sets <code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code>, which becomes <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> on
+its agent (Cilium tunnels to the address the node advertises). Its Iris Xe
 iGPU is advertised by the Intel GPU device plugin as <code class="docutils literal notranslate"><span class="pre">gpu.intel.com/i915</span></code>
 and used by Jellyfin for hardware transcoding. Jellyfin runs on the host
 network there, so it listens on both LANs and on the tailnet interface. The

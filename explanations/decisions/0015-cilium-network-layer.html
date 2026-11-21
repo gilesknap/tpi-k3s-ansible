@@ -1,0 +1,772 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/decisions/0015-cilium-network-layer';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Reference" href="../../reference.html" />
+    <link rel="prev" title="14. A Second, Immutable Off-site Copy on Backblaze B2" href="0014-immutable-offsite-copy.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../decisions.html" class="nav-link">Decision records</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="cilium-replaces-flannel-kube-proxy-and-k3s-s-policy-controller">
+<h1>15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller<a class="headerlink" href="#cilium-replaces-flannel-kube-proxy-and-k3s-s-policy-controller" title="Link to this heading">#</a></h1>
+<p><strong>Status:</strong> Accepted</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading">#</a></h2>
+<p>The cluster ran k3s’s built-in network layer: flannel (VXLAN) for the pod network, kube-proxy for
+Services, and k3s’s embedded kube-router controller for the five NetworkPolicies. ingress-nginx,
+the Ingress controller, went end-of-life upstream in March 2026 and gets no more CVE fixes.
+Cilium’s Gateway API implementation is the planned replacement, and needs Cilium as the CNI.
+Cilium also brings DNS-name egress rules, eBPF Services and Hubble’s flow visibility, and the
+owner is learning it for work.</p>
+<p>The owner’s decisions are in issue #777. This is phase 1 of 2: the network layer only.
+ingress-nginx and its Ingresses are untouched; phase 2 moves them to Gateway API.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading">#</a></h2>
+<p>Cilium 1.20 becomes the CNI, the NetworkPolicy engine and the kube-proxy replacement. k3s’s
+servicelb stays. The move is done by a cluster rebuild, not node by node.</p>
+<section id="what-k3s-keeps-and-drops">
+<h3>What k3s keeps and drops<a class="headerlink" href="#what-k3s-keeps-and-drops" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code> sets <code class="docutils literal notranslate"><span class="pre">flannel-backend:</span> <span class="pre">none</span></code>,
+<code class="docutils literal notranslate"><span class="pre">disable-network-policy:</span> <span class="pre">true</span></code> and <code class="docutils literal notranslate"><span class="pre">disable-kube-proxy:</span> <span class="pre">true</span></code>, as the Cilium k3s guide says
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/installation/k3s/">Installation using K3s</a>). The k3s docs list
+the first two as flags that must match on every server
+(<a class="reference external" href="https://docs.k3s.io/cli/server">k3s server CLI</a>). The agents need no change: they read the
+flannel backend, the policy-controller switch and the kube-proxy switch from the server when they
+start (<code class="docutils literal notranslate"><span class="pre">pkg/agent/config/config.go</span></code> in k3s 1.34). nuc2’s <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code> is dropped from the
+inventory, as there is no flannel; its <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> stays, and Cilium uses that address.</p>
+<p>With no flannel, k3s leaves containerd’s CNI paths at their defaults, <code class="docutils literal notranslate"><span class="pre">/etc/cni/net.d</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/opt/cni/bin</span></code> (<code class="docutils literal notranslate"><span class="pre">pkg/executor/embed/embed.go</span></code>), which are the Cilium chart’s defaults too.</p>
+<p>Changing these settings on a live server would cut every pod off the network with nothing to take
+over. <code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/control.yml</span></code> therefore refuses to apply the new configuration to a server
+whose current one still runs flannel (it only warns in <code class="docutils literal notranslate"><span class="pre">--check</span></code>). A fresh install and a server
+already on Cilium pass, so re-runs of <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">k3s</span></code> after the rebuild are unaffected.</p>
+</section>
+<section id="bootstrap-and-adoption-by-argocd">
+<h3>Bootstrap, and adoption by ArgoCD<a class="headerlink" href="#bootstrap-and-adoption-by-argocd" title="Link to this heading">#</a></h3>
+<p>Nodes are NotReady until a CNI runs, and ArgoCD needs pod networking, so ArgoCD cannot be the
+first to install Cilium. Two ways were considered:</p>
+<ul class="simple">
+<li><p><strong>A k3s HelmChart manifest</strong> in <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server/manifests</span></code>. k3s’s helm-controller
+would keep reconciling it, and fight ArgoCD over every resource, for as long as the file exists;
+removing the file uninstalls the chart.</p></li>
+<li><p><strong>A Helm install from Ansible</strong>, like the ArgoCD bootstrap in <code class="docutils literal notranslate"><span class="pre">roles/cluster</span></code>. Chosen.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/cilium.yml</span></code> runs once from the controller, after the nodes have joined and before
+the role waits for kube-system pods. If there is no <code class="docutils literal notranslate"><span class="pre">cilium</span></code> DaemonSet, it installs the chart with
+<code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">install</span> <span class="pre">--wait</span></code> and then deletes Helm’s release record, so nothing suggests a later
+<code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">upgrade</span></code>. If there is one, it does nothing.</p>
+<p>There is one copy of the version and values: the ArgoCD Application in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/cilium.yaml</span></code>. Ansible reads that file’s <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code> and
+<code class="docutils literal notranslate"><span class="pre">valuesObject</span></code>, as <code class="docutils literal notranslate"><span class="pre">roles/cluster</span></code> already reads the sealed-secrets Application. The file therefore
+holds no Helm template expressions. When the root Application syncs, ArgoCD renders the same chart
+with the same values and applies it over the resources Ansible made; with annotation tracking (the
+default in ArgoCD 3) it adds its tracking annotation and changes nothing else, so the agents do not
+restart. From then on ArgoCD owns Cilium: upgrades and value changes go through Git.</p>
+<p>The Application syncs with <code class="docutils literal notranslate"><span class="pre">ServerSideApply=true</span></code>: the chart’s Cilium dashboard ConfigMap is
+over 256 KB, too big for client-side apply’s <code class="docutils literal notranslate"><span class="pre">last-applied-configuration</span></code> annotation (as with
+kube-prometheus-stack in <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>), with the annotation
+<code class="docutils literal notranslate"><span class="pre">argocd.argoproj.io/client-side-apply-migration-manager:</span> <span class="pre">helm</span></code>, so ArgoCD migrates the field
+ownership the bootstrap Helm install recorded and later removals take effect
+(<a class="reference external" href="https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/">ArgoCD sync options</a>). Unlike the other Applications it has no resources
+finalizer, so deleting or renaming it orphans Cilium instead of deleting the CNI under every pod,
+ArgoCD’s included.</p>
+<p>Two chart settings keep ArgoCD in sync, following Cilium’s
+<a class="reference external" href="https://docs.cilium.io/en/v1.20/configuration/argocd-issues/">ArgoCD troubleshooting page</a>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hubble.tls.auto.method:</span> <span class="pre">cronJob</span></code>. The default, <code class="docutils literal notranslate"><span class="pre">helm</span></code>, generates new certificates on every
+render, so ArgoCD would show the app out of sync for ever. The Job (and a CronJob that renews the
+certificates) writes them into Secrets instead, reusing the <code class="docutils literal notranslate"><span class="pre">cilium-ca</span></code> CA once it exists.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CiliumIdentity</span></code>, <code class="docutils literal notranslate"><span class="pre">CiliumEndpoint</span></code> and <code class="docutils literal notranslate"><span class="pre">CiliumEndpointSlice</span></code> are already in the argo-cd chart’s
+default <code class="docutils literal notranslate"><span class="pre">resource.exclusions</span></code>, so ArgoCD neither shows nor prunes them.</p></li>
+</ul>
+<p>The ServiceMonitors are not the chart’s: they are in <code class="docutils literal notranslate"><span class="pre">additions/grafana</span></code>, synced by the
+Application that installs their CRD, as <code class="docutils literal notranslate"><span class="pre">cert-manager-servicemonitor.yaml</span></code> already is. The chart’s
+would fail at bootstrap, when no ServiceMonitor CRD exists yet.</p>
+</section>
+<section id="kube-proxy-replacement">
+<h3>Kube-proxy replacement<a class="headerlink" href="#kube-proxy-replacement" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">kubeProxyReplacement:</span> <span class="pre">true</span></code> with <code class="docutils literal notranslate"><span class="pre">k8sServiceHost:</span> <span class="pre">k3s.lan</span></code> and <code class="docutils literal notranslate"><span class="pre">k8sServicePort:</span> <span class="pre">6443</span></code>. Without
+kube-proxy, nothing serves the <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> Service until Cilium runs, so the agents must be told
+where the API server itself is
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/network/kubernetes/kubeproxy-free/">Kubernetes Without kube-proxy</a>).
+The guide uses the control plane’s IP. <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>) is used instead: it is how the
+k3s agents and the kubeconfig already reach the API, the router’s DNS points it at node02, the
+server certificate carries it, and the k3s role checks all of that on every node before it
+installs Cilium. Moving the control plane stays a DNS change, with nothing to edit here
+(<code class="docutils literal notranslate"><span class="pre">docs/how-to/recover-control-plane.md</span></code>). The agents and operator run on the host network with
+the default DNS policy, so they resolve it with the node’s resolver, not with CoreDNS, which
+needs Cilium first. The role fails if <code class="docutils literal notranslate"><span class="pre">k8sServiceHost</span></code> and <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> differ. The cost is
+that an agent that restarts while the router’s DNS is down cannot reach the API until it is back;
+pods already running keep their networking. The guide recommends eBPF
+masquerading with eBPF NodePort, so <code class="docutils literal notranslate"><span class="pre">bpf.masquerade:</span> <span class="pre">true</span></code>. Routing stays VXLAN tunnelling, as with
+flannel, and pods keep k3s’s range, <code class="docutils literal notranslate"><span class="pre">10.42.0.0/16</span></code> in /24s per node, through Cilium’s cluster-pool
+IPAM, as the k3s guide sets it. All nodes run kernel 7.0, well past what any of this needs.</p>
+<p>Cilium attaches to every device it auto-detects, and takes its MTU from the smallest of them
+(<code class="docutils literal notranslate"><span class="pre">pkg/mtu/manager.go</span></code>). On nuc2 and ws03 that included <code class="docutils literal notranslate"><span class="pre">tailscale0</span></code>, at 1280, so their pods got
+1230 where the other nodes’ got 1450. <code class="docutils literal notranslate"><span class="pre">MTU:</span> <span class="pre">1500</span></code>, the LAN’s, sets it for every node.
+<code class="docutils literal notranslate"><span class="pre">tailscale0</span></code> is not taken out of <code class="docutils literal notranslate"><span class="pre">devices</span></code> instead: the VPS reaches ingress-nginx on nuc2’s tailnet
+address, at servicelb’s host port 443, and with kube-proxy replacement a host port arriving on an
+interface is served only by Cilium’s programs on that device; no portmap plugin or iptables rule
+stands behind them.</p>
+</section>
+<section id="servicelb-stays">
+<h3>servicelb stays<a class="headerlink" href="#servicelb-stays" title="Link to this heading">#</a></h3>
+<p>k3s’s servicelb (klipper-lb) keeps publishing ingress-nginx on ports 80 and 443 of each node, and
+writing those node IPs into the Service’s <code class="docutils literal notranslate"><span class="pre">status.loadBalancer.ingress</span></code>. It needs nothing from
+kube-proxy for its own pods: they bind host ports, which Cilium’s kube-proxy replacement serves
+natively, and forward with iptables to the Service’s ClusterIP, which Cilium translates. Traffic to
+a node IP that is a LoadBalancer address is served by Cilium’s eBPF load balancer in kube-proxy’s
+place, as the k3s docs describe kube-proxy doing
+(<a class="reference external" href="https://docs.k3s.io/networking/networking-services">k3s networking services</a>). Neither doc covers
+the pair together, so the rebuild checks it (curl to each node IP from the LAN).</p>
+</section>
+<section id="mixed-hardware-and-ws03">
+<h3>Mixed hardware, and ws03<a class="headerlink" href="#mixed-hardware-and-ws03" title="Link to this heading">#</a></h3>
+<p>Cilium publishes multi-arch images, so the arm64 RK1s and the amd64 NUCs and ws03 run the same
+chart. The agent and Envoy DaemonSets tolerate every taint (the chart default), so they run on
+node02 (control plane) and on ws03 (workstation taint), which must have pod networking for its GPU
+and monitoring pods.</p>
+</section>
+<section id="the-existing-networkpolicies">
+<h3>The existing NetworkPolicies<a class="headerlink" href="#the-existing-networkpolicies" title="Link to this heading">#</a></h3>
+<p>Cilium implements Kubernetes NetworkPolicy, and four of the five policies only select pods and
+namespaces, which it handles the same way. Like k3s’s controller, it always admits traffic from a
+pod’s own node, so kubelet probes keep working
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/security/policy/">Layer 3 policies</a>).</p>
+<p>The fifth, <code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code> (from the dashboard chart), admits RCON from LAN CIDRs
+but for the other cluster nodes, and relied on ws03 (a node) being admitted. By default Cilium
+never matches a node’s address against a CIDR rule; <code class="docutils literal notranslate"><span class="pre">policyCIDRMatchMode:</span> <span class="pre">[nodes]</span></code> makes it, so
+the <code class="docutils literal notranslate"><span class="pre">except</span></code> list still refuses the other nodes’ LAN addresses. Pods that reach the RCON NodePort
+now keep their pod identity (there is no kube-proxy SNAT to the node’s address), which no CIDR
+rule matches, so they are still refused.</p>
+<p>That was not enough for ws03, as the rebuild showed. With kube-proxy replacement, ws03’s socket
+load balancer sends its own connection to <code class="docutils literal notranslate"><span class="pre">192.168.1.92:&lt;port&gt;</span></code> straight to the world pod through
+the tunnel, from ws03’s CiliumInternalIP and with its node identity, so no ipBlock matches it.
+A CiliumNetworkPolicy beside the chart’s, <code class="docutils literal notranslate"><span class="pre">minecraft-rcon-nodes</span></code> in <code class="docutils literal notranslate"><span class="pre">additions/minecraft</span></code>, admits
+RCON <code class="docutils literal notranslate"><span class="pre">fromNodes</span></code> named in <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code> (ws03). <code class="docutils literal notranslate"><span class="pre">fromNodes</span></code> needs
+<code class="docutils literal notranslate"><span class="pre">nodeSelectorLabels:</span> <span class="pre">true</span></code>, which gives each node an identity from its labels
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/security/policy/language/#node-based">Node based</a>). Allow rules
+add up, so this widens the chart’s policy by ws03’s host and nothing else. The world node’s own
+host (mciwb on nuc2, through <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code> or its LAN address) needs no rule: Cilium always admits
+a pod’s own host.</p>
+</section>
+<section id="hubble">
+<h3>Hubble<a class="headerlink" href="#hubble" title="Link to this heading">#</a></h3>
+<p>Hubble, Hubble Relay and the Hubble UI are on. The UI is at <code class="docutils literal notranslate"><span class="pre">hubble.gkcluster.org</span></code>, through the
+Cloudflare tunnel and behind oauth2-proxy (admin emails only), like Headlamp: it has no login of
+its own and shows every flow in the cluster. Its Ingress is a separate <code class="docutils literal notranslate"><span class="pre">hubble-ui</span></code> Application,
+because <code class="docutils literal notranslate"><span class="pre">cilium.yaml</span></code> must stay free of templates, and it exists only while
+<code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> is on. Flow metrics (DNS, drops, TCP, flows, ports, ICMP and policy
+verdicts, labelled by namespace), the agent, Envoy, operator and Relay metrics go to the existing
+Prometheus, and the chart’s Grafana dashboards are on (ConfigMaps that Grafana’s sidecar picks up).</p>
+</section>
+<section id="a-first-dns-name-egress-rule">
+<h3>A first DNS-name egress rule<a class="headerlink" href="#a-first-dns-name-egress-rule" title="Link to this heading">#</a></h3>
+<p>A CiliumNetworkPolicy, <code class="docutils literal notranslate"><span class="pre">backups-egress</span></code> in <code class="docutils literal notranslate"><span class="pre">additions/backups</span></code>, selects every pod in the <code class="docutils literal notranslate"><span class="pre">backups</span></code>
+namespace and allows egress only to cluster DNS (through Cilium’s DNS proxy) and, on port 443, to
+the hosts the off-site jobs use: Google Drive (<code class="docutils literal notranslate"><span class="pre">www.googleapis.com</span></code>, <code class="docutils literal notranslate"><span class="pre">oauth2.googleapis.com</span></code>),
+Backblaze B2 (<code class="docutils literal notranslate"><span class="pre">*.backblazeb2.com</span></code>, and <code class="docutils literal notranslate"><span class="pre">pod-*.backblaze.com</span></code> for uploads), and GitHub
+(<code class="docutils literal notranslate"><span class="pre">github.com</span></code>, <code class="docutils literal notranslate"><span class="pre">release-assets.githubusercontent.com</span></code>). GitHub is there because both jobs’ init
+container downloads the pinned age release; a policy applies to the whole pod. The NFS volumes are
+mounted by the kubelet on the node, so they are not pod egress. The Grafana and Jellyfin backup
+jobs in the same namespace make no connections.</p>
+</section>
+<section id="tailscale-on-nuc2-and-ws03">
+<h3>Tailscale on nuc2 and ws03<a class="headerlink" href="#tailscale-on-nuc2-and-ws03" title="Link to this heading">#</a></h3>
+<p>The rebuild found that the rule above gave pods on nuc2 no DNS at all. Tailscale, installed by
+hand on nuc2 and ws03, runs by default in netfilter mode “on”, and in that mode tailscaled sets
+<code class="docutils literal notranslate"><span class="pre">net.ipv4.conf.all.src_valid_mark=1</span></code> for its reverse-path workaround. Cilium hands pod DNS to its
+proxy with TPROXY: mark <code class="docutils literal notranslate"><span class="pre">0x200</span></code>, and an ip rule to table 2004, <code class="docutils literal notranslate"><span class="pre">local</span> <span class="pre">default</span> <span class="pre">dev</span> <span class="pre">lo</span></code>. With
+<code class="docutils literal notranslate"><span class="pre">src_valid_mark</span></code> on, the kernel’s source check uses that mark, finds the pod’s own address local
+through table 2004, and drops the packet (<code class="docutils literal notranslate"><span class="pre">IP_LOCAL_SOURCE</span></code>). The DNS proxy never sees a query.</p>
+<p><code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/tailscale.yml</span></code> (<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">tailscale</span></code>, before the k3s install) therefore runs
+<code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">set</span> <span class="pre">--netfilter-mode=off</span></code> and sets <code class="docutils literal notranslate"><span class="pre">src_valid_mark</span></code> back to 0, on any node with
+Tailscale. A <code class="docutils literal notranslate"><span class="pre">sysctl.d</span></code> file alone would not hold: tailscaled sets the value again whenever it
+starts with netfilter on; with it off, tailscaled never writes the value, so the kernel’s default
+of 0 holds across reboots. Turning it off also drops Tailscale’s own iptables rules, such as the
+one that drops tailnet source addresses arriving on other interfaces; the tailnet’s access rules
+are enforced in tailscaled and still apply. Neither node is a subnet router or exit node, which are what
+Tailscale’s iptables rules are for; the task fails on a node that advertises routes or uses an
+exit node rather than guess.</p>
+</section>
+<section id="version">
+<h3>Version<a class="headerlink" href="#version" title="Link to this heading">#</a></h3>
+<p>1.20.5, the newest 1.20 patch on 21 November 2026. Of the GitHub security advisories, only
+GHSA-p5q6-g354-mxrg names a 1.20 release, fixed in 1.20.2. Renovate tracks the chart through the
+Application, as for the other charts, but a Cilium bump is never automerged (<code class="docutils literal notranslate"><span class="pre">renovate.json</span></code>): it
+restarts the agent on every node, and a minor bump needs its upgrade notes read first.</p>
+</section>
+<section id="left-out">
+<h3>Left out<a class="headerlink" href="#left-out" title="Link to this heading">#</a></h3>
+<p>WireGuard encryption, and L2 announcements in place of servicelb (issue #777). Native routing in
+place of VXLAN, which would need every node on one L2 segment and gains little here.</p>
+</section>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>The move is a rebuild, with the outage that implies; <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">k3s</span></code> on a flannel cluster stops
+with an error rather than break it.</p></li>
+<li><p>k3s’s <code class="docutils literal notranslate"><span class="pre">kube-proxy</span></code> and flannel no longer exist, so their troubleshooting no longer applies;
+<code class="docutils literal notranslate"><span class="pre">cilium-dbg</span></code> in the agent pods and Hubble take their place.</p></li>
+<li><p>The Cilium agents, like the k3s agents, depend on <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> resolving when they start.</p></li>
+<li><p>A node rebuilt after decommission may still hold Cilium’s eBPF programs and state from the old
+cluster until it reboots; the new agent takes them over, and a reboot clears them.</p></li>
+<li><p>Phase 2 can add Cilium’s Gateway API on top without touching the CNI again.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="0014-immutable-offsite-copy.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">14. A Second, Immutable Off-site Copy on Backblaze B2</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../reference.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#context">Context</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decision">Decision</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-k3s-keeps-and-drops">What k3s keeps and drops</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bootstrap-and-adoption-by-argocd">Bootstrap, and adoption by ArgoCD</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#kube-proxy-replacement">Kube-proxy replacement</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#servicelb-stays">servicelb stays</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mixed-hardware-and-ws03">Mixed hardware, and ws03</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-existing-networkpolicies">The existing NetworkPolicies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hubble">Hubble</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-first-dns-name-egress-rule">A first DNS-name egress rule</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tailscale-on-nuc2-and-ws03">Tailscale on nuc2 and ws03</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#version">Version</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#left-out">Left out</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#consequences">Consequences</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/decisions/0015-cilium-network-layer.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/decisions/0015-cilium-network-layer.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

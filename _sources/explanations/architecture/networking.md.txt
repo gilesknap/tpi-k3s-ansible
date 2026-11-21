@@ -28,19 +28,41 @@ router at `192.168.1.1`.
 Two details matter to the cluster:
 
 - **`k3s.lan`** is a DNS record on the router that points at the control
-  plane (`k3s_api_name` in `group_vars/all.yml`). Agents join through it, the
-  API server certificate carries it as a SAN, and the kubeconfig uses it, so
+  plane (`k3s_api_name` in `group_vars/all.yml`). Agents join through it,
+  Cilium's agents reach the API server by it, the API server certificate
+  carries it as a SAN, and the kubeconfig uses it, so
   moving the control plane is a DNS change (`just k3s-api-dns <ip>`) and not a
   re-join of every node.
 - **nuc2 is multi-homed.** It has a second LAN, `192.168.0.0/24`, so
-  `hosts.yml` pins K3s to the right side with `node_ip: 192.168.1.92` and
-  `flannel_iface: enp3s0`. Without them K3s may pick the other interface and
-  the overlay to nuc2 breaks.
+  `hosts.yml` pins K3s to the right side with `node_ip: 192.168.1.92`.
+  Without it K3s may advertise the other interface's address, and Cilium's
+  tunnel to nuc2, which uses the node's advertised address, breaks.
 
 ## Inside the cluster
 
-- **Pod network:** K3s's built-in flannel, with its default VXLAN backend.
-  The only setting is `--flannel-iface` on nuc2.
+- **Pod network, Services and NetworkPolicy:** Cilium
+  ({doc}`ADR 15 </explanations/decisions/0015-cilium-network-layer>`). K3s
+  runs no flannel, no kube-proxy and no policy controller of its own
+  (`flannel-backend: none`, `disable-kube-proxy`, `disable-network-policy`
+  in `roles/k3s/templates/k3s-server-config.yml.j2`). Cilium's agent, a
+  DaemonSet on every node including node02 and ws03, gives each pod an
+  address in `10.42.0.0/16` (a /24 per node), tunnels pod traffic between
+  nodes over VXLAN, and serves every ClusterIP and NodePort in eBPF instead
+  of kube-proxy's iptables rules. Because nothing serves the `kubernetes`
+  Service before Cilium runs, the agents reach the API server by its name,
+  `k3s.lan` (`k8sServiceHost` in `kubernetes-services/templates/cilium.yaml`),
+  so moving the control plane is still only a DNS change.
+- **How Cilium gets there:** nodes stay NotReady until a CNI runs, and ArgoCD
+  needs pod networking, so the `k3s` Ansible role installs the Cilium chart
+  once, on a cluster that has none, with the version and values from that
+  same ArgoCD Application (`roles/k3s/tasks/cilium.yml`). ArgoCD adopts it
+  when the root Application syncs, and owns it from then on.
+- **Hubble:** Cilium's flow visibility. Hubble Relay gathers flows from
+  every agent, and the Hubble UI shows them at `hubble.gkcluster.org`,
+  behind oauth2-proxy (admins only). From a shell,
+  `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe`
+  shows one node's flows. Flow, drop, DNS and policy-verdict metrics go to
+  Prometheus, with the chart's Grafana dashboards.
 - **Ingress controller:** ingress-nginx, two replicas spread over different
   nodes with a PodDisruptionBudget, so a drain or a nightly reboot always
   leaves one serving. K3s's bundled Traefik is disabled
@@ -48,7 +70,8 @@ Two details matter to the cluster:
   because oauth2-proxy relies on its `auth-url` and `auth-signin`
   annotations.
 - **Load balancer:** K3s's ServiceLB publishes the ingress-nginx Service on
-  ports 80 and 443 of every node that its pods can run on. Today that is
+  ports 80 and 443 of every node that its pods can run on (Cilium serves the
+  host ports and the load-balancer addresses in kube-proxy's place). Today that is
   `192.168.1.83`, `.84`, `.91` and `.92`: node02 (control-plane taint) and
   ws03 (workstation taint) are left out. Any of the four addresses reaches
   either controller replica.
@@ -168,7 +191,11 @@ The ingress-nginx load balancer addresses also answer on the LAN, which is
 what the `home-lan` probe uses. The web services' own names never resolve to
 them.
 
-Tailscale on the hosts is installed by hand; Ansible does not manage it.
+Tailscale on the hosts (nuc2 and ws03) is installed and signed in by hand.
+Ansible touches one setting: the `k3s` role (`roles/k3s/tasks/tailscale.yml`,
+`--tags tailscale`) turns Tailscale's netfilter mode off and
+`net.ipv4.conf.all.src_valid_mark` back to 0, which Cilium's DNS proxy needs
+(ADR 0015). It refuses a node that advertises routes or uses an exit node.
 
 ### 3. The VPS relay: game ports
 
@@ -227,6 +254,7 @@ Every name under `gkcluster.org`, from `cloudflare/locals.tf` and the
 | `grafana` | Tunnel | Grafana (`monitoring`) |
 | `alertmanager` | Tunnel | Alertmanager (`monitoring`) |
 | `headlamp` | Tunnel | Headlamp |
+| `hubble` | Tunnel | Hubble UI (`kube-system`), admins only |
 | `oauth2` | Tunnel | oauth2-proxy's sign-in and callback |
 | `minecraft` | Tunnel | Minecraft dashboard |
 | `scrap` | Tunnel | scrap, including `/mcp` |

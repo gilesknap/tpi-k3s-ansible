@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -926,21 +927,43 @@ router at <code class="docutils literal notranslate"><span class="pre">192.168.1
 <p>Two details matter to the cluster:</p>
 <ul class="simple">
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></strong> is a DNS record on the router that points at the control
-plane (<code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). Agents join through it, the
-API server certificate carries it as a SAN, and the kubeconfig uses it, so
+plane (<code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). Agents join through it,
+Cilium’s agents reach the API server by it, the API server certificate
+carries it as a SAN, and the kubeconfig uses it, so
 moving the control plane is a DNS change (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code>) and not a
 re-join of every node.</p></li>
 <li><p><strong>nuc2 is multi-homed.</strong> It has a second LAN, <code class="docutils literal notranslate"><span class="pre">192.168.0.0/24</span></code>, so
-<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> pins K3s to the right side with <code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code> and
-<code class="docutils literal notranslate"><span class="pre">flannel_iface:</span> <span class="pre">enp3s0</span></code>. Without them K3s may pick the other interface and
-the overlay to nuc2 breaks.</p></li>
+<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> pins K3s to the right side with <code class="docutils literal notranslate"><span class="pre">node_ip:</span> <span class="pre">192.168.1.92</span></code>.
+Without it K3s may advertise the other interface’s address, and Cilium’s
+tunnel to nuc2, which uses the node’s advertised address, breaks.</p></li>
 </ul>
 </section>
 <section id="inside-the-cluster">
 <h2>Inside the cluster<a class="headerlink" href="#inside-the-cluster" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>Pod network:</strong> K3s’s built-in flannel, with its default VXLAN backend.
-The only setting is <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code> on nuc2.</p></li>
+<li><p><strong>Pod network, Services and NetworkPolicy:</strong> Cilium
+(<a class="reference internal" href="../decisions/0015-cilium-network-layer.html"><span class="doc">ADR 15</span></a>). K3s
+runs no flannel, no kube-proxy and no policy controller of its own
+(<code class="docutils literal notranslate"><span class="pre">flannel-backend:</span> <span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">disable-kube-proxy</span></code>, <code class="docutils literal notranslate"><span class="pre">disable-network-policy</span></code>
+in <code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>). Cilium’s agent, a
+DaemonSet on every node including node02 and ws03, gives each pod an
+address in <code class="docutils literal notranslate"><span class="pre">10.42.0.0/16</span></code> (a /24 per node), tunnels pod traffic between
+nodes over VXLAN, and serves every ClusterIP and NodePort in eBPF instead
+of kube-proxy’s iptables rules. Because nothing serves the <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code>
+Service before Cilium runs, the agents reach the API server by its name,
+<code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">k8sServiceHost</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/cilium.yaml</span></code>),
+so moving the control plane is still only a DNS change.</p></li>
+<li><p><strong>How Cilium gets there:</strong> nodes stay NotReady until a CNI runs, and ArgoCD
+needs pod networking, so the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> Ansible role installs the Cilium chart
+once, on a cluster that has none, with the version and values from that
+same ArgoCD Application (<code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/cilium.yml</span></code>). ArgoCD adopts it
+when the root Application syncs, and owns it from then on.</p></li>
+<li><p><strong>Hubble:</strong> Cilium’s flow visibility. Hubble Relay gathers flows from
+every agent, and the Hubble UI shows them at <code class="docutils literal notranslate"><span class="pre">hubble.gkcluster.org</span></code>,
+behind oauth2-proxy (admins only). From a shell,
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">exec</span> <span class="pre">ds/cilium</span> <span class="pre">-c</span> <span class="pre">cilium-agent</span> <span class="pre">--</span> <span class="pre">hubble</span> <span class="pre">observe</span></code>
+shows one node’s flows. Flow, drop, DNS and policy-verdict metrics go to
+Prometheus, with the chart’s Grafana dashboards.</p></li>
 <li><p><strong>Ingress controller:</strong> ingress-nginx, two replicas spread over different
 nodes with a PodDisruptionBudget, so a drain or a nightly reboot always
 leaves one serving. K3s’s bundled Traefik is disabled
@@ -948,7 +971,8 @@ leaves one serving. K3s’s bundled Traefik is disabled
 because oauth2-proxy relies on its <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code>
 annotations.</p></li>
 <li><p><strong>Load balancer:</strong> K3s’s ServiceLB publishes the ingress-nginx Service on
-ports 80 and 443 of every node that its pods can run on. Today that is
+ports 80 and 443 of every node that its pods can run on (Cilium serves the
+host ports and the load-balancer addresses in kube-proxy’s place). Today that is
 <code class="docutils literal notranslate"><span class="pre">192.168.1.83</span></code>, <code class="docutils literal notranslate"><span class="pre">.84</span></code>, <code class="docutils literal notranslate"><span class="pre">.91</span></code> and <code class="docutils literal notranslate"><span class="pre">.92</span></code>: node02 (control-plane taint) and
 ws03 (workstation taint) are left out. Any of the four addresses reaches
 either controller replica.</p></li>
@@ -1061,7 +1085,11 @@ tailnet. There is no Cloudflare route for SSH.</p></li>
 <p>The ingress-nginx load balancer addresses also answer on the LAN, which is
 what the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> probe uses. The web services’ own names never resolve to
 them.</p>
-<p>Tailscale on the hosts is installed by hand; Ansible does not manage it.</p>
+<p>Tailscale on the hosts (nuc2 and ws03) is installed and signed in by hand.
+Ansible touches one setting: the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/tailscale.yml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">tailscale</span></code>) turns Tailscale’s netfilter mode off and
+<code class="docutils literal notranslate"><span class="pre">net.ipv4.conf.all.src_valid_mark</span></code> back to 0, which Cilium’s DNS proxy needs
+(ADR 0015). It refuses a node that advertises routes or uses an exit node.</p>
 </section>
 <section id="the-vps-relay-game-ports">
 <h3>3. The VPS relay: game ports<a class="headerlink" href="#the-vps-relay-game-ports" title="Link to this heading">#</a></h3>
@@ -1140,39 +1168,43 @@ a forward: <a class="reference internal" href="../../how-to/vps-relay.html"><spa
 <td><p>Tunnel</p></td>
 <td><p>Headlamp</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hubble</span></code></p></td>
+<td><p>Tunnel</p></td>
+<td><p>Hubble UI (<code class="docutils literal notranslate"><span class="pre">kube-system</span></code>), admins only</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
 <td><p>Tunnel</p></td>
 <td><p>oauth2-proxy’s sign-in and callback</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p>Tunnel</p></td>
 <td><p>Minecraft dashboard</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 <td><p>Tunnel</p></td>
 <td><p>scrap, including <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
 <td><p>Tunnel, public, cached at the edge</p></td>
 <td><p>scrap’s public pages (<code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
 <td><p>Tunnel, public, ntfy’s own tokens</p></td>
 <td><p>ntfy</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
 <td><p>Tunnel</p></td>
 <td><p>Echo test service</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code></p></td>
 <td><p>DNS only, LAN address</p></td>
 <td><p>Landing page <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> through ingress-nginx</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code></p></td>
 <td><p>DNS only, tailnet address</p></td>
 <td><p>The same, over the tailnet</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mc</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mc</span></code></p></td>
 <td><p>DNS only, the VPS</p></td>
 <td><p>frps, then nuc2’s game NodePorts</p></td>
 </tr>

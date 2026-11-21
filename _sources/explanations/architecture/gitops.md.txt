@@ -39,17 +39,17 @@ flowchart TB
     ANS["Ansible cluster role"] -->|"creates"| ROOT["all-cluster-services<br/>root Application"]
     REPO["kubernetes-services/<br/>Chart.yaml, values.yaml, templates/"] -->|"rendered by"| ROOT
 
-    ROOT --> P["Platform<br/>sealed-secrets, cert-manager, ingress,<br/>oauth2-proxy, cloudflared, coredns"]
+    ROOT --> P["Platform<br/>cilium, sealed-secrets, cert-manager, ingress,<br/>oauth2-proxy, cloudflared, coredns"]
     ROOT --> S["Storage and backups<br/>local-storage, nfs-csi, backups"]
     ROOT --> M["Nodes and maintenance<br/>kured, system-upgrade, kernel-settings,<br/>intel-gpu-plugin, nvidia-device-plugin"]
-    ROOT --> O["Observability and UIs<br/>grafana-prometheus, headlamp,<br/>argocd-monitor, home, echo"]
+    ROOT --> O["Observability and UIs<br/>grafana-prometheus, headlamp, hubble-ui,<br/>argocd-monitor, home, echo"]
     ROOT --> A["Applications<br/>scrap, jellyfin, minecraft,<br/>ntfy, vps-relay"]
 
     P & S & M & O & A -->|"sync"| K["Cluster resources"]
 ```
 
-Those are the 24 child Applications in the live cluster
-(`kubectl get applications -n argo-cd` shows 25 with the root). A 25th
+Those are the 26 child Applications in the live cluster
+(`kubectl get applications -n argo-cd` shows 27 with the root). A 27th
 template, `kyverno.yaml`, renders nothing because `enable_kyverno` is
 `false`: the app never settled to Synced and no policies were in use.
 
@@ -223,10 +223,16 @@ by the default class and never bind to its volume. Inside `scrap` and
 `jellyfin`, the static volumes and claims are in wave `-2`, ahead of the
 workloads that mount them.
 
-One ordering problem is solved outside ArgoCD: on a fresh cluster Ansible
-creates the `sealed-secrets` Application before the root one, so the
+Two ordering problems are solved outside ArgoCD. On a fresh cluster
+Ansible creates the `sealed-secrets` Application before the root one, so the
 controller is ready before any `SealedSecret` is applied
-({doc}`/explanations/architecture/provisioning`).
+({doc}`/explanations/architecture/provisioning`). And Cilium, the CNI, has
+to run before ArgoCD can: the `k3s` role installs its chart, with the
+version and values of the `cilium` Application, on a cluster that has no
+Cilium yet, and ArgoCD adopts those resources when the root Application
+syncs ({doc}`ADR 15 </explanations/decisions/0015-cilium-network-layer>`).
+That is why `templates/cilium.yaml` holds no Helm template expressions:
+Ansible reads it as plain YAML.
 
 ## Branch tracking
 

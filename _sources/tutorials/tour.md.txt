@@ -86,16 +86,16 @@ More in {doc}`/explanations/architecture/hardware`.
 kubectl get applications -n argo-cd
 ```
 
-There are 25 applications. `all-cluster-services` is the root: it renders
-the Helm chart in `kubernetes-services/`, whose templates are the other 24.
+There are 27 applications. `all-cluster-services` is the root: it renders
+the Helm chart in `kubernetes-services/`, whose templates are the other 26.
 Roughly, they fall into four groups:
 
 | Group | Applications |
 |-------|--------------|
-| Platform | `ingress`, `cert-manager`, `cloudflared`, `coredns`, `sealed-secrets`, `oauth2-proxy`, `kernel-settings` |
+| Platform | `cilium`, `ingress`, `cert-manager`, `cloudflared`, `coredns`, `sealed-secrets`, `oauth2-proxy`, `kernel-settings` |
 | Storage and backups | `local-storage`, `nfs-csi`, `backups` |
 | Maintenance and devices | `kured`, `system-upgrade`, `intel-gpu-plugin`, `nvidia-device-plugin` |
-| Things to look at and use | `home`, `grafana-prometheus`, `headlamp`, `argocd-monitor`, `echo`, `scrap`, `jellyfin`, `minecraft`, `ntfy`, `vps-relay` |
+| Things to look at and use | `home`, `grafana-prometheus`, `headlamp`, `hubble-ui`, `argocd-monitor`, `echo`, `scrap`, `jellyfin`, `minecraft`, `ntfy`, `vps-relay` |
 
 Every one should be `Synced` and `Healthy`. ArgoCD itself is not in the
 list: Ansible installs it, and it then delivers everything else. More in

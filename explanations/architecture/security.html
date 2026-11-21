@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1082,6 +1083,30 @@ left at their weaker defaults.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">NET_ADMIN</span></code></p></td>
 <td><p>K3s’s own load balancer pods</p></td>
 </tr>
+<tr class="row-odd"><td><p>Cilium agent and Envoy</p></td>
+<td><p>root</p></td>
+<td><p>Writable</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NET_ADMIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SYS_ADMIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SYS_MODULE</span></code> and other capabilities; one <strong>privileged</strong> init container (mounts the BPF filesystem); <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code></p></td>
+<td><p>The CNI: it programs eBPF and routes on every node (chart defaults)</p></td>
+</tr>
+<tr class="row-even"><td><p>Cilium operator</p></td>
+<td><p>root</p></td>
+<td><p>Writable</p></td>
+<td><p>None, <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code></p></td>
+<td><p>Hands out pod ranges, cleans up identities</p></td>
+</tr>
+<tr class="row-odd"><td><p>Hubble Relay</p></td>
+<td><p>65532, non-root</p></td>
+<td><p>Read-only</p></td>
+<td><p>None</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p>Hubble UI</p></td>
+<td><p>The image’s users</p></td>
+<td><p>Writable</p></td>
+<td><p>None</p></td>
+<td><p>Behind oauth2-proxy, admins only</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1095,7 +1120,9 @@ oauth2-proxy and holds that token has the whole cluster.</p>
 <p>Every image and chart is pinned to a version tag in Git, never <code class="docutils literal notranslate"><span class="pre">latest</span></code>.
 Renovate (<code class="docutils literal notranslate"><span class="pre">renovate.json</span></code>) watches the Application templates and the
 manifests under <code class="docutils literal notranslate"><span class="pre">kubernetes-services/</span></code>, opens a pull request for each new
-version, and merges Helm chart bumps automatically.</p>
+version, and merges Helm chart bumps automatically, except Cilium’s: a
+Cilium bump restarts the CNI agent on every node, so its pull requests wait
+for a person.</p>
 <p>A few pins carry an extra, manual rule: when chosen, the version was the
 newest release <strong>at least two weeks old</strong>, as a buffer against a compromised
 release. That applies to ntfy, the Jellyfin chart and image, and the rclone,
@@ -1106,10 +1133,12 @@ checked against a SHA-256 in <code class="docutils literal notranslate"><span cl
 </section>
 <section id="networkpolicies">
 <h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
-<p>There is no default-deny. With one administrator and every workload
-deployed from this repository, namespace-wide deny rules would mostly
-generate debugging work. Policies exist where a pod trusts its network
-neighbours in a way that matters:</p>
+<p>Cilium enforces them
+(<a class="reference internal" href="../decisions/0015-cilium-network-layer.html"><span class="doc">ADR 15</span></a>). There
+is no default-deny. With one administrator and every workload deployed from
+this repository, namespace-wide deny rules would mostly generate debugging
+work. Policies exist where a pod trusts its network neighbours in a way that
+matters:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Namespace</p></th>
@@ -1132,11 +1161,19 @@ neighbours in a way that matters:</p>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code></p></td>
-<td><p>The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, and from nuc2’s second LAN</p></td>
+<td><p>The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, from nuc2’s second LAN and from the world’s own node</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minecraft-rcon-nodes</span></code> (a CiliumNetworkPolicy)</p></td>
+<td><p>RCON (25575) from the hosts of <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code> (ws03), which reach the world pod from their Cilium address, not their LAN one</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p>Nothing. The tunnel only dials out, and nothing scrapes its metrics port</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups-egress</span></code> (a CiliumNetworkPolicy)</p></td>
+<td><p>Egress only: cluster DNS, and on port 443 Google Drive, Backblaze B2 and the GitHub release download for age. Everything else the backup jobs try is dropped</p></td>
 </tr>
 </tbody>
 </table>
@@ -1165,18 +1202,31 @@ neighbours in a way that matters:</p>
     lan --&gt; rcon
     any --&gt; game
     cfd -. &quot;outbound only,&lt;br/&gt;no inbound allowed&quot; .-&gt; nginx
-    </pre><p>Two properties of K3s’s built-in policy controller (kube-router’s) are worth
-knowing:</p>
+    </pre><p>Three properties of Cilium’s enforcement are worth knowing:</p>
 <ul class="simple">
 <li><p>It <strong>always admits traffic from a pod’s own node</strong>. Kubelet probes keep
 working under a deny-all rule, but so do host-network pods on that node.</p></li>
-<li><p>A pod on another node that reaches a NodePort arrives with its node’s
-address. That is why the RCON rule excludes the cluster nodes’ addresses
-from the LAN range (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>): otherwise any
-pod could reach RCON by way of a node. nuc2 and ws03 stay allowed so that
-build tools can run on them. A node that joins the cluster must be added
-to the exclusion list.</p></li>
+<li><p><strong>CIDR rules match node addresses</strong>, because the chart sets
+<code class="docutils literal notranslate"><span class="pre">policyCIDRMatchMode:</span> <span class="pre">[nodes]</span></code> (Cilium’s default is never to). The RCON
+rule depends on it: it excludes the cluster nodes’ addresses from the LAN
+range (<code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code>), so host processes on other
+nodes cannot reach RCON from their LAN addresses (through Cilium’s tunnel
+they carry a node identity, which no CIDR rule matches). A node that joins the
+cluster must be added to the exclusion list. Build tools run on the hosts
+of nuc2 (the world node, admitted as a pod’s own node) and ws03. ws03’s
+connection arrives through Cilium’s tunnel from its Cilium address, which
+no CIDR rule matches, so a CiliumNetworkPolicy admits it by node name
+(<code class="docutils literal notranslate"><span class="pre">fromNodes</span></code>, <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code>), with
+<code class="docutils literal notranslate"><span class="pre">nodeSelectorLabels:</span> <span class="pre">true</span></code> in the Cilium values.</p></li>
+<li><p>A pod that reaches a NodePort keeps its own pod identity: with no
+kube-proxy there is no SNAT to the node’s address on the way. No CIDR
+rule matches a pod, so pods are refused RCON unless a rule names them
+(the dashboard’s).</p></li>
 </ul>
+<p>The <code class="docutils literal notranslate"><span class="pre">backups-egress</span></code> rule works by name: the backup pods’ DNS queries go
+through Cilium’s DNS proxy, which learns the addresses behind the allowed
+names and opens only those. <code class="docutils literal notranslate"><span class="pre">hubble</span> <span class="pre">observe</span> <span class="pre">-n</span> <span class="pre">backups</span> <span class="pre">--verdict</span> <span class="pre">DROPPED</span></code>
+(in an agent pod, or the Hubble UI) shows what it refused.</p>
 <p>The ntfy and scrap policies limit who reaches the pod directly. Anything
 that can reach ingress-nginx can still reach them through it, which is why
 ntfy’s tokens and the oauth2-proxy check are the real gates.</p>

@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1166,62 +1167,67 @@ so nothing else in the cluster can forge the identity headers.</p></li>
 <td><p>oauth2-proxy</p></td>
 <td><p>None</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code> (dashboard)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hubble</span></code></p></td>
+<td><p>Owner</p></td>
+<td><p>oauth2-proxy</p></td>
+<td><p>None; the Hubble UI has no login and shows every flow</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code> (dashboard)</p></td>
 <td><p>Owner</p></td>
 <td><p>oauth2-proxy</p></td>
 <td><p>None; actions logged by email</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 <td><p>Owner</p></td>
 <td><p>oauth2-proxy</p></td>
 <td><p>None; scrap has no login</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code> <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code> <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
 <td><p>Service token</p></td>
 <td><p>scrap’s bearer token</p></td>
 <td><p>None</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pages</span></code></p></td>
 <td><p>Bypass: public</p></td>
 <td><p>None</p></td>
 <td><p>Static files only</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
 <td><p>Bypass: public</p></td>
 <td><p>ntfy’s own access tokens</p></td>
 <td><p>Per-user topic permissions; anonymous is denied</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home</span></code></p></td>
 <td><p>Owner</p></td>
 <td><p>None</p></td>
 <td><p>Static landing page</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">echo</span></code></p></td>
 <td><p>Owner</p></td>
 <td><p>None</p></td>
 <td><p>Test service</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2</span></code></p></td>
 <td><p>Owner</p></td>
 <td><p>It is the login</p></td>
 <td><p>n/a</p></td>
 </tr>
-<tr class="row-odd"><td><p>Jellyfin</p></td>
+<tr class="row-even"><td><p>Jellyfin</p></td>
 <td><p>Not on Cloudflare: LAN and tailnet only</p></td>
 <td><p>Jellyfin’s own users</p></td>
 <td><p>Jellyfin’s own</p></td>
 </tr>
-<tr class="row-even"><td><p>Minecraft game ports</p></td>
+<tr class="row-odd"><td><p>Minecraft game ports</p></td>
 <td><p>Not on Cloudflare: VPS relay</p></td>
 <td><p>Minecraft account (online mode)</p></td>
 <td><p>The world’s whitelist and ops</p></td>
 </tr>
-<tr class="row-odd"><td><p>Kubernetes API (<code class="docutils literal notranslate"><span class="pre">k3s.lan:6443</span></code>)</p></td>
+<tr class="row-even"><td><p>Kubernetes API (<code class="docutils literal notranslate"><span class="pre">k3s.lan:6443</span></code>)</p></td>
 <td><p>Not on Cloudflare: LAN and tailnet</p></td>
 <td><p>Client certificate in the kubeconfig</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>SSH to nodes</p></td>
+<tr class="row-odd"><td><p>SSH to nodes</p></td>
 <td><p>Not on Cloudflare: LAN and tailnet</p></td>
 <td><p>Key, as the <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account</p></td>
 <td><p>Passwordless sudo</p></td>

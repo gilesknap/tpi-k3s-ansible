@@ -573,9 +573,8 @@ upgrade.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node03<span class="w"> </span>sudo<span class="w"> </span>k3s-agent-uninstall.sh
 </pre></div>
 </div>
-<p>It also leaves the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> binary, <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code> and
-<code class="docutils literal notranslate"><span class="pre">/run/flannel</span></code> behind (see <a class="reference internal" href="#k3s-uninstall-leaves-files-behind"><span class="std std-ref">k3s uninstall leaves files behind</span></a>). The
-restore copes with all three.</p>
+<p>It also leaves the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> binary and <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code> behind (see
+<a class="reference internal" href="#k3s-uninstall-leaves-files-behind"><span class="std std-ref">k3s uninstall leaves files behind</span></a>). The restore copes with both.</p>
 <p><strong>The old node:</strong> power it off if it is half-alive, then flash and prepare
 it, but stop before k3s:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>turingpi,node02<span class="w"> </span><span class="se">\</span>
@@ -624,8 +623,8 @@ server’s own token file, and every agent holds the same token;</p></li>
 <li><p>runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span> <span class="pre">--cluster-reset</span> <span class="pre">--cluster-reset-restore-path=&lt;snapshot&gt;</span> <span class="pre">--token-file=&lt;token&gt;</span></code>, which restores the snapshot, makes this node the
 only etcd member and exits. Any existing etcd data is moved to
 <code class="docutils literal notranslate"><span class="pre">db/etcd-old-&lt;timestamp&gt;</span></code>;</p></li>
-<li><p>removes <code class="docutils literal notranslate"><span class="pre">/run/flannel</span></code>, whose <code class="docutils literal notranslate"><span class="pre">subnet.env</span></code> on a former agent still
-holds the node’s old podCIDR, then starts k3s normally, waits for the
+<li><p>removes <code class="docutils literal notranslate"><span class="pre">/run/flannel</span></code> (state from before the cluster moved to Cilium,
+ADR 15; nothing there now), then starts k3s normally, waits for the
 API server, and deletes its copy of
 the plaintext files. It deletes them on failure too; if even that
 cleanup fails, it prints the remote paths to delete by hand.</p></li>
@@ -698,21 +697,18 @@ was rotated after the snapshot. Restore the keys from
 <code class="docutils literal notranslate"><span class="pre">backups/etcd/sealed-secrets-keys.yaml.age</span></code>, the nightly encrypted copy
 next to the bundles, or from your offline copy
 (<a class="reference internal" href="backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a>), or re-seal (<a class="reference internal" href="manage-sealed-secrets.html"><span class="doc">Manage Sealed Secrets</span></a>).</p></li>
-<li><p><strong>Pods on a former worker are unreachable</strong> (e.g. a readiness probe that
-times out), with IPs outside the node’s podCIDR. The node re-registers
-with a new podCIDR, but until a reboot <code class="docutils literal notranslate"><span class="pre">/run/flannel/subnet.env</span></code> still
-holds its old one, which <code class="docutils literal notranslate"><span class="pre">k3s-agent-uninstall.sh</span></code> leaves behind. Pods
-that start in the seconds before flannel rewrites the file get IPs from
-the old range, and nothing routes to them. The restore script removes
-<code class="docutils literal notranslate"><span class="pre">/run/flannel</span></code> first, so this should only happen after a restore done
-another way. Compare the two, and delete each pod whose IP is outside the
-node’s podCIDR (pods on the host network show the node IP and are fine);
-its controller re-creates it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>node<span class="w"> </span>node03<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.spec.podCIDR}{&quot;\n&quot;}&#39;</span>
-kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span>wide<span class="w"> </span>--field-selector<span class="w"> </span>spec.nodeName<span class="o">=</span>node03
-kubectl<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>&lt;pod&gt;
+<li><p><strong>Pods on a node are unreachable</strong> (e.g. a readiness probe that times
+out). The pod network is Cilium’s (ADR 15): each node’s pod range is in
+its CiliumNode object, which came back with the snapshot. Check the
+node’s agent, then restart it; its DaemonSet re-creates it, and pods that
+still misbehave can be deleted for their controllers to re-create:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-l<span class="w"> </span>k8s-app<span class="o">=</span>cilium<span class="w"> </span>-o<span class="w"> </span>wide
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>ds/cilium<span class="w"> </span>-c<span class="w"> </span>cilium-agent<span class="w"> </span>--<span class="w"> </span>cilium-dbg<span class="w"> </span>status<span class="w"> </span>--brief
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>-l<span class="w"> </span>k8s-app<span class="o">=</span>cilium<span class="w"> </span>--field-selector<span class="w"> </span>spec.nodeName<span class="o">=</span>node03
 </pre></div>
 </div>
+<p>The Cilium agents reach the API server by <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, like the k3s
+agents, so they need the record of step 4 before they can recover.</p>
 </li>
 <li><p><strong>An ArgoCD app is stuck:</strong> <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">argocd-sync</span></code>.</p></li>
 </ul>
@@ -763,7 +759,7 @@ the <code class="docutils literal notranslate"><span class="pre">k3s</span></cod
 (<a class="reference internal" href="#point-the-api-name-at-the-new-control-plane">step 4</a>), then check the
 cluster (<a class="reference internal" href="#check-the-cluster">step 5</a>). The agents rejoin by themselves
 within a minute or two. If pods on the new node are unreachable, see the
-stale podCIDR entry in step 5’s troubleshooting list.</p></li>
+“Pods on a node are unreachable” entry in step 5’s troubleshooting list.</p></li>
 <li><p>Remove the old server, whether you retire node02 or keep it as a
 worker, so <code class="docutils literal notranslate"><span class="pre">k3s.service</span></code> doesn’t linger:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span>sudo<span class="w"> </span>k3s-uninstall.sh
@@ -773,9 +769,7 @@ kubectl<span class="w"> </span>delete<span class="w"> </span>node<span class="w"
 <p>This leaves the old etcd data, which holds every cluster Secret, and the
 backup job on the node; clean them up by hand
 (<a class="reference internal" href="#k3s-uninstall-leaves-files-behind">below</a>). To keep the node as a
-worker, also clear its stale flannel state first, with a reboot or
-<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">/run/flannel</span></code>, or its first pods get IPs from its old
-podCIDR, then run
+worker, run
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">k3s</span> <span class="pre">--limit</span> <span class="pre">node02</span></code>.</p>
 </li>
 <li><p>Taint the new control plane with
@@ -797,12 +791,9 @@ This repository installs <code class="docutils literal notranslate"><span class=
 AppArmor is enabled (every node here) and <code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup.service</span></code> on the
 control plane, so the scripts stop there. They leave the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> binary, the
 <code class="docutils literal notranslate"><span class="pre">kubectl</span></code>, <code class="docutils literal notranslate"><span class="pre">crictl</span></code> and <code class="docutils literal notranslate"><span class="pre">ctr</span></code> links, <code class="docutils literal notranslate"><span class="pre">k3s-killall.sh</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s</span></code>,
-all of <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code> and <code class="docutils literal notranslate"><span class="pre">/run/flannel</span></code>, and they delete
-themselves.</p>
+and all of <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code>, and they delete themselves.</p>
 <p>On a former agent, the binary and <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code> do no harm: the
-restore installs over them. <code class="docutils literal notranslate"><span class="pre">/run/flannel/subnet.env</span></code> does, until the node
-reboots: it holds the node’s old podCIDR, which pods started before flannel
-rewrites it pick up. The restore script removes it.</p>
+restore installs over them.</p>
 <p>On a former server, <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server</span></code> still holds the old etcd
 database and token, and the <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role’s files remain: the backup
 script and its configuration and state, the <code class="docutils literal notranslate"><span class="pre">noauto</span></code> NAS mount in
@@ -821,7 +812,7 @@ plane is healthy:</p>
 <span class="s">rm -rf /etc/k3s-etcd-backup /var/lib/k3s-etcd-backup</span>
 <span class="s">sed -i &#39;\| /mnt/k8s-cluster |d&#39; /etc/fstab</span>
 <span class="s">rmdir /mnt/k8s-cluster</span>
-<span class="s">rm -rf /var/lib/rancher/k3s/server /etc/rancher/k3s /run/flannel</span>
+<span class="s">rm -rf /var/lib/rancher/k3s/server /etc/rancher/k3s</span>
 <span class="s">END</span>
 </pre></div>
 </div>

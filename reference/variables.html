@@ -505,7 +505,7 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 <section id="host-variables-hosts-yml">
 <h3>Host variables (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>)<a class="headerlink" href="#host-variables-hosts-yml" title="Link to this heading">#</a></h3>
 <p>Set per host: <code class="docutils literal notranslate"><span class="pre">slot_num</span></code>, <code class="docutils literal notranslate"><span class="pre">type</span></code>, <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>,
-<code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code>, <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code>. They are
+<code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code> and <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>. They are
 described, with the values each node has, in <a class="reference internal" href="inventory.html"><span class="doc">Inventory reference</span></a>.</p>
 </section>
 <section id="tools-role-roles-tools-vars-main-yml">
@@ -1123,29 +1123,33 @@ applies to that run only.</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">192.168.1.0/24</span></code> except the other nodes, and <code class="docutils literal notranslate"><span class="pre">192.168.0.0/24</span></code></p></td>
-<td><p>Sources allowed to reach world RCON through the dashboard’s NetworkPolicy (CIDR or <code class="docutils literal notranslate"><span class="pre">{cidr,</span> <span class="pre">except}</span></code>); except every cluster node’s IP other than the world node and RCON-client workstations, since pods on other nodes arrive as their node’s IP</p></td>
+<td><p>Sources allowed to reach world RCON through the dashboard’s NetworkPolicy (CIDR or <code class="docutils literal notranslate"><span class="pre">{cidr,</span> <span class="pre">except}</span></code>); except every cluster node’s IP other than the world node and RCON-client workstations, for node traffic that arrives from a LAN address (through Cilium’s tunnel it carries a node identity, which no CIDR matches)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[ws03]</span></code></p></td>
+<td><p>Nodes (by <code class="docutils literal notranslate"><span class="pre">kubernetes.io/hostname</span></code>) whose hosts may reach world RCON, through the <code class="docutils literal notranslate"><span class="pre">minecraft-rcon-nodes</span></code> CiliumNetworkPolicy (<code class="docutils literal notranslate"><span class="pre">fromNodes</span></code>); their connections arrive from their Cilium address, which no CIDR matches</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_vps_relay</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>Deploy the VPS relay (<a class="reference internal" href="../how-to/vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>); needs the <code class="docutils literal notranslate"><span class="pre">vps-relay-credentials</span></code> SealedSecret</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.vps_tailnet_host</span></code></p></td>
 <td><p><em>(tailnet address)</em></p></td>
 <td><p>The VPS’s tailnet IP or MagicDNS name, where frps listens</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">7000</span></code></p></td>
 <td><p>frps control port on the VPS’s tailnet address</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code>: tcp <code class="docutils literal notranslate"><span class="pre">30565-30584</span></code> to <code class="docutils literal notranslate"><span class="pre">192.168.1.92</span></code></p></td>
 <td><p>List of <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">protocol</span></code> (<code class="docutils literal notranslate"><span class="pre">tcp</span></code>/<code class="docutils literal notranslate"><span class="pre">udp</span></code>), <code class="docutils literal notranslate"><span class="pre">ports</span></code> (port or <code class="docutils literal notranslate"><span class="pre">min-max</span></code>) and <code class="docutils literal notranslate"><span class="pre">target</span></code>; each publishes <code class="docutils literal notranslate"><span class="pre">ports</span></code> on the VPS and relays them to the same ports on <code class="docutils literal notranslate"><span class="pre">target</span></code>. The VPS’s <code class="docutils literal notranslate"><span class="pre">allowPorts</span></code> and firewall must match</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> / <code class="docutils literal notranslate"><span class="pre">kyverno.chart_version</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> / <code class="docutils literal notranslate"><span class="pre">3.9.1</span></code></p></td>
 <td><p>Kyverno is off: the app never settled to Synced on its CRDs, and no policies were in use</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_storage.&lt;name&gt;</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">grafana</span></code> and <code class="docutils literal notranslate"><span class="pre">prometheus</span></code> on <code class="docutils literal notranslate"><span class="pre">node04</span></code>; <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap_backup_copy</span></code> and <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code> on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code></p></td>
 <td><p>One static <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV each: <code class="docutils literal notranslate"><span class="pre">node</span></code>, <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">capacity</span></code> and the <code class="docutils literal notranslate"><span class="pre">claim_namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">claim_name</span></code> it is pre-bound to (<a class="reference internal" href="../explanations/architecture/storage.html"><span class="doc">Storage</span></a>). The <code class="docutils literal notranslate"><span class="pre">scrap</span></code> entry is the frozen pre-Litestream copy, kept so its PV is not pruned under a bound claim. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 </tr>

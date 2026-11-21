@@ -126,6 +126,10 @@ left at their weaker defaults.
 | kured | root | Read-only | **Privileged** | Has to reboot the host |
 | NFS CSI driver | root | Mixed | **Privileged** `nfs` container | Has to mount on the host |
 | ServiceLB (`svclb-*`) | root | Writable | `NET_ADMIN` | K3s's own load balancer pods |
+| Cilium agent and Envoy | root | Writable | `NET_ADMIN`, `SYS_ADMIN`, `SYS_MODULE` and other capabilities; one **privileged** init container (mounts the BPF filesystem); `hostNetwork` | The CNI: it programs eBPF and routes on every node (chart defaults) |
+| Cilium operator | root | Writable | None, `hostNetwork` | Hands out pod ranges, cleans up identities |
+| Hubble Relay | 65532, non-root | Read-only | None | |
+| Hubble UI | The image's users | Writable | None | Behind oauth2-proxy, admins only |
 
 **Headlamp is a known soft spot.** Its ServiceAccount is bound to
 `cluster-admin` by the chart, and the token that `just headlamp-token` mints
@@ -137,7 +141,9 @@ oauth2-proxy and holds that token has the whole cluster.
 Every image and chart is pinned to a version tag in Git, never `latest`.
 Renovate (`renovate.json`) watches the Application templates and the
 manifests under `kubernetes-services/`, opens a pull request for each new
-version, and merges Helm chart bumps automatically.
+version, and merges Helm chart bumps automatically, except Cilium's: a
+Cilium bump restarts the CNI agent on every node, so its pull requests wait
+for a person.
 
 A few pins carry an extra, manual rule: when chosen, the version was the
 newest release **at least two weeks old**, as a buffer against a compromised
@@ -149,18 +155,22 @@ checked against a SHA-256 in `values.yaml` and the pod fails if it differs.
 
 ### NetworkPolicies
 
-There is no default-deny. With one administrator and every workload
-deployed from this repository, namespace-wide deny rules would mostly
-generate debugging work. Policies exist where a pod trusts its network
-neighbours in a way that matters:
+Cilium enforces them
+({doc}`ADR 15 </explanations/decisions/0015-cilium-network-layer>`). There
+is no default-deny. With one administrator and every workload deployed from
+this repository, namespace-wide deny rules would mostly generate debugging
+work. Policies exist where a pod trusts its network neighbours in a way that
+matters:
 
 | Namespace | Policy | Admits |
 |-----------|--------|--------|
 | `scrap` | `scrap` | Only the `ingress-nginx` namespace. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them |
 | `scrap-public` | `scrap-public` | ingress-nginx to the web port; scrap's pod to the upload receiver. All egress is denied |
 | `ntfy` | `ntfy` | The `ingress-nginx` namespace and the Alertmanager pods in `monitoring`, on port 8080 |
-| `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, and from nuc2's second LAN |
+| `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, from nuc2's second LAN and from the world's own node |
+| `minecraft` | `minecraft-rcon-nodes` (a CiliumNetworkPolicy) | RCON (25575) from the hosts of `minecraft.worlds.rcon_allowed_nodes` (ws03), which reach the world pod from their Cilium address, not their LAN one |
 | `cloudflared` | `cloudflared` | Nothing. The tunnel only dials out, and nothing scrapes its metrics port |
+| `backups` | `backups-egress` (a CiliumNetworkPolicy) | Egress only: cluster DNS, and on port 443 Google Drive, Backblaze B2 and the GitHub release download for age. Everything else the backup jobs try is dropped |
 
 ```mermaid
 flowchart LR
@@ -188,17 +198,31 @@ flowchart LR
     cfd -. "outbound only,<br/>no inbound allowed" .-> nginx
 ```
 
-Two properties of K3s's built-in policy controller (kube-router's) are worth
-knowing:
+Three properties of Cilium's enforcement are worth knowing:
 
 - It **always admits traffic from a pod's own node**. Kubelet probes keep
   working under a deny-all rule, but so do host-network pods on that node.
-- A pod on another node that reaches a NodePort arrives with its node's
-  address. That is why the RCON rule excludes the cluster nodes' addresses
-  from the LAN range (`minecraft.worlds.rcon_allowed_cidrs`): otherwise any
-  pod could reach RCON by way of a node. nuc2 and ws03 stay allowed so that
-  build tools can run on them. A node that joins the cluster must be added
-  to the exclusion list.
+- **CIDR rules match node addresses**, because the chart sets
+  `policyCIDRMatchMode: [nodes]` (Cilium's default is never to). The RCON
+  rule depends on it: it excludes the cluster nodes' addresses from the LAN
+  range (`minecraft.worlds.rcon_allowed_cidrs`), so host processes on other
+  nodes cannot reach RCON from their LAN addresses (through Cilium's tunnel
+  they carry a node identity, which no CIDR rule matches). A node that joins the
+  cluster must be added to the exclusion list. Build tools run on the hosts
+  of nuc2 (the world node, admitted as a pod's own node) and ws03. ws03's
+  connection arrives through Cilium's tunnel from its Cilium address, which
+  no CIDR rule matches, so a CiliumNetworkPolicy admits it by node name
+  (`fromNodes`, `minecraft.worlds.rcon_allowed_nodes`), with
+  `nodeSelectorLabels: true` in the Cilium values.
+- A pod that reaches a NodePort keeps its own pod identity: with no
+  kube-proxy there is no SNAT to the node's address on the way. No CIDR
+  rule matches a pod, so pods are refused RCON unless a rule names them
+  (the dashboard's).
+
+The `backups-egress` rule works by name: the backup pods' DNS queries go
+through Cilium's DNS proxy, which learns the addresses behind the allowed
+names and opens only those. `hubble observe -n backups --verdict DROPPED`
+(in an agent pod, or the Hubble UI) shows what it refused.
 
 The ntfy and scrap policies limit who reaches the pod directly. Anything
 that can reach ingress-nginx can still reach them through it, which is why

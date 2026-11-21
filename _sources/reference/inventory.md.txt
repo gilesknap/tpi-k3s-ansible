@@ -41,7 +41,6 @@ commented-out sketch of one).
 | `intel_gpu_node` | Optional | `true`/`false` | Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node |
 | `workstation` | Optional | `true`/`false` | Registers the agent with the `workstation=true:NoSchedule` taint and the `node-role=workstation` label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation ({doc}`/explanations/upgrade-model`) |
 | `node_ip` | Optional | IPv4 address | Passed to the agent as `--node-ip`. Needed on a multi-homed node whose default route is on the wrong subnet |
-| `flannel_iface` | Optional | Interface name | Passed as `--flannel-iface`: the interface that carries `node_ip` |
 | `install_profile` | x86 hosts, optional | `server`, `desktop` | Gives the host an entry on the install stick ({doc}`/how-to/install-stick`); `desktop` adds `ubuntu-desktop-minimal` and NetworkManager |
 | `install_disk_serial` | With `install_profile` | Disk serial | The OS disk the install erases. The install refuses unless exactly one disk has this serial |
 | `install_disk_model` | With `install_profile`, optional | Disk model | Also checked against the OS disk's model, as `lsblk` shows it |
@@ -63,7 +62,7 @@ control plane is not an inventory setting: `control_plane` and
 | `node03` | `turingpi_nodes` | 192.168.1.83 | 3 | `rk1` | `/dev/nvme0n1` | | Worker, warm standby (`standby_control_plane`) |
 | `node04` | `turingpi_nodes` | 192.168.1.84 | 4 | `rk1` | `/dev/nvme0n1` | | Worker |
 | `ws03` | `extra_nodes` | 192.168.1.10 | | | | `nvidia_gpu_node`, `workstation` | Worker, tainted |
-| `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `flannel_iface: enp3s0`, `intel_gpu_node` | Worker |
+| `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `intel_gpu_node` | Worker |
 | `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
 | `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` |
 
@@ -82,7 +81,7 @@ rows are done by hand, and {doc}`/how-to/node-operations` has the procedures.
 | Where | What | Why |
 |-------|------|-----|
 | `.devcontainer/claude-sandbox.conf` | An `allow-ip` line for the node's address, then `just sandbox-conf` | claude-sandbox blocks every private address that is not listed, so Ansible, SSH and kubectl inside it cannot reach an unlisted node |
-| `kubernetes-services/values.yaml`, `minecraft.worlds.rcon_allowed_cidrs` | The node's address as a `/32` under `except` | Pods on another node reach a world's RCON port from their node's address, so every node but the world node (`nuc2`) and `ws03` is carved out of the LAN allow-list |
+| `kubernetes-services/values.yaml`, `minecraft.worlds.rcon_allowed_cidrs` | The node's address as a `/32` under `except` | Keeps the node's host off world RCON when it arrives from its LAN address (through Cilium's tunnel no CIDR matches it anyway), so every node but the world node (`nuc2`) and `ws03` is carved out of the LAN allow-list; ws03 is admitted by name instead (`rcon_allowed_nodes`) |
 | `group_vars/all.yml`, `k8s_data_dirs` and `values.yaml`, `local_storage` | An entry in each, with the same `node` and `path` | Only if the node will hold a `local-nvme` PV: the first creates the host directory, the second the PV pinned to it ({ref}`move-a-local-nvme-pv`) |
 | `group_vars/all.yml`, `control_plane` and `standby_control_plane` | The node's name | Only if it takes one of those roles ({doc}`/how-to/recover-control-plane`) |
 | `pb_all.yml --tags claude_key` (or `just claude-ssh-bootstrap`) | Run once the node is up | Puts the Claude sandbox's SSH key on the node's `ansible` account. A flashed RK1 gets it from its cloud-init seed instead |

@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -920,15 +921,15 @@ child then syncs its own chart or manifests.</p>
     ANS[&quot;Ansible cluster role&quot;] --&gt;|&quot;creates&quot;| ROOT[&quot;all-cluster-services&lt;br/&gt;root Application&quot;]
     REPO[&quot;kubernetes-services/&lt;br/&gt;Chart.yaml, values.yaml, templates/&quot;] --&gt;|&quot;rendered by&quot;| ROOT
 
-    ROOT --&gt; P[&quot;Platform&lt;br/&gt;sealed-secrets, cert-manager, ingress,&lt;br/&gt;oauth2-proxy, cloudflared, coredns&quot;]
+    ROOT --&gt; P[&quot;Platform&lt;br/&gt;cilium, sealed-secrets, cert-manager, ingress,&lt;br/&gt;oauth2-proxy, cloudflared, coredns&quot;]
     ROOT --&gt; S[&quot;Storage and backups&lt;br/&gt;local-storage, nfs-csi, backups&quot;]
     ROOT --&gt; M[&quot;Nodes and maintenance&lt;br/&gt;kured, system-upgrade, kernel-settings,&lt;br/&gt;intel-gpu-plugin, nvidia-device-plugin&quot;]
-    ROOT --&gt; O[&quot;Observability and UIs&lt;br/&gt;grafana-prometheus, headlamp,&lt;br/&gt;argocd-monitor, home, echo&quot;]
+    ROOT --&gt; O[&quot;Observability and UIs&lt;br/&gt;grafana-prometheus, headlamp, hubble-ui,&lt;br/&gt;argocd-monitor, home, echo&quot;]
     ROOT --&gt; A[&quot;Applications&lt;br/&gt;scrap, jellyfin, minecraft,&lt;br/&gt;ntfy, vps-relay&quot;]
 
     P &amp; S &amp; M &amp; O &amp; A --&gt;|&quot;sync&quot;| K[&quot;Cluster resources&quot;]
-    </pre><p>Those are the 24 child Applications in the live cluster
-(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">applications</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code> shows 25 with the root). A 25th
+    </pre><p>Those are the 26 child Applications in the live cluster
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">applications</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code> shows 27 with the root). A 27th
 template, <code class="docutils literal notranslate"><span class="pre">kyverno.yaml</span></code>, renders nothing because <code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> is
 <code class="docutils literal notranslate"><span class="pre">false</span></code>: the app never settled to Synced and no policies were in use.</p>
 <p>All Applications belong to the AppProject <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code>, which may deploy to
@@ -1147,10 +1148,16 @@ before any chart creates a claim; otherwise the claim would be provisioned
 by the default class and never bind to its volume. Inside <code class="docutils literal notranslate"><span class="pre">scrap</span></code> and
 <code class="docutils literal notranslate"><span class="pre">jellyfin</span></code>, the static volumes and claims are in wave <code class="docutils literal notranslate"><span class="pre">-2</span></code>, ahead of the
 workloads that mount them.</p>
-<p>One ordering problem is solved outside ArgoCD: on a fresh cluster Ansible
-creates the <code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code> Application before the root one, so the
+<p>Two ordering problems are solved outside ArgoCD. On a fresh cluster
+Ansible creates the <code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code> Application before the root one, so the
 controller is ready before any <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code> is applied
-(<a class="reference internal" href="provisioning.html"><span class="doc">Provisioning with Ansible</span></a>).</p>
+(<a class="reference internal" href="provisioning.html"><span class="doc">Provisioning with Ansible</span></a>). And Cilium, the CNI, has
+to run before ArgoCD can: the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role installs its chart, with the
+version and values of the <code class="docutils literal notranslate"><span class="pre">cilium</span></code> Application, on a cluster that has no
+Cilium yet, and ArgoCD adopts those resources when the root Application
+syncs (<a class="reference internal" href="../decisions/0015-cilium-network-layer.html"><span class="doc">ADR 15</span></a>).
+That is why <code class="docutils literal notranslate"><span class="pre">templates/cilium.yaml</span></code> holds no Helm template expressions:
+Ansible reads it as plain YAML.</p>
 </section>
 <section id="branch-tracking">
 <h2>Branch tracking<a class="headerlink" href="#branch-tracking" title="Link to this heading">#</a></h2>

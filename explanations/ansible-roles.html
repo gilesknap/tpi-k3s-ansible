@@ -801,6 +801,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="decisions/0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decisions/0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1519,6 +1520,11 @@ file has the upstream issues and when the workaround can go.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">cluster-init</span></code> enables embedded etcd.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tls-san</span></code> adds <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the API server certificate. A config
 change restarts k3s before the workers are touched.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flannel-backend:</span> <span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">disable-network-policy</span></code> and <code class="docutils literal notranslate"><span class="pre">disable-kube-proxy</span></code>
+leave networking to Cilium. The agents take these from the server. Before
+writing the file, the role reads the current one and refuses to go on if
+it still runs flannel: switching a live cluster would cut pod networking,
+so the move to Cilium is a rebuild.</p></li>
 </ul>
 </section>
 <section id="workers-worker-yml">
@@ -1527,8 +1533,8 @@ change restarts k3s before the workers are touched.</p></li>
 <li><p>Checks if the node is already in the cluster (skip if so, unless force).
 A node that is listed but <code class="docutils literal notranslate"><span class="pre">NotReady</span></code> has its Node object deleted, so it
 registers afresh.</p></li>
-<li><p>Passes <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> and <code class="docutils literal notranslate"><span class="pre">--flannel-iface</span></code> from the inventory’s <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>
-and <code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code>, which <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> sets because it is on two LANs.</p></li>
+<li><p>Passes <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code> from the inventory’s <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>, which <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> sets
+because it is on two LANs.</p></li>
 <li><p>Gets the join token from the control plane.</p></li>
 <li><p>Runs the K3s agent installer with <code class="docutils literal notranslate"><span class="pre">K3S_URL=https://&lt;k3s_api_name&gt;:6443</span></code>.
 A new Node object registers with its inventory-driven labels and taint

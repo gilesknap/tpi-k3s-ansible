@@ -928,7 +928,6 @@ about each.</p>
 <span class="w">      </span><span class="nt">workstation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># taint NoSchedule</span>
 <span class="w">    </span><span class="nt">nuc2</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">node_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w">       </span><span class="c1"># multi-homed: use this subnet</span>
-<span class="w">      </span><span class="nt">flannel_iface</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enp3s0</span>
 <span class="w">      </span><span class="nt">intel_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">        </span><span class="c1"># Iris Xe for Jellyfin</span>
 <span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span>
 </pre></div>
@@ -1083,7 +1082,7 @@ git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span
     kh --&gt; servers[&quot;servers&lt;br/&gt;Ubuntu on NVMe, packages,&lt;br/&gt;data directories&quot;]
     servers --&gt; k3s[&quot;k3s&lt;br/&gt;control plane, workers,&lt;br/&gt;etcd backup timer&quot;]
     k3s --&gt; cluster[&quot;cluster&lt;br/&gt;ArgoCD, sealed secrets,&lt;br/&gt;root application&quot;]
-    cluster --&gt; argo[&quot;ArgoCD syncs&lt;br/&gt;the 24 child applications&quot;]
+    cluster --&gt; argo[&quot;ArgoCD syncs&lt;br/&gt;the 26 child applications&quot;]
     </pre><p>Each stage is a tag in <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code> and can be run on its own
 (<a class="reference internal" href="../reference/playbook-tags.html"><span class="doc">Playbook tags reference</span></a>):</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -1106,7 +1105,7 @@ git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span
 <td><p>On each RK1, writes the same Ubuntu image to the NVMe, clears the eMMC’s partition table so U-Boot boots the NVMe, and reboots into it. Then on every node: package upgrades, unattended-upgrades, the NVIDIA runtime on ws03, and the <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> directories on node04 and nuc2</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s</span></code></p></td>
-<td><p>Installs K3s on node02, joins the other five through <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> with their labels (and ws03’s <code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint), and installs the nightly encrypted etcd backup on node02</p></td>
+<td><p>Installs K3s on node02 without flannel, kube-proxy or its policy controller, joins the other five through <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> with their labels (and ws03’s <code class="docutils literal notranslate"><span class="pre">workstation</span></code> taint), installs Cilium so the nodes become <code class="docutils literal notranslate"><span class="pre">Ready</span></code> (ArgoCD adopts it later), and installs the nightly encrypted etcd backup on node02</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster</span></code></p></td>
 <td><p>Taints node02 <code class="docutils literal notranslate"><span class="pre">NoSchedule</span></code> and node03 <code class="docutils literal notranslate"><span class="pre">PreferNoSchedule</span></code>, installs ArgoCD with its Dex login and RBAC, waits for the Sealed Secrets controller, generates and seals every secret, commits and pushes them, then creates the root application <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code></p></td>
@@ -1210,12 +1209,16 @@ Secrets controller, so it cannot stand in for the step above.</p>
 <p>Work down this list; each item depends on the ones above it.</p>
 <ol class="arabic">
 <li><p><strong>Nodes.</strong> Six nodes <code class="docutils literal notranslate"><span class="pre">Ready</span></code>; node02 has the roles
-<code class="docutils literal notranslate"><span class="pre">control-plane,etcd</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">control-plane,etcd</span></code>. Cilium runs on all six and reports itself healthy,
+with kube-proxy replacement on.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>wide
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>ds<span class="w"> </span>cilium
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>ds/cilium<span class="w"> </span>-c<span class="w"> </span>cilium-agent<span class="w"> </span>--<span class="w"> </span>cilium-dbg<span class="w"> </span>status<span class="w"> </span>--brief
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>ds/cilium<span class="w"> </span>-c<span class="w"> </span>cilium-agent<span class="w"> </span>--<span class="w"> </span>cilium-dbg<span class="w"> </span>status<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>KubeProxyReplacement
 </pre></div>
 </div>
 </li>
-<li><p><strong>Applications and secrets.</strong> All 25 applications <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and
+<li><p><strong>Applications and secrets.</strong> All 27 applications <code class="docutils literal notranslate"><span class="pre">Synced</span></code> and
 <code class="docutils literal notranslate"><span class="pre">Healthy</span></code>, and every SealedSecret decrypted.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>status
 kubectl<span class="w"> </span>get<span class="w"> </span>sealedsecrets<span class="w"> </span>-A

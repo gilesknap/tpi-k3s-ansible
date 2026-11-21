@@ -732,7 +732,6 @@ only the variables it needs:</p>
 <span class="w">      </span><span class="nt">workstation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># taint NoSchedule, never rebooted or upgraded for you</span>
 <span class="w">    </span><span class="nt">nuc2</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">node_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w"> </span><span class="c1"># multi-homed: force K3s onto this subnet</span>
-<span class="w">      </span><span class="nt">flannel_iface</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">enp3s0</span><span class="w"> </span><span class="c1"># the interface carrying node_ip</span>
 <span class="w">      </span><span class="nt">intel_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Iris Xe: runs the Intel GPU device plugin</span>
 <span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span><span class="w"> </span><span class="c1"># single NIC</span>
 <span class="w">      </span><span class="nt">install_profile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">desktop</span><span class="w"> </span><span class="c1"># the install stick&#39;s entry</span>
@@ -747,9 +746,9 @@ the node its entry on the install stick. Read the serial with
 <a class="reference internal" href="install-stick.html#new-hardware"><span class="std std-ref">New hardware</span></a>. A node with more disks lists their
 fstab entries in <code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code> (see <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>); step 4
 mounts them.</p>
-<p>A node with interfaces on two subnets needs both <code class="docutils literal notranslate"><span class="pre">node_ip</span></code> and
-<code class="docutils literal notranslate"><span class="pre">flannel_iface</span></code>. Without them K3s and flannel pick the default-route
-interface, and cross-node pod networking fails. A new RK1 goes under
+<p>A node with interfaces on two subnets needs <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>. Without it K3s
+may advertise the default-route interface’s address, and Cilium’s tunnel
+to the node, so cross-node pod networking, fails. A new RK1 goes under
 <code class="docutils literal notranslate"><span class="pre">turingpi_nodes</span></code> instead, with <code class="docutils literal notranslate"><span class="pre">slot_num</span></code>, <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">rk1</span></code> and <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>.</p>
 </li>
 <li><p><strong>Sandbox allow-list.</strong> The claude-sandbox blocks every private address
@@ -801,12 +800,13 @@ already carries the key:</p>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Minecraft RCON exception list.</strong> Pods on a cluster node reach a
-world’s RCON port as that node’s IP, so every node’s IP is in the
-<code class="docutils literal notranslate"><span class="pre">except</span></code> list of <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code> in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>. Add the new node as a <code class="docutils literal notranslate"><span class="pre">/32</span></code>. Two nodes
-stay allowed on purpose, so RCON clients can run on them: <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, where
-the worlds run, and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, whose taint keeps workload pods off it.</p></li>
+<li><p><strong>Minecraft RCON exception list.</strong> Every node’s IP is in the <code class="docutils literal notranslate"><span class="pre">except</span></code>
+list of <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code> in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, so its host cannot reach a world’s
+RCON port. Add the new node as a <code class="docutils literal notranslate"><span class="pre">/32</span></code>. Two nodes’ hosts stay allowed on
+purpose, so RCON clients can run on them: <code class="docutils literal notranslate"><span class="pre">nuc2</span></code>, where the worlds run,
+and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, whose taint keeps workload pods off it and which is admitted
+by name through <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_nodes</span></code>.</p></li>
 <li><p><strong>Commit.</strong> <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">claude-sandbox.conf</span></code> and <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code> go
 through a branch and a PR like any other change
 (<a class="reference internal" href="work-in-branches.html"><span class="doc">Develop and ship a change</span></a>).</p></li>
@@ -839,8 +839,8 @@ kubectl<span class="w"> </span>delete<span class="w"> </span>node<span class="w"
 <a class="reference internal" href="recover-control-plane.html#k3s-uninstall-leaves-files-behind"><span class="std std-ref">k3s uninstall leaves files behind</span></a>.</p>
 </li>
 <li><p>Remove the node from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, its <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> line from
-<code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>, its entry in <code class="docutils literal notranslate"><span class="pre">rcon_allowed_cidrs</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> if it named this
+<code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>, its entry in <code class="docutils literal notranslate"><span class="pre">rcon_allowed_cidrs</span></code>
+(and in <code class="docutils literal notranslate"><span class="pre">rcon_allowed_nodes</span></code>, if any), and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> if it named this
 node. Commit the change.</p></li>
 </ol>
 </section>

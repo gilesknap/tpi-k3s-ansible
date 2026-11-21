@@ -1027,22 +1027,26 @@ object without that label is ignored without an error.</p>
 <tr class="row-odd"><td><p>cert-manager</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">additions/grafana/cert-manager-servicemonitor.yaml</span></code>. It lives here, not in the cert-manager chart’s values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap</p></td>
 </tr>
-<tr class="row-even"><td><p>kured</p></td>
+<tr class="row-even"><td><p>Cilium and Hubble</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additions/grafana/cilium-servicemonitors.yaml</span></code>: the agents, Envoy, the operator, Hubble’s flow metrics and Hubble Relay, in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code>. Here for the same reason as cert-manager’s: the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role installs Cilium before the CRD exists. The Cilium chart adds its own Grafana dashboards (Cilium, Cilium Operator, Hubble), as ConfigMaps in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>kured</p></td>
 <td><p>The kured chart’s ServiceMonitor (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/kured.yaml</span></code>), in the <code class="docutils literal notranslate"><span class="pre">kured</span></code> namespace</p></td>
 </tr>
-<tr class="row-odd"><td><p>etcd</p></td>
+<tr class="row-even"><td><p>etcd</p></td>
 <td><p>A static <code class="docutils literal notranslate"><span class="pre">kube-etcd</span></code> scrape job (<code class="docutils literal notranslate"><span class="pre">additionalScrapeConfigs</span></code> in <code class="docutils literal notranslate"><span class="pre">grafana.yaml</span></code>; not the chart’s Service and ServiceMonitor, whose hand-made Endpoints ArgoCD never applies), targeting the control plane’s address (<code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>), port 2381. K3s serves etcd’s metrics there because the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role sets <code class="docutils literal notranslate"><span class="pre">etcd-expose-metrics:</span> <span class="pre">true</span></code> in node02’s <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Host-side jobs</p></td>
+<tr class="row-odd"><td><p>Host-side jobs</p></td>
 <td><p>node-exporter’s <strong>textfile collector</strong> reads <code class="docutils literal notranslate"><span class="pre">/var/lib/node_exporter/textfile_collector</span></code> on each node. The etcd backup timer on node02 (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup</span></code>) writes its <code class="docutils literal notranslate"><span class="pre">k3s_etcd_backup_*</span></code> metrics there</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <p>Three chart defaults are switched off: the scrape targets and rules for
-kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
-inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process, so there are no such pods and the chart’s
-“down” alerts would fire for ever.</p>
+kube-scheduler, kube-controller-manager and kube-proxy. K3s runs the first
+two inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process, and runs no kube-proxy at all (Cilium
+replaces it), so there are no such pods and the chart’s “down” alerts would
+fire for ever.</p>
 <p>etcd runs inside the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> server process too, but it does serve metrics, so
 it is scraped and the <strong>etcd</strong> dashboard works. The endpoint is plain HTTP,
 so the ServiceMonitor sends no credentials (<code class="docutils literal notranslate"><span class="pre">authorization:</span> <span class="pre">null</span></code>). It is a
