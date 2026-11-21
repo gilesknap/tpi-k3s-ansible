@@ -128,10 +128,13 @@ ArgoCD shows the `gateway` Application as Progressing until phase 2. Envoy is
 configured all the same; Cilium writes the listeners whether or not the
 Service has an address (`operator/pkg/gateway-api/gateway_reconcile.go`).
 
-Phase 2 drops the label. servicelb only re-renders a Service's DaemonSet when
-the Service's annotations change, not its labels (the cloud-provider service
-controller's `needsUpdate`), so the same commit changes an infrastructure
-annotation, or the Service is deleted for Cilium to make again.
+Phase 2 sets the label to `""`. Removing it would not do: Cilium merges the
+infrastructure labels onto its Service and never deletes one
+(`setMergedLabelsAndAnnotations` in `operator/pkg/gateway-api`), and servicelb
+treats an empty pool as no pool. servicelb only re-renders a Service's
+DaemonSet when the Service's annotations change, not its labels (the
+cloud-provider service controller's `needsUpdate`), so the same commit adds or
+changes an infrastructure annotation.
 
 ### One HTTPRoute per Ingress
 
@@ -223,8 +226,16 @@ Headers:
 
 The backend reference crosses namespaces, so a ReferenceGrant in
 `oauth2-proxy` names the namespaces whose routes may use it (in the gateway
-Application). A gated route in a namespace left out, or with oauth2-proxy
-unreachable, gets a 500: the filter fails closed.
+Application). A gated route in a namespace left out gets a 500, and one whose
+check cannot reach oauth2-proxy a 403 (Envoy's default on error, which Cilium
+does not change): the filter fails closed either way.
+
+The filter depends on the experimental CRDs. A standard-channel HTTPRoute CRD
+applied over them would drop the `externalAuth` field, and Cilium skips an
+ExternalAuth filter with no body, so the gated routes would serve without
+oauth2-proxy. The upstream safe-upgrades policy in the bundle refuses only the
+opposite move, so nothing in the cluster may install standard-channel Gateway
+API CRDs.
 
 Grafana, ArgoCD and argocd-monitor keep their own logins (Dex) and need
 nothing from the Gateway.
@@ -245,7 +256,15 @@ port
   and every Ingress renders as before. It does restart every Cilium agent and
   the operator (new values), and oauth2-proxy (new upstream).
 - The `gateway` Application stays Progressing until phase 2 gives the Gateway
-  an address.
+  an address; `/rebuild-cluster` counts that as healthy until then.
+- The custom sign-in page replaces oauth2-proxy's everywhere, so on
+  `oauth2.gkcluster.org` itself the "Sign in with GitHub" button is gone and
+  the page goes straight to GitHub. A sign-out that lands there signs straight
+  back in while the GitHub session lasts. Nothing links to sign-out today.
+- Envoy does not merge `..` path segments as nginx does (Cilium sets no path
+  normalisation), so `scrap.gkcluster.org/mcp/../x` matches the `/mcp` route,
+  which has no oauth2-proxy; scrap then sees the path unchanged. The trial
+  checks it.
 - The trial (`docs/how-to/gateway-trial.md`) moves one hostname at a time with
   a one-line change in `cloudflare/locals.tf`, and back the same way.
 - A new gated app needs its namespace added to the oauth2-proxy

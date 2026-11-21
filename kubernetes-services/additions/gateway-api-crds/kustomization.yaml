@@ -14,8 +14,12 @@
 # when it starts.
 #
 # The bundle also holds the upstream safe-upgrades ValidatingAdmissionPolicy,
-# which refuses a standard-channel CRD over an experimental one and a
-# downgrade below v1.5.
+# which refuses an experimental-channel CRD over a standard one and any
+# bundle older than v1.5. It does not stop the opposite: a standard-channel
+# HTTPRoute CRD applied over this one (by another chart, say) would drop the
+# externalAuth field from the gated routes, and Cilium skips a filter with
+# no body, so they would serve without oauth2-proxy. Nothing here installs
+# standard-channel CRDs (k3s's Traefik is disabled); keep it that way.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

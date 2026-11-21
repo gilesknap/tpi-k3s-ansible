@@ -24,10 +24,11 @@ spec:
     # (all the tunnel needs) and gets no external address, so the Gateway
     # reports Programmed False, "waiting for address", and ArgoCD shows it
     # Progressing. To give the Gateway the node addresses (phase 2, once
-    # ingress-nginx is gone), drop the label. servicelb only re-renders its
-    # DaemonSet when a Service's annotations change, not its labels, so
-    # change an infrastructure annotation in the same commit (or delete the
-    # Service for Cilium to make again).
+    # ingress-nginx is gone), set the label to "" rather than removing it:
+    # Cilium merges labels onto its Service and never takes one away, and
+    # servicelb treats an empty pool as no pool. servicelb only re-renders
+    # its DaemonSet when a Service's annotations change, not its labels, so
+    # also add or change an infrastructure annotation in the same commit.
     # https://docs.k3s.io/networking/networking-services#creating-servicelb-node-pools
     # (pkg/cloudprovider/servicelb.go in k3s v1.34: the affinity is set from
     # the Service label alone, even with no node labelled enablelb)

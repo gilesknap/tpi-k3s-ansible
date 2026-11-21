@@ -87,6 +87,22 @@ The `scrap` line moves both scrap's app and its `/mcp` path.
 | `scrap` | An upload over a few MB; an MCP session from Claude that stays connected; a search. |
 | each gated app | In a private window: the app's URL sends you through Cloudflare Access, then "Signing in with GitHub", GitHub, and back to the same URL. scrap shows the signed-in user. |
 
+Before moving each gated hostname, check from a node that the Gateway refuses
+a request with no session, whatever identity header it carries (Cloudflare
+Access would hide a filter that lets requests through):
+
+```bash
+ip=$(kubectl -n gateway get svc cilium-gateway-web -o jsonpath='{.spec.clusterIP}')
+ssh ansible@node03 "curl -s -o /dev/null -w '%{http_code}' \
+  -H 'Host: scrap.gkcluster.org' -H 'X-Auth-Request-Email: someone@example.com' \
+  http://$ip/"
+```
+
+It must print `403` (the sign-in page). For scrap, also try a path that
+climbs out of `/mcp`, which Envoy does not normalise (add `--path-as-is`, or
+curl normalises it first), such as `http://$ip/mcp/../` with the same headers:
+it must not return scrap's app without the MCP bearer token.
+
 oauth2-proxy can stay on nginx while a gated app is on the Gateway: the
 sign-in page sends the browser to `oauth2.gkcluster.org`, whichever serves it.
 
@@ -101,7 +117,8 @@ way, so moving back is as quick as moving.
 | Symptom | Likely cause |
 |---------|--------------|
 | `404` from Envoy | The route is not attached: `kubectl -n <ns> describe httproute <name>`. |
-| `500` on a gated app | The ExternalAuth reference is refused: is the namespace in `external_auth_namespaces` (`kubernetes-services/templates/gateway.yaml`)? Or oauth2-proxy is down. |
+| `500` on a gated app | The ExternalAuth reference is refused: is the namespace in `external_auth_namespaces` (`kubernetes-services/templates/gateway.yaml`)? |
+| `403` on a gated app, with no sign-in page | Envoy could not reach oauth2-proxy (it fails closed): check its pods. |
 | `503`, or a connection reset | A NetworkPolicy drops Envoy: `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --identity ingress --verdict DROPPED`. |
 | A request cut after 5 minutes of quiet | Envoy's stream idle timeout ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). |
 | A sign-in loop | Check that `rd` in the address bar is the app's URL, and oauth2-proxy's log. |
