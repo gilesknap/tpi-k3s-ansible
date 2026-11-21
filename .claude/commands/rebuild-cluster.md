@@ -41,6 +41,16 @@ Grafana/Prometheus come up empty.
 **Default: preserve.** Only pass `-e wipe_local_data=true` if the user
 explicitly requests a clean-slate wipe in the prompt arguments.
 
+### Cloudflare prerequisite
+
+The Hubble UI (`hubble.<domain>`) needs its tunnel route: the `hubble`
+entry in `tunnel_services` in `cloudflare/locals.tf`. The user runs
+`just cf-plan` and then `just cf-apply` **from the main clone**, which is
+where the OpenTofu state lives, with that `hubble` line present there (the
+branch checked out, or merged). Never from a worktree: it has no state, so
+tofu would try to create everything again. Without the route, only the
+Hubble UI check in Phase 5b fails.
+
 ### NAS prerequisite
 
 The NAS (`gknas`, Ubuntu + ZFS) must already serve the directories the
@@ -459,7 +469,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
       `for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do curl -s -o /dev/null -w "$ip %{http_code}\n" -H 'Host: echo.<domain>' http://$ip/; done`
       (200 each).
 - [ ] Hubble shows flows: the Hubble UI at `https://hubble.<domain>` (needs
-      the `hubble` tunnel route: the user runs `just cf-apply` once), or
+      the `hubble` tunnel route: see "Cloudflare prerequisite"), or
       `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20`.
 - [ ] The backups egress rule: both off-site jobs succeed
       (`just offsite-backup-now` and `just offsite-backup-now b2`), and a
