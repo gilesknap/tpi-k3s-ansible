@@ -102,6 +102,14 @@ masquerading with eBPF NodePort, so `bpf.masquerade: true`. Routing stays VXLAN 
 flannel, and pods keep k3s's range, `10.42.0.0/16` in /24s per node, through Cilium's cluster-pool
 IPAM, as the k3s guide sets it. All nodes run kernel 7.0, well past what any of this needs.
 
+Cilium attaches to every device it auto-detects, and takes its MTU from the smallest of them
+(`pkg/mtu/manager.go`). On nuc2 and ws03 that included `tailscale0`, at 1280, so their pods got
+1230 where the other nodes' got 1450. `MTU: 1500`, the LAN's, sets it for every node.
+`tailscale0` is not taken out of `devices` instead: the VPS reaches ingress-nginx on nuc2's tailnet
+address, at servicelb's host port 443, and with kube-proxy replacement a host port arriving on an
+interface is served only by Cilium's programs on that device; no portmap plugin or iptables rule
+stands behind them.
+
 ### servicelb stays
 
 k3s's servicelb (klipper-lb) keeps publishing ingress-nginx on ports 80 and 443 of each node, and

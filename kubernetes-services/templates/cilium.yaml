@@ -67,6 +67,18 @@ spec:
         # with eBPF NodePort, in place of iptables rules.
         bpf:
           masquerade: true
+        # The LAN's MTU, so pods get 1450 (less 50 for VXLAN) on every node.
+        # Auto-detection takes the smallest MTU among the devices Cilium
+        # attaches to, and on nuc2 and ws03 that is tailscale0's 1280, which
+        # left their pods at 1230. tailscale0 stays one of those devices
+        # rather than being left out of `devices`: the VPS reaches
+        # ingress-nginx on nuc2's tailnet address (servicelb's host port 443),
+        # and only Cilium's programs on the device serve a host port there,
+        # as nothing else (no portmap plugin, no iptables) does. Pod traffic
+        # into the tailnet still fits tailscale0 through path MTU discovery.
+        # SYNC: every node's LAN NIC is 1500 (end0 on the RK1s, eno1 on nuc1,
+        # enp2s0/enp3s0 on nuc2, enp5s0 on ws03).
+        MTU: 1500
         # Let ipBlock / CIDR rules match node IPs too, as they did under
         # k3s's policy engine. The minecraft-dashboard-worlds policy relies
         # on it: it allows world RCON from the LAN but for the listed
