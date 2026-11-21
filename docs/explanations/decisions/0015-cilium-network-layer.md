@@ -61,6 +61,12 @@ with the same values and applies it over the resources Ansible made; with annota
 default in ArgoCD 3) it adds its tracking annotation and changes nothing else, so the agents do not
 restart. From then on ArgoCD owns Cilium: upgrades and value changes go through Git.
 
+The Application syncs with `ServerSideApply=true`: the chart's Cilium dashboard ConfigMap is
+over 256 KB, too big for client-side apply's `last-applied-configuration` annotation (as with
+kube-prometheus-stack in `grafana.yaml`). Unlike the other Applications it has no resources
+finalizer, so deleting or renaming it orphans Cilium instead of deleting the CNI under every pod,
+ArgoCD's included.
+
 Two chart settings keep ArgoCD in sync, following Cilium's
 [ArgoCD troubleshooting page](https://docs.cilium.io/en/v1.20/configuration/argocd-issues/):
 
@@ -121,8 +127,8 @@ pod's own node, so kubelet probes keep working
 The fifth, `minecraft-dashboard-worlds`, admits RCON from LAN CIDRs but for the other cluster
 nodes, and relies on ws03 (a node) being admitted. By default Cilium never matches a node's
 address against a CIDR rule, so ws03 would lose RCON. `policyCIDRMatchMode: [nodes]` restores the
-old behaviour. Pods on other nodes that reach the RCON NodePort now keep their own pod address
-(socket load balancing), which no CIDR rule matches, so they are still refused.
+old behaviour. Pods that reach the RCON NodePort now keep their pod identity (there is
+no kube-proxy SNAT to the node's address), which no CIDR rule matches, so they are still refused.
 
 ### Hubble
 

@@ -189,9 +189,13 @@
   # Read-only: run in --check too, so later tasks see real data.
   check_mode: false
 
-- name: Wait for all pods become ready
+# Only k3s's own Deployments: kube-system also holds pods that are never
+# Ready, such as Cilium's finished certificate Job and, on a one-node
+# cluster, the second cilium-operator replica that has no node to go to.
+- name: Wait for the k3s system Deployments to become ready
   ansible.builtin.command:
-    kubectl wait -n kube-system pods --all --for condition=Ready --timeout=100s
+    kubectl rollout status -n kube-system --timeout=300s
+    deployment/coredns deployment/local-path-provisioner deployment/metrics-server
   delegate_to: localhost
   run_once: true
   register: k3s_control_plane_pods_ready

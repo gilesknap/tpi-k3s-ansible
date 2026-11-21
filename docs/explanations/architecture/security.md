@@ -208,10 +208,10 @@ Three properties of Cilium's enforcement are worth knowing:
   nodes cannot reach RCON, while nuc2 and ws03 stay allowed so that build
   tools can run on them. A node that joins the cluster must be added to the
   exclusion list.
-- A pod that reaches a NodePort keeps its own pod address: Cilium
-  translates the NodePort to the backend in the pod's own socket. No CIDR
-  rule matches a pod address, so pods are refused RCON unless a rule names
-  them (the dashboard's).
+- A pod that reaches a NodePort keeps its own pod identity: with no
+  kube-proxy there is no SNAT to the node's address on the way. No CIDR
+  rule matches a pod, so pods are refused RCON unless a rule names them
+  (the dashboard's).
 
 The `backups-egress` rule works by name: the backup pods' DNS queries go
 through Cilium's DNS proxy, which learns the addresses behind the allowed

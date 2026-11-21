@@ -10,16 +10,20 @@
 # there on; the role never touches a running Cilium again.
 #
 # Version bumps: Renovate opens a PR (not automerged, renovate.json).
-# Patch releases roll the agents one node at a time. Before a minor
+# Patch releases roll the agents two nodes at a time (the chart's
+# maxUnavailable). Before a minor
 # bump, read the upgrade notes
 # (https://docs.cilium.io/en/stable/operations/upgrade/).
+#
+# No resources finalizer, unlike the other Applications: deleting or
+# renaming this one must orphan Cilium, not delete it. Deleting it would cut
+# every pod's networking, ArgoCD's included, and ArgoCD could not put it
+# back (a k3s role run would, as it installs Cilium when it is missing).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cilium
   namespace: argo-cd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: https://kubernetes.default.svc
@@ -119,6 +123,12 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      # The chart's Cilium dashboard ConfigMap is over 256 KB, too big for
+      # client-side apply's last-applied annotation (as in grafana.yaml).
+      # Server-side apply also takes the fields over from the bootstrap
+      # Helm install cleanly.
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:

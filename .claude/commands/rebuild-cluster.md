@@ -447,7 +447,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
       `cilium` app Synced with nothing to change (ArgoCD adopted the
       resources the `k3s` role installed):
       ```bash
-      kubectl -n kube-system get ds cilium cilium-envoy   # DESIRED = READY = 6
+      kubectl -n kube-system get ds cilium cilium-envoy   # DESIRED = READY = the number of nodes up
       for p in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
         kubectl -n kube-system exec "$p" -c cilium-agent -- cilium-dbg status --brief
       done
@@ -475,6 +475,13 @@ If any SealedSecrets show `False` with "no key could decrypt":
       the pod's node shows the drop:
       `hubble observe -n backups --verdict DROPPED --last 20` in that node's
       `cilium-agent` container.
+- [ ] World RCON (skip if no world with RCON runs; its NodePort is in
+      `minecraft.worlds.rcon_port_min`-`max`, `kubectl get svc -n minecraft`):
+      from the devcontainer (a LAN client) `nc -z -w5 192.168.1.92 <port>`
+      succeeds; from another node, e.g.
+      `ssh ansible@node03 nc -z -w5 192.168.1.92 <port>`, it fails; and from
+      a pod it fails:
+      `kubectl -n default run rcon-test --rm -i --restart=Never --image=alpine:3.24 -- nc -z -w5 192.168.1.92 <port> && echo LEAK || echo blocked`.
 - [ ] The five NetworkPolicies still hold: scrap and ntfy load through
       their Ingresses (Phase 6/7), and a pod outside `ingress-nginx` is
       refused by scrap:
