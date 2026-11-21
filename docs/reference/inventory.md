@@ -81,7 +81,7 @@ rows are done by hand, and {doc}`/how-to/node-operations` has the procedures.
 | Where | What | Why |
 |-------|------|-----|
 | `.devcontainer/claude-sandbox.conf` | An `allow-ip` line for the node's address, then `just sandbox-conf` | claude-sandbox blocks every private address that is not listed, so Ansible, SSH and kubectl inside it cannot reach an unlisted node |
-| `kubernetes-services/values.yaml`, `minecraft.worlds.rcon_allowed_cidrs` | The node's address as a `/32` under `except` | Pods on another node reach a world's RCON port from their node's address, so every node but the world node (`nuc2`) and `ws03` is carved out of the LAN allow-list |
+| `kubernetes-services/values.yaml`, `minecraft.worlds.rcon_allowed_cidrs` | The node's address as a `/32` under `except` | Keeps the node's host off world RCON, so every node but the world node (`nuc2`) and `ws03` is carved out of the LAN allow-list; ws03 is admitted by name instead (`rcon_allowed_nodes`) |
 | `group_vars/all.yml`, `k8s_data_dirs` and `values.yaml`, `local_storage` | An entry in each, with the same `node` and `path` | Only if the node will hold a `local-nvme` PV: the first creates the host directory, the second the PV pinned to it ({ref}`move-a-local-nvme-pv`) |
 | `group_vars/all.yml`, `control_plane` and `standby_control_plane` | The node's name | Only if it takes one of those roles ({doc}`/how-to/recover-control-plane`) |
 | `pb_all.yml --tags claude_key` (or `just claude-ssh-bootstrap`) | Run once the node is up | Puts the Claude sandbox's SSH key on the node's `ansible` account. A flashed RK1 gets it from its cloud-init seed instead |

@@ -167,7 +167,8 @@ matters:
 | `scrap` | `scrap` | Only the `ingress-nginx` namespace. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them |
 | `scrap-public` | `scrap-public` | ingress-nginx to the web port; scrap's pod to the upload receiver. All egress is denied |
 | `ntfy` | `ntfy` | The `ingress-nginx` namespace and the Alertmanager pods in `monitoring`, on port 8080 |
-| `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, and from nuc2's second LAN |
+| `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, from nuc2's second LAN and from the world's own node |
+| `minecraft` | `minecraft-rcon-nodes` (a CiliumNetworkPolicy) | RCON (25575) from the hosts of `minecraft.worlds.rcon_allowed_nodes` (ws03), which reach the world pod from their Cilium address, not their LAN one |
 | `cloudflared` | `cloudflared` | Nothing. The tunnel only dials out, and nothing scrapes its metrics port |
 | `backups` | `backups-egress` (a CiliumNetworkPolicy) | Egress only: cluster DNS, and on port 443 Google Drive, Backblaze B2 and the GitHub release download for age. Everything else the backup jobs try is dropped |
 
@@ -205,9 +206,13 @@ Three properties of Cilium's enforcement are worth knowing:
   `policyCIDRMatchMode: [nodes]` (Cilium's default is never to). The RCON
   rule depends on it: it excludes the cluster nodes' addresses from the LAN
   range (`minecraft.worlds.rcon_allowed_cidrs`), so host processes on other
-  nodes cannot reach RCON, while nuc2 and ws03 stay allowed so that build
-  tools can run on them. A node that joins the cluster must be added to the
-  exclusion list.
+  nodes cannot reach RCON from their LAN addresses. A node that joins the
+  cluster must be added to the exclusion list. Build tools run on the hosts
+  of nuc2 (the world node, admitted as a pod's own node) and ws03. ws03's
+  connection arrives through Cilium's tunnel from its Cilium address, which
+  no CIDR rule matches, so a CiliumNetworkPolicy admits it by node name
+  (`fromNodes`, `minecraft.worlds.rcon_allowed_nodes`), with
+  `nodeSelectorLabels: true` in the Cilium values.
 - A pod that reaches a NodePort keeps its own pod identity: with no
   kube-proxy there is no SNAT to the node's address on the way. No CIDR
   rule matches a pod, so pods are refused RCON unless a rule names them

@@ -148,11 +148,12 @@ plane, so a single new worker is still the only place cloudflared can run.
 
 ### Minecraft RCON allow-list
 
-Pods on a cluster node reach world RCON as that node's IP, so cluster node
-IPs must be in the `except` list of `minecraft.worlds.rcon_allowed_cidrs` in
-`kubernetes-services/values.yaml`. Add the new node's IP there, unless it is
-the world node or a tainted workstation that runs RCON clients (like ws03),
-which stay allowed on purpose.
+Cluster node IPs must be in the `except` list of
+`minecraft.worlds.rcon_allowed_cidrs` in `kubernetes-services/values.yaml`,
+so their hosts cannot reach world RCON. Add the new node's IP there, unless it
+is the world node or a tainted workstation that runs RCON clients (like ws03).
+Such a workstation also needs its name in
+`minecraft.worlds.rcon_allowed_nodes`, which admits its host by node name.
 
 ### Newly unlocked features
 

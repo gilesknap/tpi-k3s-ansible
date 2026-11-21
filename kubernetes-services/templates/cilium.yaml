@@ -82,10 +82,16 @@ spec:
         # Let ipBlock / CIDR rules match node IPs too, as they did under
         # k3s's policy engine. The minecraft-dashboard-worlds policy relies
         # on it: it allows world RCON from the LAN but for the listed
-        # cluster nodes, and ws03 (a node) is allowed on purpose. Without
-        # this, Cilium never matches a node's address against a CIDR.
+        # cluster nodes. Without this, Cilium never matches a node's address
+        # against a CIDR. ws03 is admitted by fromNodes instead (below).
         policyCIDRMatchMode:
           - nodes
+        # Give each node an identity from its labels, so a
+        # CiliumNetworkPolicy can admit one node's host by name (fromNodes).
+        # additions/minecraft uses it to let ws03's host reach world RCON:
+        # under kube-proxy replacement that traffic arrives from ws03's
+        # CiliumInternalIP, which the ipBlock rules above never match.
+        nodeSelectorLabels: true
         # Restart the pods when their ConfigMap changes: ArgoCD only
         # applies the new ConfigMap.
         rollOutCiliumPods: true

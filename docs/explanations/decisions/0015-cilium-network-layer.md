@@ -135,11 +135,23 @@ namespaces, which it handles the same way. Like k3s's controller, it always admi
 pod's own node, so kubelet probes keep working
 ([Layer 3 policies](https://docs.cilium.io/en/v1.20/security/policy/)).
 
-The fifth, `minecraft-dashboard-worlds`, admits RCON from LAN CIDRs but for the other cluster
-nodes, and relies on ws03 (a node) being admitted. By default Cilium never matches a node's
-address against a CIDR rule, so ws03 would lose RCON. `policyCIDRMatchMode: [nodes]` restores the
-old behaviour. Pods that reach the RCON NodePort now keep their pod identity (there is
-no kube-proxy SNAT to the node's address), which no CIDR rule matches, so they are still refused.
+The fifth, `minecraft-dashboard-worlds` (from the dashboard chart), admits RCON from LAN CIDRs
+but for the other cluster nodes, and relied on ws03 (a node) being admitted. By default Cilium
+never matches a node's address against a CIDR rule; `policyCIDRMatchMode: [nodes]` makes it, so
+the `except` list still refuses the other nodes' LAN addresses. Pods that reach the RCON NodePort
+now keep their pod identity (there is no kube-proxy SNAT to the node's address), which no CIDR
+rule matches, so they are still refused.
+
+That was not enough for ws03, as the rebuild showed. With kube-proxy replacement, ws03's socket
+load balancer sends its own connection to `192.168.1.92:<port>` straight to the world pod through
+the tunnel, from ws03's CiliumInternalIP and with its node identity, so no ipBlock matches it.
+A CiliumNetworkPolicy beside the chart's, `minecraft-rcon-nodes` in `additions/minecraft`, admits
+RCON `fromNodes` named in `minecraft.worlds.rcon_allowed_nodes` (ws03). `fromNodes` needs
+`nodeSelectorLabels: true`, which gives each node an identity from its labels
+([Node based](https://docs.cilium.io/en/v1.20/security/policy/language/#node-based)). Allow rules
+add up, so this widens the chart's policy by ws03's host and nothing else. The world node's own
+host (mciwb on nuc2, through `127.0.0.1` or its LAN address) needs no rule: Cilium always admits
+a pod's own host.
 
 ### Hubble
 
