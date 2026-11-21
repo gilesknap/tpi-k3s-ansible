@@ -308,10 +308,6 @@ set-admin-password:
 gpu-setup:
     scripts/gpu-setup
 
-# Create the Prometheus admission webhook TLS secret (required on fresh installs)
-create-prometheus-admission-secret:
-    scripts/create-prometheus-admission-secret
-
 # claude-sandbox recipes. The sandbox is installed by the claude-sandbox
 # VS Code extension (not by .devcontainer/postCreate.sh), which puts the
 # `claude-sandbox` helper CLI on PATH (`claude-sandbox help` lists it).

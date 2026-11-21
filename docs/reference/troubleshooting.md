@@ -158,6 +158,8 @@ chart that shows this:
 prometheusOperator:
   admissionWebhooks:
     enabled: false
+  tls:
+    enabled: false  # its cert came from the webhooks' certgen job
 
 # ingress-nginx (ingress.yaml), under helm.valuesObject
 controller:

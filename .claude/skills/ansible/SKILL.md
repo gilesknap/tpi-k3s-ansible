@@ -205,13 +205,6 @@ pins an exact release, but only on the `k3s_minor` line. See
 - **`admin_emails` is duplicated** — must be kept in sync between
   `kubernetes-services/values.yaml` (Helm) and `group_vars/all.yml`
   (Ansible). After changing the Ansible copy, re-run `--tags cluster`.
-- **Prometheus admission webhook secret** — `kube-prometheus-stack`'s
-  TLS secret (`grafana-prometheus-kube-pr-admission`) is not created by
-  the Helm hook job under ArgoCD. The `cluster` role creates it via
-  `scripts/create-prometheus-admission-secret`. If the operator is
-  still CrashLooping after a rebuild, run
-  `just create-prometheus-admission-secret` directly then delete the
-  stuck pod.
 - **Decommission before ArgoCD** — when tearing down the cluster, the
   decommission playbook deletes ArgoCD Applications (orphan cascade)
   *before* scaling down workloads. Doing it in the other order means
