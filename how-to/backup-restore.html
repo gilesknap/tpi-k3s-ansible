@@ -1072,7 +1072,7 @@ the paths above.</p></li>
 <p>The worlds are copied while they run. A world whose server was mid-write
 can need the copy from the night before, or one of the dashboard’s own
 backups (in the store, so in the same tarball). If tar fails because a file
-changed under it (an autosave), the tarball is retried, up to 3 times.</p>
+changed under it (an autosave), the upload is retried, as below.</p>
 </section>
 <section id="how-it-is-kept-safe">
 <h3>How it is kept safe<a class="headerlink" href="#how-it-is-kept-safe" title="Link to this heading">#</a></h3>
@@ -1117,7 +1117,12 @@ they would still count against the quota.</p>
 </li>
 <li><p><strong>Partial uploads never count.</strong> Each stream goes to a <code class="docutils literal notranslate"><span class="pre">.partial-</span></code> name
 and is renamed only once the whole pipeline has succeeded, so a cut-off
-upload is never taken for a complete one and is retried the next night.</p></li>
+upload is never taken for a complete one.</p></li>
+<li><p><strong>Failed uploads are retried.</strong> A stream cannot be rewound, so rclone
+gives up on it after a couple of quick tries (B2 sometimes answers
+<code class="docutils literal notranslate"><span class="pre">503</span> <span class="pre">too_busy</span></code>). The job then starts the whole upload again, from the
+NAS file, up to 3 more times, after 30 s, 2 min and 2 min; one that still
+fails is tried again the next night.</p></li>
 </ul>
 <p>An init container makes the Drive folders first, one at a time: Drive
 allows two folders of one name, so two containers making the same missing
