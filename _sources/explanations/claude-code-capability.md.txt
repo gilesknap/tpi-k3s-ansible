@@ -158,8 +158,8 @@ Every change follows the same cycle:
 3. **Implement** — make changes, run lint, build docs
 4. **Test** — for rebuild-affecting changes, run `/rebuild-cluster` on the
    branch
-5. **Squash** — use `/pr-squash` to clean up history into targeted commits
-6. **Merge** — merge the PR, preserving the curated commit structure
+5. **Merge** — merge the PR with a merge commit, keeping its commits
+   (`/pr-squash` first, only if the history is exploratory)
 
 This workflow gives the human operator a review gate at every stage. The
 agent proposes; the human approves. Trust is built incrementally, not

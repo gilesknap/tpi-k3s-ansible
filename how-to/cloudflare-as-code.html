@@ -1232,8 +1232,10 @@ only.</p>
 <p><strong>Apply token (edit)</strong>: the same list with <strong>Edit</strong> in place of
 <strong>Read</strong>, except Zone: Zone, Access: Service Tokens and Access:
 Organizations, Identity Providers, and Groups, which stay at Read (those
-are only looked up). Give it a short expiry, or create it when it is
-needed and delete it afterwards: it can change the edge.</p>
+are only looked up). It can change the edge, so its secret is not kept
+anywhere: it is rolled before each apply and pasted at the prompt
+(<a class="reference internal" href="#cf-roll-apply-token"><span class="std std-ref">Roll the edit token before an apply</span></a>). A newly created token’s secret is pasted
+straight away.</p>
 <p>The plan token is read from <code class="docutils literal notranslate"><span class="pre">CF_PLAN_TOKEN</span></code>, else from
 <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code> (gitignored), else the recipe prompts
 for it. The apply token is read from <code class="docutils literal notranslate"><span class="pre">CF_APPLY_TOKEN</span></code>, else prompted
@@ -1386,7 +1388,8 @@ its token are unchanged, and the rebuild reseals the same token from
 <li><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> and check that the plan does what was meant.</p></li>
 <li><p>Open the PR; CI runs <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">fmt</span> <span class="pre">-check</span></code> and <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">validate</span></code> (no
 credentials, no Cloudflare access).</p></li>
-<li><p>After review, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> with the edit token, then merge.</p></li>
+<li><p>After review, roll the edit token (<a class="reference internal" href="#cf-roll-apply-token"><span class="std std-ref">below</span></a>),
+run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> with it, then merge.</p></li>
 </ol>
 <p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> shows the plan and asks for <code class="docutils literal notranslate"><span class="pre">yes</span></code> before it changes
 anything. Claude sessions plan but never apply: the edit token is only
@@ -1394,6 +1397,21 @@ ever typed by the owner. Extra arguments pass through to <code class="docutils l
 example <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span> <span class="pre">-target=cloudflare_dns_record.tunnel</span></code>. After a
 change of providers in <code class="docutils literal notranslate"><span class="pre">cloudflare/versions.tf</span></code>, run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-init</span></code> once
 to install them.</p>
+<section id="roll-the-edit-token-before-an-apply">
+<span id="cf-roll-apply-token"></span><h3>Roll the edit token before an apply<a class="headerlink" href="#roll-the-edit-token-before-an-apply" title="Link to this heading">#</a></h3>
+<p>The edit token’s secret is not kept between applies. Each time one is
+needed (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, or <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-tunnel-disconnect</span></code>):</p>
+<ol class="arabic simple">
+<li><p>At <a class="reference external" href="https://dash.cloudflare.com/profile/api-tokens">https://dash.cloudflare.com/profile/api-tokens</a>, choose <strong>Roll</strong>
+on the edit token. The token keeps its permissions and expiry; only
+its secret is new.</p></li>
+<li><p>Paste the new secret at the recipe’s <code class="docutils literal notranslate"><span class="pre">Cloudflare</span> <span class="pre">edit</span> <span class="pre">(apply)</span> <span class="pre">API</span> <span class="pre">token</span></code> prompt. When both recipes run back to back, as in a tunnel
+token rotation, one rolled secret serves both.</p></li>
+</ol>
+<p>A token’s secret is about 53 characters, the same length as
+<code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code>. A 32-character value is the state
+passphrase, not a token (<a class="reference internal" href="#cf-token-errors"><span class="std std-ref">6003 Invalid request headers or 9106 Authentication failed</span></a>).</p>
+</section>
 </section>
 <section id="publish-a-new-hostname">
 <span id="cf-add-service"></span><h2>Publish a new hostname<a class="headerlink" href="#publish-a-new-hostname" title="Link to this heading">#</a></h2>
@@ -1669,7 +1687,18 @@ Application (<a class="reference internal" href="add-remove-services.html"><span
 <section id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <p>Tunnel, DNS and certificate problems are collected in
-<a class="reference internal" href="../reference/troubleshooting.html"><span class="doc">Troubleshooting</span></a>.</p>
+<a class="reference internal" href="../reference/troubleshooting.html"><span class="doc">Troubleshooting</span></a>. API token errors are below.</p>
+<section id="invalid-request-headers-or-9106-authentication-failed">
+<span id="cf-token-errors"></span><h3><code class="docutils literal notranslate"><span class="pre">6003</span> <span class="pre">Invalid</span> <span class="pre">request</span> <span class="pre">headers</span></code> or <code class="docutils literal notranslate"><span class="pre">9106</span> <span class="pre">Authentication</span> <span class="pre">failed</span></code><a class="headerlink" href="#invalid-request-headers-or-9106-authentication-failed" title="Link to this heading">#</a></h3>
+<p>The value pasted at the token prompt is not an API token. Cloudflare
+answers <code class="docutils literal notranslate"><span class="pre">6003</span> <span class="pre">Invalid</span> <span class="pre">request</span> <span class="pre">headers</span></code> when the token is verified, and
+<code class="docutils literal notranslate"><span class="pre">9106</span> <span class="pre">Authentication</span> <span class="pre">failed</span></code> on the first data read. The usual cause is
+pasting the state passphrase (32 characters, from
+<code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code>) in place of a token’s secret,
+which is about 53 characters, as long as <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/plan-token</span></code>.
+For <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>, roll the edit token and paste the new secret
+(<a class="reference internal" href="#cf-roll-apply-token"><span class="std std-ref">Roll the edit token before an apply</span></a>).</p>
+</section>
 </section>
 </section>
 
@@ -1736,7 +1765,10 @@ Application (<a class="reference internal" href="add-remove-services.html"><span
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fresh-account">Fresh account</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day">Day to day</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day">Day to day</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#roll-the-edit-token-before-an-apply">Roll the edit token before an apply</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#publish-a-new-hostname">Publish a new hostname</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#services-that-are-public-on-purpose-and-service-tokens">Services that are public on purpose, and service tokens</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager-s-dns-01-token">cert-manager’s DNS-01 token</a><ul class="nav section-nav flex-column">
@@ -1747,7 +1779,10 @@ Application (<a class="reference internal" href="add-remove-services.html"><span
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rotate-the-tunnel-token">Rotate the tunnel token</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#removing-a-service">Removing a service</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#invalid-request-headers-or-9106-authentication-failed"><code class="docutils literal notranslate"><span class="pre">6003</span> <span class="pre">Invalid</span> <span class="pre">request</span> <span class="pre">headers</span></code> or <code class="docutils literal notranslate"><span class="pre">9106</span> <span class="pre">Authentication</span> <span class="pre">failed</span></code></a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

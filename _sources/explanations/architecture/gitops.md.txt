@@ -279,8 +279,9 @@ sequenceDiagram
   `scripts/`, and `tofu fmt` plus `tofu validate` on `cloudflare/`. On
   `main` the docs job also publishes these pages.
 - **Merging** is always through a pull request; nothing is committed to
-  `main` directly. `/pr-squash` tidies the branch into logical commits
-  first, and the merge keeps them.
+  `main` directly. The merge is a merge commit, which keeps the branch's
+  commits as they are; `/pr-squash` first tidies a branch whose history
+  is exploratory.
 - **Syncing** needs no action. ArgoCD notices the new commit on its next
   poll; `just argocd-sync` forces an immediate re-fetch.
 

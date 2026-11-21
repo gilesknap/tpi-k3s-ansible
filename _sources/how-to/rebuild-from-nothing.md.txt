@@ -716,9 +716,8 @@ started before that, restart it:
    ({ref}`sealed-secrets-key-backup`). Either way, make new recovery
    codes for any account whose codes were used, then regenerate and
    reprint the paper kit.
-3. Open a pull request from the rebuild branch, tidy it with
-   `/pr-squash`, have a fresh review of it, merge it with
-   `gh pr merge --merge`, and put ArgoCD back
+3. Open a pull request from the rebuild branch, have a fresh review of
+   it, merge it with `gh pr merge --merge`, and put ArgoCD back
    on `main`: `just switch-branch main`.
 4. Wipe the RAM copies: `rm -f /dev/shm/age.key /dev/shm/keys.yaml /dev/shm/rclone.conf`.
 5. Write down what went wrong, and what took how long, in a GitHub issue.
