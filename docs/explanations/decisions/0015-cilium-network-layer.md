@@ -154,6 +154,22 @@ container downloads the pinned age release; a policy applies to the whole pod. T
 mounted by the kubelet on the node, so they are not pod egress. The Grafana and Jellyfin backup
 jobs in the same namespace make no connections.
 
+### Tailscale on nuc2 and ws03
+
+The rebuild found that the rule above gave pods on nuc2 no DNS at all. Tailscale, installed by
+hand on nuc2 and ws03, runs by default in netfilter mode "on", and in that mode tailscaled sets
+`net.ipv4.conf.all.src_valid_mark=1` for its reverse-path workaround. Cilium hands pod DNS to its
+proxy with TPROXY: mark `0x200`, and an ip rule to table 2004, `local default dev lo`. With
+`src_valid_mark` on, the kernel's source check uses that mark, finds the pod's own address local
+through table 2004, and drops the packet (`IP_LOCAL_SOURCE`). The DNS proxy never sees a query.
+
+`roles/k3s/tasks/tailscale.yml` (`--tags tailscale`, before the k3s install) therefore runs
+`tailscale set --netfilter-mode=off` and sets `src_valid_mark` back to 0, on any node with
+Tailscale. A `sysctl.d` file alone would not hold: tailscaled sets the value again whenever it
+starts with netfilter on. Neither node is a subnet router or exit node, which are what
+Tailscale's iptables rules are for; the task fails on a node that advertises routes or uses an
+exit node rather than guess.
+
 ### Version
 
 1.20.5, the newest 1.20 patch on 21 November 2026. Of the GitHub security advisories, only

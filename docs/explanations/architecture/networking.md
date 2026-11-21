@@ -191,7 +191,11 @@ The ingress-nginx load balancer addresses also answer on the LAN, which is
 what the `home-lan` probe uses. The web services' own names never resolve to
 them.
 
-Tailscale on the hosts is installed by hand; Ansible does not manage it.
+Tailscale on the hosts (nuc2 and ws03) is installed and signed in by hand.
+Ansible touches one setting: the `k3s` role (`roles/k3s/tasks/tailscale.yml`,
+`--tags tailscale`) turns Tailscale's netfilter mode off and
+`net.ipv4.conf.all.src_valid_mark` back to 0, which Cilium's DNS proxy needs
+(ADR 0015). It refuses a node that advertises routes or uses an exit node.
 
 ### 3. The VPS relay: game ports
 

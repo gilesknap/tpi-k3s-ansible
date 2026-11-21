@@ -644,7 +644,10 @@ and 4); that apply rotates the tunnel token, so finish with
 The VPS is not in the house. The relay pod reconnects over the tailnet with
 its restored credentials, and its `minecraft` forward still targets
 192.168.1.92. Install Tailscale on the new node by hand and sign it in
-(Ansible does not manage it), for Jellyfin over the tailnet.
+(Ansible does not install it), for Jellyfin over the tailnet. Then run
+`ansible-playbook pb_all.yml --tags tailscale --limit nuc2`: it turns
+Tailscale's netfilter mode off, without which pods there under a DNS-name
+egress policy get no DNS (ADR 0015).
 
 ### 9. Restore the applications' data
 
