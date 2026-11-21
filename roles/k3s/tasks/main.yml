@@ -161,6 +161,31 @@
   ansible.builtin.include_tasks: worker.yml
   when: not k3s_is_control_plane
 
+# Cilium must never be installed beside flannel. control.yml's gate stops
+# the control plane, but a --limit run without it, or the workers left in
+# the play after it fails, would still get here: check the control plane's
+# own configuration (run_once, so a failure stops every host).
+- name: Read the control plane's k3s configuration
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/config.yaml
+  delegate_to: "{{ control_plane }}"
+  run_once: true
+  register: k3s_control_plane_config
+  failed_when: false
+
+- name: Refuse to install Cilium on a flannel cluster
+  ansible.builtin.assert:
+    that:
+      - k3s_control_plane_config.content is defined
+      - (k3s_control_plane_config.content | b64decode | from_yaml | default({}, true)).get('flannel-backend') == 'none'
+    fail_msg: >-
+      {{ control_plane }}'s k3s still runs flannel (or has no
+      /etc/rancher/k3s/config.yaml), so Cilium is not installed beside it.
+      Move to Cilium by rebuilding the cluster (ADR 0015).
+    quiet: true
+  run_once: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
 # Once, from the controller, after every node has joined: until Cilium runs
 # no node is Ready, so the waits below would time out.
 - name: Install Cilium on a cluster without it

@@ -151,7 +151,7 @@ These are open, not fixed. Each is a question for the owner.
 | NVIDIA GPU | `nvidia_gpu_node`, `workstation` on `ws03` | Not needed: only GPU and monitoring pods ran there |
 | nuc2's two NICs | `node_ip` on `nuc2` | Drop it on a single-NIC box |
 | Fixed addresses | DHCP leases on the router; `nfs.server`, `nas_nfs_clients`, `vps_relay.forwards`, `k3s.etcd_metrics_endpoints` | Keep the old addresses on the new router and almost nothing changes |
-| `k3s.lan` | `k3s_api_name`, `dns_router` in `group_vars/all.yml`; `just k3s-api-dns` assumes OpenWrt | On another router, add the record by hand, or set `k3s_api_name` to the server's IP |
+| `k3s.lan` | `k3s_api_name`, `dns_router` in `group_vars/all.yml`; `just k3s-api-dns` assumes OpenWrt | On another router, add the record by hand, or set `k3s_api_name` to the server's IP, and `k8sServiceHost` in `kubernetes-services/templates/cilium.yaml` to the same |
 
 ### The smallest rebuild: two x86 boxes
 

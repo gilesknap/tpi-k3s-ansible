@@ -465,7 +465,7 @@ If any SealedSecrets show `False` with "no key could decrypt":
       (`just offsite-backup-now` and `just offsite-backup-now b2`), and a
       test pod in `backups` reaches Drive and B2 but nothing else:
       ```bash
-      kubectl -n backups run egress-test --rm -i --restart=Never --image=alpine:3.24 -- sh -c '
+      kubectl -n backups run egress-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- sh -c '
         for u in https://www.googleapis.com/generate_204 https://api.backblazeb2.com/ https://example.com/; do
           if wget -q -T 10 -O /dev/null "$u" 2>/dev/null || wget -T 10 -O /dev/null "$u" 2>&1 | grep -q "server returned error"; then
             echo "$u reachable"; else echo "$u blocked"; fi
@@ -481,11 +481,11 @@ If any SealedSecrets show `False` with "no key could decrypt":
       succeeds; from another node, e.g.
       `ssh ansible@node03 nc -z -w5 192.168.1.92 <port>`, it fails; and from
       a pod it fails:
-      `kubectl -n default run rcon-test --rm -i --restart=Never --image=alpine:3.24 -- nc -z -w5 192.168.1.92 <port> && echo LEAK || echo blocked`.
+      `kubectl -n default run rcon-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- nc -z -w5 192.168.1.92 <port> && echo LEAK || echo blocked`.
 - [ ] The five NetworkPolicies still hold: scrap and ntfy load through
       their Ingresses (Phase 6/7), and a pod outside `ingress-nginx` is
       refused by scrap:
-      `kubectl -n default run np-test --rm -i --restart=Never --image=alpine:3.24 -- wget -q -T 5 -O /dev/null http://scrap.scrap.svc.cluster.local/ && echo LEAK || echo blocked`.
+      `kubectl -n default run np-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- wget -q -T 5 -O /dev/null http://scrap.scrap.svc.cluster.local/ && echo LEAK || echo blocked`.
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
