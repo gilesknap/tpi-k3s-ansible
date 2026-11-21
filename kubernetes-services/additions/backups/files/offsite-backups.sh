@@ -32,7 +32,8 @@
 # bundle).
 #
 # Environment, besides offsite-lib.sh's: SRC (the backups tree, read-only),
-# RUN_DIRS and EXCLUDE (space-separated), PRUNE_DAYS, KEEP_MIN.
+# RUN_DIRS and EXCLUDE (space-separated), PRUNE_DAYS, KEEP_MIN;
+# FIND_RECHECK_PAUSE (seconds, default 30; tests shorten it).
 set -eu
 set -o pipefail
 set -f # no globbing of the space-separated lists
@@ -186,6 +187,20 @@ done
 # Every other file. find reports unreadable directories but carries on.
 local_files 2>"$WORK/find.err" | sed 's|^\./||' | sort >"$WORK/local" || true
 if [ -s "$WORK/find.err" ]; then
+    # Diagnostics only, for an error once seen and not reproduced (B2, 21
+    # Nov 2026: ./scrap, pruned here, "Permission denied"): who asked, what
+    # the folders looked like, and whether a second listing after a pause
+    # sees it too. The run fails on the first listing whatever the second.
+    log "find diagnostics: $(id), $(date -u)"
+    for _r in . $roots; do
+        log "find diagnostics: $(ls -ldn "$_r" 2>&1)"
+    done
+    sleep "${FIND_RECHECK_PAUSE:-30}"
+    if local_files 2>"$WORK/find2.err" >/dev/null && [ ! -s "$WORK/find2.err" ]; then
+        log "find diagnostics: second listing clean"
+    else
+        log "find diagnostics: second listing failed too: $(head -n 3 "$WORK/find2.err")"
+    fi
     fail "could not read all of $SRC: $(head -n 3 "$WORK/find.err")"
 fi
 while IFS= read -r f <&3; do
