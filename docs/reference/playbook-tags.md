@@ -18,6 +18,7 @@ Run it in the devcontainer, from the repo root.
 | `k8s_data_dirs` | Update all nodes | `k8s_data_dirs` | `all_nodes` | Only the node's `extra_mounts` and the local PV host directories from `k8s_data_dirs`; never deletes data |
 | `k3s` | Install K3s | `k3s`, `etcd_backup` | `all_nodes` | Installs or updates the K3s control plane and workers, Cilium on a cluster that has none (ArgoCD owns it after that), and the control plane's nightly etcd backup timer |
 | `apparmor` | Install K3s | `k3s` (`apparmor.yml` only) | `all_nodes` | Only the corrected containerd AppArmor profile (see {doc}`/reference/troubleshooting`) |
+| `tailscale` | Install K3s | `k3s` (`tailscale.yml` only) | `all_nodes` | On nodes running Tailscale, netfilter mode off and `net.ipv4.conf.all.src_valid_mark` 0, which Cilium's DNS proxy needs (ADR 0015); refuses a node that advertises routes or uses an exit node |
 | `etcd_backup` | Install K3s | `etcd_backup` | `node02` (the control plane) | Only the nightly encrypted etcd backup timer ({doc}`/how-to/backup-restore`) |
 | `cluster` | Deploy services | `cluster` | localhost | Installs ArgoCD and its root Application, and sets the control plane and standby taints |
 | `claude_key` | Manage Claude sandbox's pub key | (task) | `all_nodes` | Adds (or with `-e claude_pubkey_state=absent` removes) the Claude sandbox key on the `ansible` account; used by `just claude-ssh-bootstrap` |

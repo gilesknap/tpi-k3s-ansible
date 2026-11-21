@@ -206,7 +206,8 @@ Three properties of Cilium's enforcement are worth knowing:
   `policyCIDRMatchMode: [nodes]` (Cilium's default is never to). The RCON
   rule depends on it: it excludes the cluster nodes' addresses from the LAN
   range (`minecraft.worlds.rcon_allowed_cidrs`), so host processes on other
-  nodes cannot reach RCON from their LAN addresses. A node that joins the
+  nodes cannot reach RCON from their LAN addresses (through Cilium's tunnel
+  they carry a node identity, which no CIDR rule matches). A node that joins the
   cluster must be added to the exclusion list. Build tools run on the hosts
   of nuc2 (the world node, admitted as a pod's own node) and ws03. ws03's
   connection arrives through Cilium's tunnel from its Cilium address, which

@@ -134,8 +134,9 @@ has:
 
 The `tag:vps` grant is the claude-canary VPS's path to scrap without
 Cloudflare ({ref}`scrap-canary`); leave it out if the VPS needs no scrap. It
-names nuc2's tailnet IP only, so it does not reach the LAN through a subnet
-route that nuc2 advertises (the `192.168.1.92:443` test).
+names nuc2's tailnet IP only, so it would not reach the LAN even if nuc2
+advertised a subnet route (the `192.168.1.92:443` test). nuc2 advertises none:
+the `k3s` role refuses a Tailscale node that does (ADR 0015).
 
 The `tests` are checked on every save, so a later policy edit cannot quietly
 let the VPS dial in. In a file that uses `acls` rather than `grants`, the

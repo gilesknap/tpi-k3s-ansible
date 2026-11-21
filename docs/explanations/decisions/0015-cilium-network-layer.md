@@ -186,7 +186,10 @@ through table 2004, and drops the packet (`IP_LOCAL_SOURCE`). The DNS proxy neve
 `roles/k3s/tasks/tailscale.yml` (`--tags tailscale`, before the k3s install) therefore runs
 `tailscale set --netfilter-mode=off` and sets `src_valid_mark` back to 0, on any node with
 Tailscale. A `sysctl.d` file alone would not hold: tailscaled sets the value again whenever it
-starts with netfilter on. Neither node is a subnet router or exit node, which are what
+starts with netfilter on; with it off, tailscaled never writes the value, so the kernel's default
+of 0 holds across reboots. Turning it off also drops Tailscale's own iptables rules, such as the
+one that drops tailnet source addresses arriving on other interfaces; the tailnet's access rules
+are enforced in tailscaled and still apply. Neither node is a subnet router or exit node, which are what
 Tailscale's iptables rules are for; the task fails on a node that advertises routes or uses an
 exit node rather than guess.
 

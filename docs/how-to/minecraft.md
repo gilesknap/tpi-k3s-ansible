@@ -220,9 +220,11 @@ rcon_allowed_cidrs:
 ```
 
 NodePort clients on the LAN keep their own address
-(`externalTrafficPolicy: Local`). Pods keep their pod identity, which no
-ipBlock matches, so they are refused, and the `except` list refuses the other
-nodes' hosts. Two nodes' hosts are allowed on purpose, so RCON clients can run
+(`externalTrafficPolicy: Local`). Pods keep their pod identity, and other
+nodes' hosts reach the world through Cilium's tunnel with their node identity;
+no ipBlock matches either, so both are refused. The `except` list covers a
+node whose traffic arrives from its LAN address instead (one with no Cilium
+agent running, say). Two nodes' hosts are allowed on purpose, so RCON clients can run
 there: nuc2, the world node, whose own host Cilium always admits, and ws03,
 whose `workstation` taint keeps workload pods off it. ws03's connection
 reaches the world pod through Cilium's tunnel from ws03's Cilium address, not

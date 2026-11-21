@@ -427,8 +427,8 @@ until a workload is given a `local-nvme` PV pinned to it.
    `k3s-apparmor-profile.service` is still installed: see
    [](recover-control-plane.md#k3s-uninstall-leaves-files-behind).
 4. Remove the node from `hosts.yml`, its `allow-ip` line from
-   `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs` (and in `rcon_allowed_nodes`, if any),
-   and `standby_control_plane` in `group_vars/all.yml` if it named this
+   `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`
+   (and in `rcon_allowed_nodes`, if any), and `standby_control_plane` in `group_vars/all.yml` if it named this
    node. Commit the change.
 
 (what-never-applies-to-ws03)=

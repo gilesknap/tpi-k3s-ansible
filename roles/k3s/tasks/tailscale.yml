@@ -14,7 +14,12 @@
 # Netfilter mode "off" stops tailscaled adding its iptables rules and
 # setting the sysctl. Turning it off does not reset the sysctl, so it is
 # set back to 0 here. A sysctl.d file alone would not do: tailscaled
-# rewrites the value every time it starts with netfilter on.
+# rewrites the value every time it starts with netfilter on. With it off,
+# tailscaled never writes the sysctl (only its netfilter-on path does), the
+# mode is kept in Tailscale's prefs and the kernel's default is 0, so both
+# hold across reboots. The cost is Tailscale's own iptables rules, such as
+# the one dropping tailnet (100.64.0.0/10) sources on other interfaces;
+# tailnet access rules are enforced in tailscaled and are unaffected.
 #
 # The rules netfilter mode adds are what a subnet router or exit node
 # needs (forwarding and masquerading), so a node that advertises routes
@@ -40,10 +45,12 @@
         that:
           - not (k3s_tailscale_prefs.AdvertiseRoutes | default([], true))
           - not (k3s_tailscale_prefs.ExitNodeID | default('', true))
+          - not (k3s_tailscale_prefs.ExitNodeIP | default('', true))
         fail_msg: >-
           {{ inventory_hostname }} advertises Tailscale routes
           ({{ k3s_tailscale_prefs.AdvertiseRoutes | default([], true) | join(', ') }})
-          or uses an exit node ({{ k3s_tailscale_prefs.ExitNodeID | default('', true) }}).
+          or uses an exit node ({{ k3s_tailscale_prefs.ExitNodeID | default('', true) }}
+          {{ k3s_tailscale_prefs.ExitNodeIP | default('', true) }}).
           Those need Tailscale's netfilter rules, and netfilter mode "on"
           breaks Cilium's proxy redirect (roles/k3s/tasks/tailscale.yml), so
           this role will not choose. Stop advertising them, or decide by
