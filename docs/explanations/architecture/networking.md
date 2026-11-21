@@ -69,6 +69,10 @@ Two details matter to the cluster:
   (`roles/k3s/templates/k3s-server-config.yml.j2`); ingress-nginx is used
   because oauth2-proxy relies on its `auth-url` and `auth-signin`
   annotations.
+- **Gateway API, on trial:** Cilium's Gateway, which is to replace
+  ingress-nginx, runs beside it on Cilium's Envoy (see
+  {ref}`below <net-gateway-trial>`). It carries a hostname only once
+  that hostname's tunnel route points at it.
 - **Load balancer:** K3s's ServiceLB publishes the ingress-nginx Service on
   ports 80 and 443 of every node that its pods can run on (Cilium serves the
   host ports and the load-balancer addresses in kube-proxy's place). Today that is
@@ -165,6 +169,45 @@ reason about, and no split DNS on the router.
 The tunnel, its DNS records and the Access applications are OpenTofu code in
 `cloudflare/`, applied with `just cf-plan` and `just cf-apply`; see
 {doc}`/how-to/cloudflare-as-code`.
+
+(net-gateway-trial)=
+### Cilium's Gateway, on trial
+
+ingress-nginx is retired upstream, and Cilium's Gateway API implementation
+is to replace it
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). For now
+the two run side by side:
+
+- **The Gateway** is `web` in the `gateway` namespace, with an HTTP listener
+  on port 80 (what cloudflared sends) and an HTTPS one on 443 with the same
+  wildcard certificate. Cilium serves it from its Envoy DaemonSet, through
+  the Service `cilium-gateway-web`.
+- **Each Ingress has an HTTPRoute twin** with the same host, path and
+  backend, made from the same values by the ingress sub-chart. The five apps
+  behind oauth2-proxy get an ExternalAuth filter that asks oauth2-proxy about
+  every request, as nginx's `auth-url` does.
+- **Off the node addresses.** A servicelb node-pool label that no node
+  carries keeps servicelb from publishing the Gateway on ports 80 and 443 of
+  the nodes, which ingress-nginx holds. The Gateway's Service has only its
+  ClusterIP, and the Gateway reports that it is waiting for an address.
+- **The trial** moves one tunnel route at a time to
+  `http://cilium-gateway-web.gateway.svc.cluster.local` (`local.gateway` in
+  `cloudflare/locals.tf`), and back the same way:
+  {doc}`/how-to/gateway-trial`.
+
+```mermaid
+flowchart LR
+    cfd["cloudflared x2"]
+    nginx["ingress-nginx<br/>(every route today)"]
+    gw["Gateway web<br/>Cilium's Envoy"]
+    oap["oauth2-proxy"]
+    apps["Web services"]
+
+    cfd -->|"routes not moved"| nginx --> apps
+    cfd -. "routes moved for the trial" .-> gw --> apps
+    gw -. "ExternalAuth, gated apps" .-> oap
+    nginx -. "auth-url, gated apps" .-> oap
+```
 
 ### 2. Direct, on the LAN or the tailnet
 

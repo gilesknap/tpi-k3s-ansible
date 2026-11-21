@@ -1,0 +1,57 @@
+# The one Gateway. Cilium makes a LoadBalancer Service for it,
+# cilium-gateway-web in this namespace, and its Envoy (the cilium-envoy
+# DaemonSet) serves the listeners. In-cluster it is reached at
+#   http://cilium-gateway-web.gateway.svc.cluster.local
+# which is the address a Cloudflare tunnel route points at during the trial
+# (docs/how-to/gateway-trial.md).
+#
+# Port 80 is plain HTTP: cloudflared hands every tunnelled request over as
+# HTTP, as it does to ingress-nginx today. Port 443 serves the wildcard
+# certificate, for clients that reach the Gateway directly once it has the
+# node addresses.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: web
+spec:
+  gatewayClassName: cilium-gateway
+  infrastructure:
+    # Keep the Gateway off the node addresses while ingress-nginx holds
+    # them. k3s's servicelb would otherwise run a svclb pod for this Service
+    # on every node, wanting the same host ports 80 and 443 as nginx's. With
+    # this label it only runs them on nodes in the lbpool "gateway-standby",
+    # and no node is in it, so it runs none: the Service keeps its ClusterIP
+    # (all the tunnel needs) and gets no external address, so the Gateway
+    # reports Programmed False, "waiting for address", and ArgoCD shows it
+    # Progressing. To give the Gateway the node addresses (phase 2, once
+    # ingress-nginx is gone), drop the label. servicelb only re-renders its
+    # DaemonSet when a Service's annotations change, not its labels, so
+    # change an infrastructure annotation in the same commit (or delete the
+    # Service for Cilium to make again).
+    # https://docs.k3s.io/networking/networking-services#creating-servicelb-node-pools
+    # (pkg/cloudprovider/servicelb.go in k3s v1.34: the affinity is set from
+    # the Service label alone, even with no node labelled enablelb)
+    labels:
+      svccontroller.k3s.cattle.io/lbpool: gateway-standby
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.{{ .Values.cluster_domain }}"
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.{{ .Values.cluster_domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          # The ReferenceGrant in reference-grants.yaml allows this.
+          - kind: Secret
+            name: wildcard-tls
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All

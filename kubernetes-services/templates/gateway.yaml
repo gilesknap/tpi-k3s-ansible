@@ -1,0 +1,63 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway
+  namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway
+  project: kubernetes
+  sources:
+    # Cilium's Gateway, which is to replace ingress-nginx (ADR 0016). Each
+    # app's HTTPRoute comes with its Ingress, from additions/ingress.
+    - path: ./kubernetes-services/additions/gateway
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          cluster_domain: {{ .Values.cluster_domain }}
+          {{- if .Values.enable_oauth2_proxy }}
+          # SYNC: the namespaces of every route with oauth2_proxy: true
+          # (dashboard, grafana, hubble-ui, minecraft and scrap).
+          external_auth_namespaces:
+            - headlamp
+            - monitoring
+            - kube-system
+            - minecraft
+            - scrap
+          {{- end }}
+
+    # ArgoCD's route. Its Ingress is made by the cluster role
+    # (argo-cd/ingress.yaml), not by an Application.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: argocd
+          namespace: argo-cd
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: argocd-server
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: false
+          ingress: false
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CiliumGatewayClassConfig's CRD comes from the Cilium operator once
+      # gatewayAPI is on, and the Gateway API CRDs from their own
+      # Application: on the first sync either may not exist yet.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2

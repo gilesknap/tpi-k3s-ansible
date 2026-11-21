@@ -37,6 +37,9 @@ runs at Cloudflare's edge, before anything is sent down the tunnel.
 identity source both times. Services that speak OIDC use Dex, the provider
 built into ArgoCD. Services with no login of their own sit behind
 oauth2-proxy, which ingress-nginx consults on every request.
+Cilium's Gateway, which is to replace ingress-nginx, consults it the same way
+through its ExternalAuth filter; until the trial moves a hostname to it, it
+serves nothing ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`).
 
 **Layer 3** maps the email address from layer 2 to a role. The addresses in
 `admin_emails` are administrators; anyone else who got this far is read-only.

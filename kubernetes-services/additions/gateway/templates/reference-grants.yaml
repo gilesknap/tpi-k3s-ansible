@@ -1,0 +1,40 @@
+# Cross-namespace references need the referenced namespace's consent.
+#
+# The wildcard certificate stays where cert-manager writes it, as it does for
+# ingress-nginx's default-ssl-certificate; Cilium copies it into its
+# cilium-secrets namespace for Envoy.
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: gateway-wildcard-tls
+  namespace: cert-manager
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: {{ .Release.Namespace }}
+  to:
+    - group: ""
+      kind: Secret
+      name: wildcard-tls
+{{- with .Values.external_auth_namespaces }}
+---
+# The gated apps' HTTPRoutes send every request to oauth2-proxy first
+# (additions/ingress/templates/httproute.yaml). Only these namespaces may.
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: gateway-external-auth
+  namespace: oauth2-proxy
+spec:
+  from:
+  {{- range . }}
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ . }}
+  {{- end }}
+  to:
+    - group: ""
+      kind: Service
+      name: oauth2-proxy
+{{- end }}

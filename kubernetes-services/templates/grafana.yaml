@@ -549,6 +549,22 @@ spec:
           service_port: 80
           oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+
+    # Alertmanager's HTTPRoute (ADR 0016). Its Ingress comes from the
+    # kube-prometheus-stack chart above (alertmanager.ingress), always behind
+    # oauth2-proxy.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: alertmanager
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: grafana-prometheus-kube-pr-alertmanager
+          service_port: 9093
+          oauth2_proxy: true
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          ingress: false
   ignoreDifferences:
   - group: apps
     kind: StatefulSet

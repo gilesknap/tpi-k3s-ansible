@@ -107,6 +107,17 @@ spec:
             enabled: true
         envoy:
           rollOutPods: true
+        # Cilium's Gateway API controller, to replace ingress-nginx (ADR
+        # 0016). The operator only starts it if the Gateway API CRDs exist
+        # when it starts, so the k3s role installs them before this chart
+        # (additions/gateway-api-crds). The GatewayClass is the cluster's own,
+        # with parameters (additions/gateway), so the chart makes none; that
+        # also keeps this chart's output the same whether or not the CRDs
+        # are there when it renders.
+        gatewayAPI:
+          enabled: true
+          gatewayClass:
+            create: "false"
         prometheus:
           enabled: true
           metricsService: true

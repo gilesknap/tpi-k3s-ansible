@@ -94,3 +94,50 @@ data:
       </div>
     </body>
     </html>
+  # Shown by oauth2-proxy to a browser with no session. Behind Cilium's
+  # Gateway (ADR 0016) it comes back as the ExternalAuth filter's answer to
+  # the request for the app's own URL, so the browser is still at that URL.
+  # It does what ingress-nginx's auth-signin annotation does: send the
+  # browser to oauth2.<cluster_domain>/oauth2/start with rd set to where it
+  # was. Login always starts on the oauth2 host, as that is the GitHub OAuth
+  # app's callback. Its host is worked out from the page's own: every app is
+  # one label below the cluster domain. On the oauth2 host itself the page
+  # keeps oauth2-proxy's own redirect. oauth2-proxy checks rd against
+  # whitelist-domain whatever the page sends.
+  sign_in.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Signing in</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #0f172a;
+          color: #94a3b8;
+          min-height: 100vh;
+          margin: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        a {
+          color: #38bdf8;
+        }
+      </style>
+    </head>
+    <body>
+      <p>Signing in with {{.ProviderName}}&hellip; <a id="go" href="{{.ProxyPrefix}}/start?rd={{.Redirect}}">continue</a></p>
+      <script>
+        (function () {
+          var host = location.hostname;
+          var auth = "oauth2." + host.slice(host.indexOf(".") + 1);
+          var rd = host === auth ? {{.Redirect}} : location.href;
+          var url = "https://" + auth + {{.ProxyPrefix}} + "/start?rd=" + encodeURIComponent(rd);
+          document.getElementById("go").href = url;
+          location.replace(url);
+        })();
+      </script>
+    </body>
+    </html>

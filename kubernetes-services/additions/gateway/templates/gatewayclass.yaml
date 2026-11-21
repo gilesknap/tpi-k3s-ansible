@@ -1,0 +1,43 @@
+# The cluster's own GatewayClass rather than the Cilium chart's default
+# "cilium" one (gatewayAPI.gatewayClass.create: false in
+# templates/cilium.yaml), so it can carry parameters.
+#
+# grpcWebTranslation off: by default Cilium's Envoy turns gRPC-web requests
+# into gRPC before they reach the backend, which breaks backends that speak
+# gRPC-web themselves, as ArgoCD's server and Hubble UI's backend do.
+# ingress-nginx passes them through unchanged, and so does this.
+# https://docs.cilium.io/en/v1.20/network/servicemesh/gateway-api/parameterized-gatewayclass/
+# https://github.com/cilium/cilium/issues/31933
+#
+# The CiliumGatewayClassConfig CRD is made by the Cilium operator once
+# gatewayAPI is enabled, hence SkipDryRunOnMissingResource and the retries on
+# the Application.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumGatewayClassConfig
+metadata:
+  name: cilium-gateway
+spec:
+  description: Gateway API on Cilium's Envoy, gRPC-web passed through
+  httpOptions:
+    grpcWebTranslation:
+      enabled: false
+  service:
+    # No NodePorts for the Gateway's LoadBalancer Service. Cilium would serve
+    # them on every node address, putting the Gateway on random LAN ports
+    # (30000-32767), possibly ones the Minecraft worlds want later. servicelb
+    # does not need them: with externalTrafficPolicy Cluster (the default)
+    # its svclb pods forward to the ClusterIP.
+    allocateLoadBalancerNodePorts: false
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium-gateway
+spec:
+  controllerName: io.cilium/gateway-controller
+  description: Cilium Envoy, gRPC-web passed through
+  parametersRef:
+    group: cilium.io
+    kind: CiliumGatewayClassConfig
+    name: cilium-gateway
+    namespace: {{ .Release.Namespace }}

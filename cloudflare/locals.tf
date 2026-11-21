@@ -3,6 +3,12 @@ locals {
   # oauth2-proxy and the ingress rules apply (see the cloudflare skill).
   ingress_nginx = "http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 
+  # Cilium's Gateway, which is to replace ingress-nginx (ADR 0016). Unused
+  # until a route is moved to it for the trial by adding
+  # `service = local.gateway` to its entry below
+  # (docs/how-to/gateway-trial.md).
+  gateway = "http://cilium-gateway-web.gateway.svc.cluster.local"
+
   # The one list of public services. Each entry is a tunnel ingress rule
   # (in this order, ahead of the 404 catch-all) and a proxied CNAME to the
   # tunnel. Removing a service here removes its route and its DNS record.
