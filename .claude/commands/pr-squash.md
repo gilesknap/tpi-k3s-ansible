@@ -78,8 +78,9 @@ commits on a new branch, then opening a pull request.
    unchanged.
 
 ## Edge cases
-- If there are fewer than 3 commits, suggest the user just squash-merge
-  directly instead — but proceed if they insist.
+- If there are fewer than 3 commits, suggest the user just merge the PR
+  directly instead (`gh pr merge --merge`, or `--squash` if one commit is
+  wanted) — but proceed if they insist.
 - If cherry-pick conflicts arise, stop and inform the user rather than
   auto-resolving.
 - Never force-push or modify the original branch.

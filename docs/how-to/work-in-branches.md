@@ -156,24 +156,25 @@ CI (`.github/workflows/docs.yml`) runs four jobs on every pull request:
 Renovate opens its own pull requests for chart and image version bumps;
 they go through the same checks.
 
-## 7. Tidy the history and merge
+## 7. Merge
 
-A branch that was iterated on has commits like "fix typo" and "try again".
-`/pr-squash` in a Claude Code session groups them into a few commits that
-each say one thing, on a new `<branch>-squash` branch, and opens the pull
-request from that. It proposes the grouping and waits for agreement before
-changing anything, and it never rewrites the original branch.
-
-Merge a pull request made by `/pr-squash` with a merge commit, which keeps
-those curated commits:
+Merge with a merge commit, which keeps the branch's commits as they are:
 
 ```bash
 gh pr merge --merge
 ```
 
-Use `gh pr merge --squash` only for a pull request that did not go through
-`/pr-squash`, where one commit for the whole change is what is wanted (a
-branch of one or two commits, say).
+A branch that was iterated on may have exploratory commits like "fix
+typo" and "try again". Tidying them is optional: `/pr-squash` in a Claude
+Code session groups them into a few commits that each say one thing, on a
+new `<branch>-squash` branch, and opens the pull request from that. It
+proposes the grouping and waits for agreement before changing anything,
+and it never rewrites the original branch. Merge its pull request with
+`--merge` too.
+
+Use `gh pr merge --squash` only for a short pull request where one commit
+for the whole change is what is wanted (a branch of one or two commits,
+say).
 
 ## 8. Put the cluster back on main
 

@@ -246,8 +246,10 @@ only.
 **Apply token (edit)**: the same list with **Edit** in place of
 **Read**, except Zone: Zone, Access: Service Tokens and Access:
 Organizations, Identity Providers, and Groups, which stay at Read (those
-are only looked up). Give it a short expiry, or create it when it is
-needed and delete it afterwards: it can change the edge.
+are only looked up). It can change the edge, so its secret is not kept
+anywhere: it is rolled before each apply and pasted at the prompt
+({ref}`cf-roll-apply-token`). A newly created token's secret is pasted
+straight away.
 
 The plan token is read from `CF_PLAN_TOKEN`, else from
 `cloudflare/.secrets/plan-token` (gitignored), else the recipe prompts
@@ -421,7 +423,8 @@ its token are unchanged, and the rebuild reseals the same token from
 2. `just cf-plan` and check that the plan does what was meant.
 3. Open the PR; CI runs `tofu fmt -check` and `tofu validate` (no
    credentials, no Cloudflare access).
-4. After review, `just cf-apply` with the edit token, then merge.
+4. After review, roll the edit token ({ref}`below <cf-roll-apply-token>`),
+   run `just cf-apply` with it, then merge.
 
 `just cf-apply` shows the plan and asks for `yes` before it changes
 anything. Claude sessions plan but never apply: the edit token is only
@@ -429,6 +432,23 @@ ever typed by the owner. Extra arguments pass through to `tofu`, for
 example `just cf-plan -target=cloudflare_dns_record.tunnel`. After a
 change of providers in `cloudflare/versions.tf`, run `just cf-init` once
 to install them.
+
+(cf-roll-apply-token)=
+### Roll the edit token before an apply
+
+The edit token's secret is not kept between applies. Each time one is
+needed (`just cf-apply`, or `just cf-tunnel-disconnect`):
+
+1. At <https://dash.cloudflare.com/profile/api-tokens>, choose **Roll**
+   on the edit token. The token keeps its permissions and expiry; only
+   its secret is new.
+2. Paste the new secret at the recipe's `Cloudflare edit (apply) API
+   token` prompt. When both recipes run back to back, as in a tunnel
+   token rotation, one rolled secret serves both.
+
+A token's secret is about 53 characters, the same length as
+`cloudflare/.secrets/plan-token`. A 32-character value is the state
+passphrase, not a token ({ref}`cf-token-errors`).
 
 (cf-add-service)=
 ## Publish a new hostname
@@ -697,4 +717,16 @@ Application ({doc}`add-remove-services`).
 ## Troubleshooting
 
 Tunnel, DNS and certificate problems are collected in
-{doc}`/reference/troubleshooting`.
+{doc}`/reference/troubleshooting`. API token errors are below.
+
+(cf-token-errors)=
+### `6003 Invalid request headers` or `9106 Authentication failed`
+
+The value pasted at the token prompt is not an API token. Cloudflare
+answers `6003 Invalid request headers` when the token is verified, and
+`9106 Authentication failed` on the first data read. The usual cause is
+pasting the state passphrase (32 characters, from
+`cloudflare/.secrets/state-passphrase`) in place of a token's secret,
+which is about 53 characters, as long as `cloudflare/.secrets/plan-token`.
+For `just cf-apply`, roll the edit token and paste the new secret
+({ref}`cf-roll-apply-token`).
