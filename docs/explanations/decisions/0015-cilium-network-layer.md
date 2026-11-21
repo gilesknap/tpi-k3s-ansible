@@ -63,7 +63,10 @@ restart. From then on ArgoCD owns Cilium: upgrades and value changes go through 
 
 The Application syncs with `ServerSideApply=true`: the chart's Cilium dashboard ConfigMap is
 over 256 KB, too big for client-side apply's `last-applied-configuration` annotation (as with
-kube-prometheus-stack in `grafana.yaml`). Unlike the other Applications it has no resources
+kube-prometheus-stack in `grafana.yaml`), with the annotation
+`argocd.argoproj.io/client-side-apply-migration-manager: helm`, so ArgoCD migrates the field
+ownership the bootstrap Helm install recorded and later removals take effect
+([ArgoCD sync options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/)). Unlike the other Applications it has no resources
 finalizer, so deleting or renaming it orphans Cilium instead of deleting the CNI under every pod,
 ArgoCD's included.
 

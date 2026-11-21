@@ -24,6 +24,12 @@ kind: Application
 metadata:
   name: cilium
   namespace: argo-cd
+  annotations:
+    # The bootstrap Helm install recorded its fields under the manager
+    # "helm". Have ArgoCD's server-side apply migrate those to itself, so a
+    # field later dropped from the chart or values is removed from the
+    # cluster rather than kept alive by Helm's ownership.
+    argocd.argoproj.io/client-side-apply-migration-manager: helm
 spec:
   destination:
     server: https://kubernetes.default.svc
