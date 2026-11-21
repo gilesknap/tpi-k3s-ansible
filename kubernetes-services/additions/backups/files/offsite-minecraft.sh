@@ -21,8 +21,8 @@
 #
 # The worlds are copied while they run, as the Minecraft server writes
 # them; the dashboard's own backups in the store are the consistent copies.
-# tar fails if a file shrinks or vanishes under it (an autosave), so the
-# nightly tarball is tried up to 3 times.
+# tar fails if a file shrinks or vanishes under it (an autosave); send
+# retries it, like any failed upload (4 tries, after 30 s, 2 min, 2 min).
 #
 # Read-only mounts: with NIGHTLY=true, /src/store and /src/stable (the
 # worlds' share); with ARCHIVE=true, /src/archive. Environment, besides
@@ -68,21 +68,15 @@ else
     today=$(date -u +%Y%m%d)
     target=minecraft-$(date -u +%Y%m%dT%H%M%SZ).tar.age
     uploaded=
-    tries="1 2 3"
     if grep -q "|minecraft-${today}T[0-9]*Z\.tar\.age$" "$WORK/nightly"; then
         # A retry of tonight's Job, or a second manual run.
         log "a nightly tarball from today (UTC) is already there: not uploading another"
-        tries=
         uploaded=skipped
+    elif send "$dest/nightly/$target" age tar -cf - -C "$src" "$@" </dev/null; then
+        # send retries, which also rides out tar failing on a file that
+        # changed under it (an autosave).
+        uploaded=1
     fi
-    for try in $tries; do
-        if send "$dest/nightly/$target" age tar -cf - -C "$src" "$@" </dev/null; then
-            uploaded=1
-            break
-        fi
-        log "the nightly tarball failed (try $try of 3)"
-        if [ "$try" -lt 3 ]; then sleep "${RETRY_SLEEP:-30}"; fi
-    done
     if [ -z "$uploaded" ]; then
         fail "could not upload the nightly tarball"
     elif [ "$uploaded" = skipped ]; then

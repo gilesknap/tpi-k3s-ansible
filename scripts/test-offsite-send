@@ -15,7 +15,12 @@
 # For each target it checks that a good upload lands under its name, and
 # that a producer that fails part-way (after writing some of the stream),
 # or at once, makes send fail and leaves nothing under the destination's
-# name (nor a .partial- file). Run by `just check`.
+# name (nor a .partial- file). It also checks that an rclone rcat that
+# fails a couple of times (as on B2's 503 too_busy) is retried until the
+# upload lands, and that one that always fails still fails after the
+# retries, leaving nothing behind. Last, it checks that offsite-backups.sh
+# logs diagnostics for a listing that hit an unreadable folder, and still
+# fails. Run by `just check`.
 #
 # Usage: scripts/test-offsite-send
 set -euo pipefail
@@ -36,6 +41,20 @@ mkdir -p "$tmp/bin" "$tmp/remote" "$tmp/work"
 # age stand-in: passes the stream through.
 printf '#!/bin/sh\nexec cat\n' >"$tmp/bin/age"
 chmod +x "$tmp/bin/age"
+# rclone stand-in: an rcat fails while the count in $RCAT_FAILS is above 0
+# (each failure takes one off), after reading the stream and, for a Drive
+# .partial- name, writing it there; anything else is the real rclone.
+cat >"$tmp/bin/rclone" <<EOF
+#!/bin/sh
+if [ "\$1" = rcat ] && [ "\$(cat "\$RCAT_FAILS" 2>/dev/null || echo 0)" -gt 0 ]; then
+    echo \$((\$(cat "\$RCAT_FAILS") - 1)) >"\$RCAT_FAILS"
+    case \$2 in */.partial-*) cat >"\$2" ;; *) cat >/dev/null ;; esac
+    echo "Failed to rcat: Too busy (503 too_busy)" >&2
+    exit 1
+fi
+exec $(command -v rclone) "\$@"
+EOF
+chmod +x "$tmp/bin/rclone"
 
 # The cases, in busybox sh. Each prints "ok ..." or "FAIL ...".
 cat >"$tmp/cases.sh" <<'EOF'
@@ -77,14 +96,64 @@ for TARGET in drive b2; do
     check "producer fails part-way (large stream)" 1 "$rc" "$d/late-large.age"
     rc=0; send "$d/missing.age" as-is cat "$WORK/no-such-file" 2>/dev/null || rc=$?
     check "producer fails at once" 1 "$rc" "$d/missing.age"
+    echo 2 >"$RCAT_FAILS"
+    rc=0; RETRY_PAUSES="0 0 0" send "$d/busy.age" age printf 'hello\n' || rc=$?
+    check "rcat fails twice, then succeeds" 0 "$rc" "$d/busy.age" hello
+    echo 9 >"$RCAT_FAILS"
+    rc=0; RETRY_PAUSES="0 0 0" send "$d/down.age" age printf 'hello\n' || rc=$?
+    check "rcat always fails" 1 "$rc" "$d/down.age"
+    left=$(cat "$RCAT_FAILS")
+    if [ "$left" -ne 5 ]; then
+        echo "FAIL $TARGET rcat always fails: $((9 - left)) tries, not 4"
+        failed=1
+    fi
+    echo 0 >"$RCAT_FAILS"
 done
 exit "$failed"
 EOF
 
 PATH=$tmp/bin:$PATH RCLONE_CONFIG=/dev/null LIB=$lib REMOTE=$tmp/remote \
-    WORK=$tmp/work AGE_RECIPIENT=age1test \
+    WORK=$tmp/work AGE_RECIPIENT=age1test RETRY_PAUSES=0 \
+    RCAT_FAILS=$tmp/rcat-fails \
     busybox sh "$tmp/cases.sh" 2>"$tmp/stderr" || {
     echo "--- stderr" >&2
     cat "$tmp/stderr" >&2
     exit 1
 }
+
+# offsite-backups.sh's find diagnostics: a listing of the others scope that
+# reports an unreadable folder once (a stand-in find, as on 21 Nov 2026)
+# logs them, finds the second listing clean, and still fails the run.
+printf '#!/bin/sh\n[ "$1" = --version ] && echo test && exit 0\nexec cat\n' >"$tmp/bin/age"
+cat >"$tmp/bin/find" <<EOF
+#!/bin/sh
+if [ -e "$tmp/find-fail" ]; then
+    rm "$tmp/find-fail"
+    echo "find: ./scrap: Permission denied" >&2
+fi
+exec $(command -v find) "\$@"
+EOF
+chmod +x "$tmp/bin/find"
+mkdir -p "$tmp/src/etcd" "$tmp/src/scrap" "$tmp/remote/full/backups" "$tmp/work2"
+echo bundle >"$tmp/src/etcd/a.tar"
+touch -d '1 hour ago' "$tmp/src/etcd/a.tar"
+: >"$tmp/rclone.conf"
+: >"$tmp/find-fail"
+rc=0
+PATH=$tmp/bin:$PATH TARGET=drive DEST_ROOT=$tmp/remote/full \
+    AGE_RECIPIENT=age1test RCLONE_SECRET=$tmp/rclone.conf WORK=$tmp/work2 \
+    SRC=$tmp/src RUN_DIRS=scrap EXCLUDE='' PRUNE_DAYS=0 KEEP_MIN=4 \
+    FIND_RECHECK_PAUSE=0 RCAT_FAILS=$tmp/rcat-fails \
+    busybox sh "${lib%/*}/offsite-backups.sh" others >"$tmp/out" 2>&1 || rc=$?
+why=
+[ "$rc" -ne 0 ] || why="$why; returned 0"
+grep -q 'find diagnostics: uid=' "$tmp/out" || why="$why; no id"
+grep -q 'find diagnostics: d.* scrap$' "$tmp/out" || why="$why; no ls of scrap"
+grep -q 'find diagnostics: second listing clean' "$tmp/out" || why="$why; no clean second listing"
+grep -q 'ERROR: could not read all of' "$tmp/out" || why="$why; no error"
+if [ -n "$why" ]; then
+    echo "FAIL find diagnostics:$why"
+    cat "$tmp/out" >&2
+    exit 1
+fi
+echo "ok   find diagnostics"
