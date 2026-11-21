@@ -225,6 +225,7 @@ resolves to Cloudflare, which pods cannot rely on reaching.
 | Service | Where it is switched on |
 |---|---|
 | Headlamp | `oauth2_proxy: {{ .Values.enable_oauth2_proxy }}` in `templates/dashboard.yaml`; Headlamp then asks for a ServiceAccount token (`just headlamp-token`) |
+| Hubble UI | `oauth2_proxy: true` in `templates/hubble-ui.yaml`, whose Application exists only while `enable_oauth2_proxy` is on, so the UI never has an Ingress without it; it has no login of its own |
 | Alertmanager | The same annotations written out in `templates/grafana.yaml` (the chart makes that ingress); Alertmanager has no login of its own |
 | Minecraft dashboard | `oauth2_proxy: true`, hard-wired in `templates/minecraft.yaml` |
 | scrap | `oauth2_proxy: true`, hard-wired in `templates/scrap.yaml` for the web app; its `/mcp` ingress has none and uses a bearer token |

@@ -37,7 +37,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 ### Host variables (`hosts.yml`)
 
 Set per host: `slot_num`, `type`, `root_dev`, `nvidia_gpu_node`,
-`intel_gpu_node`, `workstation`, `node_ip` and `flannel_iface`. They are
+`intel_gpu_node`, `workstation` and `node_ip`. They are
 described, with the values each node has, in {doc}`/reference/inventory`.
 
 ### `tools` role (`roles/tools/vars/main.yml`)

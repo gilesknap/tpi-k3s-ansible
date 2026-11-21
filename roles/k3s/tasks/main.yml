@@ -161,6 +161,17 @@
   ansible.builtin.include_tasks: worker.yml
   when: not k3s_is_control_plane
 
+# Once, from the controller, after every node has joined: until Cilium runs
+# no node is Ready, so the waits below would time out.
+- name: Install Cilium on a cluster without it
+  ansible.builtin.include_tasks:
+    file: cilium.yml
+    apply:
+      delegate_to: localhost
+      become: false
+      run_once: true
+  run_once: true
+
 - name: Wait for all kube-system pods become created
   ansible.builtin.command:
     kubectl get pod -n kube-system --output jsonpath='{.items[*].metadata.name}'

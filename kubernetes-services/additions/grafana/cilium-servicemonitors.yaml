@@ -1,0 +1,122 @@
+# Scrapes Cilium's agents, Envoy proxies, operator, Hubble flow metrics and
+# Hubble Relay (the chart's metrics Services in kube-system, enabled in
+# templates/cilium.yaml). They live here, not in the Cilium chart's values
+# (*.serviceMonitor.enabled), because this Application installs the
+# ServiceMonitor CRD: the k3s role installs Cilium before any CRD of
+# kube-prometheus-stack exists. Copied from what the chart's own
+# ServiceMonitors render (Cilium 1.20), with the release label this
+# Prometheus selects and a 30s interval in place of 10s.
+# The Grafana dashboards are the chart's (ConfigMaps in kube-system that
+# Grafana's sidecar finds in every namespace).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-agent
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cilium-agent
+  endpoints:
+    - port: metrics
+      interval: 30s
+      honorLabels: true
+      relabelings:
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+  targetLabels:
+    - k8s-app
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-envoy
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      k8s-app: cilium-envoy
+  endpoints:
+    - port: envoy-metrics
+      interval: 30s
+      honorLabels: true
+      relabelings:
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+  targetLabels:
+    - k8s-app
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-operator
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      io.cilium/app: operator
+      name: cilium-operator
+  endpoints:
+    - port: metrics
+      interval: 30s
+      honorLabels: true
+  targetLabels:
+    - io.cilium/app
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      k8s-app: hubble
+  endpoints:
+    - port: hubble-metrics
+      interval: 30s
+      honorLabels: true
+      relabelings:
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble-relay
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      k8s-app: hubble-relay
+  endpoints:
+    - port: metrics
+      interval: 30s

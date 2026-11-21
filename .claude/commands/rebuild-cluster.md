@@ -443,6 +443,43 @@ If any SealedSecrets show `False` with "no key could decrypt":
       config PVC is Bound to the `jellyfin-local` PV
       (`kubectl get pvc -n jellyfin`)
 
+- [ ] Cilium healthy on every node, kube-proxy replacement on, and the
+      `cilium` app Synced with nothing to change (ArgoCD adopted the
+      resources the `k3s` role installed):
+      ```bash
+      kubectl -n kube-system get ds cilium cilium-envoy   # DESIRED = READY = 6
+      for p in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
+        kubectl -n kube-system exec "$p" -c cilium-agent -- cilium-dbg status --brief
+      done
+      kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -E 'KubeProxyReplacement|Host Routing|Masquerading'
+      kubectl -n argo-cd get app cilium hubble-ui
+      ```
+- [ ] ingress-nginx answers on every ServiceLB node IP from the LAN (k3s
+      servicelb with Cilium in kube-proxy's place):
+      `for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do curl -s -o /dev/null -w "$ip %{http_code}\n" -H 'Host: echo.<domain>' http://$ip/; done`
+      (200 each).
+- [ ] Hubble shows flows: the Hubble UI at `https://hubble.<domain>` (needs
+      the `hubble` tunnel route: the user runs `just cf-apply` once), or
+      `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20`.
+- [ ] The backups egress rule: both off-site jobs succeed
+      (`just offsite-backup-now` and `just offsite-backup-now b2`), and a
+      test pod in `backups` reaches Drive and B2 but nothing else:
+      ```bash
+      kubectl -n backups run egress-test --rm -i --restart=Never --image=alpine:3.24 -- sh -c '
+        for u in https://www.googleapis.com/generate_204 https://api.backblazeb2.com/ https://example.com/; do
+          if wget -q -T 10 -O /dev/null "$u" 2>/dev/null || wget -T 10 -O /dev/null "$u" 2>&1 | grep -q "server returned error"; then
+            echo "$u reachable"; else echo "$u blocked"; fi
+        done'
+      ```
+      googleapis and backblazeb2 reachable, example.com blocked. Hubble on
+      the pod's node shows the drop:
+      `hubble observe -n backups --verdict DROPPED --last 20` in that node's
+      `cilium-agent` container.
+- [ ] The five NetworkPolicies still hold: scrap and ntfy load through
+      their Ingresses (Phase 6/7), and a pod outside `ingress-nginx` is
+      refused by scrap:
+      `kubectl -n default run np-test --rm -i --restart=Never --image=alpine:3.24 -- wget -q -T 5 -O /dev/null http://scrap.scrap.svc.cluster.local/ && echo LEAK || echo blocked`.
+
 If certificates are pending, restart cert-manager and wait 2 minutes:
 ```bash
 kubectl rollout restart deployment cert-manager -n cert-manager

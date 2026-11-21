@@ -41,7 +41,6 @@ commented-out sketch of one).
 | `intel_gpu_node` | Optional | `true`/`false` | Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node |
 | `workstation` | Optional | `true`/`false` | Registers the agent with the `workstation=true:NoSchedule` taint and the `node-role=workstation` label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation ({doc}`/explanations/upgrade-model`) |
 | `node_ip` | Optional | IPv4 address | Passed to the agent as `--node-ip`. Needed on a multi-homed node whose default route is on the wrong subnet |
-| `flannel_iface` | Optional | Interface name | Passed as `--flannel-iface`: the interface that carries `node_ip` |
 | `install_profile` | x86 hosts, optional | `server`, `desktop` | Gives the host an entry on the install stick ({doc}`/how-to/install-stick`); `desktop` adds `ubuntu-desktop-minimal` and NetworkManager |
 | `install_disk_serial` | With `install_profile` | Disk serial | The OS disk the install erases. The install refuses unless exactly one disk has this serial |
 | `install_disk_model` | With `install_profile`, optional | Disk model | Also checked against the OS disk's model, as `lsblk` shows it |
@@ -63,7 +62,7 @@ control plane is not an inventory setting: `control_plane` and
 | `node03` | `turingpi_nodes` | 192.168.1.83 | 3 | `rk1` | `/dev/nvme0n1` | | Worker, warm standby (`standby_control_plane`) |
 | `node04` | `turingpi_nodes` | 192.168.1.84 | 4 | `rk1` | `/dev/nvme0n1` | | Worker |
 | `ws03` | `extra_nodes` | 192.168.1.10 | | | | `nvidia_gpu_node`, `workstation` | Worker, tainted |
-| `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `flannel_iface: enp3s0`, `intel_gpu_node` | Worker |
+| `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `intel_gpu_node` | Worker |
 | `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
 | `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` |
 

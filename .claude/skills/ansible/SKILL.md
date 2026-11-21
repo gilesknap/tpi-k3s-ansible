@@ -78,10 +78,19 @@ If it's not `main`, **stop and ask the user** whether to:
 ## Topology rules
 
 ### Multi-homed nodes
-K3s and flannel auto-detect the IP from the default route, which may be
-the wrong subnet. Set `node_ip` and `flannel_iface` in `hosts.yml` for
-any node with multiple NICs — otherwise CNI traffic goes out the wrong
-interface and pod networking silently breaks.
+K3s auto-detects the node IP from the default route, which may be the
+wrong subnet. Set `node_ip` in `hosts.yml` for any node with multiple
+NICs — Cilium tunnels to the node's advertised address, so otherwise
+pod networking to it silently breaks.
+
+### Cilium is the CNI (ADR 0015)
+No flannel, kube-proxy or k3s policy controller. The `k3s` role installs
+Cilium once (`roles/k3s/tasks/cilium.yml`, from the ArgoCD Application
+`kubernetes-services/templates/cilium.yaml`, which must stay plain YAML:
+no `{{ }}`), then ArgoCD owns it. Never `helm upgrade` it by hand. The
+role refuses to switch a live flannel server to Cilium: that is a
+rebuild. Debug with `kubectl -n kube-system exec ds/cilium -c
+cilium-agent -- cilium-dbg status` and `hubble observe`.
 
 ### Control-plane `NoSchedule` taint
 The control plane (e.g. node02) is tainted `NoSchedule`. DaemonSets

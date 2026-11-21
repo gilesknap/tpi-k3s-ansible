@@ -49,7 +49,6 @@ extra_nodes:
       nvidia_gpu_node: true   # only if GPU
       workstation: true        # only if workstation
       node_ip: 192.168.1.x    # only if multi-homed (see below)
-      flannel_iface: enp3s0   # only if multi-homed (see below)
   vars:
     ansible_user: "{{ ansible_account }}"
 ```
@@ -59,15 +58,14 @@ Ensure `extra_nodes` is listed under `all_nodes.children`.
 ### Multi-homed nodes
 
 If the node has multiple network interfaces on different subnets, ask the user
-which subnet the cluster uses. K3s and flannel auto-detect the IP from the
-default route interface, which may be the wrong subnet. Set:
+which subnet the cluster uses. K3s auto-detects the IP from the default
+route interface, which may be the wrong subnet. Set:
 
 - `node_ip` — the IP on the cluster subnet (passed as `--node-ip` to K3s)
-- `flannel_iface` — the interface name carrying that IP (passed as
-  `--flannel-iface` to K3s)
 
-Without `flannel_iface`, flannel's VXLAN tunnel will use the wrong endpoint
-and cross-node pod networking will fail.
+Cilium's VXLAN tunnel uses the node's advertised IP, so without `node_ip`
+cross-node pod networking to the node will fail. The Cilium agent
+DaemonSet tolerates every taint, so it runs on the new node by itself.
 
 ## Phase 3: Bootstrap access
 

@@ -149,7 +149,7 @@ These are open, not fixed. Each is a question for the owner.
 | `nuc2`'s other disks | `install_ansible_uid` and `extra_mounts` on `nuc2` (its 870 QVO `/home` and the Crucial X6) | Drop both: the `servers` tag would fail to mount disks that no longer exist |
 | Intel iGPU for Jellyfin | `intel_gpu_node` in `hosts.yml`; Jellyfin requests `gpu.intel.com/i915`; `jellyfin.render_gid` | Without an Intel iGPU the Jellyfin pod stays `Pending`: set `enable_jellyfin: false`, or buy a box with one |
 | NVIDIA GPU | `nvidia_gpu_node`, `workstation` on `ws03` | Not needed: only GPU and monitoring pods ran there |
-| nuc2's two NICs | `node_ip`, `flannel_iface` on `nuc2` | Drop both on a single-NIC box |
+| nuc2's two NICs | `node_ip` on `nuc2` | Drop it on a single-NIC box |
 | Fixed addresses | DHCP leases on the router; `nfs.server`, `nas_nfs_clients`, `vps_relay.forwards`, `k3s.etcd_metrics_endpoints` | Keep the old addresses on the new router and almost nothing changes |
 | `k3s.lan` | `k3s_api_name`, `dns_router` in `group_vars/all.yml`; `just k3s-api-dns` assumes OpenWrt | On another router, add the record by hand, or set `k3s_api_name` to the server's IP |
 
@@ -170,7 +170,7 @@ server runs every workload.
 The edits, made on a branch (step 5):
 
 - `hosts.yml`: remove `turingpi`, `node02`, `node03`, `node04`, `nuc1` and
-  `ws03`. Keep `nuc2`, without `node_ip` and `flannel_iface` if it has one
+  `ws03`. Keep `nuc2`, without `node_ip` if it has one
   NIC, with `intel_gpu_node: true` only if it has an Intel iGPU, and
   without `install_ansible_uid` and `extra_mounts`. Keep `gknas` in `nas`.
   On both, keep `install_profile: server`, and set `install_disk_serial`,
@@ -523,9 +523,10 @@ it up to K3s, without the `cluster` stage yet:
 ansible-playbook pb_all.yml --tags tools,known_hosts,servers,k3s
 ```
 
-`servers` makes `/home/k8s-data/*`, and `k3s` installs the server and the
-nightly etcd backup timer. The `k3s` role stops unless `k3s_api_name`
-resolves to the server.
+`servers` makes `/home/k8s-data/*`, and `k3s` installs the server, Cilium
+(the CNI: the node stays `NotReady` until it runs) and the nightly etcd
+backup timer. The `k3s` role stops unless `k3s_api_name` resolves to the
+server: Cilium's agents reach the API server by that name too.
 
 The sealing keys can come back in two ways:
 
@@ -609,7 +610,9 @@ Then check the result as in {doc}`/tutorials/build-the-cluster`,
 `True`), `kubectl get certificate -A` (a new wildcard certificate from
 Let's Encrypt in a few minutes), `kubectl get pv` (all `Bound`). One
 `cloudflared` pod stays `Pending`: the two tunnel connectors must run on
-different nodes, and there is one. The other serves the tunnel.
+different nodes, and there is one. The other serves the tunnel. One
+`cilium-operator` pod stays `Pending` for the same reason; the other does
+the work.
 
 (dr-etcd)=
 #### The etcd bundle is not used

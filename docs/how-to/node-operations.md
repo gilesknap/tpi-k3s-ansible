@@ -311,7 +311,6 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
          workstation: true # taint NoSchedule, never rebooted or upgraded for you
        nuc2:
          node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
-         flannel_iface: enp3s0 # the interface carrying node_ip
          intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
        nuc1: # single NIC
          install_profile: desktop # the install stick's entry
@@ -327,9 +326,9 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
    fstab entries in `extra_mounts` (see `nuc2` in `hosts.yml`); step 4
    mounts them.
 
-   A node with interfaces on two subnets needs both `node_ip` and
-   `flannel_iface`. Without them K3s and flannel pick the default-route
-   interface, and cross-node pod networking fails. A new RK1 goes under
+   A node with interfaces on two subnets needs `node_ip`. Without it K3s
+   may advertise the default-route interface's address, and Cilium's tunnel
+   to the node, so cross-node pod networking, fails. A new RK1 goes under
    `turingpi_nodes` instead, with `slot_num`, `type: rk1` and `root_dev`.
 2. **Sandbox allow-list.** The claude-sandbox blocks every private address
    that is not listed, so add the node's IP as an `allow-ip` line in

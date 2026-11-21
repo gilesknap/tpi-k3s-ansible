@@ -114,14 +114,16 @@ object without that label is ignored without an error.
 |--------|-----|
 | API server, kubelet and cAdvisor, CoreDNS, kube-state-metrics, node-exporter, and the stack itself | The chart's own ServiceMonitors |
 | cert-manager | `additions/grafana/cert-manager-servicemonitor.yaml`. It lives here, not in the cert-manager chart's values, because this Application installs the ServiceMonitor CRD and cert-manager syncs before it on a fresh bootstrap |
+| Cilium and Hubble | `additions/grafana/cilium-servicemonitors.yaml`: the agents, Envoy, the operator, Hubble's flow metrics and Hubble Relay, in `kube-system`. Here for the same reason as cert-manager's: the `k3s` role installs Cilium before the CRD exists. The Cilium chart adds its own Grafana dashboards (Cilium, Cilium Operator, Hubble), as ConfigMaps in `kube-system` |
 | kured | The kured chart's ServiceMonitor (`kubernetes-services/templates/kured.yaml`), in the `kured` namespace |
 | etcd | A static `kube-etcd` scrape job (`additionalScrapeConfigs` in `grafana.yaml`; not the chart's Service and ServiceMonitor, whose hand-made Endpoints ArgoCD never applies), targeting the control plane's address (`k3s.etcd_metrics_endpoints` in `values.yaml`), port 2381. K3s serves etcd's metrics there because the `k3s` role sets `etcd-expose-metrics: true` in node02's `/etc/rancher/k3s/config.yaml` |
 | Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd backup timer on node02 (`roles/etcd_backup`) writes its `k3s_etcd_backup_*` metrics there |
 
 Three chart defaults are switched off: the scrape targets and rules for
-kube-scheduler, kube-controller-manager and kube-proxy. K3s runs all three
-inside the `k3s` server process, so there are no such pods and the chart's
-"down" alerts would fire for ever.
+kube-scheduler, kube-controller-manager and kube-proxy. K3s runs the first
+two inside the `k3s` server process, and runs no kube-proxy at all (Cilium
+replaces it), so there are no such pods and the chart's "down" alerts would
+fire for ever.
 
 etcd runs inside the `k3s` server process too, but it does serve metrics, so
 it is scraped and the **etcd** dashboard works. The endpoint is plain HTTP,

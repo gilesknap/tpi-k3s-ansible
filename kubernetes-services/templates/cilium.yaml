@@ -1,0 +1,127 @@
+# Cilium: the cluster's CNI, NetworkPolicy engine and kube-proxy
+# replacement, with Hubble for flow visibility (ADR 0015).
+#
+# This file is also read by Ansible, so keep it plain YAML with no Helm
+# template expressions in it, comments included. Nodes stay NotReady
+# until a CNI runs, so ArgoCD cannot be the first to install Cilium: the
+# k3s role (roles/k3s/tasks/cilium.yml) installs this chart, at this
+# targetRevision and with this valuesObject, on a cluster that has no
+# Cilium yet. ArgoCD then adopts the same resources and owns them from
+# there on; the role never touches a running Cilium again.
+#
+# Version bumps: Renovate opens a PR (not automerged, renovate.json).
+# Patch releases roll the agents one node at a time. Before a minor
+# bump, read the upgrade notes
+# (https://docs.cilium.io/en/stable/operations/upgrade/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  project: kubernetes
+  source:
+    chart: cilium
+    repoURL: https://helm.cilium.io/
+    targetRevision: 1.20.5
+    helm:
+      releaseName: cilium
+      valuesObject:
+        # https://github.com/cilium/cilium/blob/main/install/kubernetes/cilium/values.yaml
+        #
+        # kube-proxy replacement: k3s runs no kube-proxy
+        # (disable-kube-proxy in roles/k3s/templates/k3s-server-config.yml.j2),
+        # so the agents must reach the API server directly, not through the
+        # kubernetes Service. They use the API name that the k3s agents join
+        # by, which the router's DNS points at the control plane and the
+        # server certificate carries, so moving the control plane needs no
+        # change here. The agents run on the host network, so they resolve
+        # it with the node's DNS. SYNC: k3s_api_name in group_vars/all.yml;
+        # the k3s role fails if they differ.
+        kubeProxyReplacement: true
+        k8sServiceHost: k3s.lan
+        k8sServicePort: 6443
+        # The pod range k3s has always used (its cluster-cidr default), one
+        # /24 per node, as the Cilium k3s guide sets it.
+        ipam:
+          mode: cluster-pool
+          operator:
+            clusterPoolIPv4PodCIDRList:
+              - 10.42.0.0/16
+        # eBPF masquerading, which the kube-proxy-free guide recommends
+        # with eBPF NodePort, in place of iptables rules.
+        bpf:
+          masquerade: true
+        # Let ipBlock / CIDR rules match node IPs too, as they did under
+        # k3s's policy engine. The minecraft-dashboard-worlds policy relies
+        # on it: it allows world RCON from the LAN but for the listed
+        # cluster nodes, and ws03 (a node) is allowed on purpose. Without
+        # this, Cilium never matches a node's address against a CIDR.
+        policyCIDRMatchMode:
+          - nodes
+        # Restart the pods when their ConfigMap changes: ArgoCD only
+        # applies the new ConfigMap.
+        rollOutCiliumPods: true
+        operator:
+          rollOutPods: true
+          # Metrics for Prometheus. The ServiceMonitors are in
+          # additions/grafana (cilium-servicemonitors.yaml), synced with the
+          # CRD, so this chart installs before kube-prometheus-stack.
+          prometheus:
+            enabled: true
+            metricsService: true
+          dashboards:
+            enabled: true
+        envoy:
+          rollOutPods: true
+        prometheus:
+          enabled: true
+          metricsService: true
+        dashboards:
+          enabled: true
+        hubble:
+          enabled: true
+          # Hubble's TLS certificates come from a Job (and a CronJob that
+          # renews them), not from Helm: Helm's method makes new ones at
+          # every render, so ArgoCD would never be in sync. The Job reuses
+          # the CA in the cilium-ca Secret once it exists.
+          tls:
+            auto:
+              method: cronJob
+          metrics:
+            enableOpenMetrics: true
+            enabled:
+              - dns:labelsContext=source_namespace,destination_namespace
+              - drop:labelsContext=source_namespace,destination_namespace
+              - tcp:labelsContext=source_namespace,destination_namespace
+              - flow:labelsContext=source_namespace,destination_namespace
+              - port-distribution:labelsContext=source_namespace,destination_namespace
+              - icmp
+              - policy:labelsContext=source_namespace,destination_namespace
+            dashboards:
+              enabled: true
+          relay:
+            enabled: true
+            rollOutPods: true
+            prometheus:
+              enabled: true
+          # The web UI, at hubble.<cluster_domain> behind oauth2-proxy
+          # (templates/hubble-ui.yaml makes the Ingress, not this chart).
+          ui:
+            enabled: true
+            rollOutPods: true
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2

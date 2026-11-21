@@ -148,8 +148,15 @@ on the list of nodes ({doc}`/how-to/node-operations`).
   `--node-label=node-role=workstation` and
   `--node-taint=workstation=true:NoSchedule`, and a GPU node with its GPU
   label, so no pod lands on ws03 in the moments after it joins.
-- **Multi-homed nodes.** `node_ip` and `flannel_iface` in the inventory
-  become `--node-ip` and `--flannel-iface` (nuc2).
+- **Multi-homed nodes.** `node_ip` in the inventory becomes `--node-ip`
+  (nuc2), the address the node advertises and Cilium tunnels to.
+- **Cilium.** K3s runs with no flannel, kube-proxy or policy controller.
+  Once the nodes have joined, the role installs Cilium from the ArgoCD
+  Application's chart and values if the cluster has none
+  (`roles/k3s/tasks/cilium.yml`); until then every node is NotReady.
+  ArgoCD adopts it later. The role refuses to turn flannel off on a server
+  that still runs it: that move is a rebuild
+  ({doc}`ADR 15 </explanations/decisions/0015-cilium-network-layer>`).
 - **Control plane taints.** The `cluster` role taints `control_plane`
   `NoSchedule` and `standby_control_plane` `PreferNoSchedule`, and moves
   the soft taint when the standby changes.
@@ -187,7 +194,7 @@ flowchart LR
         A1 --> A2 --> A3
     end
     subgraph ARGO["ArgoCD owns"]
-        G1["24 child Applications<br/>from kubernetes-services/"]
+        G1["26 child Applications<br/>from kubernetes-services/"]
         G2["Every workload,<br/>Secret, Ingress and volume"]
         G1 --> G2
     end
@@ -228,7 +235,7 @@ the test for any change that affects this path.
 
 | File | Holds |
 |------|-------|
-| `hosts.yml` | The inventory: the BMC, each node's slot, type and `root_dev`, and the per-node flags (`workstation`, `nvidia_gpu_node`, `intel_gpu_node`, `node_ip`, `flannel_iface`) |
+| `hosts.yml` | The inventory: the BMC, each node's slot, type and `root_dev`, and the per-node flags (`workstation`, `nvidia_gpu_node`, `intel_gpu_node`, `node_ip`) |
 | `group_vars/all.yml` | Ansible's settings: `control_plane`, `standby_control_plane`, `k3s_api_name`, `cluster_domain`, `repo_remote`, `repo_branch`, `admin_emails`, `k8s_data_dirs`, the backup's age public key |
 | `kubernetes-services/values.yaml` | What ArgoCD deploys: the `enable_*` toggles, versions, NAS paths, schedules, `local_storage` |
 
