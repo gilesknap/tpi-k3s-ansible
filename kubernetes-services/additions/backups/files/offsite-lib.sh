@@ -68,7 +68,28 @@ produce() {
     fi
 }
 
-# send DEST MODE CMD [ARG...]: upload produce's output to DEST. Nothing
+# Pauses, in seconds, before each retry of a failed upload (tests shorten
+# them).
+RETRY_PAUSES=${RETRY_PAUSES:-30 120 120}
+
+# send DEST MODE CMD [ARG...]: upload produce's output to DEST, as send_once
+# does, retrying a failed upload as a whole after each of RETRY_PAUSES. The
+# stream cannot be rewound, so rclone's own retries of it soon give up (on
+# B2's 503 too_busy, say); a retry runs CMD again for a fresh stream. A
+# failed try leaves nothing behind (see send_once), so each starts clean.
+send() {
+    send_once "$@" && return 0
+    _try=1
+    for _pause in $RETRY_PAUSES; do
+        _try=$((_try + 1))
+        log "retrying $1 in ${_pause}s (attempt $_try)"
+        sleep "$_pause"
+        send_once "$@" && return 0
+    done
+    return 1
+}
+
+# send_once DEST MODE CMD [ARG...]: upload produce's output to DEST. Nothing
 # plaintext is written anywhere. Like every upload it gets the upload time
 # as its time on the target, which pruning goes by (rclone copyto would keep
 # the NAS file's time). Succeeds only if the whole pipeline did; otherwise
@@ -82,7 +103,7 @@ produce() {
 #     rclone is killed, and waited for, before the stream is closed, so a
 #     cut-off stream is never finished as a file (an unfinished large-file upload
 #     is cancelled by the bucket's lifecycle rule).
-send() {
+send_once() {
     _dest=$1
     _mode=$2
     shift 2

@@ -593,7 +593,7 @@ copies are uploaded).
 The worlds are copied while they run. A world whose server was mid-write
 can need the copy from the night before, or one of the dashboard's own
 backups (in the store, so in the same tarball). If tar fails because a file
-changed under it (an autosave), the tarball is retried, up to 3 times.
+changed under it (an autosave), the upload is retried, as below.
 
 ### How it is kept safe
 
@@ -635,7 +635,12 @@ changed under it (an autosave), the tarball is retried, up to 3 times.
   they would still count against the quota.
 - **Partial uploads never count.** Each stream goes to a `.partial-` name
   and is renamed only once the whole pipeline has succeeded, so a cut-off
-  upload is never taken for a complete one and is retried the next night.
+  upload is never taken for a complete one.
+- **Failed uploads are retried.** A stream cannot be rewound, so rclone
+  gives up on it after a couple of quick tries (B2 sometimes answers
+  `503 too_busy`). The job then starts the whole upload again, from the
+  NAS file, up to 3 more times, after 30 s, 2 min and 2 min; one that still
+  fails is tried again the next night.
 
 An init container makes the Drive folders first, one at a time: Drive
 allows two folders of one name, so two containers making the same missing
