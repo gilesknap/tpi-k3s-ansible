@@ -35,7 +35,6 @@ mounted at the paths the cluster's volumes name.
 | `/bigdisk/k8s-cluster/backups/router/` | `etcd_backup_router_dest_subdir` | node02's `router-backup` job, as root, so squashed to `65534` | `65534:65534`, `0755` |
 | `/bigdisk/k8s-cluster/scrap-data/` | `additions/scrap` (`storage.data_dir`) | the `scrap-data-nfs` PV | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/scrap/` | `additions/scrap` (`storage.backups_dir`) | the `scrap-backups-nfs` PV | `10001:10001`, `0750` |
-| `/bigdisk/k8s-cluster/backups/scrap-curated/` | `offsite_backup.backups.run_dirs` | the off-site backup, read-only (scrap backup runs kept by hand) | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/config/cloudflare/` (with its parent) | none | dated copies of the Cloudflare OpenTofu state (encrypted) and `live.auto.tfvars`, copied in over ssh as `ansible` after each `just cf-apply`; read by the off-site backup | `1000:1000`, `0755` |
 | `/bigdisk/k8s-cluster/minecraft/` (with `backups/`, `snapshots/`, `dashboard/`) | `minecraft.store_subdir` | the Minecraft dashboard's store PV | `1000:1000`, `0755` |
 | `/bigdisk/minecraft-archive/` | `minecraft.archive_path` | the dashboard's archive PV, read-only | `0:0`, `0555`, its files with no write bit at all |
@@ -145,10 +144,6 @@ Never delete or empty them while scrap is deployed: the replica in
 `scrap-data` is the only up-to-date copy of the database. (An emptied
 `scrap-data` beside existing backups makes scrap refuse to start, rather than
 start empty.)
-
-Backup runs kept by hand, outside scrap's own retention, go in a sibling
-directory, `backups/scrap-curated/`, with the same owner. The off-site
-backup uploads its runs like the others ({ref}`offsite-backup`).
 
 (minecraft-nas-directories)=
 ## Minecraft directories
