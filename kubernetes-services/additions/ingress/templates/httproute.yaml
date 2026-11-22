@@ -40,11 +40,13 @@ metadata:
   {{- with .Values.namespace }}
   namespace: {{ . }}
   {{- end }}
+# Both routes write out the API's defaults (group and kind in parentRefs and
+# backendRefs, weight, the ExternalAuth backendRef's group and kind, and the
+# redirect's catch-all match) because grafana-prometheus syncs with
+# ServerSideApply, whose diff otherwise shows them as drift and keeps the app
+# OutOfSync.
 spec:
   parentRefs:
-    # group, kind and weight are the API's defaults, written out because
-    # grafana-prometheus syncs with ServerSideApply, whose diff otherwise
-    # shows them as drift and keeps the app OutOfSync.
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: {{ .Values.gateway.name }}
@@ -118,7 +120,11 @@ spec:
   hostnames:
     - {{ .Values.name }}.{{ .Values.cluster_domain }}
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https
