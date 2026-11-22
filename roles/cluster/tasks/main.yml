@@ -89,29 +89,33 @@
   loop_control:
     loop_var: cluster_service
 
-# Split-horizon DNS: resolve cluster subdomains to the ingress ClusterIP from
-# inside the cluster, so pods calling Dex (argocd.<domain>) don't hairpin
-# through Cloudflare. Without this, argocd-server's OIDC token exchange
-# against `https://argocd.<domain>/api/dex` gets intercepted by Cloudflare
-# Access and returns HTML, breaking SSO login with
-# `expected Content-Type = application/json, got "text/html"`.
+# Split-horizon DNS: resolve argocd.<domain> to the Gateway's ClusterIP from
+# inside the cluster, so pods calling Dex (argocd-server, Grafana's token and
+# userinfo calls, argocd-monitor's oauth2-proxy) don't hairpin through
+# Cloudflare. Without this, argocd-server's OIDC token exchange against
+# `https://argocd.<domain>/api/dex` gets intercepted by Cloudflare Access and
+# returns HTML, breaking SSO login with
+# `expected Content-Type = application/json, got "text/html"`. The Gateway's
+# 443 listener serves the wildcard certificate, so TLS to that name verifies.
 #
-# Must run *after* argocd.yml because ingress-nginx is provisioned by
-# ArgoCD as part of the cluster services sync — on a fresh bootstrap the
-# Service doesn't exist until the root Application fans out. Wait for it
-# to appear, then write the override. K3s CoreDNS imports
+# Must run *after* argocd.yml because the Gateway's Service is made by the
+# Cilium operator once the gateway Application has synced the Gateway: on a
+# fresh bootstrap it doesn't exist until the root Application fans out. Wait
+# for it to appear, then write the override. K3s CoreDNS imports
 # /etc/coredns/custom/*.server as separate server blocks from the
 # coredns-custom ConfigMap.
-- name: Wait for NGINX ingress Service to be provisioned by ArgoCD
+- name: Wait for the Gateway's Service to be made by Cilium
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Service
-    namespace: ingress-nginx
-    name: ingress-ingress-nginx-controller
-  register: cluster_ingress_svc
-  retries: 60
+    namespace: gateway
+    name: cilium-gateway-web
+  register: cluster_gateway_svc
+  # Longer than ingress-nginx needed: the Gateway waits on the Gateway API
+  # CRDs, the Cilium operator and the gateway Application's retries.
+  retries: 120
   delay: 5
-  until: cluster_ingress_svc.resources | length > 0
+  until: cluster_gateway_svc.resources | length > 0
 
 - name: Create CoreDNS split-horizon override for cluster domain
   kubernetes.core.k8s:
@@ -126,7 +130,7 @@
         cluster-domain.server: |
           argocd.{{ cluster_domain }}:53 {
             hosts {
-              {{ cluster_ingress_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
+              {{ cluster_gateway_svc.resources[0].spec.clusterIP }} argocd.{{ cluster_domain }}
             }
           }
   register: cluster_coredns_override
