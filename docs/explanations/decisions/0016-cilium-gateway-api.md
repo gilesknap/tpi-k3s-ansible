@@ -1,8 +1,9 @@
 # 16. Cilium's Gateway API Replaces ingress-nginx
 
 **Status:** Proposed. The first of two PRs is in: the Gateway runs beside
-ingress-nginx and carries no traffic until a tunnel route is moved to it.
-Phase 2 (removing ingress-nginx) marks this Accepted.
+ingress-nginx and carries every Cloudflare tunnel route, while ingress-nginx
+keeps the node addresses. Phase 2 (removing ingress-nginx) marks this
+Accepted.
 
 ## Context
 
@@ -11,8 +12,9 @@ fixes. Phase 1 (ADR 0015) made Cilium the CNI so that its Gateway API
 implementation, which runs on the Envoy that Cilium already deploys, can take
 over. The owner's decisions are in issue #781: oauth2-proxy stays the login
 gate, through Gateway API's ExternalAuth filter; the Gateway does not touch the
-node addresses until ingress-nginx is gone; and the move is done one hostname
-at a time, by pointing that hostname's Cloudflare tunnel route at the Gateway.
+node addresses until ingress-nginx is gone; and traffic moves by pointing the
+Cloudflare tunnel routes at the Gateway, which can be done, and undone, one
+hostname at a time.
 
 There are 16 Ingresses: echo, home, home-lan, home-tailnet, grafana,
 alertmanager, argocd, argocd-monitor, headlamp, hubble, minecraft, ntfy,
@@ -53,7 +55,7 @@ too big to vendor past the large-file hook). Two things apply it:
 
 On the running cluster the CRDs arrive through ArgoCD at the same time as the
 new Cilium values that restart the operator. If the operator wins that race,
-it must be restarted once (`docs/how-to/gateway-trial.md`).
+it must be restarted once (`docs/how-to/gateway.md`).
 
 ### Cilium
 
@@ -97,8 +99,8 @@ namespace:
 
 Cilium makes the Service `cilium-gateway-web` in `gateway`. Its in-cluster
 address, `http://cilium-gateway-web.gateway.svc.cluster.local`, is
-`local.gateway` in `cloudflare/locals.tf`: the trial points a tunnel route at
-it.
+`local.gateway` in `cloudflare/locals.tf`, the default for every tunnel
+route.
 
 ### Keeping the Gateway off nginx's ports
 
@@ -179,7 +181,7 @@ value sets it. The rest (echo, home, oauth2-proxy, Alertmanager) keep Envoy's
 is Envoy's idle timeout for a stream, 5 minutes for all of Cilium's Envoy
 (`envoy.streamIdleTimeoutDurationSeconds`): longer than ntfy's 180 s (its
 clients send keepalives every 45 s), shorter than `/mcp`'s 3600 s. MCP clients
-reconnect; the trial shows whether that matters.
+reconnect, and an MCP session from Claude worked in the trial.
 
 ### ExternalAuth against oauth2-proxy
 
@@ -256,8 +258,10 @@ port
 
 ## Consequences
 
-- Merging changes no route: the tunnel and the LAN still reach ingress-nginx,
-  and every Ingress renders as before. It does restart every Cilium agent and
+- The tunnel reaches the Gateway, while the node addresses (`home-lan`,
+  `home-tailnet` and the VPS) still reach ingress-nginx, and every Ingress
+  renders as before. Browsers at home use the tunnel too: the router has no
+  local `*.gkcluster.org` names. The change restarts every Cilium agent and
   the operator (new values), and oauth2-proxy (new upstream).
 - The `gateway` Application stays Progressing until phase 2 gives the Gateway
   an address; `/rebuild-cluster` counts that as healthy until then.
@@ -267,10 +271,13 @@ port
   back in while the GitHub session lasts. Nothing links to sign-out today.
 - Envoy does not merge `..` path segments as nginx does (Cilium sets no path
   normalisation), so `scrap.gkcluster.org/mcp/../x` matches the `/mcp` route,
-  which has no oauth2-proxy; scrap then sees the path unchanged. The trial
-  checks it.
-- The trial (`docs/how-to/gateway-trial.md`) moves one hostname at a time with
-  a one-line change in `cloudflare/locals.tf`, and back the same way.
+  which has no oauth2-proxy; scrap then sees the path unchanged.
+  `docs/how-to/gateway.md` has the check.
+- The trial moved all 13 tunnel routes to the Gateway in one `just cf-apply`
+  on 22 Nov 2026, and every app passed: sign-in on the five gated apps, ntfy
+  to a phone, scrap's MCP, Hubble and ArgoCD. A route can go back to
+  ingress-nginx with a one-line change in `cloudflare/locals.tf` until phase
+  2 (`docs/how-to/gateway.md`).
 - A new gated app needs its namespace added to the oauth2-proxy
   ReferenceGrant's list in `templates/gateway.yaml`, or it fails closed.
 - Gateway API upgrades follow Cilium's supported version and are not

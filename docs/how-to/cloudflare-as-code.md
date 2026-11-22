@@ -23,26 +23,26 @@ flowchart LR
         dns["DNS: one proxied CNAME per service"]
         waf["Zone settings, cache rule, rate limit"]
         access["Access: 5 apps, 4 policies"]
-        tunnel["Tunnel: 12 hostnames, then 404"]
+        tunnel["Tunnel: 13 hostnames, then 404"]
     end
     subgraph cluster["Cluster"]
         cfd["cloudflared (2 pods)"]
-        nginx["ingress-nginx"]
+        gw["Cilium's Gateway"]
     end
     client --> dns --> waf --> access --> tunnel
     cfd -- "dials out" --> tunnel
     tunnel -. "requests, down that connection" .-> cfd
-    cfd -- "HTTP" --> nginx
+    cfd -- "HTTP" --> gw
 ```
 
 - **The zone** `gkcluster.org`, with strict SSL, TLS 1.2 or later,
   "always use HTTPS" and HSTS (180 days, including subdomains).
 - **One remotely-managed tunnel.** Two `cloudflared` pods in the
   `cloudflared` namespace dial out to it, so the home router forwards no
-  ports. Every route points at ingress-nginx
-  (`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`),
-  never straight at a Service, so the ingress rules and oauth2-proxy
-  apply to everything.
+  ports. Every route points at Cilium's Gateway
+  (`http://cilium-gateway-web.gateway.svc.cluster.local`, `local.gateway`),
+  never straight at a Service, so the HTTPRoutes and oauth2-proxy
+  apply to everything ({doc}`/how-to/gateway`).
 - **Thirteen public hostnames**, the `tunnel_services` list in
   `cloudflare/locals.tf`. Each is a tunnel route and a proxied CNAME to
   the tunnel:
@@ -471,8 +471,9 @@ entry at Cloudflare.
    (echo's, and ArgoCD's in `argo-cd/ingress.yaml`, are always `false`),
    so every Ingress in the
    cluster carries `nginx.ingress.kubernetes.io/ssl-redirect: "false"`.
-   Cloudflare terminates TLS at its edge and `cloudflared`
-   hands ingress-nginx plain HTTP; with the redirect on, nginx would
+   The same value attaches the service's HTTPRoute to the Gateway's plain
+   HTTP listener. Cloudflare terminates TLS at its edge and `cloudflared`
+   hands the Gateway plain HTTP; with the redirect on, it would
    answer every request with a redirect to HTTPS, which the browser is
    already using, and the page would loop (`ERR_TOO_MANY_REDIRECTS`).
    Check with:
@@ -489,8 +490,8 @@ entry at Cloudflare.
    { name = "myservice" },
    ```
 
-   The route defaults to ingress-nginx. Keep it that way: a route
-   straight to a Service skips the ingress, so oauth2-proxy never runs
+   The route defaults to Cilium's Gateway. Keep it that way: a route
+   straight to a Service skips the HTTPRoute, so oauth2-proxy never runs
    and the `X-Auth-Request-Email` header is empty.
 
 3. **Access.** Nothing to add for an owner-only service: the

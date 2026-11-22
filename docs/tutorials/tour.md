@@ -105,7 +105,7 @@ list: Ansible installs it, and it then delivers everything else. More in
 
 Open <https://home.gkcluster.org>. The request goes to Cloudflare, which
 asks for a login first (Cloudflare Access: the owner's GitHub login), then
-down the Cloudflare Tunnel to ingress-nginx in the cluster. Invited viewers
+down the Cloudflare Tunnel to Cilium's Gateway in the cluster. Invited viewers
 are let through Cloudflare Access only to ArgoCD, Grafana and ArgoCD
 Monitor, not to the home page.
 
@@ -218,12 +218,12 @@ Jellyfin has its own user accounts. See {doc}`/how-to/jellyfin`.
 
 <https://echo.gkcluster.org> returns the request it received as JSON:
 method, path, headers. It is the quickest proof that Cloudflare, the
-tunnel, ingress-nginx and a pod all work, and it shows the headers that
-Cloudflare and ingress-nginx add on the way in.
+tunnel, the Gateway and a pod all work, and it shows the headers that
+Cloudflare and the Gateway's Envoy add on the way in.
 
 ## 7. When the front door is shut
 
-If the tunnel, Cloudflare or ingress-nginx is down, `kubectl` still works
+If the tunnel, Cloudflare or the Gateway is down, `kubectl` still works
 from the devcontainer, and the `tools` role has left three port-forward
 scripts in `/root/bin`:
 

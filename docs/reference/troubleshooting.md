@@ -458,10 +458,11 @@ Service Temporarily Unavailable from nginx.
 2. **Endpoints populated?** `kubectl get endpoints -n <namespace> <svc-name>`
 3. **Ingress resource correct?** `kubectl get ingress -n <namespace> -o yaml`
    (ingresses made by `additions/ingress` are named `<service>-ingress`)
-4. **Is the request reaching nginx?** `dig <service>.gkcluster.org` returns
-   Cloudflare addresses for every tunnelled name, not node addresses: the
-   path is Cloudflare, cloudflared, then ingress-nginx. A 404 that is not
-   nginx's means the hostname is not a tunnel route, and fell to the
+4. **Is the request reaching the Gateway?** `dig <service>.gkcluster.org`
+   returns Cloudflare addresses for every tunnelled name, not node addresses:
+   the path is Cloudflare, cloudflared, then Cilium's Gateway, which matches
+   the service's HTTPRoute (`kubectl get httproute -A`). A 404 that is not
+   Envoy's (`server: envoy`) means the hostname is not a tunnel route, and fell to the
    tunnel's catch-all ({ref}`cf-add-service`).
 
 ### Certificate not issuing
@@ -523,21 +524,24 @@ is reverted by the next `just cf-apply`.
 
 **Symptom:** Browser shows `ERR_TOO_MANY_REDIRECTS` on a tunnelled service.
 
-**Cause:** cloudflared talks plain HTTP to ingress-nginx
-(`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`,
-`local.ingress_nginx` in `cloudflare/locals.tf`). An Ingress that forces an
-SSL redirect answers every such request with a redirect to HTTPS, which
-comes back the same way.
+**Cause:** cloudflared talks plain HTTP to Cilium's Gateway
+(`http://cilium-gateway-web.gateway.svc.cluster.local`, `local.gateway` in
+`cloudflare/locals.tf`). A service with the SSL redirect on has its
+HTTPRoute on the HTTPS listener only, and a second route answers every
+plain HTTP request with a redirect to HTTPS, which comes back the same way.
 
-**Fix:** The Ingress must have `ssl-redirect: "false"`. The templates set
+**Fix:** The service's `additions/ingress` values must have
+`ssl_redirect: false`, which also sets the Ingress's `ssl-redirect: "false"`
+and leaves no `<service>-https-redirect` HTTPRoute. The templates set
 `ssl_redirect` from `enable_cloudflare_tunnel` (which is `true`); a new
 service's template must do the same. Check:
 
 ```bash
 kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep ssl-redirect
+kubectl get httproute -A | grep https-redirect   # should print nothing
 ```
 
-If it shows `"true"`, check that ArgoCD has synced the app. A route in
+If either shows the redirect on, check that ArgoCD has synced the app. A route in
 `locals.tf` must also keep the `http://` scheme.
 
 ### Tunnel not connecting
@@ -565,11 +569,12 @@ as down, and the public hostnames return a Cloudflare tunnel error.
 
 **Checklist:**
 
-1. **Route goes to the ingress?** Every entry of `tunnel_services` uses the
-   ingress controller's Service on port 80. A route straight to a service
-   also bypasses oauth2-proxy.
-2. **ingress-nginx running?** `kubectl get pods -n ingress-nginx`
-3. **Ingress resource exists** for the hostname? `kubectl get ingress -A`
+1. **Route goes to the Gateway?** Every entry of `tunnel_services` uses the
+   Gateway's Service on port 80 (`local.gateway`). A route straight to a
+   service also bypasses oauth2-proxy.
+2. **Envoy running?** `kubectl -n kube-system get ds cilium-envoy`
+3. **HTTPRoute exists and is accepted** for the hostname?
+   `kubectl get httproute -A`; {doc}`/how-to/gateway` has the checks.
 
 ### New tunnel hostname won't resolve on the LAN
 

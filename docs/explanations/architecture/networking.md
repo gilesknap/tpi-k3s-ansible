@@ -69,10 +69,10 @@ Two details matter to the cluster:
   (`roles/k3s/templates/k3s-server-config.yml.j2`); ingress-nginx is used
   because oauth2-proxy relies on its `auth-url` and `auth-signin`
   annotations.
-- **Gateway API, on trial:** Cilium's Gateway, which is to replace
-  ingress-nginx, runs beside it on Cilium's Envoy (see
-  {ref}`below <net-gateway-trial>`). It carries a hostname only once
-  that hostname's tunnel route points at it.
+- **Gateway API:** Cilium's Gateway, which is to replace ingress-nginx,
+  runs beside it on Cilium's Envoy and carries every tunnel route (see
+  {ref}`below <net-gateway>`). ingress-nginx still answers on the node
+  addresses.
 - **Load balancer:** K3s's ServiceLB publishes the ingress-nginx Service on
   ports 80 and 443 of every node that its pods can run on (Cilium serves the
   host ports and the load-balancer addresses in kube-proxy's place). Today that is
@@ -103,6 +103,7 @@ flowchart LR
 
     subgraph cluster["K3s cluster"]
         cfd["cloudflared x2"]
+        gw["Cilium's Gateway"]
         nginx["ingress-nginx x2"]
         relay["vps-relay pod:<br/>frpc + Tailscale"]
         apps["Web services"]
@@ -112,34 +113,34 @@ flowchart LR
 
     browser --> cfedge
     cfd -. "dials out" .-> cfedge
-    cfedge --> cfd --> nginx --> apps
+    cfedge --> cfd --> gw --> apps
     player --> vps
     relay -. "dials out over the tailnet" .-> vps
     vps --> relay --> mc
     lan --> jf
-    lan --> nginx
+    lan -- "home-lan, home-tailnet" --> nginx --> apps
 ```
 
 ### 1. The Cloudflare Tunnel: every web service
 
 Each web hostname is one entry in `tunnel_services` in
 `cloudflare/locals.tf`. An entry produces two things: a proxied CNAME to the
-tunnel, and a tunnel ingress rule that sends the hostname to
-`http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`.
+tunnel, and a tunnel ingress rule that sends the hostname to Cilium's Gateway,
+`http://cilium-gateway-web.gateway.svc.cluster.local`.
 Anything else that reaches the tunnel gets a 404.
 
 The `cloudflared` Deployment runs two replicas that never share a node. They
 only dial out to Cloudflare, so the router forwards no ports and the home IP
 address appears in no DNS record. Cloudflare ends TLS at its edge, applies
 Cloudflare Access, and passes the request down the tunnel; cloudflared hands
-it to ingress-nginx as plain HTTP inside the cluster.
+it to the Gateway as plain HTTP inside the cluster.
 
 ```mermaid
 sequenceDiagram
     participant B as Browser
     participant E as Cloudflare edge
     participant C as cloudflared
-    participant N as ingress-nginx
+    participant N as Gateway (Envoy)
     participant S as Service
 
     Note over C,E: tunnel opened by cloudflared, outbound only
@@ -147,7 +148,7 @@ sequenceDiagram
     E->>E: TLS ends here, Access checks the session
     E->>C: request down the tunnel
     C->>N: plain HTTP, Host header kept
-    N->>N: match the Ingress, run any auth-url subrequest
+    N->>N: match the HTTPRoute, run any ExternalAuth check
     N->>S: proxy to the Service
     S-->>B: response, back the same way
 ```
@@ -155,11 +156,13 @@ sequenceDiagram
 Two consequences of that last hop being HTTP:
 
 - `enable_cloudflare_tunnel: true` in `kubernetes-services/values.yaml` sets
-  `ssl-redirect: "false"` on every tunnelled Ingress. With the redirect on,
-  ingress-nginx would answer each tunnelled request with a redirect to HTTPS
-  and the browser would loop.
-- ArgoCD runs with `server.insecure: "true"` and lets ingress-nginx front it
-  like any other service, so it can go through the tunnel too.
+  `ssl-redirect: "false"` on every tunnelled Ingress, and attaches each
+  HTTPRoute to the Gateway's plain HTTP listener as well as its HTTPS one.
+  With the redirect on, each tunnelled request would be answered with a
+  redirect to HTTPS and the browser would loop.
+- ArgoCD runs with `server.insecure: "true"` and lets the Gateway (and
+  ingress-nginx) front it like any other service, so it can go through the
+  tunnel too.
 
 LAN clients take the same route. The public names resolve to Cloudflare from
 everywhere, so a laptop at home reaches `grafana.gkcluster.org` through the
@@ -170,13 +173,13 @@ The tunnel, its DNS records and the Access applications are OpenTofu code in
 `cloudflare/`, applied with `just cf-plan` and `just cf-apply`; see
 {doc}`/how-to/cloudflare-as-code`.
 
-(net-gateway-trial)=
-### Cilium's Gateway, on trial
+(net-gateway)=
+### Cilium's Gateway beside ingress-nginx
 
 ingress-nginx is retired upstream, and Cilium's Gateway API implementation
 is to replace it
-({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). For now
-the two run side by side:
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). Until
+ingress-nginx is removed the two run side by side:
 
 - **The Gateway** is `web` in the `gateway` namespace, with an HTTP listener
   on port 80 (what cloudflared sends) and an HTTPS one on 443 with the same
@@ -190,21 +193,24 @@ the two run side by side:
   carries keeps servicelb from publishing the Gateway on ports 80 and 443 of
   the nodes, which ingress-nginx holds. The Gateway's Service has only its
   ClusterIP, and the Gateway reports that it is waiting for an address.
-- **The trial** moves one tunnel route at a time to
+- **The tunnel goes to the Gateway.** Every route defaults to
   `http://cilium-gateway-web.gateway.svc.cluster.local` (`local.gateway` in
-  `cloudflare/locals.tf`), and back the same way:
-  {doc}`/how-to/gateway-trial`.
+  `cloudflare/locals.tf`). ingress-nginx serves only what reaches the node
+  addresses: the `home-lan` and `home-tailnet` probes and the VPS's
+  `/mcp`. A route can be sent back to ingress-nginx in an emergency:
+  {doc}`/how-to/gateway`.
 
 ```mermaid
 flowchart LR
     cfd["cloudflared x2"]
-    nginx["ingress-nginx<br/>(every route today)"]
+    lan["home-lan, home-tailnet,<br/>the VPS"]
+    nginx["ingress-nginx<br/>(node addresses)"]
     gw["Gateway web<br/>Cilium's Envoy"]
     oap["oauth2-proxy"]
     apps["Web services"]
 
-    cfd -->|"routes not moved"| nginx --> apps
-    cfd -. "routes moved for the trial" .-> gw --> apps
+    cfd -->|"every tunnel route"| gw --> apps
+    lan --> nginx --> apps
     gw -. "ExternalAuth, gated apps" .-> oap
     nginx -. "auth-url, gated apps" .-> oap
 ```

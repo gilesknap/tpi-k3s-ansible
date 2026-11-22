@@ -188,8 +188,9 @@ If services fail:
 4. **502/503** — diagnose cluster-side vs edge-side before touching pods:
    - `curl -o /dev/null -w '%{http_code}\n' https://<service>.<domain>` —
      a 302 to `*.cloudflareaccess.com` means the cluster-side path is fine.
-   - `kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --since=5m | grep <service>` —
-     only 401s mean oauth2-proxy is working as designed; 503s here mean a
-     real origin problem. No 503s in ingress logs + a 503 in the browser =
-     Cloudflare Access stale cookie (see gotcha above), not a pod issue.
+   - The tunnel goes to Cilium's Gateway, whose Envoy keeps no access log.
+     `kubectl get httproute -A` (each Accepted) and the checks in
+     `docs/how-to/gateway.md` show whether the cluster side answers; a
+     healthy cluster side + a 503 in the browser = Cloudflare Access stale
+     cookie (see gotcha above), not a pod issue.
    - Only after ruling those out: `kubectl get pods -A | grep -v Running`.
