@@ -450,11 +450,19 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
-<td><p>Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a <code class="docutils literal notranslate"><span class="pre">tls-san</span></code> on the server certificate and the kubeconfig uses it, so moving the control plane means changing <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and this record. Every address it resolves to must be the control plane’s</p></td>
+<td><p>Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane: the router’s DHCP template points it at <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>). Agents join it, it is a <code class="docutils literal notranslate"><span class="pre">tls-san</span></code> on the server certificate and the kubeconfig uses it, so moving the control plane means changing <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and pushing the router’s template. Every address it resolves to must be the control plane’s</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">root&#64;192.168.1.1</span></code></p></td>
 <td><p>SSH target (<code class="docutils literal notranslate"><span class="pre">user&#64;host</span></code>) of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>). Used by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane, by the control plane’s daily router backup (<code class="docutils literal notranslate"><span class="pre">etcd_backup_router</span></code>) and by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code>, through the <code class="docutils literal notranslate"><span class="pre">router</span></code> host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">router_dns_servers</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1.1.1.1,</span> <span class="pre">1.0.0.1]</span></code></p></td>
+<td><p>The upstream DNS servers the router’s dnsmasq forwards to (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code></p></td>
+<td><p><em>(list)</em></p></td>
+<td><p>The router’s static leases matched by MAC, for devices whose hostname this repo doesn’t set (the Turing Pi BMC, node01, the Raspberry Pis, …): <code class="docutils literal notranslate"><span class="pre">name</span></code> (optional), <code class="docutils literal notranslate"><span class="pre">ip</span></code> and <code class="docutils literal notranslate"><span class="pre">macs</span></code>. Hosts in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> with <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> are reserved by name instead (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
@@ -500,8 +508,8 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 <h2>Role-specific variables<a class="headerlink" href="#role-specific-variables" title="Link to this heading">#</a></h2>
 <section id="host-variables-hosts-yml">
 <h3>Host variables (<code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>)<a class="headerlink" href="#host-variables-hosts-yml" title="Link to this heading">#</a></h3>
-<p>Set per host: <code class="docutils literal notranslate"><span class="pre">slot_num</span></code>, <code class="docutils literal notranslate"><span class="pre">type</span></code>, <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>,
-<code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code> and <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>. They are
+<p>Set per host: <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>, <code class="docutils literal notranslate"><span class="pre">slot_num</span></code>, <code class="docutils literal notranslate"><span class="pre">type</span></code>, <code class="docutils literal notranslate"><span class="pre">root_dev</span></code>,
+<code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">workstation</span></code> and <code class="docutils literal notranslate"><span class="pre">node_ip</span></code>. They are
 described, with the values each node has, in <a class="reference internal" href="inventory.html"><span class="doc">Inventory reference</span></a>.</p>
 </section>
 <section id="tools-role-roles-tools-vars-main-yml">
@@ -707,6 +715,14 @@ described, with the values each node has, in <a class="reference internal" href=
 <td><p><code class="docutils literal notranslate"><span class="pre">https://github.com</span></code> / <code class="docutils literal notranslate"><span class="pre">github.com</span></code></p></td>
 <td><p>The public URL the controller must reach, and the public name the router’s DNS must answer, in the checks</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">router_dns_domain</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local_domain</span></code> without its dot (<code class="docutils literal notranslate"><span class="pre">lan</span></code>)</p></td>
+<td><p>The LAN’s DNS domain on the router: every reserved host resolves as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code>. The checks ask for <code class="docutils literal notranslate"><span class="pre">&lt;control_plane&gt;.lan</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">router_dhcp_apply</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Whether the <code class="docutils literal notranslate"><span class="pre">dhcp</span></code> change pushes the rendered <code class="docutils literal notranslate"><span class="pre">/etc/config/dhcp</span></code> when it differs. <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">dhcp-diff</span></code> sets it <code class="docutils literal notranslate"><span class="pre">false</span></code>: the diff only (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>)</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -744,8 +760,8 @@ documents each one; these are the ones a rebuild touches.</p>
 <td><p>Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, <code class="docutils literal notranslate"><span class="pre">0755</span></code> (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code></p></td>
-<td><p>The nodes and <code class="docutils literal notranslate"><span class="pre">ws03</span></code>, by IP</p></td>
-<td><p>The only hosts the exports admit. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[ws03,</span> <span class="pre">node02,</span> <span class="pre">node03,</span> <span class="pre">node04,</span> <span class="pre">nuc1,</span> <span class="pre">nuc2]</span></code></p></td>
+<td><p>The only hosts the exports admit, by name; each is exported by its <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>. A name not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> is left out</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code></p></td>
 <td><p>One per dataset</p></td>

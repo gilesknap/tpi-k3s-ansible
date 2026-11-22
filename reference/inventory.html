@@ -395,9 +395,10 @@
   <section id="inventory-reference">
 <h1>Inventory reference<a class="headerlink" href="#inventory-reference" title="Link to this heading">#</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> at the repo root is the only Ansible inventory (<code class="docutils literal notranslate"><span class="pre">ansible.cfg</span></code> names
-it, so no <code class="docutils literal notranslate"><span class="pre">-i</span></code> is needed). It lists machines by name, without addresses: the
-router’s DNS resolves <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and the rest, and the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role
-looks each one up as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">local_domain</span></code>).</p>
+it, so no <code class="docutils literal notranslate"><span class="pre">-i</span></code> is needed). Ansible reaches machines by name: the router’s DNS
+resolves <code class="docutils literal notranslate"><span class="pre">node02</span></code>, <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> and the rest, and the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role looks each
+one up as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">local_domain</span></code>). Each machine’s address is its
+<code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>, which the router reserves for its name (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>).</p>
 <p>For what the machines are, see <a class="reference internal" href="../explanations/architecture/hardware.html"><span class="doc">Hardware and nodes</span></a>.</p>
 <section id="groups">
 <h2>Groups<a class="headerlink" href="#groups" title="Link to this heading">#</a></h2>
@@ -493,37 +494,42 @@ commented-out sketch of one).</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Registers the agent with the <code class="docutils literal notranslate"><span class="pre">workstation=true:NoSchedule</span></code> taint and the <code class="docutils literal notranslate"><span class="pre">node-role=workstation</span></code> label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation (<a class="reference internal" href="../explanations/upgrade-model.html"><span class="doc">Automatic maintenance</span></a>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lan_ip</span></code></p></td>
+<td><p>Nodes and the NAS</p></td>
+<td><p>IPv4 address</p></td>
+<td><p>The host’s fixed LAN address. The router reserves it for the hostname the host sends in DHCP (the inventory name, which the flash role and the install stick set), serves <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code> for it, and points <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>’s (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p>IPv4 address</p></td>
 <td><p>Passed to the agent as <code class="docutils literal notranslate"><span class="pre">--node-ip</span></code>. Needed on a multi-homed node whose default route is on the wrong subnet</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">install_profile</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_profile</span></code></p></td>
 <td><p>x86 hosts, optional</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">server</span></code>, <code class="docutils literal notranslate"><span class="pre">desktop</span></code></p></td>
 <td><p>Gives the host an entry on the install stick (<a class="reference internal" href="../how-to/install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>); <code class="docutils literal notranslate"><span class="pre">desktop</span></code> adds <code class="docutils literal notranslate"><span class="pre">ubuntu-desktop-minimal</span></code> and NetworkManager</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code></p></td>
 <td><p>With <code class="docutils literal notranslate"><span class="pre">install_profile</span></code></p></td>
 <td><p>Disk serial</p></td>
 <td><p>The OS disk the install erases. The install refuses unless exactly one disk has this serial</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">install_disk_model</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_disk_model</span></code></p></td>
 <td><p>With <code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, optional</p></td>
 <td><p>Disk model</p></td>
 <td><p>Also checked against the OS disk’s model, as <code class="docutils literal notranslate"><span class="pre">lsblk</span></code> shows it</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code></p></td>
 <td><p>With <code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, required</p></td>
 <td><p>List of MACs, lower case</p></td>
 <td><p>The host’s network ports. The install refuses unless one is present, so the entry runs on this machine only</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">install_ansible_uid</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">install_ansible_uid</span></code></p></td>
 <td><p>With <code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, optional</p></td>
 <td><p>Number</p></td>
 <td><p>The <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account’s uid on the new install, so it still owns its home on a disk the install keeps (<code class="docutils literal notranslate"><span class="pre">nuc2</span></code>: 1001)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extra_mounts</span></code></p></td>
 <td><p>Optional</p></td>
 <td><p>List of <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">src</span></code>, <code class="docutils literal notranslate"><span class="pre">fstype</span></code>, <code class="docutils literal notranslate"><span class="pre">opts</span></code></p></td>
 <td><p>fstab entries for the node’s other disks. The <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role (<code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">servers</span></code>) writes them and mounts each one not marked <code class="docutils literal notranslate"><span class="pre">noauto</span></code>. It never formats a disk. <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> lists <code class="docutils literal notranslate"><span class="pre">/home</span></code> and <code class="docutils literal notranslate"><span class="pre">/mnt/backup</span></code></p></td>
@@ -635,8 +641,9 @@ control plane is not an inventory setting: <code class="docutils literal notrans
 </tbody>
 </table>
 </div>
-<p>The addresses are not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (the router’s comes from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>);
-they are the ones the router hands out,
+<p>The addresses are each host’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (the BMC’s is a MAC
+reservation in <code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code>, and the router’s comes from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>);
+the router hands them out (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>),
 and the sandbox allow-list (<code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>) repeats them.</p>
 <p>Slot 1 of the board is not in the inventory. It holds <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a CM4 that
 was the control plane before <code class="docutils literal notranslate"><span class="pre">node02</span></code> and is no longer part of the cluster.</p>
@@ -675,8 +682,8 @@ rows are done by hand, and <a class="reference internal" href="../how-to/node-op
 <td><p>Puts the Claude sandbox’s SSH key on the node’s <code class="docutils literal notranslate"><span class="pre">ansible</span></code> account. A flashed RK1 gets it from its cloud-init seed instead</p></td>
 </tr>
 <tr class="row-odd"><td><p>The router</p></td>
-<td><p>A fixed address and a DNS name for the node</p></td>
-<td><p>The inventory holds names only</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code> after adding <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> to <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+<td><p>Reserves the address for the node’s name and serves <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code> (<a class="reference internal" href="../how-to/router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>)</p></td>
 </tr>
 </tbody>
 </table>

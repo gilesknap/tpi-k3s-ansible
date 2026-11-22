@@ -292,7 +292,9 @@ the reasoning.
 The `/add-node` command in Claude Code walks through this checklist, asking
 for the details and making the edits. `nuc1` was the last node added this
 way; the examples use it. The node needs a fixed address and a name on the
-router, since the `known_hosts` role looks it up as `<node>.lan`. A node
+router, since the `known_hosts` role looks it up as `<node>.lan`: give it
+`lan_ip` in step 1 and push it to the router with `just router-dhcp`
+({doc}`/how-to/router-dhcp`), before the node first boots. A node
 outside the Turing Pi also needs Ubuntu installed (24.04 or later). Install
 an x86 node from the install stick ({doc}`/how-to/install-stick`): give it
 `install_profile`, `install_disk_serial` and `install_machine_macs` in
@@ -308,12 +310,15 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
    extra_nodes:
      hosts:
        ws03:
+         lan_ip: 192.168.1.10 # its fixed address, reserved for the name ws03
          nvidia_gpu_node: true # installs the NVIDIA container toolkit
          workstation: true # taint NoSchedule, never rebooted or upgraded for you
        nuc2:
+         lan_ip: 192.168.1.92
          node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
          intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
        nuc1: # single NIC
+         lan_ip: 192.168.1.91
          install_profile: desktop # the install stick's entry
          install_disk_serial: S5GFNG0N302036V
          install_machine_macs: ["1c:69:7a:61:65:d4"]
@@ -431,6 +436,11 @@ until a workload is given a `local-nvme` PV pinned to it.
    `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`
    (and in `rcon_allowed_nodes`, if any), and `standby_control_plane` in `group_vars/all.yml` if it named this
    node. Commit the change.
+5. Drop its reservation and its NFS exports: `just router-dhcp`
+   ({doc}`/how-to/router-dhcp`), then
+   `ansible-playbook pb_nas.yml --tags nas_nfs` (its name stays in
+   `nas_nfs_clients` but is left out once it is not in `hosts.yml`; remove
+   it there too if it is gone for good).
 
 (what-never-applies-to-ws03)=
 ## What never applies to ws03

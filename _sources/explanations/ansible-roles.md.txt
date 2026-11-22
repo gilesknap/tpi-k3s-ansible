@@ -701,7 +701,7 @@ that are blank (or with `nas_force`). See {doc}`/how-to/nas-ubuntu-zfs`.
 ## `router` — the OpenWrt router (separate playbook)
 
 **Runs on:** `router` (the `routers` group) only, from `pb_router.yml`
-**Tags:** `check`, `change`, `drill`, `restore`, each with `never`
+**Tags:** `check`, `change`, `dhcp-diff`, `drill`, `restore`, each with `never`
 
 Task files for the home router, which has no Python: `raw` on the router,
 and everything else delegated to the controller or the control plane.
@@ -710,8 +710,14 @@ and everything else delegated to the controller or the control plane.
 the NAS, a snapshot and a watchdog on the router that restores it unless
 the checks pass), `drill.yml` proves the revert, and `reboot_wait.yml`
 waits out a reboot. A change is another task file of the role, named by
-`router_change_tasks` and run between `arm` and `confirm`.
-See {doc}`/how-to/router-recovery`.
+`router_change_tasks` and run between `arm` and `confirm`. The one there is
+`dhcp.yml`: it renders the router's whole `/etc/config/dhcp` from
+`templates/dhcp.j2` (reservations by name from each host's `lan_ip` in
+`hosts.yml`, by MAC from `router_dhcp_hosts`, and `k3s_api_name` pointing
+at `control_plane`), diffs it against the router's copy, and only if they
+differ pushes it with `script` and reloads dnsmasq and odhcpd;
+`--tags dhcp-diff` runs it with `router_dhcp_apply: false`, the diff only.
+See {doc}`/how-to/router-recovery` and {doc}`/how-to/router-dhcp`.
 
 ---
 

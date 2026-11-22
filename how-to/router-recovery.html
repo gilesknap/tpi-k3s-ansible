@@ -356,6 +356,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-dhcp.html">Manage the router’s DNS and DHCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
@@ -431,7 +432,8 @@ running OpenWrt 23.05.5, at 192.168.1.1 (<code class="docutils literal notransla
 <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). It carries every household device’s traffic and
 DNS, not only the cluster’s. This page covers its daily backup, changing
 it with a revert that fires by itself unless the change is confirmed,
-restoring it with a playbook, and getting it back when SSH to it is gone.</p>
+restoring it with a playbook, and getting it back when SSH to it is gone.
+Its DNS and DHCP configuration is code: <a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code> reaches the router as the <code class="docutils literal notranslate"><span class="pre">router</span></code> host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>
 (user and address from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>), with <code class="docutils literal notranslate"><span class="pre">raw</span></code>, as it has no Python.
 Every play in it is tagged <code class="docutils literal notranslate"><span class="pre">never</span></code>, so a run names one with <code class="docutils literal notranslate"><span class="pre">--tags</span></code>. In
@@ -527,7 +529,9 @@ stdout and stderr at <code class="docutils literal notranslate"><span class="pre
 child of init in a session of its own, with no terminal: the SSH
 session ending, or dying with the network, does not reach it. The play
 prints the time the revert fires (controller time).</p></li>
-<li><p><strong>The change:</strong> the task file <code class="docutils literal notranslate"><span class="pre">roles/router/tasks/&lt;name&gt;.yml</span></code>. With no
+<li><p><strong>The change:</strong> the task file <code class="docutils literal notranslate"><span class="pre">roles/router/tasks/&lt;name&gt;.yml</span></code>, e.g.
+<code class="docutils literal notranslate"><span class="pre">dhcp</span></code>, which pushes the router’s DNS and DHCP from a template
+(<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>). With no
 <code class="docutils literal notranslate"><span class="pre">router_change_tasks</span></code> the play skips this and only arms, checks and
 disarms, a harmless test of the guard.</p></li>
 <li><p><strong>The checks</strong>, from the controller (<code class="docutils literal notranslate"><span class="pre">roles/router/tasks/check.yml</span></code>):</p>
@@ -535,7 +539,10 @@ disarms, a harmless test of the guard.</p></li>
 <li><p>the internet answers: HTTPS to <code class="docutils literal notranslate"><span class="pre">router_check_url</span></code> (<code class="docutils literal notranslate"><span class="pre">https://github.com</span></code>);</p></li>
 <li><p>the router’s DNS answers a public name (<code class="docutils literal notranslate"><span class="pre">host</span> <span class="pre">-t</span> <span class="pre">A</span> <span class="pre">github.com</span> <span class="pre">192.168.1.1</span></code>);</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>) resolves via the router to node02’s
-address, read from node02 itself;</p></li>
+<code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (192.168.1.82);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">node02.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">control_plane</span></code> in the <code class="docutils literal notranslate"><span class="pre">lan</span></code> domain) resolves via the
+router to the same address: a static name, served from the router’s
+DHCP configuration (<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>);</p></li>
 <li><p>the cluster API answers on port 6443 (any HTTP status: anonymous
 requests get 401);</p></li>
 <li><p>a new SSH login to the router works.</p></li>
@@ -581,6 +588,10 @@ the NAS from step 1 is the way back then.</p>
 </section>
 <section id="drill-the-revert">
 <h3>Drill the revert<a class="headerlink" href="#drill-the-revert" title="Link to this heading">#</a></h3>
+<p>Push the DNS and DHCP template once first (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code>,
+<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>): until then the drill’s reboot loses the <code class="docutils literal notranslate"><span class="pre">.lan</span></code>
+names, and the <code class="docutils literal notranslate"><span class="pre">&lt;control_plane&gt;.lan</span></code> check fails for hours although the
+guard worked.</p>
 <p>Proves the guard on the real router. It arms the guard, writes a note
 into the router’s system settings (<code class="docutils literal notranslate"><span class="pre">uci</span> <span class="pre">set</span> <span class="pre">system.&#64;system[0].notes='router-guard</span> <span class="pre">drill</span> <span class="pre">&lt;time&gt;'</span></code>,
 committed), deliberately does not confirm it, waits for the watchdog to

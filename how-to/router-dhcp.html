@@ -1,0 +1,777 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Manage the router’s DNS and DHCP &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/router-dhcp';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Upgrade K3s" href="upgrade-k3s.html" />
+    <link rel="prev" title="Node operations" href="node-operations.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Recovery</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="paper-kit.html">Print the paper recovery kit</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rebuild-from-nothing.html">Rebuild from nothing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-recovery.html">Back up and recover the router</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Manage the router’s DNS and DHCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Manage the router’s DNS and DHCP</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="manage-the-router-s-dns-and-dhcp">
+<h1>Manage the router’s DNS and DHCP<a class="headerlink" href="#manage-the-router-s-dns-and-dhcp" title="Link to this heading">#</a></h1>
+<p>The router (OpenWrt at 192.168.1.1, <a class="reference internal" href="router-recovery.html"><span class="doc">Back up and recover the router</span></a>) hands
+out the LAN’s addresses and answers its DNS with dnsmasq. Its whole
+<code class="docutils literal notranslate"><span class="pre">/etc/config/dhcp</span></code> is code: the template
+<code class="docutils literal notranslate"><span class="pre">roles/router/templates/dhcp.j2</span></code>, filled from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>. Change those, preview the diff, and push it with
+confirm-or-revert. Don’t edit the router’s copy in LuCI or with <code class="docutils literal notranslate"><span class="pre">uci</span></code>: the
+next push puts the template’s version back.</p>
+<p>In the Claude sandbox add
+<code class="docutils literal notranslate"><span class="pre">--private-key</span> <span class="pre">/root/.config/claude-ssh/id_ed25519</span></code> to the commands on this
+page (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code> passes it on).</p>
+<section id="what-the-file-holds">
+<h2>What the file holds<a class="headerlink" href="#what-the-file-holds" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Section</p></th>
+<th class="head"><p>Comes from</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">dnsmasq</span></code>: OpenWrt’s defaults (<code class="docutils literal notranslate"><span class="pre">domain</span> <span class="pre">'lan'</span></code>, <code class="docutils literal notranslate"><span class="pre">rebind_protection</span></code>, a 1000-entry cache, …)</p></td>
+<td><p>The template itself</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">list</span> <span class="pre">server</span></code>: the upstream DNS servers, 1.1.1.1 and 1.0.0.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">router_dns_servers</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">list</span> <span class="pre">rebind_domain</span> <span class="pre">'gkcluster.org'</span></code>: the cluster’s public names may answer with LAN addresses, which rebind protection would otherwise drop</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">dhcp</span> <span class="pre">'lan'</span></code> and <code class="docutils literal notranslate"><span class="pre">'wan'</span></code>, <code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">odhcpd</span></code>: the DHCPv4 pool (.100 to .249, 12 h leases), IPv6 RA and DHCPv6</p></td>
+<td><p>The template itself</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">host</span></code> by name: node02, node03, node04, ws03, nuc1, nuc2 and gknas</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> of each host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">host</span></code> by MAC: turingpi (the BMC), node01, GX7050, GoogleTV, pi1 to pi4 and two unnamed devices</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">domain</span></code>: <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>, pointing at <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> (node02, 192.168.1.82)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="reserved-by-name-or-by-mac">
+<h3>Reserved by name, or by MAC<a class="headerlink" href="#reserved-by-name-or-by-mac" title="Link to this heading">#</a></h3>
+<p>A host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> with a <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> gets a reservation with a name and an
+address but no MAC. OpenWrt turns that into <code class="docutils literal notranslate"><span class="pre">--dhcp-host=node02,192.168.1.82</span></code>,
+which dnsmasq matches on the hostname the client sends with its DHCP
+request. The cluster’s machines send theirs: the flash role (cloud-init) and
+the install stick set it from <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, and systemd-networkd and
+NetworkManager send it by default. So a replacement board or a new NIC gets
+the same address with no router change, as long as the new machine is
+installed under the inventory name, and once the old machine’s lease has
+gone (see “Replace a machine” below).</p>
+<p>The trade-off: any device on the LAN that asks with a node’s hostname gets
+the node’s address, as a device that copies a MAC does with a MAC
+reservation. Don’t run an old and a new board with the same name at once:
+whichever asks second gets an address from the pool. For the same reason,
+cable only one of the NAS’s two ports.</p>
+<p>Devices whose hostname this repo doesn’t set (the Turing Pi BMC, the
+Raspberry Pis, the TV and the rest) are matched by MAC, in
+<code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code>. An entry there has:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: optional; served as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code>. The two entries without one
+(192.168.1.195 and 192.168.1.141) are marked <code class="docutils literal notranslate"><span class="pre">#</span> <span class="pre">unnamed</span></code>: give them
+names once you know what they are.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ip</span></code>: the address it always gets.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">macs</span></code>: a list, in lower case; the template writes them in upper case,
+as LuCI does.</p></li>
+</ul>
+<p>Every reservation has <code class="docutils literal notranslate"><span class="pre">option</span> <span class="pre">dns</span> <span class="pre">'1'</span></code>, so the router serves <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.lan</span></code>
+from its configuration whether or not the device holds a lease. Without
+it, a name lived only in the lease file (<code class="docutils literal notranslate"><span class="pre">/tmp/dhcp.leases</span></code>, in RAM), so
+after a router reboot <code class="docutils literal notranslate"><span class="pre">node02.lan</span></code> and the rest failed to resolve until
+each device renewed its lease, up to six hours later.</p>
+<p>The file starts with a comment that says it is generated. <code class="docutils literal notranslate"><span class="pre">uci</span> <span class="pre">commit</span></code> and
+LuCI rewrite the file without comments, so after any change made on the
+router the preview shows at least that comment coming back.</p>
+</section>
+</section>
+<section id="preview">
+<h2>Preview<a class="headerlink" href="#preview" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>dhcp-diff
+</pre></div>
+</div>
+<p>It reads the router’s <code class="docutils literal notranslate"><span class="pre">/etc/config/dhcp</span></code>, renders the template on the
+controller and prints a unified diff (the router’s copy first). It changes
+nothing and arms nothing. “No difference” means the router already has
+this configuration.</p>
+</section>
+<section id="apply">
+<h2>Apply<a class="headerlink" href="#apply" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>router-dhcp
+</pre></div>
+</div>
+<p>It runs the preview, asks <code class="docutils literal notranslate"><span class="pre">Apply</span> <span class="pre">this</span> <span class="pre">to</span> <span class="pre">the</span> <span class="pre">router,</span> <span class="pre">with</span> <span class="pre">confirm-or-revert?</span> <span class="pre">[y/N]</span></code>, and on <code class="docutils literal notranslate"><span class="pre">y</span></code> runs</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>change<span class="w"> </span>-e<span class="w"> </span><span class="nv">router_change_tasks</span><span class="o">=</span>dhcp
+</pre></div>
+</div>
+<p>That backs the router up to the NAS and arms the revert (as in
+<a class="reference internal" href="router-recovery.html"><span class="doc">Back up and recover the router</span></a>, “Change the router safely”), then runs
+<code class="docutils literal notranslate"><span class="pre">roles/router/tasks/dhcp.yml</span></code>: it renders and compares again and, only if
+the files differ, writes the new file beside the old and renames it over
+<code class="docutils literal notranslate"><span class="pre">/etc/config/dhcp</span></code>, then reloads dnsmasq and odhcpd. dnsmasq restarts if
+its generated configuration changed (any reservation, its name included,
+or an option); a change to <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> alone only makes it reread its hosts
+files. DNS pauses for a moment either way. With no difference it pushes
+and reloads nothing.</p>
+<p>The checks then decide. Besides the internet, a public name, <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>,
+the cluster API and SSH, they ask the router for <code class="docutils literal notranslate"><span class="pre">node02.lan</span></code>
+(<code class="docutils literal notranslate"><span class="pre">control_plane</span></code> plus <code class="docutils literal notranslate"><span class="pre">router_dns_domain</span></code>), and expect node02’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>
+for both, so a configuration that stops dnsmasq or loses the static names
+fails, and the router reverts. They reach node02 at its <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>, never by
+a name the router serves, so they still work while its DNS is broken.</p>
+<p>A device moves to a new reservation only when it next renews its lease
+(halfway through the 12 hours) or reconnects. The guard cannot see a host
+that does not send its hostname until then: after the first push, which
+moves the nodes from MAC to name, check each one keeps its address once it
+has renewed. <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">root&#64;192.168.1.1</span> <span class="pre">cat</span> <span class="pre">/tmp/dhcp.leases</span></code> lists each lease’s
+address. Its name is the one the client sent for a reservation by name, and
+the reservation’s own for one by MAC, so check the address.</p>
+<p>Make this first push before any <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">drill</span></code>
+(<a class="reference internal" href="router-recovery.html"><span class="doc">Back up and recover the router</span></a>): until then the router’s reboot loses the
+<code class="docutils literal notranslate"><span class="pre">.lan</span></code> names, and the <code class="docutils literal notranslate"><span class="pre">&lt;control_plane&gt;.lan</span></code> check fails for hours although
+the guard worked.</p>
+</section>
+<section id="add-a-device">
+<h2>Add a device<a class="headerlink" href="#add-a-device" title="Link to this heading">#</a></h2>
+<p><strong>A cluster node or another host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>:</strong> give it <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> (an
+address outside the pool: .2 to .99, or .250 to .254, not already used)
+and push. Its hostname must be its inventory name. The rest of the
+node checklist is in <a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory reference</span></a>.</p>
+<p><strong>Anything else:</strong></p>
+<ol class="arabic">
+<li><p>Find its MAC: in LuCI under <strong>Status &gt; Overview</strong>, “Active DHCP Leases”,
+or with <code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">root&#64;192.168.1.1</span> <span class="pre">cat</span> <span class="pre">/tmp/dhcp.leases</span></code>.</p></li>
+<li><p>Add an entry to <code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>, with a free
+address outside the pool:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">printer</span><span class="p p-Indicator">,</span><span class="nt"> ip</span><span class="p">:</span><span class="w"> </span><span class="nv">192.168.1.40</span><span class="p p-Indicator">,</span><span class="nt"> macs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;aa:bb:cc:dd:ee:ff&quot;</span><span class="p p-Indicator">]}</span>
+</pre></div>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code>, check the diff adds one <code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">host</span></code>, and answer <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p></li>
+<li><p>The device gets the address at its next renewal; reconnect it to have it
+now. <code class="docutils literal notranslate"><span class="pre">printer.lan</span></code> resolves at once.</p></li>
+</ol>
+</section>
+<section id="change-an-address">
+<h2>Change an address<a class="headerlink" href="#change-an-address" title="Link to this heading">#</a></h2>
+<p>Edit the host’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> (or the entry’s <code class="docutils literal notranslate"><span class="pre">ip</span></code>) and push. The device keeps
+its old address until it renews, so reconnect it.</p>
+<p>Changing the control plane’s own address is not covered here: k3s and its
+embedded etcd need changes too. The guard reaches the control plane at its
+<code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>, so a push that changes it stops at the backup and changes
+nothing. Moving the control plane to another node is
+<a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the control plane</span></a>. The NAS exports take
+their addresses from <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> too: run <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span> <span class="pre">--tags</span> <span class="pre">nas_nfs</span></code>
+afterwards. These still repeat addresses by hand, so change them with it:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Where</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>The NAS, 192.168.1.3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, <code class="docutils literal notranslate"><span class="pre">nfs_csi.server</span></code> and <code class="docutils literal notranslate"><span class="pre">nas.monitoring.targets</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/jellyfin/values.yaml</span></code>; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code> and <code class="docutils literal notranslate"><span class="pre">worlds_server</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/backups/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>node02, 192.168.1.82</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>node01 to node04 and nuc1</p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">except</span></code> list of <code class="docutils literal notranslate"><span class="pre">minecraft.worlds.rcon_allowed_cidrs</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>nuc2, 192.168.1.92</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>; the <code class="docutils literal notranslate"><span class="pre">vps_relay</span></code> forward’s <code class="docutils literal notranslate"><span class="pre">target</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Any cluster node</p></td>
+<td><p>Its <code class="docutils literal notranslate"><span class="pre">allow-ip</span></code> line in <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code> (<a class="reference internal" href="../reference/inventory.html"><span class="doc">Inventory reference</span></a>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="replace-a-machine">
+<h2>Replace a machine<a class="headerlink" href="#replace-a-machine" title="Link to this heading">#</a></h2>
+<p>A node’s new board or NIC needs no change here: installed with the
+inventory name, it asks with that name and gets its <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>, but only once
+the old board’s lease has gone. dnsmasq won’t give a name-only
+reservation’s address to a new MAC while another MAC holds a lease on it
+(up to 12 hours), so until then the new board gets a pool address, and
+<code class="docutils literal notranslate"><span class="pre">node02.lan</span></code> still points at the reserved one. Either wait for the old
+lease to run out, reboot the router (leases live in RAM), or remove the old
+board’s line from the lease file with dnsmasq stopped:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>root@192.168.1.1
+/etc/init.d/dnsmasq<span class="w"> </span>stop
+vi<span class="w"> </span>/tmp/dhcp.leases<span class="w">    </span><span class="c1"># delete the line with the old board&#39;s MAC</span>
+/etc/init.d/dnsmasq<span class="w"> </span>start
+</pre></div>
+</div>
+<p>Then restart networking on the new board, or reboot it. A device reserved
+by MAC needs its new MAC in <code class="docutils literal notranslate"><span class="pre">router_dhcp_hosts</span></code>.</p>
+</section>
+<section id="remove-a-device">
+<h2>Remove a device<a class="headerlink" href="#remove-a-device" title="Link to this heading">#</a></h2>
+<p>Delete its entry (or its <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>) and push. Its name stops resolving at
+once; it keeps its address until its lease runs out, then gets one from
+the pool.</p>
+</section>
+<section id="k3s-lan-and-the-control-plane">
+<h2>k3s.lan and the control plane<a class="headerlink" href="#k3s-lan-and-the-control-plane" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> record always points at <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>’s <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>. To move
+the API name, change <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> and push;
+there is no separate record to edit.</p>
+<p>In a control plane recovery, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> repoints <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>
+straight away with <code class="docutils literal notranslate"><span class="pre">uci</span></code>, without the guard
+(<a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the control plane</span></a>). That is fine in an emergency, but
+the template doesn’t know about it: once <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> names the new node
+and its router backup timer is installed (the guard’s first step runs that
+backup on the control plane), run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code>. The diff should show
+only the comment coming back, as the template now points <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> at the
+same node; a diff that moves <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> back means <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> still
+names the old node. Fix that before answering <code class="docutils literal notranslate"><span class="pre">y</span></code>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="node-operations.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Node operations</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="upgrade-k3s.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Upgrade K3s</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-the-file-holds">What the file holds</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reserved-by-name-or-by-mac">Reserved by name, or by MAC</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preview">Preview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#apply">Apply</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-a-device">Add a device</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#change-an-address">Change an address</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replace-a-machine">Replace a machine</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remove-a-device">Remove a device</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-lan-and-the-control-plane">k3s.lan and the control plane</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/router-dhcp.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/router-dhcp.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

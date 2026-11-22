@@ -356,6 +356,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-dhcp.html">Manage the router’s DNS and DHCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
@@ -657,6 +658,18 @@ ssh<span class="w"> </span>ansible@node04<span class="w"> </span>getent<span cla
 </div>
 <p>This is safe now: the role sees the restored server and skips the install.
 It stops if the DNS record does not point at the new node yet.</p>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span></code> edits the router behind the back of its template
+(<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>), which points <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> at <code class="docutils literal notranslate"><span class="pre">control_plane</span></code>’s
+<code class="docutils literal notranslate"><span class="pre">lan_ip</span></code>. Once <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> names the new node
+and the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> tag above has installed its router backup timer, bring the
+router back in line with the template:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>router-dhcp
+</pre></div>
+</div>
+<p>The diff should show only the template’s header comment coming back. If it
+moves <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> back to the old node, <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> is wrong: answer <code class="docutils literal notranslate"><span class="pre">n</span></code>
+and fix it, or the push breaks the cluster’s API name (the guard’s checks
+would then fail and revert it).</p>
 </section>
 <section id="check-the-cluster">
 <h2>5. Check the cluster<a class="headerlink" href="#check-the-cluster" title="Link to this heading">#</a></h2>

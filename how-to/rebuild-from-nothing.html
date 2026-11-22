@@ -791,6 +791,7 @@ window.addEventListener("load", load);</script>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-dhcp.html">Manage the router’s DNS and DHCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
@@ -1104,7 +1105,7 @@ untried.</p></li>
 <td><p>Drop it on a single-NIC box</p></td>
 </tr>
 <tr class="row-odd"><td><p>Fixed addresses</p></td>
-<td><p>DHCP leases on the router; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code>, <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, reserved on the router; <code class="docutils literal notranslate"><span class="pre">nfs.server</span></code>, <code class="docutils literal notranslate"><span class="pre">vps_relay.forwards</span></code>, <code class="docutils literal notranslate"><span class="pre">k3s.etcd_metrics_endpoints</span></code></p></td>
 <td><p>Keep the old addresses on the new router and almost nothing changes</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
@@ -1161,8 +1162,9 @@ the <code class="docutils literal notranslate"><span class="pre">minecraft</span
 <li><p><code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>: <code class="docutils literal notranslate"><span class="pre">nas_pool_disks</span></code>, <code class="docutils literal notranslate"><span class="pre">nas_netplan_ethernets</span></code>,
 <code class="docutils literal notranslate"><span class="pre">nas_qnap_ec_driver:</span> <span class="pre">false</span></code> (unless it is a QNAP again); leave
 <code class="docutils literal notranslate"><span class="pre">nas_backup_pool_disks</span></code> empty until there is a backup disk. Leave
-<code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code> and <code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code> alone: they name <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> at .92,
-and the entries for the missing hosts admit nobody.</p></li>
+<code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code> and <code class="docutils literal notranslate"><span class="pre">nas_nfs_exports</span></code> alone: the exports take each
+client’s address from its <code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>, leave out the hosts no
+longer there, and drop the ws03-only exports.</p></li>
 <li><p>The defaults that keep in step with these for a standalone
 <code class="docutils literal notranslate"><span class="pre">helm</span> <span class="pre">template</span></code>: <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/local-storage/values.yaml</span></code> and

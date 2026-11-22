@@ -51,7 +51,7 @@
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Upgrade K3s" href="upgrade-k3s.html" />
+    <link rel="next" title="Manage the router’s DNS and DHCP" href="router-dhcp.html" />
     <link rel="prev" title="Add or remove a service" href="add-remove-services.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -356,6 +356,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-dhcp.html">Manage the router’s DNS and DHCP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
@@ -720,7 +721,9 @@ the reasoning.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">/add-node</span></code> command in Claude Code walks through this checklist, asking
 for the details and making the edits. <code class="docutils literal notranslate"><span class="pre">nuc1</span></code> was the last node added this
 way; the examples use it. The node needs a fixed address and a name on the
-router, since the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role looks it up as <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code>. A node
+router, since the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role looks it up as <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code>: give it
+<code class="docutils literal notranslate"><span class="pre">lan_ip</span></code> in step 1 and push it to the router with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code>
+(<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>), before the node first boots. A node
 outside the Turing Pi also needs Ubuntu installed (24.04 or later). Install
 an x86 node from the install stick (<a class="reference internal" href="install-stick.html"><span class="doc">Install Ubuntu from the install stick</span></a>): give it
 <code class="docutils literal notranslate"><span class="pre">install_profile</span></code>, <code class="docutils literal notranslate"><span class="pre">install_disk_serial</span></code> and <code class="docutils literal notranslate"><span class="pre">install_machine_macs</span></code> in
@@ -734,12 +737,15 @@ only the variables it needs:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extra_nodes</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">hosts</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ws03</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">lan_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.10</span><span class="w"> </span><span class="c1"># its fixed address, reserved for the name ws03</span>
 <span class="w">      </span><span class="nt">nvidia_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># installs the NVIDIA container toolkit</span>
 <span class="w">      </span><span class="nt">workstation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># taint NoSchedule, never rebooted or upgraded for you</span>
 <span class="w">    </span><span class="nt">nuc2</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">lan_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span>
 <span class="w">      </span><span class="nt">node_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.92</span><span class="w"> </span><span class="c1"># multi-homed: force K3s onto this subnet</span>
 <span class="w">      </span><span class="nt">intel_gpu_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Iris Xe: runs the Intel GPU device plugin</span>
 <span class="w">    </span><span class="nt">nuc1</span><span class="p">:</span><span class="w"> </span><span class="c1"># single NIC</span>
+<span class="w">      </span><span class="nt">lan_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.91</span>
 <span class="w">      </span><span class="nt">install_profile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">desktop</span><span class="w"> </span><span class="c1"># the install stick&#39;s entry</span>
 <span class="w">      </span><span class="nt">install_disk_serial</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">S5GFNG0N302036V</span>
 <span class="w">      </span><span class="nt">install_machine_macs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;1c:69:7a:61:65:d4&quot;</span><span class="p p-Indicator">]</span>
@@ -848,6 +854,11 @@ kubectl<span class="w"> </span>delete<span class="w"> </span>node<span class="w"
 <code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>, its entry in <code class="docutils literal notranslate"><span class="pre">rcon_allowed_cidrs</span></code>
 (and in <code class="docutils literal notranslate"><span class="pre">rcon_allowed_nodes</span></code>, if any), and <code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code> in <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code> if it named this
 node. Commit the change.</p></li>
+<li><p>Drop its reservation and its NFS exports: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-dhcp</span></code>
+(<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>), then
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_nas.yml</span> <span class="pre">--tags</span> <span class="pre">nas_nfs</span></code> (its name stays in
+<code class="docutils literal notranslate"><span class="pre">nas_nfs_clients</span></code> but is left out once it is not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>; remove
+it there too if it is gone for good).</p></li>
 </ol>
 </section>
 <section id="what-never-applies-to-ws03">
@@ -906,11 +917,11 @@ nothing passes that key automatically.</p>
       </div>
     </a>
     <a class="right-next"
-       href="upgrade-k3s.html"
+       href="router-dhcp.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Upgrade K3s</p>
+        <p class="prev-next-title">Manage the router’s DNS and DHCP</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
