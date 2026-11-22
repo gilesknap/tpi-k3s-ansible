@@ -47,9 +47,8 @@ sources:
   Claude ingest (photo reading and text enrichment, with a daily spend cap),
   the nightly and monthly backup CronJobs and the public-pages site.
 - **`kubernetes-services/additions/scrap/`**: the `/mcp`-only Ingress, the
-  SealedSecrets, the `scrap-public` namespace, the static NFS volumes, the
-  nightly copy of the newest backup to nuc2, and the frozen volume from before
-  Litestream.
+  SealedSecrets, the `scrap-public` namespace, the static NFS volumes and the
+  nightly copy of the newest backup to nuc2.
 - **`kubernetes-services/additions/ingress/`**: the main Ingress for
   `scrap.gkcluster.org`, behind oauth2-proxy.
 
@@ -362,29 +361,10 @@ From outside the LAN and the tailnet:
 scrap first ran pinned to nuc2, with its database on a `local-nvme` PV. It
 moved to Litestream on NFS in one ArgoCD sync (ADR 0013): a one-off Job backed
 up the live database and restored it into the NFS data volume, then the chart
-switched mode. The move is done and checked. What is still in the code:
-
-- **The frozen copy.** The old claim `scrap-data` and its PV `scrap-local`
-  (`local_storage.scrap`, `/home/k8s-data/scrap` on nuc2, `Retain`) are kept,
-  rendered by `additions/scrap/templates/legacy-pvc.yaml`. Nothing mounts
-  them. Leave the `local_storage.scrap` entry in place: removing it would
-  prune the PV under its bound claim. The directory on nuc2 is one of the
-  local data paths that must not be wiped.
-- **The migration Job**, `additions/scrap/templates/migrate-job.yaml`, behind
-  `legacy.migrate` in `templates/scrap.yaml`. It is `false`, so the Job is not
-  rendered and a rebuild does not depend on nuc2. If it were ever turned on
-  again it would do nothing: it exits when the NFS data volume already holds a
-  database or a replica.
-- **`just scrap-cutover-check`** (`scripts/scrap-cutover-check nuc2`). It
-  compares the frozen copy with the live database, reading both sides only:
-  the old database over SSH opened `immutable=1`, the live one through
-  `kubectl exec`. It lists every revision, capture and page that is newer in
-  the frozen copy, and exits 0 when there are none. It passed after the
-  cut-over; it remains useful as proof before the frozen copy is ever
-  retired.
+switched mode. The old volume was kept as a frozen copy until the move was
+proven, then retired on 22 Nov 2026, with the migration Job and
+`just scrap-cutover-check`. Its folder on nuc2, `/home/k8s-data/scrap`, is no
+longer used and can be deleted by hand.
 
 Do not revert the pull request that made the move: scrap has taken writes
-since, and a revert would go back to the frozen copy and silently drop them.
-The old dynamic backups claim, `scrap-backups`, is no longer rendered and is
-gone from the cluster; the Job copied its complete runs to `backups/scrap`
-first.
+since, and the copy it would go back to is gone.

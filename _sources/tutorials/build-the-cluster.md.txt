@@ -390,7 +390,7 @@ Work down this list; each item depends on the ones above it.
 
 4. **Volumes.** Every PV is `Bound`, including the static `local-nvme`
    ones (`grafana-local`, `prometheus-local`, `jellyfin-local`,
-   `scrap-backup-copy-local`, `scrap-local`) and the NFS ones.
+   `scrap-backup-copy-local`) and the NFS ones.
 
    ```bash
    kubectl get pv
