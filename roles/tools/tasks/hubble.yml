@@ -1,0 +1,33 @@
+# hubble CLI 1.20.x pairs with the cluster's Cilium 1.20.5 (its hubble-relay);
+# the CLI is backwards compatible with older relays, so bump it with Cilium.
+- name: Get hubble 1.20.4 binary
+  ansible.builtin.get_url:
+    url: https://github.com/cilium/hubble/releases/download/v1.20.4/hubble-linux-amd64.tar.gz
+    dest: /tmp/hubble-1.20.4-linux-amd64.tar.gz
+    mode: "0644"
+    checksum: "sha256:78ed68bd56d244bf2691ae4ba186d78e87e6814df58573d6de6089d0e5d7ddd8"
+    validate_certs: true
+
+- name: Extract hubble binary
+  ansible.builtin.unarchive:
+    src: /tmp/hubble-1.20.4-linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: true
+    mode: "0755"
+
+# the bin folder persists through container rebuilds because it is a volume
+- name: Move hubble binary to the path
+  ansible.builtin.copy:
+    src: /tmp/hubble
+    dest: "{{ bin_dir }}/hubble"
+    mode: "0755"
+  become: true
+
+# this step is lost on rebuild of the container, so is the only step
+# that causes a change after container rebuild
+- name: Make hubble available to all
+  ansible.builtin.file:
+    src: "{{ bin_dir }}/hubble"
+    path: /usr/local/bin/hubble
+    state: link
+  become: true

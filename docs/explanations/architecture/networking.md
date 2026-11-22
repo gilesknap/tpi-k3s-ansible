@@ -59,9 +59,10 @@ Two details matter to the cluster:
   when the root Application syncs, and owns it from then on.
 - **Hubble:** Cilium's flow visibility. Hubble Relay gathers flows from
   every agent, and the Hubble UI shows them at `hubble.gkcluster.org`,
-  behind oauth2-proxy (admins only). From a shell,
+  behind oauth2-proxy (admins only). From a shell, `just hubble observe`
+  shows every node's flows through the Relay;
   `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe`
-  shows one node's flows. Flow, drop, DNS and policy-verdict metrics go to
+  shows one node's. Flow, drop, DNS and policy-verdict metrics go to
   Prometheus, with the chart's Grafana dashboards.
 - **Gateway API:** Cilium's Gateway serves every web app, on the Envoy
   that Cilium runs on each node (the `cilium-envoy` DaemonSet), so a drain

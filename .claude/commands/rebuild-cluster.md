@@ -485,7 +485,10 @@ If any SealedSecrets show `False` with "no key could decrypt":
       it prints `200 0`.
 - [ ] Hubble shows flows: the Hubble UI at `https://hubble.<domain>` (needs
       the `hubble` tunnel route: see "Cloudflare prerequisite"), or
-      `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20`.
+      `just hubble observe --last 20` (the CLI comes from the `tools` role:
+      `ansible-playbook pb_all.yml --tags tools` if `hubble` is missing),
+      and `just hubble status` reports `Connected Nodes: N/N`, with N the
+      node count from `kubectl get nodes --no-headers | wc -l`.
 - [ ] The backups egress rule: both off-site jobs succeed
       (`just offsite-backup-now` and `just offsite-backup-now b2`), and a
       test pod in `backups` reaches Drive and B2 but nothing else:
