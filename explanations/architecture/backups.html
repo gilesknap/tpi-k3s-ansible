@@ -1053,7 +1053,16 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <td><p>Yes</p></td>
 <td><p><a class="reference internal" href="../../how-to/backup-restore.html#sealed-secrets-key-backup"><span class="std std-ref">Sealed Secrets key backup</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS</p></td>
+<tr class="row-even"><td><p>OpenWrt router configuration (<code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code>)</p></td>
+<td><p>The router, 192.168.1.1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">router-backup.timer</span></code> on node02 (<code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role), and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-backup</span></code> before a change</p></td>
+<td><p>23:00 daily</p></td>
+<td><p>NAS <code class="docutils literal notranslate"><span class="pre">backups/router/</span></code></p></td>
+<td><p>30</p></td>
+<td><p>Yes, before leaving node02</p></td>
+<td><p><a class="reference internal" href="../../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS</p></td>
 <td><p>The NAS</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">backups</span></code>): rclone</p></td>
 <td><p>05:30 daily</p></td>
@@ -1062,7 +1071,7 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <td><p>Yes</p></td>
 <td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS, again</p></td>
+<tr class="row-even"><td><p>Everything under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS, again</p></td>
 <td><p>The NAS</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> CronJob (<code class="docutils literal notranslate"><span class="pre">backups</span></code>), once <code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.enabled</span></code>: rclone</p></td>
 <td><p>05:45 daily</p></td>
@@ -1071,7 +1080,7 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <td><p>Yes</p></td>
 <td><p><a class="reference internal" href="../../how-to/backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>OpenTofu state for Cloudflare</p></td>
+<tr class="row-odd"><td><p>OpenTofu state for Cloudflare</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code> in the working copy (gitignored)</p></td>
 <td><p>By hand</p></td>
 <td><p>After a change</p></td>
@@ -1080,7 +1089,7 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <td><p>Yes, by OpenTofu with a passphrase</p></td>
 <td><p><a class="reference internal" href="../../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (Grafana’s built-in admin password)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> (Grafana’s built-in admin password)</p></td>
 <td><p>A Secret in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code></p></td>
 <td><p>Not backed up</p></td>
 <td><p>n/a</p></td>
@@ -1089,7 +1098,7 @@ The private key is not on the cluster, the NAS, Drive or B2.</p></li>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>The age private key</p></td>
+<tr class="row-odd"><td><p>The age private key</p></td>
 <td><p>Offline</p></td>
 <td><p>The owner, in two places</p></td>
 <td><p>n/a</p></td>
@@ -1263,7 +1272,9 @@ delays it, and a job interrupted that way is retried.</p>
 node-exporter’s textfile collector. Four rules in
 <code class="docutils literal notranslate"><span class="pre">additions/grafana/etcd-backup-rules.yaml</span></code> fire on a failed run, a bundle
 older than 36 hours, no success ever, or missing metrics. Alertmanager
-pushes these to the phone through ntfy.</p></li>
+pushes these to the phone through ntfy. The router backup writes
+<code class="docutils literal notranslate"><span class="pre">router_backup_*</span></code> metrics the same way, with the same four alerts in
+<code class="docutils literal notranslate"><span class="pre">router-backup-rules.yaml</span></code>.</p></li>
 <li><p><strong>Off-site:</strong> <code class="docutils literal notranslate"><span class="pre">OffsiteBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">OffsiteBackupStale</span></code> and
 <code class="docutils literal notranslate"><span class="pre">OffsiteBackupNeverSucceeded</span></code> (<code class="docutils literal notranslate"><span class="pre">offsite-backup-rules.yaml</span></code>) fire from
 kube-state-metrics, per CronJob, so a failure on Drive or on B2 alerts

@@ -1,0 +1,769 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Back up and recover the router &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/router-recovery';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Manage Cloudflare: DNS, tunnel and Access" href="cloudflare-as-code.html" />
+    <link rel="prev" title="Re-flash and rebuild" href="reflash-rebuild.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Recovery</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="paper-kit.html">Print the paper recovery kit</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rebuild-from-nothing.html">Rebuild from nothing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Back up and recover the router</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Back up and recover the router</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="back-up-and-recover-the-router">
+<h1>Back up and recover the router<a class="headerlink" href="#back-up-and-recover-the-router" title="Link to this heading">#</a></h1>
+<p>The home router is a MikroTik hEX S (RouterBOARD 760iGS, MediaTek MT7621)
+running OpenWrt 23.05.5, at 192.168.1.1 (<code class="docutils literal notranslate"><span class="pre">dns_router</span></code> in
+<code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). It carries every household device’s traffic and
+DNS, not only the cluster’s. This page covers its daily backup, restoring
+it with a playbook, and getting it back when SSH to it is gone.</p>
+<p>A backup is a <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code> tarball: everything under <code class="docutils literal notranslate"><span class="pre">/etc/config/</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/etc/passwd</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/shadow</span></code> (the root password hash), the Dropbear host
+keys and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>, the LuCI TLS key, and the PPPoE login of the
+WAN in <code class="docutils literal notranslate"><span class="pre">/etc/config/network</span></code>. (The hEX S has no Wi-Fi radio, so there are
+no Wi-Fi keys.) It is only ever stored encrypted, and <strong>never goes in the
+repository</strong>, decrypted or not.</p>
+<section id="how-the-backup-runs">
+<h2>How the backup runs<a class="headerlink" href="#how-the-backup-runs" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role installs a second timer next to the etcd backup on
+the control plane (node02), <code class="docutils literal notranslate"><span class="pre">router-backup.timer</span></code>. Every day at 23:00
+Europe/London it:</p>
+<ol class="arabic simple">
+<li><p>connects to the router as <code class="docutils literal notranslate"><span class="pre">root</span></code> with its own SSH key,
+<code class="docutils literal notranslate"><span class="pre">/etc/k3s-etcd-backup/router_ed25519</span></code>, which never leaves node02. The
+router accepts that key for one command only: its line in
+<code class="docutils literal notranslate"><span class="pre">/etc/dropbear/authorized_keys</span></code> (Dropbear does not read <code class="docutils literal notranslate"><span class="pre">/root/.ssh</span></code>)
+starts <code class="docutils literal notranslate"><span class="pre">command=&quot;sysupgrade</span> <span class="pre">-b</span> <span class="pre">-&quot;,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty</span></code>,
+so whatever node02 asks for, the router runs <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span> <span class="pre">-</span></code>. The
+router’s host key is pinned in <code class="docutils literal notranslate"><span class="pre">/etc/k3s-etcd-backup/router_known_hosts</span></code>;
+the role reads it from the router over the connection Ansible already
+trusts;</p></li>
+<li><p>holds the tarball in RAM (<code class="docutils literal notranslate"><span class="pre">/run</span></code>), checks it lists <code class="docutils literal notranslate"><span class="pre">etc/config/network</span></code>,
+and encrypts it with age to <code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>, the key every
+backup uses;</p></li>
+<li><p>copies it to the NAS as
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/router/router-&lt;UTC</span> <span class="pre">time&gt;.tar.gz.age</span></code>,
+checks the copy’s checksum, and keeps the newest 30;</p></li>
+<li><p>writes <code class="docutils literal notranslate"><span class="pre">router_backup_*</span></code> metrics for node-exporter.</p></li>
+</ol>
+<p>The two jobs share a lock, so they never use the NAS mount at once. The
+off-site jobs copy <code class="docutils literal notranslate"><span class="pre">backups/router/</span></code> to Google Drive and B2 each morning
+with the rest of <code class="docutils literal notranslate"><span class="pre">backups/</span></code> (<a class="reference internal" href="backup-restore.html#offsite-backup"><span class="std std-ref">Off-site copy to Google Drive</span></a>). The alerts
+<code class="docutils literal notranslate"><span class="pre">RouterBackupFailed</span></code>, <code class="docutils literal notranslate"><span class="pre">RouterBackupStale</span></code>, <code class="docutils literal notranslate"><span class="pre">RouterBackupNeverSucceeded</span></code>
+and <code class="docutils literal notranslate"><span class="pre">RouterBackupMetricsMissing</span></code> (<code class="docutils literal notranslate"><span class="pre">additions/grafana/router-backup-rules.yaml</span></code>)
+reach the phone through ntfy.</p>
+<p>The role authorizes the key on the router with <code class="docutils literal notranslate"><span class="pre">raw</span></code> (the router has no
+Python), adding the line only if it is missing. If the control plane
+moves, or is re-flashed (a new key), the old line stays, still limited to
+<code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code> and harmless; delete it by hand if you like
+(<a class="reference internal" href="recover-control-plane.html"><span class="doc">Recover the control plane</span></a>).</p>
+<section id="set-it-up">
+<h3>Set it up<a class="headerlink" href="#set-it-up" title="Link to this heading">#</a></h3>
+<p>Done once, and again only on a new NAS or a new control plane:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_nas.yml<span class="w"> </span>--tags<span class="w"> </span>nas_datasets<span class="w">   </span><span class="c1"># creates backups/router, owned by 65534</span>
+ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--limit<span class="w"> </span>node02<span class="w"> </span>--tags<span class="w"> </span>etcd_backup
+just<span class="w"> </span>router-backup
+</pre></div>
+</div>
+</section>
+<section id="back-up-now">
+<h3>Back up now<a class="headerlink" href="#back-up-now" title="Link to this heading">#</a></h3>
+<p>Run this <strong>before every change to the router</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>router-backup
+</pre></div>
+</div>
+<p>It starts the same service on the control plane, waits for it and prints
+its log and metrics. To list the backups:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/bigdisk/k8s-cluster/backups/router
+</pre></div>
+</div>
+</section>
+</section>
+<section id="restore-with-the-playbook">
+<h2>Restore with the playbook<a class="headerlink" href="#restore-with-the-playbook" title="Link to this heading">#</a></h2>
+<p>For a router that still answers SSH, e.g. after a bad change.</p>
+<ol class="arabic">
+<li><p>Copy the backup off the NAS and decrypt it with the offline age key
+(where it is kept: <a class="reference internal" href="#decrypt-router-backup"><span class="std std-ref">2. Decrypt it</span></a> below):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">f</span><span class="o">=</span><span class="k">$(</span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>ls<span class="w"> </span>/bigdisk/k8s-cluster/backups/router<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;\.age$&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span><span class="k">)</span>
+ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>cat<span class="w"> </span><span class="s2">&quot;/bigdisk/k8s-cluster/backups/router/</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span>
+<span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$f</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/shm/router.tar.gz<span class="o">)</span>
+</pre></div>
+</div>
+</li>
+<li><p>Restore it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>restore<span class="w"> </span>-e<span class="w"> </span><span class="nv">router_restore_file</span><span class="o">=</span>/dev/shm/router.tar.gz
+</pre></div>
+</div>
+<p>The playbook runs on the controller with your own ssh to <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>,
+the same way <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span></code> does. It lists the files in the backup
+and asks you to type <code class="docutils literal notranslate"><span class="pre">yes</span></code> (anything else stops it), then pipes the file to
+<code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span> <span class="pre">-</span></code> on the router (no scp or copy in <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> needed),
+reboots the router and waits for its SSH to come back. The internet is
+down for everyone for a minute or two.</p>
+</li>
+<li><p>Delete <code class="docutils literal notranslate"><span class="pre">/dev/shm/router.tar.gz</span></code>.</p></li>
+</ol>
+<p>The backup holds the router’s own host keys and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>, so SSH
+works afterwards as before.</p>
+<p>A restore only unpacks the tarball over <code class="docutils literal notranslate"><span class="pre">/</span></code>: files added since the backup
+(a new <code class="docutils literal notranslate"><span class="pre">/etc/nftables.d/*.nft</span></code> or <code class="docutils literal notranslate"><span class="pre">/etc/config/*</span></code>) stay. To undo a bad
+change that added files, reset the saved configuration first with
+<code class="docutils literal notranslate"><span class="pre">firstboot</span> <span class="pre">-y</span></code> and a reboot (as in failsafe, below), then restore.</p>
+<p>An older backup also brings back its <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>. If the control
+plane has been rebuilt since, its backup key is not in them: rerun
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--limit</span> <span class="pre">node02</span> <span class="pre">--tags</span> <span class="pre">etcd_backup</span></code> afterwards
+to authorize it again.</p>
+</section>
+<section id="when-ssh-to-the-router-is-gone">
+<h2>When SSH to the router is gone<a class="headerlink" href="#when-ssh-to-the-router-is-gone" title="Link to this heading">#</a></h2>
+<p>When a bad firewall, network or Dropbear change locks everyone out, use
+OpenWrt’s <strong>failsafe mode</strong>: a boot that ignores the saved configuration,
+brings up only the first LAN port at 192.168.1.1, and runs SSH with no
+password. Nothing in it needs the internet, but this does need a laptop
+with <code class="docutils literal notranslate"><span class="pre">ssh</span></code>, <code class="docutils literal notranslate"><span class="pre">age</span></code> and the age key, and a network cable.</p>
+<section id="get-the-backup-and-the-key-while-you-can">
+<h3>1. Get the backup and the key while you can<a class="headerlink" href="#get-the-backup-and-the-key-while-you-can" title="Link to this heading">#</a></h3>
+<p>Do this first: once the laptop is cabled to the router alone, it reaches
+nothing else.</p>
+<ul class="simple">
+<li><p><strong>The newest backup</strong> is on the NAS (gknas, 192.168.1.3), in
+<code class="docutils literal notranslate"><span class="pre">/bigdisk/k8s-cluster/backups/router/</span></code>, <code class="docutils literal notranslate"><span class="pre">0600</span></code> to <code class="docutils literal notranslate"><span class="pre">65534</span></code>, so it needs
+<code class="docutils literal notranslate"><span class="pre">sudo</span></code>. With the router down there is no DHCP: give the laptop a static
+address on the LAN, e.g. 192.168.1.250/24, then copy it as in the
+playbook restore above. Whether the NAS answers depends on what broke:
+the router’s LAN bridge, or a switch between the laptop and the NAS, still
+carries the traffic if only the router’s own services are gone.</p></li>
+<li><p><strong>If the NAS cannot be reached</strong>, the same files are off site, which
+needs the internet (a phone’s hotspot): Google Drive
+<code class="docutils literal notranslate"><span class="pre">home-cluster-offsite/backups/router/</span></code>, or the B2 bucket
+<code class="docutils literal notranslate"><span class="pre">gk-cluster-offsite/backups/router/</span></code> (<a class="reference internal" href="backup-restore.html#offsite-b2"><span class="std std-ref">Second off-site copy: Backblaze B2</span></a>). The files are
+as on the NAS (already <code class="docutils literal notranslate"><span class="pre">.age</span></code>, uploaded as they are).</p></li>
+<li><p><strong>An older backup</strong>, if the newest already holds the bad change: they are
+named by UTC time, newest last; pick the one from before it.</p></li>
+</ul>
+</section>
+<section id="decrypt-it">
+<span id="decrypt-router-backup"></span><h3>2. Decrypt it<a class="headerlink" href="#decrypt-it" title="Link to this heading">#</a></h3>
+<p>The age private key is offline, not on the cluster: the owner’s
+<code class="docutils literal notranslate"><span class="pre">~/k3s-etcd-backup.agekey</span></code>, kept in two places
+(<a class="reference internal" href="backup-restore.html"><span class="doc">Backup and restore</span></a>, “One-time setup”), and the first page of
+the paper kit (<a class="reference internal" href="paper-kit.html"><span class="doc">Print the paper recovery kit</span></a>), which can be typed into
+<code class="docutils literal notranslate"><span class="pre">key.txt</span></code> (<code class="docutils literal notranslate"><span class="pre">age-keygen</span> <span class="pre">-y</span> <span class="pre">key.txt</span></code> must print
+<code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code>). The laptop needs <code class="docutils literal notranslate"><span class="pre">age</span></code> already installed:
+with the internet down it cannot fetch it (the devcontainer has it).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">umask</span><span class="w"> </span><span class="m">077</span><span class="p">;</span><span class="w"> </span>age<span class="w"> </span>-d<span class="w"> </span>-i<span class="w"> </span>~/k3s-etcd-backup.agekey<span class="w"> </span>router-&lt;time&gt;.tar.gz.age<span class="w"> </span>&gt;<span class="w"> </span>/dev/shm/router.tar.gz<span class="o">)</span>
+tar<span class="w"> </span>-tzf<span class="w"> </span>/dev/shm/router.tar.gz<span class="w">   </span><span class="c1"># etc/config/network, etc/shadow, ...</span>
+</pre></div>
+</div>
+</section>
+<section id="boot-the-router-into-failsafe-mode">
+<h3>3. Boot the router into failsafe mode<a class="headerlink" href="#boot-the-router-into-failsafe-mode" title="Link to this heading">#</a></h3>
+<p>The hEX S has two LEDs besides the port lights: the blue power LED, which
+OpenWrt uses for boot and failsafe, and a blue SFP link LED. It has two
+buttons, <code class="docutils literal notranslate"><span class="pre">reset</span></code> and <code class="docutils literal notranslate"><span class="pre">mode</span></code>. During boot OpenWrt waits 2 seconds for a button press; any
+button press then enters failsafe.</p>
+<ol class="arabic simple">
+<li><p>Set the laptop to the static address 192.168.1.2/24 (no gateway) and
+cable it to <strong>port 2</strong> of the router, the first LAN port: failsafe brings
+up only that one (port 1 is the WAN; ports 3 to 5 stay off). Unplug
+whatever else was in port 2.</p></li>
+<li><p>Pull the router’s power, and plug it back in. <strong>Do not hold reset while
+plugging in</strong>: before OpenWrt starts, the button belongs to MikroTik’s
+RouterBOOT bootloader, which uses a press at power-on to boot its
+backup loader or to wait for a Netinstall over the network instead of
+starting OpenWrt. (What RouterBOOT does on this exact board with each
+hold time is not verified here; avoid it.)</p></li>
+<li><p>Watch the power LED. When OpenWrt’s preinit starts it blinks fast (about
+5 times a second): <strong>press and release reset</strong> then, within 2 seconds.
+Pressing it a few times during the fast blinking is fine.</p></li>
+<li><p>In failsafe the LED blinks faster still (about 10 times a second) and
+keeps blinking. If it settles into a slower blink (about 2.5 times a
+second), the window was missed and the router is booting normally: go
+back to step 2.</p></li>
+</ol>
+<p>Once the router is up normally, do not hold reset for 5 seconds or more:
+on release that is a factory reset (<code class="docutils literal notranslate"><span class="pre">/etc/rc.button/reset</span></code> runs
+<code class="docutils literal notranslate"><span class="pre">jffs2reset</span></code>). A short press reboots it.</p>
+</section>
+<section id="restore-from-failsafe">
+<h3>4. Restore from failsafe<a class="headerlink" href="#restore-from-failsafe" title="Link to this heading">#</a></h3>
+<p>Failsafe makes new host keys in RAM and has no root password, so skip the
+known_hosts check for this session only:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>-o<span class="w"> </span><span class="nv">UserKnownHostsFile</span><span class="o">=</span>/dev/null<span class="w"> </span>-o<span class="w"> </span><span class="nv">StrictHostKeyChecking</span><span class="o">=</span>no<span class="w"> </span>root@192.168.1.1<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s1">&#39;cat &gt; /tmp/router.tar.gz&#39;</span><span class="w"> </span>&lt;<span class="w"> </span>/dev/shm/router.tar.gz
+ssh<span class="w"> </span>-o<span class="w"> </span><span class="nv">UserKnownHostsFile</span><span class="o">=</span>/dev/null<span class="w"> </span>-o<span class="w"> </span><span class="nv">StrictHostKeyChecking</span><span class="o">=</span>no<span class="w"> </span>root@192.168.1.1
+</pre></div>
+</div>
+<p>On the router:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>mount_root<span class="w">                         </span><span class="c1"># mount the saved configuration (the overlay) read-write</span>
+sysupgrade<span class="w"> </span>-r<span class="w"> </span>/tmp/router.tar.gz<span class="w">   </span><span class="c1"># unpacks the backup over /</span>
+sync
+reboot<span class="w"> </span>-f
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span></code> only unpacks the tarball over <code class="docutils literal notranslate"><span class="pre">/</span></code>, as
+<code class="docutils literal notranslate"><span class="pre">tar</span> <span class="pre">-C</span> <span class="pre">/</span> <span class="pre">-xzf</span> <span class="pre">/tmp/router.tar.gz</span></code> would, so files added since the backup
+stay (see “Restore with the playbook”; <code class="docutils literal notranslate"><span class="pre">firstboot</span> <span class="pre">-y</span></code> below clears them).
+As there, an older backup may need the control plane’s backup key
+authorized again. The router boots with the
+restored configuration, its own host keys and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>; set the
+laptop back to DHCP and check the internet, DNS (<code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> resolves) and
+<code class="docutils literal notranslate"><span class="pre">ssh</span> <span class="pre">root&#64;192.168.1.1</span></code>.</p>
+<p>If the router still does not come up right (the overlay itself is damaged,
+or the backup holds the fault), go back into failsafe and reset to defaults
+instead, then restore an older backup:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>firstboot<span class="w"> </span>-y<span class="w">    </span><span class="c1"># erases the saved configuration: OpenWrt defaults, 192.168.1.1, no root password</span>
+reboot<span class="w"> </span>-f
+</pre></div>
+</div>
+<p>After that reboot the router has OpenWrt’s default configuration: LAN on
+ports 2 to 5 at 192.168.1.1 with DHCP, no WAN login, no root password and
+new host keys. Restore an older backup into it with the same two <code class="docutils literal notranslate"><span class="pre">ssh</span></code>
+commands as above, without <code class="docutils literal notranslate"><span class="pre">mount_root</span></code>, then <code class="docutils literal notranslate"><span class="pre">reboot</span></code>; or upload it in
+LuCI (<code class="docutils literal notranslate"><span class="pre">http://192.168.1.1</span></code>), <strong>System &gt; Backup / Flash Firmware &gt;
+Restore backup</strong>.</p>
+<p>Delete <code class="docutils literal notranslate"><span class="pre">/dev/shm/router.tar.gz</span></code> when done, and run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-backup</span></code>
+once the cluster is back.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="reflash-rebuild.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Re-flash and rebuild</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="cloudflare-as-code.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Manage Cloudflare: DNS, tunnel and Access</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-backup-runs">How the backup runs</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-it-up">Set it up</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#back-up-now">Back up now</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-with-the-playbook">Restore with the playbook</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-ssh-to-the-router-is-gone">When SSH to the router is gone</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#get-the-backup-and-the-key-while-you-can">1. Get the backup and the key while you can</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#decrypt-it">2. Decrypt it</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#boot-the-router-into-failsafe-mode">3. Boot the router into failsafe mode</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-from-failsafe">4. Restore from failsafe</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/router-recovery.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/router-recovery.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

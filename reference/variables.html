@@ -454,7 +454,7 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">root&#64;192.168.1.1</span></code></p></td>
-<td><p>SSH target of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>), used only by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane</p></td>
+<td><p>SSH target (<code class="docutils literal notranslate"><span class="pre">user&#64;host</span></code>) of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>). Used by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane, by the control plane’s daily router backup (<code class="docutils literal notranslate"><span class="pre">etcd_backup_router</span></code>) and by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span> <span class="pre">--tags</span> <span class="pre">restore</span></code> (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
@@ -655,6 +655,26 @@ described, with the values each node has, in <a class="reference internal" href=
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_textfile_dir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/var/lib/node_exporter/textfile_collector</span></code></p></td>
 <td><p>node-exporter textfile directory for the job’s metrics</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
+<td><p>SSH target of the router whose <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code> backup a second timer, <code class="docutils literal notranslate"><span class="pre">router-backup.timer</span></code>, encrypts to the same recipient; empty for none (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router_dest_subdir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">backups/router</span></code></p></td>
+<td><p>Its destination below the mount point</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router_keep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">30</span></code></p></td>
+<td><p>Router backups kept on the NAS</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router_on_calendar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*-*-*</span> <span class="pre">23:00:00</span> <span class="pre">Europe/London</span></code></p></td>
+<td><p>Its systemd <code class="docutils literal notranslate"><span class="pre">OnCalendar</span></code> schedule</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router_key</span></code> / <code class="docutils literal notranslate"><span class="pre">etcd_backup_router_known_hosts</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/etc/k3s-etcd-backup/router_ed25519</span></code> / <code class="docutils literal notranslate"><span class="pre">router_known_hosts</span></code></p></td>
+<td><p>The job’s SSH key, made on the control plane, and the router’s pinned host key</p></td>
 </tr>
 </tbody>
 </table>

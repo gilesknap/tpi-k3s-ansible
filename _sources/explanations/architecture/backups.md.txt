@@ -79,6 +79,7 @@ flowchart LR
 | etcd snapshot, K3s server token, node password, K3s config | node02 | `k3s-etcd-backup.timer` (systemd, `etcd_backup` role) | 23:15 daily | NAS `backups/etcd/` | 14 bundles | Yes, before leaving the node | {doc}`/how-to/recover-control-plane` |
 | Pre-upgrade etcd snapshots | node02 | Taken by the K3s upgrade Plan; shipped by the same timer | Before each K3s patch upgrade | NAS `backups/etcd/pre-upgrade/` | 4 | Yes | {doc}`/how-to/recover-control-plane` |
 | Sealed Secrets private keys | `kube-system` Secrets | The same timer | 23:15 daily | NAS `backups/etcd/sealed-secrets-keys/` | 14 dated copies, plus the current one | Yes | {ref}`sealed-secrets-key-backup` |
+| OpenWrt router configuration (`sysupgrade -b`) | The router, 192.168.1.1 | `router-backup.timer` on node02 (`etcd_backup` role), and `just router-backup` before a change | 23:00 daily | NAS `backups/router/` | 30 | Yes, before leaving node02 | {doc}`/how-to/router-recovery` |
 | Everything under `backups/` on the NAS | The NAS | `offsite-backup` CronJob (`backups`): rclone | 05:30 daily | Drive `home-cluster-offsite/backups/` | Until gone from the NAS for 180 days, and never the 4 newest of a series | Yes | {ref}`offsite-backup` |
 | Everything under `backups/` on the NAS, again | The NAS | `offsite-backup-b2` CronJob (`backups`), once `offsite_backup.b2.enabled`: rclone | 05:45 daily | B2 bucket `backups/`, Object Lock in compliance mode | As on Drive; and every version, deleted or overwritten, for 30 days after its upload, whatever any key does | Yes | {ref}`offsite-b2` |
 | OpenTofu state for Cloudflare | `cloudflare/terraform.tfstate` in the working copy (gitignored) | By hand | After a change | The owner's own copy | n/a | Yes, by OpenTofu with a passphrase | {doc}`/how-to/cloudflare-as-code` |
@@ -212,7 +213,9 @@ delays it, and a job interrupted that way is retried.
   node-exporter's textfile collector. Four rules in
   `additions/grafana/etcd-backup-rules.yaml` fire on a failed run, a bundle
   older than 36 hours, no success ever, or missing metrics. Alertmanager
-  pushes these to the phone through ntfy.
+  pushes these to the phone through ntfy. The router backup writes
+  `router_backup_*` metrics the same way, with the same four alerts in
+  `router-backup-rules.yaml`.
 - **Off-site:** `OffsiteBackupFailed`, `OffsiteBackupStale` and
   `OffsiteBackupNeverSucceeded` (`offsite-backup-rules.yaml`) fire from
   kube-state-metrics, per CronJob, so a failure on Drive or on B2 alerts

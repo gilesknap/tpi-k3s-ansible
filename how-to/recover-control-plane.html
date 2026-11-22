@@ -332,6 +332,7 @@
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Recover the control plane</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rebuild-from-nothing.html">Rebuild from nothing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-recovery.html">Back up and recover the router</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
@@ -799,20 +800,24 @@ and all of <code class="docutils literal notranslate"><span class="pre">/var/lib
 <p>On a former agent, the binary and <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s</span></code> do no harm: the
 restore installs over them.</p>
 <p>On a former server, <code class="docutils literal notranslate"><span class="pre">/var/lib/rancher/k3s/server</span></code> still holds the old etcd
-database and token, and the <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role’s files remain: the backup
-script and its configuration and state, the <code class="docutils literal notranslate"><span class="pre">noauto</span></code> NAS mount in
-<code class="docutils literal notranslate"><span class="pre">/etc/fstab</span></code> (only the backup uses it), and its metric files in the
-node-exporter textfile directory. If the node later runs node-exporter as
-a worker, stale metric files there would hide a missing backup from the
-<code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code> alert. Remove them all once the new control
+database and token, and the <code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role’s files remain: the etcd
+and router backup scripts and their configuration, SSH key and state, the
+<code class="docutils literal notranslate"><span class="pre">noauto</span></code> NAS mount in <code class="docutils literal notranslate"><span class="pre">/etc/fstab</span></code> (only the backups use it), and their
+metric files in the node-exporter textfile directory. If the node later
+runs node-exporter as a worker, stale metric files there would hide a
+missing backup from the <code class="docutils literal notranslate"><span class="pre">K3sEtcdBackupMetricsMissing</span></code> and
+<code class="docutils literal notranslate"><span class="pre">RouterBackupMetricsMissing</span></code> alerts. Remove them all once the new control
 plane is healthy:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>ansible@node02<span class="w"> </span><span class="s1">&#39;sudo bash -s&#39;</span><span class="w"> </span><span class="s">&lt;&lt;&#39;END&#39;</span>
 <span class="s">set -e</span>
 <span class="s">rm -f /etc/systemd/system/k3s-etcd-backup.service \</span>
-<span class="s">  /etc/systemd/system/k3s-etcd-backup.timer</span>
+<span class="s">  /etc/systemd/system/k3s-etcd-backup.timer \</span>
+<span class="s">  /etc/systemd/system/router-backup.service \</span>
+<span class="s">  /etc/systemd/system/router-backup.timer</span>
 <span class="s">systemctl daemon-reload</span>
-<span class="s">rm -f /usr/local/sbin/k3s-etcd-backup \</span>
-<span class="s">  /var/lib/node_exporter/textfile_collector/k3s_etcd_backup*</span>
+<span class="s">rm -f /usr/local/sbin/k3s-etcd-backup /usr/local/sbin/router-backup \</span>
+<span class="s">  /var/lib/node_exporter/textfile_collector/k3s_etcd_backup* \</span>
+<span class="s">  /var/lib/node_exporter/textfile_collector/router_backup*</span>
 <span class="s">rm -rf /etc/k3s-etcd-backup /var/lib/k3s-etcd-backup</span>
 <span class="s">sed -i &#39;\| /mnt/k8s-cluster |d&#39; /etc/fstab</span>
 <span class="s">rmdir /mnt/k8s-cluster</span>
@@ -820,6 +825,10 @@ plane is healthy:</p>
 <span class="s">END</span>
 </pre></div>
 </div>
+<p>The router still accepts the old node’s backup key, for <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code>
+only: its line in the router’s <code class="docutils literal notranslate"><span class="pre">/etc/dropbear/authorized_keys</span></code> ends
+<code class="docutils literal notranslate"><span class="pre">router-backup&#64;node02</span></code>. It does no harm; delete it by hand when
+convenient.</p>
 </section>
 </section>
 </section>

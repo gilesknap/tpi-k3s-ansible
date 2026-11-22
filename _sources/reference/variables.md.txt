@@ -20,7 +20,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `control_plane` | `node02` | The (single) control plane node |
 | `standby_control_plane` | `node03` | Warm-standby control plane: the node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
 | `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and this record. Every address it resolves to must be the control plane's |
-| `dns_router` | `root@192.168.1.1` | SSH target of the OpenWrt router (dnsmasq, `uci`), used only by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane |
+| `dns_router` | `root@192.168.1.1` | SSH target (`user@host`) of the OpenWrt router (dnsmasq, `uci`). Used by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane, by the control plane's daily router backup (`etcd_backup_router`) and by `pb_router.yml --tags restore` ({doc}`/how-to/router-recovery`) |
 | `etcd_backup_age_recipient` | *(age public key)* | The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. **SYNC:** `offsite_backup.age_recipient` (`scripts/check-age-recipient`, run by `just check`, fails if they differ) |
 | `cluster_domain` | `gkcluster.org` | Domain of every ingress host |
 | `domain_email` | *(an address)* | Let's Encrypt registration address for cert-manager |
@@ -83,6 +83,11 @@ described, with the values each node has, in {doc}`/reference/inventory`.
 | `etcd_backup_on_calendar` | `*-*-* 23:15:00 Europe/London` | systemd `OnCalendar` schedule |
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
+| `etcd_backup_router` | `dns_router` | SSH target of the router whose `sysupgrade -b` backup a second timer, `router-backup.timer`, encrypts to the same recipient; empty for none ({doc}`/how-to/router-recovery`) |
+| `etcd_backup_router_dest_subdir` | `backups/router` | Its destination below the mount point |
+| `etcd_backup_router_keep` | `30` | Router backups kept on the NAS |
+| `etcd_backup_router_on_calendar` | `*-*-* 23:00:00 Europe/London` | Its systemd `OnCalendar` schedule |
+| `etcd_backup_router_key` / `etcd_backup_router_known_hosts` | `/etc/k3s-etcd-backup/router_ed25519` / `router_known_hosts` | The job's SSH key, made on the control plane, and the router's pinned host key |
 
 ### `nas` role (`roles/nas/defaults/main.yml`)
 

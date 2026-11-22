@@ -12,6 +12,7 @@ how-to/paper-kit
 how-to/recover-control-plane
 how-to/rebuild-from-nothing
 how-to/reflash-rebuild
+how-to/router-recovery
 ```
 
 ```{toctree}

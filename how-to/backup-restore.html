@@ -332,6 +332,7 @@
 <li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rebuild-from-nothing.html">Rebuild from nothing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-recovery.html">Back up and recover the router</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
@@ -456,19 +457,23 @@ cluster’s state from it. What is <strong>not</strong> in Git:</p>
 <td><p>node02</p></td>
 <td><p>nightly age-encrypted bundle to <code class="docutils literal notranslate"><span class="pre">backups/etcd/</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Admin password</p></td>
+<tr class="row-even"><td><p>OpenWrt router configuration</p></td>
+<td><p>the router, 192.168.1.1</p></td>
+<td><p>daily age-encrypted <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code> tarball to <code class="docutils literal notranslate"><span class="pre">backups/router/</span></code>, from node02 (<a class="reference internal" href="router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Admin password</p></td>
 <td><p>the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> Secret (not in Git)</p></td>
 <td><p>re-create it with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-admin-password</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Cloudflare OpenTofu state and its passphrase</p></td>
+<tr class="row-even"><td><p>Cloudflare OpenTofu state and its passphrase</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflare/terraform.tfstate</span></code> and <code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code> (both gitignored)</p></td>
 <td><p>not backed up by the cluster: keep a copy of the state on the NAS and the passphrase in the password manager; see below</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volumes, including the Minecraft worlds</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> volumes, including the Minecraft worlds</p></td>
 <td><p>the NAS, <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/stable/&lt;namespace&gt;/&lt;pvc&gt;</span></code></p></td>
 <td><p>they survive a rebuild in place; the worlds also go off site</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> scratch volumes</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-rwx</span></code> scratch volumes</p></td>
 <td><p>the NAS, <code class="docutils literal notranslate"><span class="pre">/k8s-dynamic/&lt;namespace&gt;/&lt;pvc&gt;-&lt;pv&gt;</span></code></p></td>
 <td><p>none: not re-bound after a rebuild (no claim uses the class today)</p></td>
 </tr>
@@ -501,31 +506,35 @@ compromised cluster, can delete from for 30 days (<a class="reference internal" 
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>23:15 Europe/London</p></td>
+<tr class="row-even"><td><p>23:00 Europe/London</p></td>
+<td><p>the router’s configuration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">router-backup.timer</span></code> on node02</p></td>
+</tr>
+<tr class="row-odd"><td><p>23:15 Europe/London</p></td>
 <td><p>etcd bundle and sealed-secrets keys</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s-etcd-backup.timer</span></code> on node02</p></td>
 </tr>
-<tr class="row-odd"><td><p>00:30 Europe/London (monthly: the 1st, 00:40)</p></td>
+<tr class="row-even"><td><p>00:30 Europe/London (monthly: the 1st, 00:40)</p></td>
 <td><p>scrap</p></td>
 <td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">scrap-backup</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-backup-monthly</span></code> in <code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>00:35 Europe/London (weekly: Sunday 00:40)</p></td>
+<tr class="row-odd"><td><p>00:35 Europe/London (weekly: Sunday 00:40)</p></td>
 <td><p>Grafana</p></td>
 <td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">grafana-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">grafana-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on node04</p></td>
 </tr>
-<tr class="row-odd"><td><p>00:50 Europe/London</p></td>
+<tr class="row-even"><td><p>00:50 Europe/London</p></td>
 <td><p>scrap’s newest run, copied off the NAS</p></td>
 <td><p>CronJob <code class="docutils literal notranslate"><span class="pre">scrap-backup-copy</span></code> in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>, on nuc2</p></td>
 </tr>
-<tr class="row-even"><td><p>01:45 Europe/London (weekly: Sunday 01:50)</p></td>
+<tr class="row-odd"><td><p>01:45 Europe/London (weekly: Sunday 01:50)</p></td>
 <td><p>Jellyfin</p></td>
 <td><p>CronJobs <code class="docutils literal notranslate"><span class="pre">jellyfin-daily</span></code>, <code class="docutils literal notranslate"><span class="pre">jellyfin-weekly</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code>, on nuc2</p></td>
 </tr>
-<tr class="row-odd"><td><p>05:30 Europe/London</p></td>
+<tr class="row-even"><td><p>05:30 Europe/London</p></td>
 <td><p>the backups on the NAS and the Minecraft data, to Google Drive</p></td>
 <td><p>CronJob <code class="docutils literal notranslate"><span class="pre">offsite-backup</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>05:45 Europe/London</p></td>
+<tr class="row-odd"><td><p>05:45 Europe/London</p></td>
 <td><p>the backups on the NAS, to Backblaze B2</p></td>
 <td><p>CronJob <code class="docutils literal notranslate"><span class="pre">offsite-backup-b2</span></code> in <code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
 </tr>
@@ -1010,6 +1019,14 @@ sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w
 </div>
 </section>
 </section>
+<section id="router-configuration">
+<h2>Router configuration<a class="headerlink" href="#router-configuration" title="Link to this heading">#</a></h2>
+<p>node02 backs up the OpenWrt router’s configuration every day at 23:00,
+encrypted to the same age key, to <code class="docutils literal notranslate"><span class="pre">backups/router/</span></code> on the NAS, from where
+the off-site jobs copy it like the rest of <code class="docutils literal notranslate"><span class="pre">backups/</span></code>. Run
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-backup</span></code> before changing the router. Restoring, including when
+SSH to the router is gone, is in <a class="reference internal" href="router-recovery.html"><span class="doc">Back up and recover the router</span></a>.</p>
+</section>
 <section id="off-site-copy-to-google-drive">
 <span id="offsite-backup"></span><h2>Off-site copy to Google Drive<a class="headerlink" href="#off-site-copy-to-google-drive" title="Link to this heading">#</a></h2>
 <p>Every backup above ends up on the NAS, so a lost NAS would take them all.
@@ -1029,7 +1046,7 @@ after the other nightly backups. It uses <a class="reference external" href="htt
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;path&gt;.age</span></code></p></td>
-<td><p>each file under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS (the Grafana and Jellyfin tarballs, e.g. <code class="docutils literal notranslate"><span class="pre">backups/grafana/&lt;date&gt;_&lt;HHMM&gt;.tar.gz.age</span></code>); files that already end <code class="docutils literal notranslate"><span class="pre">.age</span></code> (the etcd bundles, <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code> snapshots and dated sealed-secrets key exports) go up as they are</p></td>
+<td><p>each file under <code class="docutils literal notranslate"><span class="pre">backups/</span></code> on the NAS (the Grafana and Jellyfin tarballs, e.g. <code class="docutils literal notranslate"><span class="pre">backups/grafana/&lt;date&gt;_&lt;HHMM&gt;.tar.gz.age</span></code>); files that already end <code class="docutils literal notranslate"><span class="pre">.age</span></code> (the etcd bundles, <code class="docutils literal notranslate"><span class="pre">pre-upgrade/</span></code> snapshots, dated sealed-secrets key exports and router backups) go up as they are</p></td>
 <td><p>once, the first night it is there</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backups/&lt;run&gt;.tar.age</span></code></p></td>
@@ -1386,8 +1403,8 @@ off nothing is rendered.</p>
 <section id="what-goes-to-b2">
 <h3>What goes to B2<a class="headerlink" href="#what-goes-to-b2" title="Link to this heading">#</a></h3>
 <p>Only the NAS <code class="docutils literal notranslate"><span class="pre">backups/</span></code> tree (<code class="docutils literal notranslate"><span class="pre">offsite_backup.b2.include:</span> <span class="pre">[backups]</span></code>):
-scrap’s runs, the Grafana and Jellyfin tarballs, the etcd bundles and the
-sealed-secrets key exports. The Minecraft nightly tarball and the world
+scrap’s runs, the Grafana and Jellyfin tarballs, the etcd bundles, the
+sealed-secrets key exports and the router backups. The Minecraft nightly tarball and the world
 archive stay on Drive only; the archive has other copies. <code class="docutils literal notranslate"><span class="pre">include</span></code> takes
 the same three entries as the Drive job’s <code class="docutils literal notranslate"><span class="pre">offsite_backup.include</span></code>
 (<code class="docutils literal notranslate"><span class="pre">backups</span></code>, <code class="docutils literal notranslate"><span class="pre">minecraft-nightly</span></code>, <code class="docutils literal notranslate"><span class="pre">minecraft-archive</span></code>), so either can be
@@ -2043,6 +2060,7 @@ back in the same way.</p></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#restore">Restore</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#router-configuration">Router configuration</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#off-site-copy-to-google-drive">Off-site copy to Google Drive</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-goes-up-and-what-does-not">What goes up, and what does not</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-is-kept-safe">How it is kept safe</a></li>
