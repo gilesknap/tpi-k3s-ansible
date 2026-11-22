@@ -22,7 +22,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane: the router's DHCP template points it at `control_plane`'s `lan_ip` ({doc}`/how-to/router-dhcp`). Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and pushing the router's template. Every address it resolves to must be the control plane's |
 | `dns_router` | `root@192.168.1.1` | SSH target (`user@host`) of the OpenWrt router (dnsmasq, `uci`). Used by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane, by the control plane's daily router backup (`etcd_backup_router`) and by `pb_router.yml`, through the `router` host in `hosts.yml` ({doc}`/how-to/router-recovery`) |
 | `router_dns_servers` | `[1.1.1.1, 1.0.0.1]` | The upstream DNS servers the router's dnsmasq forwards to ({doc}`/how-to/router-dhcp`) |
-| `router_dhcp_hosts` | *(list)* | The router's static leases matched by MAC, for devices whose hostname this repo doesn't set (the Turing Pi BMC, node01, the Raspberry Pis, ...): `name` (optional), `ip`, `macs`, `tags` (optional). Hosts in `hosts.yml` with `lan_ip` are reserved by name instead ({doc}`/how-to/router-dhcp`) |
+| `router_dhcp_hosts` | *(list)* | The router's static leases matched by MAC, for devices whose hostname this repo doesn't set (the Turing Pi BMC, node01, the Raspberry Pis, ...): `name` (optional), `ip` and `macs`. Hosts in `hosts.yml` with `lan_ip` are reserved by name instead ({doc}`/how-to/router-dhcp`) |
 | `etcd_backup_age_recipient` | *(age public key)* | The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. **SYNC:** `offsite_backup.age_recipient` (`scripts/check-age-recipient`, run by `just check`, fails if they differ) |
 | `cluster_domain` | `gkcluster.org` | Domain of every ingress host |
 | `domain_email` | *(an address)* | Let's Encrypt registration address for cert-manager |
@@ -37,7 +37,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 
 ### Host variables (`hosts.yml`)
 
-Set per host: `lan_ip`, `dhcp_tags`, `slot_num`, `type`, `root_dev`,
+Set per host: `lan_ip`, `slot_num`, `type`, `root_dev`,
 `nvidia_gpu_node`, `intel_gpu_node`, `workstation` and `node_ip`. They are
 described, with the values each node has, in {doc}`/reference/inventory`.
 
@@ -101,7 +101,7 @@ Used by `pb_router.yml` ({doc}`/how-to/router-recovery`, "Change the router safe
 | `router_guard_dir` | `/tmp/router-guard` | On the router (RAM): the snapshot, the watchdog's pid file, and the lock against arming twice |
 | `router_change_tasks` | `""` | The change `--tags change` makes: a task file of the role, `roles/router/tasks/<name>.yml`. Empty: arm, check and disarm only |
 | `router_check_url` / `router_check_name` | `https://github.com` / `github.com` | The public URL the controller must reach, and the public name the router's DNS must answer, in the checks |
-| `router_dns_domain` | `lan` | The LAN's DNS domain on the router: every reserved host resolves as `<name>.lan`. The checks ask for `<control_plane>.lan` |
+| `router_dns_domain` | `local_domain` without its dot (`lan`) | The LAN's DNS domain on the router: every reserved host resolves as `<name>.lan`. The checks ask for `<control_plane>.lan` |
 | `router_dhcp_apply` | `true` | Whether the `dhcp` change pushes the rendered `/etc/config/dhcp` when it differs. `--tags dhcp-diff` sets it `false`: the diff only ({doc}`/how-to/router-dhcp`) |
 
 ### `nas` role (`roles/nas/defaults/main.yml`)

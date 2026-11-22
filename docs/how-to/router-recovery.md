@@ -120,7 +120,7 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    - the internet answers: HTTPS to `router_check_url` (`https://github.com`);
    - the router's DNS answers a public name (`host -t A github.com 192.168.1.1`);
    - `k3s.lan` (`k3s_api_name`) resolves via the router to node02's
-     address, read from node02 itself;
+     `lan_ip` in `hosts.yml` (192.168.1.82);
    - `node02.lan` (`control_plane` in the `lan` domain) resolves via the
      router to the same address: a static name, served from the router's
      DHCP configuration ({doc}`/how-to/router-dhcp`);

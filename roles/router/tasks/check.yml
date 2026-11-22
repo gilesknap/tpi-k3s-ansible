@@ -2,17 +2,12 @@
 # which logs in to the router afresh. Each check fails the play (or, in a
 # guarded change, the confirm block) on its own. router_check_retries
 # (default none) retries the internet and DNS checks every 10 s, for a
-# router still bringing its WAN up after a reboot.
+# router still bringing its WAN up after a reboot. The control plane's
+# address is its lan_ip from hosts.yml, never a name the router serves,
+# so the checks work while the router's DNS is broken; a wrong lan_ip
+# fails the API check.
 #
 #   ansible-playbook pb_router.yml --tags check
-
-- name: Read the control plane's address
-  ansible.builtin.setup:
-    gather_subset: [network]
-    filter: [ansible_default_ipv4]
-  delegate_to: "{{ control_plane }}"
-  delegate_facts: true
-  when: hostvars[control_plane].ansible_facts.default_ipv4 is not defined
 
 - name: Check the internet is reachable
   ansible.builtin.uri:
@@ -46,7 +41,7 @@
   failed_when: >-
     router_check_api_name.rc != 0 or
     router_check_api_name.stdout_lines | select('search', ' has address ') | map('split') | map('last') | list
-    != [hostvars[control_plane].ansible_facts.default_ipv4.address]
+    != [hostvars[control_plane].lan_ip]
 
 # A static host's name, which the router serves from its configuration
 # (dns '1'), lease or not: a broken /etc/config/dhcp fails here.
@@ -59,12 +54,12 @@
   failed_when: >-
     router_check_static_name.rc != 0 or
     router_check_static_name.stdout_lines | select('search', ' has address ') | map('split') | map('last') | unique | list
-    != [hostvars[control_plane].ansible_facts.default_ipv4.address]
+    != [hostvars[control_plane].lan_ip]
 
 # Any HTTP answer will do: anonymous requests get 401.
 - name: Check the cluster API answers on port 6443
   ansible.builtin.uri:
-    url: https://{{ hostvars[control_plane].ansible_facts.default_ipv4.address }}:6443/version
+    url: https://{{ hostvars[control_plane].lan_ip }}:6443/version
     validate_certs: false
     status_code: [200, 401, 403]
     timeout: 15

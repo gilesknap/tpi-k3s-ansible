@@ -310,13 +310,15 @@ Ubuntu and creates the `ansible` account, so it also skips steps 3 and 5.
    extra_nodes:
      hosts:
        ws03:
+         lan_ip: 192.168.1.10 # its fixed address, reserved for the name ws03
          nvidia_gpu_node: true # installs the NVIDIA container toolkit
          workstation: true # taint NoSchedule, never rebooted or upgraded for you
        nuc2:
+         lan_ip: 192.168.1.92
          node_ip: 192.168.1.92 # multi-homed: force K3s onto this subnet
          intel_gpu_node: true # Iris Xe: runs the Intel GPU device plugin
        nuc1: # single NIC
-         lan_ip: 192.168.1.91 # reserved on the router for the name nuc1
+         lan_ip: 192.168.1.91
          install_profile: desktop # the install stick's entry
          install_disk_serial: S5GFNG0N302036V
          install_machine_macs: ["1c:69:7a:61:65:d4"]

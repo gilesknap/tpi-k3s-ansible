@@ -495,7 +495,6 @@ def inventory() -> list[tuple[str, str, str]]:
                     comment = "Turing Pi BMC (name from LAN DNS); ssh root@" + name
                 cur = {"name": name, "group": group, "note": comment}
                 if group == "nas":
-                    cur["ip"] = "192.168.1.3"
                     cur["note"] = ("NAS (QNAP TS-253D hardware, Ubuntu Server + ZFS); "
                                    "ssh ansible@" + name + " (key only, no password); "
                                    "NFS export /bigdisk; cluster data in /bigdisk/k8s-cluster")
