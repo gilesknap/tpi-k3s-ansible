@@ -47,8 +47,8 @@ sources:
   Claude ingest (photo reading and text enrichment, with a daily spend cap),
   the nightly and monthly backup CronJobs and the public-pages site.
 - **`kubernetes-services/additions/scrap/`**: the `/mcp`-only Ingress, the
-  SealedSecrets, the `scrap-public` namespace, the static NFS volumes, the
-  and the nightly copy of the newest backup to nuc2.
+  SealedSecrets, the `scrap-public` namespace, the static NFS volumes and the
+  nightly copy of the newest backup to nuc2.
 - **`kubernetes-services/additions/ingress/`**: the main Ingress for
   `scrap.gkcluster.org`, behind oauth2-proxy.
 

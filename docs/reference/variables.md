@@ -29,7 +29,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `repo_branch` | `main` | The branch ArgoCD tracks. The root Application passes it to every child app ({doc}`/how-to/work-in-branches`) |
 | `nvidia_gpu_node`, `intel_gpu_node` | `false` | Defaults for the per-node GPU flags below |
 | `cluster_install_list` | `[argocd]` | What the `cluster` role installs itself; everything else is ArgoCD's |
-| `k8s_data_dirs` | prometheus and grafana on `node04` (`/var/lib/k8s-data/...`); scrap, scrap-backup-copy and jellyfin on `nuc2` (`/home/k8s-data/...`) | Host directories behind the `local-nvme` PVs, each with `node`, `path`, `owner`, `group` and `mode`. The `k8s_data_dirs` role creates them and never deletes one. **SYNC:** `node` and `path` with `local_storage` in `values.yaml` |
+| `k8s_data_dirs` | prometheus and grafana on `node04` (`/var/lib/k8s-data/...`); scrap-backup-copy and jellyfin on `nuc2` (`/home/k8s-data/...`) | Host directories behind the `local-nvme` PVs, each with `node`, `path`, `owner`, `group` and `mode`. The `k8s_data_dirs` role creates them and never deletes one. **SYNC:** `node` and `path` with `local_storage` in `values.yaml` |
 
 ## Role-specific variables
 
