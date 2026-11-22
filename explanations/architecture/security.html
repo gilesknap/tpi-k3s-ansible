@@ -1150,15 +1150,15 @@ matters:</p>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code></p></td>
-<td><p>Only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them</p></td>
+<td><p>No peers: only the Gateway, through <code class="docutils literal notranslate"><span class="pre">scrap-from-gateway</span></code> below. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap-public</span></code></p></td>
-<td><p>ingress-nginx to the web port; scrap’s pod to the upload receiver. All egress is denied</p></td>
+<td><p>Anyone to the web port, which serves only public pages; scrap’s pod to the upload receiver. All egress is denied</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
-<td><p>The <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace and the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code>, on port 8080</p></td>
+<td><p>The Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> and scrap’s pod, on port 8080 (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>), and the Gateway through <code class="docutils literal notranslate"><span class="pre">ntfy-from-gateway</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">minecraft</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">minecraft-dashboard-worlds</span></code></p></td>
@@ -1174,7 +1174,7 @@ matters:</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scrap</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>, <code class="docutils literal notranslate"><span class="pre">ntfy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">scrap-from-gateway</span></code>, <code class="docutils literal notranslate"><span class="pre">scrap-public-from-gateway</span></code>, <code class="docutils literal notranslate"><span class="pre">ntfy-from-gateway</span></code> (CiliumNetworkPolicies)</p></td>
-<td><p>Cilium’s Gateway (its reserved <code class="docutils literal notranslate"><span class="pre">ingress</span></code> identity), on the same ports as ingress-nginx. Its routes put oauth2-proxy in front of scrap as nginx does (<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>)</p></td>
+<td><p>Cilium’s Gateway (its reserved <code class="docutils literal notranslate"><span class="pre">ingress</span></code> identity, which a NetworkPolicy cannot name), on the apps’ ports. Its routes put oauth2-proxy in front of scrap (<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups-egress</span></code> (a CiliumNetworkPolicy)</p></td>
@@ -1185,7 +1185,7 @@ matters:</p>
 </div>
 <pre  class="mermaid">
         flowchart LR
-    nginx[&quot;ingress-nginx&quot;]
+    gw[&quot;Cilium's Gateway&quot;]
     am[&quot;Alertmanager&quot;]
     dash[&quot;Minecraft dashboard&quot;]
     lan[&quot;LAN hosts&lt;br/&gt;not cluster nodes&quot;]
@@ -1198,15 +1198,16 @@ matters:</p>
     game[&quot;World game port 25565&quot;]
     cfd[&quot;cloudflared&quot;]
 
-    nginx --&gt; scrap
-    nginx --&gt;|&quot;web&quot;| pub
+    gw --&gt; scrap
+    any --&gt;|&quot;web&quot;| pub
     scrap --&gt;|&quot;upload&quot;| pub
-    nginx --&gt; ntfy
+    gw --&gt; ntfy
+    scrap --&gt; ntfy
     am --&gt; ntfy
     dash --&gt; rcon
     lan --&gt; rcon
     any --&gt; game
-    cfd -. &quot;outbound only,&lt;br/&gt;no inbound allowed&quot; .-&gt; nginx
+    cfd -. &quot;outbound only,&lt;br/&gt;no inbound allowed&quot; .-&gt; gw
     </pre><p>Three properties of Cilium’s enforcement are worth knowing:</p>
 <ul class="simple">
 <li><p>It <strong>always admits traffic from a pod’s own node</strong>. Kubelet probes keep
@@ -1233,7 +1234,7 @@ through Cilium’s DNS proxy, which learns the addresses behind the allowed
 names and opens only those. <code class="docutils literal notranslate"><span class="pre">hubble</span> <span class="pre">observe</span> <span class="pre">-n</span> <span class="pre">backups</span> <span class="pre">--verdict</span> <span class="pre">DROPPED</span></code>
 (in an agent pod, or the Hubble UI) shows what it refused.</p>
 <p>The ntfy and scrap policies limit who reaches the pod directly. Anything
-that can reach ingress-nginx, or Cilium’s Gateway, can still reach them through it, which is why
+that can reach Cilium’s Gateway can still reach them through it, which is why
 ntfy’s tokens and the oauth2-proxy check are the real gates.</p>
 </section>
 </section>
@@ -1351,11 +1352,11 @@ copies). This holds once <code class="docutils literal notranslate"><span class=
 (node04), and Jellyfin and the Minecraft worlds (nuc2), have no replica.
 That is the price of not running replicated storage
 (<a class="reference internal" href="storage.html"><span class="doc">Storage</span></a>).</p></li>
-<li><p><strong>The LAN is trusted more than the internet.</strong> ingress-nginx answers on
-the LAN without Cloudflare Access in front. The in-cluster login still
-applies, but the services with no login at the ingress (<code class="docutils literal notranslate"><span class="pre">home</span></code>, <code class="docutils literal notranslate"><span class="pre">echo</span></code>)
-are open to any device on the LAN, and Jellyfin and RCON are LAN services
-by design.</p></li>
+<li><p><strong>The LAN is trusted more than the internet.</strong> The Gateway answers on
+the node addresses, on the LAN and the tailnet, without Cloudflare Access
+in front. The in-cluster login still applies, but the services with no
+login at the Gateway (<code class="docutils literal notranslate"><span class="pre">home</span></code>, <code class="docutils literal notranslate"><span class="pre">echo</span></code>) are open to any device on the LAN,
+and Jellyfin and RCON are LAN services by design.</p></li>
 <li><p><strong>No default-deny between namespaces.</strong> A compromised pod can reach most
 other Services in the cluster.</p></li>
 <li><p><strong>NFS trusts its clients.</strong> The NAS’s exports take a client’s word for its

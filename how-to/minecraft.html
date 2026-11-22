@@ -763,7 +763,7 @@ window.addEventListener("load", load);</script>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -870,7 +870,7 @@ This repository provides the cluster wiring:</p>
 <li><p>the ArgoCD Application <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/minecraft.yaml</span></code>,
 switched on by <code class="docutils literal notranslate"><span class="pre">enable_minecraft</span></code> and configured from the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> block
 in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>;</p></li>
-<li><p>an Ingress for <code class="docutils literal notranslate"><span class="pre">minecraft.gkcluster.org</span></code> behind oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
+<li><p>an HTTPRoute for <code class="docutils literal notranslate"><span class="pre">minecraft.gkcluster.org</span></code> behind oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
 only, like Headlamp);</p></li>
 <li><p>the <code class="docutils literal notranslate"><span class="pre">minecraft</span></code> forward on the <a class="reference internal" href="vps-relay.html"><span class="doc">VPS relay</span></a>, which
 is how players reach the game ports;</p></li>
@@ -886,14 +886,14 @@ is how players reach the game ports;</p></li>
     cf[&quot;Cloudflare Tunnel&lt;br/&gt;and Access&quot;]
     vps[&quot;VPS: frps&lt;br/&gt;mc.gkcluster.org&quot;]
     relay[&quot;vps-relay pod&lt;br/&gt;(frpc, over the tailnet)&quot;]
-    nginx[&quot;Cilium's Gateway&lt;br/&gt;and oauth2-proxy&quot;]
+    gw[&quot;Cilium's Gateway&lt;br/&gt;and oauth2-proxy&quot;]
     dash[&quot;minecraft-dashboard&quot;]
     subgraph nuc2[&quot;nuc2 (192.168.1.92)&quot;]
         worlds[&quot;World pods&lt;br/&gt;game NodePorts 30565-30584&lt;br/&gt;RCON NodePorts 30600-30619&quot;]
     end
     nas[&quot;The NAS: archive, store,&lt;br/&gt;one folder per world&quot;]
 
-    admin --&gt;|&quot;minecraft.gkcluster.org&quot;| cf --&gt; nginx --&gt; dash
+    admin --&gt;|&quot;minecraft.gkcluster.org&quot;| cf --&gt; gw --&gt; dash
     dash --&gt;|&quot;helm, RCON&quot;| worlds
     player --&gt;|&quot;mc.gkcluster.org:port&quot;| vps --&gt; relay --&gt;|&quot;192.168.1.92:port&quot;| worlds
     tool --&gt;|&quot;RCON NodePort&quot;| worlds
@@ -960,9 +960,9 @@ connection over the tailnet to nuc2.</p>
 <p>Game servers see every player as coming from the relay. Whitelists and ops are
 by name and work normally; IP bans do not.</p>
 <p>The dashboard does no authentication itself; it logs the
-<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> header that oauth2-proxy sets, per action. Its Ingress
+<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> header that oauth2-proxy sets, per action. Its route
 therefore has <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> hard-wired in the template, not tied to
-<code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code>: without the proxy the Ingress fails closed.</p>
+<code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code>: without the proxy the route fails closed.</p>
 </section>
 <section id="configuration">
 <h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
@@ -1249,7 +1249,7 @@ archive folder on the NAS (<a class="reference internal" href="nfs-stable-paths.
 <p>Then:</p>
 <ol class="arabic simple">
 <li><p>Set <code class="docutils literal notranslate"><span class="pre">enable_minecraft:</span> <span class="pre">false</span></code> and push. ArgoCD prunes the dashboard and its
-Ingress. The archive and the store are static NFS volumes and are never
+HTTPRoute. The archive and the store are static NFS volumes and are never
 deleted by the cluster.</p></li>
 <li><p>Remove <code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;minecraft&quot;</span> <span class="pre">}</span></code> from <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> and <code class="docutils literal notranslate"><span class="pre">mc</span></code> from
 <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code>, then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p></li>

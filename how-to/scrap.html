@@ -763,7 +763,7 @@ window.addEventListener("load", load);</script>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -871,7 +871,7 @@ cluster wiring.</p>
     mcp[&quot;MCP client&lt;br/&gt;(Claude Code)&quot;]
     reader[&quot;Anyone&quot;]
     cf[&quot;Cloudflare Tunnel and Access&quot;]
-    nginx[&quot;Cilium's Gateway&quot;]
+    gw[&quot;Cilium's Gateway&quot;]
     o2p[&quot;oauth2-proxy&lt;br/&gt;(GitHub, admin_emails)&quot;]
     subgraph ns1[&quot;namespace scrap (any node)&quot;]
         scrap[&quot;scrap pod:&lt;br/&gt;scrap, litestream, jobs&quot;]
@@ -885,10 +885,10 @@ cluster wiring.</p>
     browser --&gt;|&quot;scrap.gkcluster.org&lt;br/&gt;Access: Owner&quot;| cf
     mcp --&gt;|&quot;scrap.gkcluster.org/mcp&lt;br/&gt;Access: service token&quot;| cf
     reader --&gt;|&quot;pages.gkcluster.org&lt;br/&gt;Access: bypass, cached&quot;| cf
-    cf --&gt; nginx
-    nginx -.-&gt;|&quot;auth check&lt;br/&gt;(not for /mcp)&quot;| o2p
-    nginx --&gt; scrap
-    nginx --&gt; pub
+    cf --&gt; gw
+    gw -.-&gt;|&quot;auth check&lt;br/&gt;(not for /mcp)&quot;| o2p
+    gw --&gt; scrap
+    gw --&gt; pub
     scrap --&gt;|&quot;pushes public pages&quot;| pub
     scrap --- nas
     nas --&gt;|&quot;00:50 copy&quot;| nuc2
@@ -900,10 +900,10 @@ version, app version and image tag are one number, so a bump is the
 <code class="docutils literal notranslate"><span class="pre">targetRevision</span></code>). It runs scrap in Litestream mode with a NetworkPolicy,
 Claude ingest (photo reading and text enrichment, with a daily spend cap),
 the nightly and monthly backup CronJobs and the public-pages site.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code></strong>: the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only Ingress, the
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/</span></code></strong>: the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>-only HTTPRoute, the
 SealedSecrets, the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace, the static NFS volumes and the
 nightly copy of the newest backup to nuc2.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code></strong>: the main Ingress for
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code></strong>: the main HTTPRoute for
 <code class="docutils literal notranslate"><span class="pre">scrap.gkcluster.org</span></code>, behind oauth2-proxy.</p></li>
 </ul>
 </section>
@@ -927,7 +927,7 @@ nightly copy of the newest backup to nuc2.</p></li>
 <td><p>scrap’s bearer token, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/mcp</span></code> from the claude-canary VPS, over the tailnet (<a class="reference internal" href="#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>)</p></td>
-<td><p>None: the tailnet policy lets the VPS reach nuc2’s ingress-nginx, not Cloudflare</p></td>
+<td><p>None: the tailnet policy lets the VPS reach the Gateway on nuc2, not Cloudflare</p></td>
 <td><p>The VPS’s own bearer token, <code class="docutils literal notranslate"><span class="pre">SCRAP_MCP_TOKEN_CANARY</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code></p></td>
@@ -938,21 +938,20 @@ nightly copy of the newest backup to nuc2.</p></li>
 </table>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> path cannot use oauth2-proxy, because an MCP client cannot complete
-a browser login. It has its own Ingress, <code class="docutils literal notranslate"><span class="pre">scrap-mcp-ingress</span></code>, without the
-oauth2 annotations; nginx routes to the most specific path, so <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> requests
-go there and everything else goes to the gated <code class="docutils literal notranslate"><span class="pre">scrap-ingress</span></code>. On the Gateway,
-which the tunnel reaches, the same file makes a <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> HTTPRoute without the
-ExternalAuth filter, and Envoy likewise picks the longest matching prefix.</p>
-<p>The NetworkPolicy admits only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace, and the
-<code class="docutils literal notranslate"><span class="pre">scrap-from-gateway</span></code> CiliumNetworkPolicy only Cilium’s Gateway, to the scrap
-pod, so nothing else in the cluster can reach it or forge the identity headers that
+a browser login. It has its own HTTPRoute, <code class="docutils literal notranslate"><span class="pre">scrap-mcp</span></code>
+(<code class="docutils literal notranslate"><span class="pre">additions/scrap/templates/mcp-route.yaml</span></code>), without the ExternalAuth filter;
+Envoy picks the longest matching path prefix, so <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> requests go there and
+everything else goes to the gated <code class="docutils literal notranslate"><span class="pre">scrap</span></code> route.</p>
+<p>The chart’s NetworkPolicy admits no peers, and the <code class="docutils literal notranslate"><span class="pre">scrap-from-gateway</span></code>
+CiliumNetworkPolicy admits only Cilium’s Gateway, to the scrap pod, so nothing
+else in the cluster can reach it or forge the identity headers that
 oauth2-proxy sets.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> Ingress is switched by <code class="docutils literal notranslate"><span class="pre">mcp_ingress_enabled</span></code> in
+<p>The <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> route is switched by <code class="docutils literal notranslate"><span class="pre">mcp_route_enabled</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/scrap.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">true</span></code>). It is only safe with
 <code class="docutils literal notranslate"><span class="pre">mcp.tokenSecret</span></code> set, as it is: without scrap’s bearer token, Cloudflare
-would be the only protection on <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, and ingress-nginx can be reached
+would be the only protection on <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, and the Gateway can be reached
 directly from the LAN and the tailnet, bypassing Cloudflare.</p>
 </div>
 <div class="admonition note">
@@ -1043,11 +1042,12 @@ IP:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>100.125.90.58  scrap.gkcluster.org
 </pre></div>
 </div>
-<p>nuc2 runs a ServiceLB pod for ingress-nginx’s LoadBalancer Service, which
-takes port 443 on every address of the node, <code class="docutils literal notranslate"><span class="pre">tailscale0</span></code> included. The VPS
-therefore talks to ingress-nginx directly: the wildcard certificate matches,
-the <code class="docutils literal notranslate"><span class="pre">Host</span></code> is the one scrap’s DNS-rebinding check expects, and nginx routes
-<code class="docutils literal notranslate"><span class="pre">/mcp</span></code> to <code class="docutils literal notranslate"><span class="pre">scrap-mcp-ingress</span></code> as for any other client. The MCP entry is the
+<p>nuc2 runs a ServiceLB pod for the Gateway’s LoadBalancer Service
+(<code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>), which takes port 443 on every address of the
+node, <code class="docutils literal notranslate"><span class="pre">tailscale0</span></code> included. The VPS therefore talks to the Gateway directly:
+the wildcard certificate matches, the <code class="docutils literal notranslate"><span class="pre">Host</span></code> is the one scrap’s DNS-rebinding
+check expects, and Envoy routes <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> to the <code class="docutils literal notranslate"><span class="pre">scrap-mcp</span></code> route as for any
+other client. The MCP entry is the
 usual <code class="docutils literal notranslate"><span class="pre">https://scrap.gkcluster.org/mcp</span></code> with only the
 <code class="docutils literal notranslate"><span class="pre">Authorization:</span> <span class="pre">Bearer</span> <span class="pre">&lt;canary</span> <span class="pre">token&gt;</span></code> header.</p>
 <p>The tailnet policy is set by hand in the Tailscale admin console (Access
@@ -1064,7 +1064,7 @@ other clients, through Cloudflare, are unaffected.</p></li>
 <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> host alias and the VPS’s <code class="docutils literal notranslate"><span class="pre">/etc/hosts</span></code>. If nuc2 rejoins the tailnet
 with a new IP (a reinstall or a logout), update both; until then the VPS
 just loses scrap.</p></li>
-<li><p><strong>The grant opens all of ingress-nginx on nuc2, not only scrap.</strong> Every
+<li><p><strong>The grant opens all of the Gateway on nuc2, not only scrap.</strong> Every
 <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> host is reachable from the VPS without Cloudflare Access,
 as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
 argocd-monitor’s own oauth2-proxy sidecar, Argo CD’s Dex, Grafana, ntfy’s
@@ -1149,12 +1149,15 @@ namespace’s Secrets: <code class="docutils literal notranslate"><span class="p
 <code class="docutils literal notranslate"><span class="pre">scrap-public-publish-secret.yaml</span></code> (<code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>). Both must hold the same
 token; <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/scrap/README.md</span></code> has the command that
 seals a new one into both;</p></li>
-<li><p>the Ingress for <code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code> (the chart’s <code class="docutils literal notranslate"><span class="pre">public.ingress</span></code>) on the
-<code class="docutils literal notranslate"><span class="pre">nginx</span></code> class with the wildcard certificate, <strong>without</strong> the oauth2-proxy
-annotations. Only nginx is on it; the receiver never is;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">public.networkPolicy.webFrom</span></code>, which admits only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>
-namespace to nginx. The chart’s NetworkPolicy admits only scrap’s pods to
-the receiver, and denies all egress from the pod.</p></li>
+<li><p>the HTTPRoute <code class="docutils literal notranslate"><span class="pre">pages</span></code> for <code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code>, from <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code>
+in the <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace, <strong>without</strong> the ExternalAuth filter (the
+chart’s own <code class="docutils literal notranslate"><span class="pre">public.ingress</span></code> is off). Only nginx is on it; the receiver
+never is;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">public.networkPolicy.webFrom</span></code> empty, which leaves nginx’s port open to any
+peer, as it serves only public files (the <code class="docutils literal notranslate"><span class="pre">scrap-public-from-gateway</span></code>
+CiliumNetworkPolicy also admits the Gateway). The chart’s NetworkPolicy
+admits only scrap’s pods to the receiver, and denies all egress from the
+pod.</p></li>
 </ul>
 <p>The site is held in an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, so it starts empty when the pod moves;
 scrap checks the receiver’s manifest at start and every 10 minutes and pushes
@@ -1218,7 +1221,7 @@ chart is published to the same OCI registry as the Minecraft dashboard’s
 <h2>Notes on the unauthenticated path<a class="headerlink" href="#notes-on-the-unauthenticated-path" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Kubernetes probes talk to the pod directly, so no health endpoint is exposed
-through the Ingress.</p></li>
+through the Gateway.</p></li>
 <li><p>oauth2-proxy sets one cookie on <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code>, shared by every service
 behind it. Its default lifetime is 168 hours with no refresh, and the cookie
 is <code class="docutils literal notranslate"><span class="pre">SameSite=Lax</span></code>. After it expires, background <code class="docutils literal notranslate"><span class="pre">fetch</span></code> calls from the PWA
@@ -1228,7 +1231,8 @@ queue replays.</p></li>
 <li><p>A cross-site top-level POST (an Android share target started from another
 app) does not carry a <code class="docutils literal notranslate"><span class="pre">Lax</span></code> cookie, so the first share after expiry may land
 on the login page.</p></li>
-<li><p>nginx does not strip client-supplied identity headers on the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> path.
+<li><p>The Gateway does not strip client-supplied identity headers on the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>
+path, which has no ExternalAuth filter.
 Nothing there relies on an identity header: the bearer token is the gate.</p></li>
 </ul>
 </section>
@@ -1251,7 +1255,7 @@ without scrap’s token it returns 401; with both it works.</p></li>
 <code class="docutils literal notranslate"><span class="pre">LAST</span> <span class="pre">SCHEDULE</span></code> and their last Jobs completed.</p></li>
 </ul>
 <p>For public pages:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap-public<span class="w"> </span>get<span class="w"> </span>pods,ingress,networkpolicy,secret
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>scrap-public<span class="w"> </span>get<span class="w"> </span>pods,httproute,networkpolicy,secret
 </pre></div>
 </div>
 <p>From outside the LAN and the tailnet:</p>
@@ -1259,7 +1263,7 @@ without scrap’s token it returns 401; with both it works.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">https://pages.gkcluster.org/</span></code> returns 200, with no Cloudflare Access
 redirect.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">https://pages.gkcluster.org/v1/manifest</span></code> returns 404: the receiver is not
-on the Ingress.</p></li>
+on the route.</p></li>
 <li><p>In scrap, <code class="docutils literal notranslate"><span class="pre">/api/health</span></code> shows <code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">true</span></code> in its <code class="docutils literal notranslate"><span class="pre">publish</span></code> block.</p></li>
 </ul>
 </section>

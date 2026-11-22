@@ -876,7 +876,7 @@ everything that runs on them from this repository, and Claude Code does much
 of the day-to-day work from a sandbox on the owner’s workstation.</p>
 <p>It runs scrap (a personal knowledge store with an MCP endpoint), Jellyfin, a
 Minecraft dashboard that launches game worlds, ntfy for push notifications,
-and the platform under them: ingress-nginx, cert-manager, Sealed Secrets,
+and the platform under them: Cilium’s Gateway, cert-manager, Sealed Secrets,
 oauth2-proxy, Prometheus and Grafana, nightly self-patching and nightly
 encrypted backups.</p>
 <section id="system-context">
@@ -921,7 +921,7 @@ hand.</p>
 <pre  class="mermaid">
         flowchart TB
     APPS[&quot;Applications&lt;br/&gt;scrap, Jellyfin, Minecraft dashboard, ntfy, Headlamp, home page&lt;br/&gt;&lt;b&gt;ArgoCD&lt;/b&gt;&quot;]
-    PLAT[&quot;Platform services&lt;br/&gt;ingress-nginx, cert-manager, Sealed Secrets, oauth2-proxy, cloudflared,&lt;br/&gt;monitoring, storage classes, backups, kured, system-upgrade-controller&lt;br/&gt;&lt;b&gt;ArgoCD&lt;/b&gt;&quot;]
+    PLAT[&quot;Platform services&lt;br/&gt;Cilium's Gateway, cert-manager, Sealed Secrets, oauth2-proxy, cloudflared,&lt;br/&gt;monitoring, storage classes, backups, kured, system-upgrade-controller&lt;br/&gt;&lt;b&gt;ArgoCD&lt;/b&gt;&quot;]
     ARGO[&quot;ArgoCD and the root Application all-cluster-services&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; (cluster role)&quot;]
     K3S[&quot;K3s: one server with embedded etcd, five agents&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; installs, system-upgrade-controller patches&quot;]
     OS[&quot;Ubuntu 26.04, packages, local PV directories&lt;br/&gt;&lt;b&gt;Ansible&lt;/b&gt; installs, unattended-upgrades and kured maintain&quot;]
@@ -984,8 +984,8 @@ what stops it doing damage.</p></li>
 <tr class="row-odd"><td><p>ArgoCD over Flux</p></td>
 <td><p>Its UI makes a homelab’s state visible at a glance, and the app-of-apps pattern keeps one file per service</p></td>
 </tr>
-<tr class="row-even"><td><p>ingress-nginx over Traefik</p></td>
-<td><p>Its <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> forward-auth is what oauth2-proxy is built around; K3s’s Traefik is disabled</p></td>
+<tr class="row-even"><td><p>Cilium’s Gateway API over an ingress controller</p></td>
+<td><p>Cilium already runs Envoy on every node, and its ExternalAuth filter puts oauth2-proxy in front of an app; it replaced ingress-nginx, retired upstream (ADR 0016). K3s’s Traefik is disabled</p></td>
 </tr>
 <tr class="row-odd"><td><p>cert-manager with DNS-01</p></td>
 <td><p>No service has a public HTTP route for an HTTP-01 challenge; one wildcard certificate covers every hostname</p></td>
@@ -1003,7 +1003,7 @@ what stops it doing damage.</p></li>
 <td><p>Cloudflare Tunnel carries only HTTP(S). Minecraft’s TCP ports are published on a VPS that the cluster dials over the tailnet, so the home address stays private</p></td>
 </tr>
 <tr class="row-even"><td><p>Tailnet for remote shell and Jellyfin</p></td>
-<td><p>Neither suits a public tunnel: SSH needs no public hostname at all, and video streaming is outside what the Cloudflare proxy is for. Jellyfin has no Ingress</p></td>
+<td><p>Neither suits a public tunnel: SSH needs no public hostname at all, and video streaming is outside what the Cloudflare proxy is for. Jellyfin has no HTTPRoute</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-stable</span></code> as the default storage class</p></td>
 <td><p>Each claim gets a fixed folder on the NAS, so application data survives a cluster rebuild and a pod can run on any node</p></td>

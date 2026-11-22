@@ -19,7 +19,7 @@ stacking on top of each other:
 | Dimension | Detail |
 |-----------|--------|
 | **Hardware** | Mixed: three RK1 arm64 modules on a Turing Pi board (node02, node03, node04), two amd64 NUCs (nuc1, nuc2) and a GPU workstation (ws03), each with its own role, taints and devices ({doc}`/explanations/architecture/hardware`) |
-| **Services** | 27 ArgoCD applications (a root and 26 children): the platform (Cilium, ingress-nginx, cert-manager, cloudflared, Sealed Secrets, oauth2-proxy), monitoring, and the things the cluster is for (scrap, Jellyfin, the Minecraft dashboard, ntfy) |
+| **Services** | 28 ArgoCD applications (a root and 27 children): the platform (Cilium and its Gateway, cert-manager, cloudflared, Sealed Secrets, oauth2-proxy), monitoring, and the things the cluster is for (scrap, Jellyfin, the Minecraft dashboard, ntfy) |
 | **Provisioning layers** | Ansible (OS and K3s), then Ansible installing ArgoCD and its root application, then ArgoCD for everything else, with OpenTofu for the Cloudflare edge alongside. Each layer fails in its own way |
 | **Stateful data** | Grafana and Prometheus on node04; Jellyfin's library database on nuc2; scrap's database, replicated to the NAS; every Minecraft world on the NAS. All of it must survive a rebuild ({doc}`/explanations/architecture/storage`) |
 | **Secret management** | 13 SealedSecrets, sealed again on every rebuild because the sealing key is new. Some values are generated at random, some come from outside (GitHub OAuth apps, Cloudflare, Tailscale, Google Drive), and some are held by clients and must not change (scrap's MCP token, the ntfy tokens) |

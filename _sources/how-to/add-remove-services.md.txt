@@ -17,7 +17,7 @@ try it on the cluster as in {doc}`/how-to/work-in-branches`.
 |---|------|-------------|
 | 1 | [Application template](#the-application-template) in `templates/` | always |
 | 2 | [`additions/<service>/`](#the-services-own-manifests) | the service has manifests of its own |
-| 3 | [Ingress source](#an-ingress) | it has a web UI or an API |
+| 3 | [Route source](#a-route) | it has a web UI or an API |
 | 4 | [Chart repository in the AppProject](#a-new-chart-repository) | its chart comes from a repo not used before |
 | 5 | [Storage](#storage) | it keeps data |
 | 6 | [SealedSecret](#secrets) | it has credentials |
@@ -31,7 +31,7 @@ try it on the cluster as in {doc}`/how-to/work-in-branches`.
 ### The Application template
 
 Create `kubernetes-services/templates/<service>.yaml`. This is ntfy's, in
-full apart from the ingress annotations:
+full apart from its route's `gateway_request_timeout`:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -106,7 +106,7 @@ Jellyfin's:
 ```
 
 Most services here combine the two: an upstream chart, plus sources from
-this repo for the ingress and any extra manifests.
+this repo for the route and any extra manifests.
 
 ### The service's own manifests
 
@@ -134,30 +134,30 @@ context where the image allows it, and an image tag that is a version, not
 `latest`. Pods on amd64-only images need a `nodeSelector` for
 `kubernetes.io/arch: amd64`: half the cluster is arm64.
 
-### An ingress
+### A route
 
-A web UI gets its `Ingress` from the shared chart in
+A web UI gets its HTTPRoute on Cilium's Gateway from the shared chart in
 `kubernetes-services/additions/ingress/`, added as one more source (as in
-ntfy's template above). It makes an Ingress named `<name>-ingress` for the
-host `<name>.gkcluster.org`, served with the wildcard certificate. Its
-values:
+ntfy's template above). It makes an HTTPRoute named `<name>` for the
+host `<name>.gkcluster.org`, which the Gateway serves with the wildcard
+certificate on its HTTPS listener ({doc}`/how-to/gateway`). Its values:
 
 | Value | Meaning |
 |-------|---------|
-| `name` | The hostname's first label, and the Ingress's name |
+| `name` | The hostname's first label, and the HTTPRoute's name |
 | `cluster_domain` | Always `{{ .Values.cluster_domain }}` |
-| `service_name`, `service_port` | The Service to send requests to. Port 443 switches the backend to HTTPS passthrough |
-| `oauth2_proxy` | `true` puts the shared oauth2-proxy in front, so only `admin_emails` get in. Use it for anything without a login of its own |
-| `ssl_redirect` | Whether HTTP is redirected to HTTPS (nginx's annotation, and on the Gateway an HTTPS-only route plus a `-https-redirect` route). Copy the `enable_cloudflare_tunnel` expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop |
-| `basic_auth` | `true` asks for the `admin-auth` password (the Secret must exist in the service's namespace) |
-| `extra_annotations` | Any other ingress-nginx annotations. ntfy turns off buffering and lengthens timeouts for its long-lived streams |
+| `service_name`, `service_port` | The Service to send requests to, over plain HTTP. Port 443 is refused: an HTTPS backend would need a BackendTLSPolicy, which the chart does not make |
+| `oauth2_proxy` | `true` puts the shared oauth2-proxy in front (an ExternalAuth filter), so only `admin_emails` get in. Use it for anything without a login of its own; the namespace must also be in `external_auth_namespaces` in `templates/gateway.yaml` |
+| `ssl_redirect` | Whether HTTP is redirected to HTTPS (an HTTPS-only route plus a `-https-redirect` route). Copy the `enable_cloudflare_tunnel` expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop |
+| `gateway_request_timeout` | The route's `timeouts.request`. Unset, Envoy gives each request 15 s in all; `0s` turns that off, for an app that streams or runs long requests (WebSockets, server-sent events, uploads), as ntfy does |
+| `namespace` | The route's namespace, when it is not the Application's own (it must sit beside its Service) |
 
 A service that signs in through Dex itself (as Grafana and argocd-monitor
 do) leaves `oauth2_proxy` off and needs a Dex client instead; see
 {doc}`/how-to/oauth-setup`.
 
 A service that should not have a hostname at all, like Jellyfin (reached
-on nuc2's own address from the LAN and the tailnet), simply has no ingress
+on nuc2's own address from the LAN and the tailnet), simply has no route
 source.
 
 ### A new chart repository
@@ -280,7 +280,7 @@ Credentials are committed only as SealedSecrets
 
 ### A public hostname
 
-An Ingress alone has no public DNS name. To publish `<name>.gkcluster.org` through the Cloudflare Tunnel,
+An HTTPRoute alone has no public DNS name. To publish `<name>.gkcluster.org` through the Cloudflare Tunnel,
 add one line to `tunnel_services` in `cloudflare/locals.tf`, then plan and
 apply: {ref}`cf-add-service`. That one entry is the tunnel route and the
 DNS record, and the wildcard Cloudflare Access application then asks every
@@ -357,7 +357,7 @@ application, which syncs by itself. Then open the pull request
 
 The root application prunes the child Application, and the child's
 finalizer deletes everything the application created: Deployments,
-Services, Ingresses, SealedSecrets and their Secrets, and its
+Services, HTTPRoutes, SealedSecrets and their Secrets, and its
 PersistentVolumeClaims.
 
 Pruning does not remove everything, mostly on purpose:

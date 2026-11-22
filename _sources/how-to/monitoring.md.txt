@@ -40,7 +40,7 @@ flowchart LR
 |------|-----|-------|
 | Grafana | <https://grafana.gkcluster.org> | **Sign in with GitHub (via Dex)**. Emails in `admin_emails` get the Admin role, everyone else Viewer; the password form is disabled |
 | Alertmanager | <https://alertmanager.gkcluster.org> | oauth2-proxy (GitHub, `admin_emails` only) |
-| Prometheus | No Ingress | `kubectl -n monitoring port-forward svc/grafana-prometheus-kube-pr-prometheus 9090`, then <http://localhost:9090> |
+| Prometheus | No HTTPRoute | `kubectl -n monitoring port-forward svc/grafana-prometheus-kube-pr-prometheus 9090`, then <http://localhost:9090> |
 
 Both hostnames go through the Cloudflare Tunnel, so Cloudflare Access comes
 first. Grafana is also in the `Demo` Access application, which lets the

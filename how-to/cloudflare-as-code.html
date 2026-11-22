@@ -486,7 +486,7 @@ window.addEventListener("load", load);</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Check Cilium’s Gateway, and move a route back to ingress-nginx" href="gateway.html" />
+    <link rel="next" title="Check Cilium’s Gateway" href="gateway.html" />
     <link rel="prev" title="How-to guides" href="../how-to.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -763,7 +763,7 @@ window.addEventListener("load", load);</script>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -896,7 +896,7 @@ pod, and why the edge is built this way, see
 ports. Every route points at Cilium’s Gateway
 (<code class="docutils literal notranslate"><span class="pre">http://cilium-gateway-web.gateway.svc.cluster.local</span></code>, <code class="docutils literal notranslate"><span class="pre">local.gateway</span></code>),
 never straight at a Service, so the HTTPRoutes and oauth2-proxy
-apply to everything (<a class="reference internal" href="gateway.html"><span class="doc">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></a>).</p></li>
+apply to everything (<a class="reference internal" href="gateway.html"><span class="doc">Check Cilium’s Gateway</span></a>).</p></li>
 <li><p><strong>Thirteen public hostnames</strong>, the <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> list in
 <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>. Each is a tunnel route and a proxied CNAME to
 the tunnel:</p>
@@ -977,7 +977,7 @@ the tunnel:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code></p></td>
-<td><p>The LAN address of a node that answers for the ingress LoadBalancer</p></td>
+<td><p>The LAN address of a node where servicelb serves the Gateway’s LoadBalancer</p></td>
 <td><p>The home page’s “am I on the LAN?” probe</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code></p></td>
@@ -1417,10 +1417,10 @@ passphrase, not a token (<a class="reference internal" href="#cf-token-errors"><
 <section id="publish-a-new-hostname">
 <span id="cf-add-service"></span><h2>Publish a new hostname<a class="headerlink" href="#publish-a-new-hostname" title="Link to this heading">#</a></h2>
 <p>A service becomes reachable at <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code> when two things
-exist: an Ingress for that host in the cluster, and a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>
+exist: an HTTPRoute for that host in the cluster, and a <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>
 entry at Cloudflare.</p>
 <ol class="arabic">
-<li><p><strong>Ingress.</strong> Give the service’s ArgoCD Application an ingress from
+<li><p><strong>HTTPRoute.</strong> Give the service’s ArgoCD Application a route from
 the shared chart in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress</span></code>
 (<a class="reference internal" href="add-remove-services.html"><span class="doc">Add or remove a service</span></a>), with:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">ssl_redirect</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">if .Values.enable_cloudflare_tunnel</span><span class="w"> </span><span class="p p-Indicator">}}</span><span class="l l-Scalar l-Scalar-Plain">false{{ else }}true{{ end }}</span>
@@ -1428,18 +1428,18 @@ the shared chart in <code class="docutils literal notranslate"><span class="pre"
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code> in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code>, and the templates under
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code> set their ingresses from it this way
-(echo’s, and ArgoCD’s in <code class="docutils literal notranslate"><span class="pre">argo-cd/ingress.yaml</span></code>, are always <code class="docutils literal notranslate"><span class="pre">false</span></code>),
-so every Ingress in the
-cluster carries <code class="docutils literal notranslate"><span class="pre">nginx.ingress.kubernetes.io/ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>.
-The same value attaches the service’s HTTPRoute to the Gateway’s plain
-HTTP listener. Cloudflare terminates TLS at its edge and <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>
-hands the Gateway plain HTTP; with the redirect on, it would
-answer every request with a redirect to HTTPS, which the browser is
-already using, and the page would loop (<code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code>).
-Check with:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.items[] |</span>
-<span class="s1">  &quot;\(.metadata.name) \(.metadata.annotations[&quot;nginx.ingress.kubernetes.io/ssl-redirect&quot;])&quot;&#39;</span>
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code> set their routes from it this way
+(echo’s, and ArgoCD’s in <code class="docutils literal notranslate"><span class="pre">templates/gateway.yaml</span></code>, are always <code class="docutils literal notranslate"><span class="pre">false</span></code>),
+so every HTTPRoute in the cluster attaches to both of the Gateway’s
+listeners, the plain HTTP one included, and none redirects. Cloudflare
+terminates TLS at its edge and <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> hands the Gateway plain
+HTTP on port 80; with the redirect on, the route would attach to the
+HTTPS listener only and a <code class="docutils literal notranslate"><span class="pre">-https-redirect</span></code> route would answer every
+request with a redirect to HTTPS, which the browser is already using,
+and the page would loop (<code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code>). Check that no route
+names a listener (the second column is empty) and that no
+<code class="docutils literal notranslate"><span class="pre">-https-redirect</span></code> route exists:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{range .items[*]}{.metadata.namespace}/{.metadata.name}{&quot;\t&quot;}{.spec.parentRefs[*].sectionName}{&quot;\n&quot;}{end}&#39;</span>
 </pre></div>
 </div>
 </li>
@@ -1465,8 +1465,8 @@ ntfy’s limit.</p></li>
 and the tunnel configuration updated in place; then <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>.</p></li>
 </ol>
 <p>No certificate step is needed. Cloudflare serves its own edge
-certificate for the public name, and inside the cluster ingress-nginx
-serves the wildcard certificate for any host without one of its own
+certificate for the public name, and inside the cluster the Gateway’s
+HTTPS listener serves the wildcard certificate for every host
 (<a class="reference internal" href="#cf-dns01-token"><span class="std std-ref">cert-manager’s DNS-01 token</span></a>).</p>
 <p>A record that must not go through the tunnel (a non-HTTP port on the
 VPS, a LAN-only name) goes in <code class="docutils literal notranslate"><span class="pre">dns_only_records</span></code> in <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>
@@ -1534,12 +1534,12 @@ reads the token from the Secret <code class="docutils literal notranslate"><span
 <li><p>The one <code class="docutils literal notranslate"><span class="pre">Certificate</span></code>, <code class="docutils literal notranslate"><span class="pre">wildcard-cert</span></code>
 (<code class="docutils literal notranslate"><span class="pre">templates/wildcard-certificate.yaml</span></code>), covers <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> and
 <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code> and is stored as <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>.</p></li>
-<li><p>ingress-nginx uses that Secret as its <code class="docutils literal notranslate"><span class="pre">default-ssl-certificate</span></code>
-(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/ingress.yaml</span></code>), and no Ingress names a
-certificate of its own, so every host is served the wildcard. Clients
-that reach ingress-nginx directly see it: LAN and tailnet browsers
-(<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>) and pods that resolve
-<code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> to the ingress inside the cluster.</p></li>
+<li><p>The Gateway’s HTTPS listener (port 443) names that Secret
+(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/gateway/templates/gateway.yaml</span></code>, allowed
+by a ReferenceGrant in <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code>), so every host is served the
+wildcard. Clients that reach the Gateway directly on 443 see it: LAN and
+tailnet browsers (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>), the VPS’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, and pods
+that resolve <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> to the Gateway inside the cluster.</p></li>
 </ul>
 <section id="create-the-token">
 <h3>Create the token<a class="headerlink" href="#create-the-token" title="Link to this heading">#</a></h3>
@@ -1683,7 +1683,7 @@ Access app that only served it), and its ID from <code class="docutils literal n
 <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code> (an import block for an object no longer in the
 code is skipped; for DNS records a check also warns about the stale
 key). Check that <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> destroys exactly those objects, and
-apply. Then remove the service’s Ingress with the rest of its
+apply. Then remove the service’s HTTPRoute with the rest of its
 Application (<a class="reference internal" href="add-remove-services.html"><span class="doc">Add or remove a service</span></a>).</p>
 </section>
 <section id="troubleshooting">
@@ -1728,7 +1728,7 @@ For <code class="docutils literal notranslate"><span class="pre">just</span> <sp
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Check Cilium’s Gateway, and move a route back to ingress-nginx</p>
+        <p class="prev-next-title">Check Cilium’s Gateway</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

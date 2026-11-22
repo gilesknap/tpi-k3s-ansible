@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Check Cilium’s Gateway, and move a route back to ingress-nginx &#8212; gkcluster K3s homelab  documentation</title>
+    <title>Check Cilium’s Gateway &#8212; gkcluster K3s homelab  documentation</title>
   
   
   
@@ -328,7 +328,7 @@
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -403,7 +403,7 @@
     
     <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Check Cilium’s Gateway</span></li>
   </ul>
 </nav>
 </div>
@@ -420,27 +420,50 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="check-cilium-s-gateway-and-move-a-route-back-to-ingress-nginx">
-<h1>Check Cilium’s Gateway, and move a route back to ingress-nginx<a class="headerlink" href="#check-cilium-s-gateway-and-move-a-route-back-to-ingress-nginx" title="Link to this heading">#</a></h1>
-<p>Every Cloudflare tunnel route goes to Cilium’s Gateway
-(<a class="reference internal" href="../explanations/decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>): all 13
-moved in one <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> on 22 Nov 2026. ingress-nginx still runs beside
-it and answers on the node addresses, which only the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and
-<code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> probes and the VPS’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> use, until phase 2 removes it.
-Browsers at home use the tunnel like any other, as the router has no local
-<code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> names.</p>
+  <section id="check-cilium-s-gateway">
+<h1>Check Cilium’s Gateway<a class="headerlink" href="#check-cilium-s-gateway" title="Link to this heading">#</a></h1>
+<p>Cilium’s Gateway <code class="docutils literal notranslate"><span class="pre">web</span></code> serves every hostname
+(<a class="reference internal" href="../explanations/decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>): every
+Cloudflare tunnel route goes to it, and servicelb gives it ports 80 and 443
+on the node addresses (192.168.1.83, .84, .91 and .92, and those nodes’
+tailnet addresses), which the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> probes and the
+VPS’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> use. Browsers at home use the tunnel like any other, as the
+router has no local <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> names.</p>
 <section id="check-the-gateway">
 <h2>Check the Gateway<a class="headerlink" href="#check-the-gateway" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>crd<span class="w"> </span>httproutes.gateway.networking.k8s.io
 kubectl<span class="w"> </span>get<span class="w"> </span>gatewayclass<span class="w"> </span>cilium-gateway<span class="w">        </span><span class="c1"># ACCEPTED True</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>gateway<span class="w"> </span>get<span class="w"> </span>gateway<span class="w"> </span>web<span class="w">             </span><span class="c1"># PROGRAMMED False is expected</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>gateway<span class="w"> </span>get<span class="w"> </span>gateway<span class="w"> </span>web<span class="w">             </span><span class="c1"># PROGRAMMED True, ADDRESS the node IPs</span>
 kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w">                       </span><span class="c1"># 16 routes</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>gateway<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>cilium-gateway-web<span class="w">  </span><span class="c1"># no EXTERNAL-IP, no NodePorts</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>ds<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>svclb<span class="w">     </span><span class="c1"># cilium-gateway-web: 0 desired</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>gateway<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>cilium-gateway-web<span class="w">  </span><span class="c1"># EXTERNAL-IP the node IPs, no NodePorts</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>ds<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>svclb<span class="w">     </span><span class="c1"># cilium-gateway-web: 4 desired, 4 ready</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">PROGRAMMED</span> <span class="pre">False</span></code> with “Gateway waiting for address” is the Gateway being
-kept off the node addresses on purpose; Envoy is configured all the same.</p>
+<p><code class="docutils literal notranslate"><span class="pre">PROGRAMMED</span> <span class="pre">False</span></code> with “Gateway waiting for address” means servicelb has
+listed no node on the Service: check its svclb pods
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-o</span> <span class="pre">wide</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">svclb-cilium-gateway-web</span></code>).
+One stuck Pending usually means something else holds host port 80 or 443 on
+that node. Envoy is configured all the same, so the tunnel still works.</p>
+<p>From the LAN, each node address answers plain HTTP and HTTPS (the
+wildcard certificate). Plain HTTP is served, not redirected, while the
+tunnel is on, as cloudflared uses port 80 too (ADR 16):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>ip<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">192</span>.168.1.83<span class="w"> </span><span class="m">192</span>.168.1.84<span class="w"> </span><span class="m">192</span>.168.1.91<span class="w"> </span><span class="m">192</span>.168.1.92<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span>curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$ip</span><span class="s2"> http %{http_code} &quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Host: echo.gkcluster.org&#39;</span><span class="w"> </span>http://<span class="nv">$ip</span>/
+<span class="w">  </span>curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;https %{http_code} verify=%{ssl_verify_result}\n&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--resolve<span class="w"> </span>home-lan.gkcluster.org:443:<span class="nv">$ip</span><span class="w"> </span>https://home-lan.gkcluster.org/healthz
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>Inside the cluster, <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolves to the Gateway’s
+ClusterIP (the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap, written by the cluster role), so
+Dex sign-in for ArgoCD, Grafana and ArgoCD Monitor goes through it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>cm<span class="w"> </span>coredns-custom<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w">   </span><span class="c1"># the ClusterIP of cilium-gateway-web</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>home<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>deploy/home<span class="w"> </span>--<span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">&#39;%{http_code} %{ssl_verify_result}\n&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://argocd.gkcluster.org/api/dex/.well-known/openid-configuration<span class="w">   </span><span class="c1"># 200 0</span>
+</pre></div>
+</div>
+<p>If the Gateway’s Service was ever re-made, its ClusterIP changed: re-run
+<code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> to rewrite the override.</p>
 <p>Every route should be accepted with its references resolved:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{range .items[*]}{.metadata.namespace}/{.metadata.name}{&quot;\t&quot;}{range .status.parents[*].conditions[*]}{.type}={.status} {end}{&quot;\n&quot;}{end}&#39;</span>
@@ -467,26 +490,6 @@ ssh<span class="w"> </span>ansible@node03<span class="w"> </span><span class="s2
 climbs out of <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>, which Envoy does not normalise (add <code class="docutils literal notranslate"><span class="pre">--path-as-is</span></code>, or
 curl normalises it first), such as <code class="docutils literal notranslate"><span class="pre">http://$ip/mcp/../</span></code> with the same headers:
 it must not return scrap’s app without the MCP bearer token.</p>
-</section>
-<section id="move-a-route-back-to-ingress-nginx">
-<h2>Move a route back to ingress-nginx<a class="headerlink" href="#move-a-route-back-to-ingress-nginx" title="Link to this heading">#</a></h2>
-<p>In an emergency, a hostname that fails on the Gateway can go back to
-ingress-nginx, which still has every Ingress. Add its address to the entry in
-<code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>:</p>
-<div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;scrap&quot;, service = &quot;http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local&quot;</span><span class="w"> </span><span class="p">},</span>
-</pre></div>
-</div>
-<p>To move the whole tunnel, change the default in <code class="docutils literal notranslate"><span class="pre">tunnel_ingress</span></code>
-(<code class="docutils literal notranslate"><span class="pre">lookup(s,</span> <span class="pre">&quot;service&quot;,</span> <span class="pre">local.gateway)</span></code>) to that address instead. Then plan
-and apply as on any day (<a class="reference internal" href="cloudflare-as-code.html#cf-roll-apply-token"><span class="std std-ref">Roll the edit token before an apply</span></a>): <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> must show
-one in-place change to <code class="docutils literal notranslate"><span class="pre">cloudflare_zero_trust_tunnel_cloudflared_config.cluster</span></code>,
-the hostname’s <code class="docutils literal notranslate"><span class="pre">service</span></code> going from the Gateway’s address to nginx’s. Roll the
-edit token at <a class="reference external" href="https://dash.cloudflare.com/profile/api-tokens">https://dash.cloudflare.com/profile/api-tokens</a>, and run
-<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code> from the main clone. cloudflared picks up the route in
-seconds, and nothing in the cluster changes. A response through the Gateway
-carries <code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>; one through nginx does not. Undo the edit the same
-way once the Gateway is fixed. This works only until phase 2 removes
-ingress-nginx.</p>
 </section>
 <section id="when-something-fails">
 <h2>When something fails<a class="headerlink" href="#when-something-fails" title="Link to this heading">#</a></h2>
@@ -572,7 +575,6 @@ ingress-nginx.</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-gateway">Check the Gateway</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#move-a-route-back-to-ingress-nginx">Move a route back to ingress-nginx</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-something-fails">When something fails</a></li>
 </ul>
   </nav></div>

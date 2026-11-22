@@ -436,7 +436,7 @@ anti-affinity rule asks for a second node, and otherwise prefers the others.</p>
 <td><p>This repository, the <code class="docutils literal notranslate"><span class="pre">ingress</span></code> sub-chart</p></td>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
-<td><p>The Hubble UI’s Ingress, <code class="docutils literal notranslate"><span class="pre">hubble.gkcluster.org</span></code>, behind oauth2-proxy</p></td>
+<td><p>The Hubble UI’s HTTPRoute, <code class="docutils literal notranslate"><span class="pre">hubble.gkcluster.org</span></code>, behind oauth2-proxy</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bitnami-labs/sealed-secrets</span></code> chart</p></td>
@@ -450,73 +450,79 @@ anti-affinity rule asks for a second node, and otherwise prefers the others.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">cert-manager</span></code></p></td>
 <td><p>1 each of controller, cainjector and webhook, any worker</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ingress</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kubernetes/ingress-nginx</span></code> chart</p></td>
-<td><p>4.15.1</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code></p></td>
-<td><p>2, on different nodes, with a PodDisruptionBudget. K3s ServiceLB publishes its ports 80 and 443 on node03, node04, nuc1 and nuc2</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gateway-api-crds</span></code></p></td>
+<td><p>Kustomize build of <code class="docutils literal notranslate"><span class="pre">kubernetes-sigs/gateway-api</span></code> <code class="docutils literal notranslate"><span class="pre">config/crd/experimental</span></code> (also applied by the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role before Cilium)</p></td>
+<td><p>v1.6.3</p></td>
+<td><p>cluster-scoped</p></td>
+<td><p>The Gateway API CRDs</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gateway</span></code></p></td>
+<td><p>This repository, <code class="docutils literal notranslate"><span class="pre">additions/gateway</span></code></p></td>
+<td><p>n/a</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gateway</span></code></p></td>
+<td><p>GatewayClass <code class="docutils literal notranslate"><span class="pre">cilium-gateway</span></code> and Gateway <code class="docutils literal notranslate"><span class="pre">web</span></code>, served by Cilium’s Envoy on every node. K3s ServiceLB publishes its ports 80 and 443 on node03, node04, nuc1 and nuc2</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy/oauth2-proxy</span></code> chart</p></td>
 <td><p>10.7.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code></p></td>
 <td><p>2, on different nodes, with a PodDisruptionBudget</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p>Plain manifests, image <code class="docutils literal notranslate"><span class="pre">cloudflare/cloudflared</span></code></p></td>
 <td><p>2026.10.7</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">cloudflared</span></code></p></td>
 <td><p>2, required on different nodes, with a PodDisruptionBudget</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">coredns</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">coredns</span></code></p></td>
 <td><p>Plain manifests (an HPA and a PodDisruptionBudget for the CoreDNS that K3s bundles)</p></td>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
 <td><p>Holds CoreDNS at 2, on different workers</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local-storage</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local-storage</span></code></p></td>
 <td><p>Local chart</p></td>
 <td><p>n/a</p></td>
 <td><p>cluster-scoped</p></td>
 <td><p>The <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> StorageClass and the static PVs on node04 and nuc2</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kubernetes-csi/csi-driver-nfs</span></code> chart</p></td>
 <td><p>4.13.4</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nfs-csi</span></code></p></td>
 <td><p>Controller 1 (on node02 today), node DaemonSet on all six nodes</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kernel-settings</span></code></p></td>
 <td><p>Plain manifests, <code class="docutils literal notranslate"><span class="pre">busybox:1.38</span></code></p></td>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kube-system</span></code></p></td>
 <td><p>DaemonSet <code class="docutils literal notranslate"><span class="pre">sysctl-tuning</span></code> on node03, node04, nuc1 and nuc2</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kubereboot/kured</span></code> chart</p></td>
 <td><p>6.1.0</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kured</span></code></p></td>
 <td><p>DaemonSet on every node but ws03</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
 <td><p>Vendored upstream manifests plus two Plans</p></td>
 <td><p>controller v0.20.2</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">system-upgrade</span></code></p></td>
 <td><p>1 (on node02 today)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
 <td><p>Vendored upstream DaemonSet, kustomize patch</p></td>
 <td><p>0.37.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">intel-gpu-plugin</span></code></p></td>
 <td><p>DaemonSet on nuc2 only</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">NVIDIA/k8s-device-plugin</span></code> chart</p></td>
 <td><p>0.20.1</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nvidia-device-plugin</span></code></p></td>
 <td><p>DaemonSet on ws03 only</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
 <td><p>Local chart</p></td>
 <td><p>n/a</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">backups</span></code></p></td>
@@ -626,8 +632,8 @@ anti-affinity rule asks for a second node, and otherwise prefers the others.</p>
 <code class="docutils literal notranslate"><span class="pre">templates/kyverno.yaml</span></code> (chart 3.9.1) is not rendered, because the app never
 settled to Synced and no policies were in use. <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> and
 <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> are both <code class="docutils literal notranslate"><span class="pre">true</span></code>; they do not remove an Application,
-they switch the oauth2-proxy annotations on Headlamp’s Ingress and the
-<code class="docutils literal notranslate"><span class="pre">ssl-redirect</span></code> annotation on every tunnelled Ingress.
+they switch the oauth2-proxy filter on Headlamp’s HTTPRoute (and whether
+the Hubble UI exists) and the HTTPS redirect on every tunnelled route.
 <a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or remove a service</span></a> describes adding and removing Applications.</p>
 </section>
 </section>
@@ -719,7 +725,7 @@ passes Cloudflare Access at the edge, then whatever the service does itself.
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet.gkcluster.org</span></code></p></td>
-<td><p>DNS-only records pointing at the LAN and the tailnet address of an ingress node. They serve the same landing page; its JavaScript fetches <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> on each to show whether the browser is on the LAN or the tailnet</p></td>
+<td><p>DNS-only records pointing at the LAN and the tailnet address of a node where ServiceLB serves the Gateway. They serve the same landing page; its JavaScript fetches <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> on each to show whether the browser is on the LAN or the tailnet</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mc.gkcluster.org:&lt;port&gt;</span></code></p></td>
 <td><p>DNS-only record for the VPS; Minecraft players connect here (<a class="reference internal" href="../how-to/minecraft.html"><span class="doc">Run the Minecraft dashboard</span></a>)</p></td>
@@ -735,7 +741,7 @@ passes Cloudflare Access at the edge, then whatever the service does itself.
 </div>
 <section id="port-forward-fallbacks">
 <h3>Port-forward fallbacks<a class="headerlink" href="#port-forward-fallbacks" title="Link to this heading">#</a></h3>
-<p>When Cloudflare, the tunnel or the ingress is down, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code>
+<p>When Cloudflare, the tunnel or the Gateway is down, <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">port-forward</span></code>
 from the devcontainer still reaches each service. It skips Cloudflare Access
 and oauth2-proxy, so it relies on the kubeconfig alone.</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -815,8 +821,8 @@ into a Secret. See <a class="reference internal" href="../how-to/manage-sealed-s
 <h3>cert-manager<a class="headerlink" href="#cert-manager" title="Link to this heading">#</a></h3>
 <p>Issues one wildcard certificate, <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> and <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, from
 Let’s Encrypt by DNS-01 through the Cloudflare API, into the Secret
-<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>. ingress-nginx serves it as its default
-certificate, so no Ingress needs its own. Requests 50m/128Mi, limits
+<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>. The Gateway’s HTTPS listener serves it for
+every host, so no route needs its own. Requests 50m/128Mi, limits
 200m/256Mi.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/cert-manager/templates/</span></code></p>
 <ul class="simple">
@@ -828,22 +834,25 @@ certificate, so no Ingress needs its own. Requests 50m/128Mi, limits
 <p>Its metrics are scraped by a ServiceMonitor in <code class="docutils literal notranslate"><span class="pre">additions/grafana/</span></code>, and
 certificate expiry alerts come from there (<a class="reference internal" href="../how-to/monitoring.html"><span class="doc">Monitoring and alerts</span></a>).</p>
 </section>
-<section id="ingress-nginx">
-<h3>ingress-nginx<a class="headerlink" href="#ingress-nginx" title="Link to this heading">#</a></h3>
-<p>The only ingress controller. Two replicas with a topology spread across
-nodes and <code class="docutils literal notranslate"><span class="pre">maxUnavailable:</span> <span class="pre">1</span></code>, so a reboot or drain keeps one serving. The
-admission webhook is disabled: its hook Jobs delete themselves before ArgoCD
-records them, which left every sync stuck. Requests 100m/256Mi, limits
-500m/512Mi.</p>
-<p>Most Ingresses are rendered by the small <code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> chart, which the
+<section id="cilium-s-gateway">
+<h3>Cilium’s Gateway<a class="headerlink" href="#cilium-s-gateway" title="Link to this heading">#</a></h3>
+<p>The only ingress: the Gateway <code class="docutils literal notranslate"><span class="pre">web</span></code> in <code class="docutils literal notranslate"><span class="pre">gateway</span></code> (GatewayClass
+<code class="docutils literal notranslate"><span class="pre">cilium-gateway</span></code>), served by Cilium’s Envoy, the <code class="docutils literal notranslate"><span class="pre">cilium-envoy</span></code> DaemonSet in
+<code class="docutils literal notranslate"><span class="pre">kube-system</span></code>, so it runs on every node and a reboot or drain leaves the
+rest serving. Its Service, <code class="docutils literal notranslate"><span class="pre">cilium-gateway-web</span></code>, takes plain HTTP from
+cloudflared on port 80 and serves the wildcard certificate on 443; ServiceLB
+publishes both on the node addresses. See <a class="reference internal" href="../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway</span></a> and
+<a class="reference internal" href="../explanations/decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>.</p>
+<p>Most HTTPRoutes are rendered by the small <code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> chart, which the
 service templates include as a source with <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">service_name</span></code>,
 <code class="docutils literal notranslate"><span class="pre">service_port</span></code> and <code class="docutils literal notranslate"><span class="pre">oauth2_proxy</span></code>.</p>
 </section>
 <section id="oauth2-proxy">
 <h3>oauth2-proxy<a class="headerlink" href="#oauth2-proxy" title="Link to this heading">#</a></h3>
 <p>GitHub login gate for the services with no login of their own: Headlamp,
-Alertmanager, the Minecraft dashboard and scrap. ingress-nginx asks it about
-every request (<code class="docutils literal notranslate"><span class="pre">auth-url</span></code> annotation) and it admits only <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>. Two
+Alertmanager, the Minecraft dashboard, scrap and the Hubble UI. The Gateway
+asks it about every request (the routes’ ExternalAuth filter) and it admits
+only <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>. Two
 replicas; sessions live in the encrypted cookie on <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code>, so the
 replicas share no state. Requests 10m/64Mi, limits 100m/128Mi.</p>
 <p><strong>Additional manifests:</strong> <code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/</span></code></p>
@@ -958,8 +967,8 @@ and the LAN and tailnet probes described under Access.</p>
 <section id="echo">
 <h3>echo<a class="headerlink" href="#echo" title="Link to this heading">#</a></h3>
 <p><a class="reference external" href="https://github.com/Ealenn/Echo-Server">ealen/echo-server</a>: returns the
-request it received as JSON, which shows the headers that Cloudflare,
-ingress-nginx and oauth2-proxy add. Non-root with a read-only root
+request it received as JSON, which shows the headers that Cloudflare and
+the Gateway’s Envoy add. Non-root with a read-only root
 filesystem.</p>
 </section>
 <section id="ntfy">
@@ -970,15 +979,15 @@ tokens and access are declarative, from the <code class="docutils literal notran
 chart’s values: write-only senders (<code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> and <code class="docutils literal notranslate"><span class="pre">scrap</span></code> on
 <code class="docutils literal notranslate"><span class="pre">cluster-alerts</span></code>, <code class="docutils literal notranslate"><span class="pre">vps</span></code> on <code class="docutils literal notranslate"><span class="pre">vps-alerts</span></code>) and a read-only <code class="docutils literal notranslate"><span class="pre">phone</span></code> user. It is public through the tunnel
 with a bypass Access application, because the phone app cannot log in to
-Access, and a Cloudflare rate-limiting rule. A NetworkPolicy admits only
-ingress-nginx, the Alertmanager pods and the scrap pods. See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push notifications with ntfy</span></a>.</p>
+Access, and a Cloudflare rate-limiting rule. Its network policies admit only
+the Gateway, the Alertmanager pods and the scrap pods. See <a class="reference internal" href="../how-to/ntfy.html"><span class="doc">Push notifications with ntfy</span></a>.</p>
 </section>
 <section id="scrap">
 <h3>scrap<a class="headerlink" href="#scrap" title="Link to this heading">#</a></h3>
 <p>Personal knowledge store (<a class="reference external" href="https://github.com/gilesknap/scrap">gilesknap/scrap</a>).
 The pod runs on any node: the database is on an <code class="docutils literal notranslate"><span class="pre">emptyDir</span></code>, replicated by
 Litestream to a static NFS volume on the NAS. The web UI is behind Cloudflare
-Access and oauth2-proxy; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> has its own Ingress behind a Cloudflare
+Access and oauth2-proxy; <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> has its own HTTPRoute behind a Cloudflare
 service token and scrap’s bearer token; public pages are served from the
 <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code> namespace at <code class="docutils literal notranslate"><span class="pre">pages.gkcluster.org</span></code>. See <a class="reference internal" href="../how-to/scrap.html"><span class="doc">Run scrap</span></a>.</p>
 </section>
@@ -987,7 +996,7 @@ service token and scrap’s bearer token; public pages are served from the
 <p>The upstream chart, pinned to nuc2 for its config volume (a <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PV at
 <code class="docutils literal notranslate"><span class="pre">/home/k8s-data/jellyfin</span></code>) and the Iris Xe (see
 <a class="reference internal" href="#intel-gpu-device-plugin">Intel GPU device plugin</a>). <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code>, so it
-answers on nuc2’s port 8096 on the LAN and the tailnet; no Ingress and no
+answers on nuc2’s port 8096 on the LAN and the tailnet; no HTTPRoute and no
 Cloudflare route. The library is a read-only NFS mount of <code class="docutils literal notranslate"><span class="pre">/bigdisk/media</span></code>.
 See <a class="reference internal" href="../how-to/jellyfin.html"><span class="doc">Run Jellyfin</span></a>.</p>
 </section>
@@ -1133,7 +1142,7 @@ render node has another number, use the one <code class="docutils literal notran
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#service-details">Service details</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sealed-secrets">Sealed Secrets</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cert-manager">cert-manager</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-nginx">ingress-nginx</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cilium-s-gateway">Cilium’s Gateway</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy">oauth2-proxy</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloudflared">cloudflared</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coredns-ha">CoreDNS HA</a></li>

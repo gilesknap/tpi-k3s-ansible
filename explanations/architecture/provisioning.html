@@ -994,8 +994,8 @@ on the list of nodes (<a class="reference internal" href="../../how-to/node-oper
 <code class="docutils literal notranslate"><span class="pre">cluster-init:</span> <span class="pre">true</span></code>; the other five run agents. There is no second
 server: resilience comes from the nightly etcd backup and the warm
 standby (<a class="reference internal" href="../../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>).</p></li>
-<li><p><strong>Traefik is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">disable:</span> <span class="pre">[traefik]</span></code>). ingress-nginx, delivered
-by ArgoCD, is the ingress controller.</p></li>
+<li><p><strong>Traefik is disabled</strong> (<code class="docutils literal notranslate"><span class="pre">disable:</span> <span class="pre">[traefik]</span></code>). Cilium’s Gateway,
+delivered by ArgoCD, serves every app.</p></li>
 <li><p><strong>A stable API name.</strong> <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> (<code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code>, a record on the
 router) is in the server certificate (<code class="docutils literal notranslate"><span class="pre">tls-san</span></code>), is what agents join
 (<code class="docutils literal notranslate"><span class="pre">https://k3s.lan:6443</span></code>), and is the server in the exported kubeconfig.
@@ -1035,8 +1035,9 @@ order that matters:</p>
 <li><p>Install the ArgoCD Helm chart into <code class="docutils literal notranslate"><span class="pre">argo-cd</span></code>, then upgrade it with the
 full configuration: Dex with the GitHub connector, RBAC from
 <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>, the local admin account disabled.</p></li>
-<li><p>Create the AppProject <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> (the allow-list of chart sources) and
-ArgoCD’s own Ingress.</p></li>
+<li><p>Create the AppProject <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code> (the allow-list of chart sources), and
+remove the ingress-nginx Ingress for ArgoCD that older runs made (its
+HTTPRoute comes from the <code class="docutils literal notranslate"><span class="pre">gateway</span></code> Application).</p></li>
 <li><p>Create the <code class="docutils literal notranslate"><span class="pre">sealed-secrets</span></code> Application on its own and wait for the
 controller. It must be running before anything applies a
 <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code>.</p></li>
@@ -1044,9 +1045,10 @@ controller. It must be running before anything applies a
 it with the new cluster’s key, commit and push.</p></li>
 <li><p>Create the root Application <code class="docutils literal notranslate"><span class="pre">all-cluster-services</span></code>. ArgoCD now deploys
 everything else.</p></li>
-<li><p>Wait for ingress-nginx, then write the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that
-resolves <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> to the ingress controller inside the
-cluster, so ArgoCD’s sign-in does not loop out through Cloudflare.</p></li>
+<li><p>Wait for the Gateway’s Service (<code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>), then
+write the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that resolves <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code>
+to its ClusterIP inside the cluster, so ArgoCD’s sign-in does not loop
+out through Cloudflare.</p></li>
 </ol>
 <pre  class="mermaid">
         flowchart LR
@@ -1057,8 +1059,8 @@ cluster, so ArgoCD’s sign-in does not loop out through Cloudflare.</p></li>
         A1 --&gt; A2 --&gt; A3
     end
     subgraph ARGO[&quot;ArgoCD owns&quot;]
-        G1[&quot;26 child Applications&lt;br/&gt;from kubernetes-services/&quot;]
-        G2[&quot;Every workload,&lt;br/&gt;Secret, Ingress and volume&quot;]
+        G1[&quot;27 child Applications&lt;br/&gt;from kubernetes-services/&quot;]
+        G2[&quot;Every workload,&lt;br/&gt;Secret, route and volume&quot;]
         G1 --&gt; G2
     end
     A3 ==&gt;|&quot;hand-over&quot;| G1

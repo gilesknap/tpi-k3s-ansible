@@ -10,7 +10,7 @@ of the day-to-day work from a sandbox on the owner's workstation.
 
 It runs scrap (a personal knowledge store with an MCP endpoint), Jellyfin, a
 Minecraft dashboard that launches game worlds, ntfy for push notifications,
-and the platform under them: ingress-nginx, cert-manager, Sealed Secrets,
+and the platform under them: Cilium's Gateway, cert-manager, Sealed Secrets,
 oauth2-proxy, Prometheus and Grafana, nightly self-patching and nightly
 encrypted backups.
 
@@ -60,7 +60,7 @@ hand.
 ```mermaid
 flowchart TB
     APPS["Applications<br/>scrap, Jellyfin, Minecraft dashboard, ntfy, Headlamp, home page<br/><b>ArgoCD</b>"]
-    PLAT["Platform services<br/>ingress-nginx, cert-manager, Sealed Secrets, oauth2-proxy, cloudflared,<br/>monitoring, storage classes, backups, kured, system-upgrade-controller<br/><b>ArgoCD</b>"]
+    PLAT["Platform services<br/>Cilium's Gateway, cert-manager, Sealed Secrets, oauth2-proxy, cloudflared,<br/>monitoring, storage classes, backups, kured, system-upgrade-controller<br/><b>ArgoCD</b>"]
     ARGO["ArgoCD and the root Application all-cluster-services<br/><b>Ansible</b> (cluster role)"]
     K3S["K3s: one server with embedded etcd, five agents<br/><b>Ansible</b> installs, system-upgrade-controller patches"]
     OS["Ubuntu 26.04, packages, local PV directories<br/><b>Ansible</b> installs, unattended-upgrades and kured maintain"]
@@ -109,13 +109,13 @@ flowchart TB
 | One K3s server, plus a warm standby | Three etcd members would spend half the small nodes on quorum. Instead node02 runs alone, its etcd is backed up nightly, and node03 is kept lightly loaded to take a restore ({doc}`/how-to/recover-control-plane`) |
 | A stable API name, `k3s.lan` | Agents, the server certificate and the kubeconfig use a router DNS record, so the control plane can move to another node without re-joining the agents |
 | ArgoCD over Flux | Its UI makes a homelab's state visible at a glance, and the app-of-apps pattern keeps one file per service |
-| ingress-nginx over Traefik | Its `auth-url` forward-auth is what oauth2-proxy is built around; K3s's Traefik is disabled |
+| Cilium's Gateway API over an ingress controller | Cilium already runs Envoy on every node, and its ExternalAuth filter puts oauth2-proxy in front of an app; it replaced ingress-nginx, retired upstream (ADR 0016). K3s's Traefik is disabled |
 | cert-manager with DNS-01 | No service has a public HTTP route for an HTTP-01 challenge; one wildcard certificate covers every hostname |
 | Sealed Secrets over SOPS | Secrets live in Git encrypted to a key only the cluster holds, with no external key service to run |
 | Cloudflare Tunnel and Access | No open ports or public IP at home, and a login wall in front of every hostname before traffic reaches the cluster, except the two that are public on purpose (`pages` and `ntfy`) |
 | Cloudflare as OpenTofu code | DNS records, tunnel routes, Access applications and WAF rules are reviewed and applied from `cloudflare/` (`just cf-plan`, `just cf-apply`) instead of clicked in a dashboard |
 | VPS relay for non-HTTP ports | Cloudflare Tunnel carries only HTTP(S). Minecraft's TCP ports are published on a VPS that the cluster dials over the tailnet, so the home address stays private |
-| Tailnet for remote shell and Jellyfin | Neither suits a public tunnel: SSH needs no public hostname at all, and video streaming is outside what the Cloudflare proxy is for. Jellyfin has no Ingress |
+| Tailnet for remote shell and Jellyfin | Neither suits a public tunnel: SSH needs no public hostname at all, and video streaming is outside what the Cloudflare proxy is for. Jellyfin has no HTTPRoute |
 | `nfs-stable` as the default storage class | Each claim gets a fixed folder on the NAS, so application data survives a cluster rebuild and a pod can run on any node |
 | Static `local-nvme` volumes for the few that need local disk | Prometheus, Grafana and Jellyfin's database want a local filesystem. Each gets one pinned PV; there is no replicated block storage to run (ADR 0012) |
 | Litestream on NFS for scrap | SQLite on NFS is unsafe, so scrap's database lives on the pod's node and Litestream replicates it to the NAS about once a second. scrap can then start on any node (ADR 0013) |

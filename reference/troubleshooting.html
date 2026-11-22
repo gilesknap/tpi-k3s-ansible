@@ -524,23 +524,18 @@ application’s sync status in the ArgoCD UI. Do not delete or patch the
 <h3>Application stuck in “Running” operation (admission webhooks)<a class="headerlink" href="#application-stuck-in-running-operation-admission-webhooks" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> An ArgoCD application shows a perpetual <code class="docutils literal notranslate"><span class="pre">Running</span></code> operation and
 never reaches <code class="docutils literal notranslate"><span class="pre">Synced</span></code>, even though all resources are healthy.</p>
-<p><strong>Cause:</strong> Charts like <code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> and <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> include
+<p><strong>Cause:</strong> Charts like <code class="docutils literal notranslate"><span class="pre">kube-prometheus-stack</span></code> include
 admission webhook jobs with <code class="docutils literal notranslate"><span class="pre">helm.sh/hook-delete-policy:</span> <span class="pre">hook-succeeded</span></code>. The
 job deletes itself before ArgoCD records completion, leaving the operation stuck.</p>
-<p><strong>Fix:</strong> The webhooks are disabled in both charts’ values, in
-<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>; keep them so, and do the same for a new
-chart that shows this:</p>
+<p><strong>Fix:</strong> The webhooks are disabled in its values, in
+<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/grafana.yaml</span></code>; keep them so, and do the same
+for a new chart that shows this:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># kube-prometheus-stack (grafana.yaml), under helm.valuesObject</span>
 <span class="nt">prometheusOperator</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">admissionWebhooks</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">  </span><span class="nt">tls</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># its cert came from the webhooks&#39; certgen job</span>
-
-<span class="c1"># ingress-nginx (ingress.yaml), under helm.valuesObject</span>
-<span class="nt">controller</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">admissionWebhooks</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
 <p>An operation that is already stuck is ended with <strong>Terminate</strong> in the
@@ -666,13 +661,14 @@ through the tunnel, and is met by Cloudflare Access, which answers with its
 HTML login page.</p>
 <p><strong>Fix:</strong> The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag writes a split-horizon override: a
 <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap in <code class="docutils literal notranslate"><span class="pre">kube-system</span></code> whose <code class="docutils literal notranslate"><span class="pre">cluster-domain.server</span></code>
-block makes <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolve to the ingress-nginx Service’s
-ClusterIP for pods, then restarts argocd-server. The task waits up to five
-minutes for ArgoCD to create the ingress Service; if it timed out on a
+block makes <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolve to the ClusterIP of the Gateway’s
+Service (<code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>, whose port 443 serves the wildcard
+certificate) for pods, then restarts argocd-server. The task waits up to ten
+minutes for Cilium to create the Gateway’s Service; if it timed out on a
 fresh build, or the Service was re-created with a new ClusterIP, run the
 tag again:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>get<span class="w"> </span>configmap<span class="w"> </span>coredns-custom<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w">   </span><span class="c1"># is it there?</span>
-kubectl<span class="w"> </span>-n<span class="w"> </span>ingress-nginx<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>ingress-ingress-nginx-controller<span class="w">   </span><span class="c1"># same ClusterIP?</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>gateway<span class="w"> </span>get<span class="w"> </span>svc<span class="w"> </span>cilium-gateway-web<span class="w">   </span><span class="c1"># same ClusterIP?</span>
 ansible-playbook<span class="w"> </span>pb_all.yml<span class="w"> </span>--tags<span class="w"> </span>cluster
 </pre></div>
 </div>
@@ -811,30 +807,30 @@ encrypted on Google Drive. The restore recipes are in
 <section id="web-service-returning-404-or-503">
 <h3>Web service returning 404 or 503<a class="headerlink" href="#web-service-returning-404-or-503" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">https://&lt;service&gt;.gkcluster.org</span></code> returns 404 Not Found, or 503
-(“no healthy upstream”), from Envoy (<code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>): the tunnel reaches
-Cilium’s Gateway. Through a node address (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>) the
-same errors come from ingress-nginx.</p>
+(“no healthy upstream”), from Envoy (<code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>): the tunnel and the
+node addresses (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>) both reach Cilium’s Gateway.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic simple">
 <li><p><strong>Service exists?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">svc</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span></code></p></li>
 <li><p><strong>Endpoints populated?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">endpoints</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">&lt;svc-name&gt;</span></code></p></li>
 <li><p><strong>HTTPRoute correct?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">&lt;service&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
-(routes made by <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> are named after the service). For the
-node-address path, the Ingress: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
-(named <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-ingress</span></code>)</p></li>
+(routes made by <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> are named after the service);
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">describe</span> <span class="pre">httproute</span> <span class="pre">&lt;service&gt;</span></code> shows whether the
+Gateway accepted it and resolved its backend.</p></li>
 <li><p><strong>Is the request reaching the Gateway?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&lt;service&gt;.gkcluster.org</span></code>
 returns Cloudflare addresses for every tunnelled name, not node addresses:
 the path is Cloudflare, cloudflared, then Cilium’s Gateway, which matches
 the service’s HTTPRoute (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">-A</span></code>). A 404 that is not
 Envoy’s (<code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>) means the hostname is not a tunnel route, and fell to the
-tunnel’s catch-all (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>).</p></li>
+tunnel’s catch-all (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>). <a class="reference internal" href="../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway</span></a> has
+the Gateway’s own checks and symptoms.</p></li>
 </ol>
 </section>
 <section id="certificate-not-issuing">
 <h3>Certificate not issuing<a class="headerlink" href="#certificate-not-issuing" title="Link to this heading">#</a></h3>
 <p>The cluster has one certificate: <code class="docutils literal notranslate"><span class="pre">wildcard-cert</span></code> in the <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code>
-namespace (issued by DNS-01 through Cloudflare), which ingress-nginx serves
-as its default (<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>).</p>
+namespace (issued by DNS-01 through Cloudflare), which the Gateway’s HTTPS
+listener serves for every host (<code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>).</p>
 <p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">cert</span> <span class="pre">-n</span> <span class="pre">cert-manager</span></code> shows <code class="docutils literal notranslate"><span class="pre">False</span></code> for Ready.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic">
@@ -892,15 +888,14 @@ is reverted by the next <code class="docutils literal notranslate"><span class="
 HTTPRoute on the HTTPS listener only, and a second route answers every
 plain HTTP request with a redirect to HTTPS, which comes back the same way.</p>
 <p><strong>Fix:</strong> The service’s <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> values must have
-<code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code>, which also sets the Ingress’s <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>
-and leaves no <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-https-redirect</span></code> HTTPRoute. The templates set
+<code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code>, which attaches the route to both listeners and
+leaves no <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-https-redirect</span></code> HTTPRoute. The templates set
 <code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code> from <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> (which is <code class="docutils literal notranslate"><span class="pre">true</span></code>); a new
 service’s template must do the same. Check:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>ssl-redirect
-kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>https-redirect<span class="w">   </span><span class="c1"># should print nothing</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>https-redirect<span class="w">   </span><span class="c1"># should print nothing</span>
 </pre></div>
 </div>
-<p>If either shows the redirect on, check that ArgoCD has synced the app. A route in
+<p>If it shows a redirect route, check that ArgoCD has synced the app. A route in
 <code class="docutils literal notranslate"><span class="pre">locals.tf</span></code> must also keep the <code class="docutils literal notranslate"><span class="pre">http://</span></code> scheme.</p>
 </section>
 <section id="tunnel-not-connecting">
@@ -934,7 +929,7 @@ Gateway’s Service on port 80 (<code class="docutils literal notranslate"><span
 service also bypasses oauth2-proxy.</p></li>
 <li><p><strong>Envoy running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">get</span> <span class="pre">ds</span> <span class="pre">cilium-envoy</span></code></p></li>
 <li><p><strong>HTTPRoute exists and is accepted</strong> for the hostname?
-<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">-A</span></code>; <a class="reference internal" href="../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></a> has the checks.</p></li>
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">-A</span></code>; <a class="reference internal" href="../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway</span></a> has the checks.</p></li>
 </ol>
 </section>
 <section id="new-tunnel-hostname-won-t-resolve-on-the-lan">
@@ -1077,9 +1072,9 @@ to check the job on node02 by hand: <a class="reference internal" href="../how-t
 <h3>AppArmor signal denials in containers (Ubuntu 25.04 and later)<a class="headerlink" href="#apparmor-signal-denials-in-containers-ubuntu-25-04-and-later" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> the node’s kernel log fills with <code class="docutils literal notranslate"><span class="pre">apparmor=&quot;DENIED&quot;</span> <span class="pre">operation=&quot;signal&quot;</span></code> entries for container processes, often <code class="docutils literal notranslate"><span class="pre">signal=urg</span></code>
 from Go programs or <code class="docutils literal notranslate"><span class="pre">signal=hup</span></code> from nginx. Visible failures include
-ingress-nginx never becoming ready because its reload fails with
-<code class="docutils literal notranslate"><span class="pre">kill(...):</span> <span class="pre">permission</span> <span class="pre">denied</span></code>, and containers that ignore SIGTERM on
-shutdown.</p>
+nginx reloads failing with <code class="docutils literal notranslate"><span class="pre">kill(...):</span> <span class="pre">permission</span> <span class="pre">denied</span></code> (ingress-nginx,
+before the Gateway replaced it, never became ready from this), and
+containers that ignore SIGTERM on shutdown.</p>
 <p><strong>Cause:</strong> Ubuntu 25.04 and later set
 <code class="docutils literal notranslate"><span class="pre">kernel.apparmor_restrict_unprivileged_unconfined=1</span></code>. Container processes
 then run under the stacked label <code class="docutils literal notranslate"><span class="pre">cri-containerd.apparmor.d//&amp;unconfined</span></code>,

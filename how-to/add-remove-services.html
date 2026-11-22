@@ -328,7 +328,7 @@
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -450,7 +450,7 @@ try it on the cluster as in <a class="reference internal" href="work-in-branches
 <td><p>the service has manifests of its own</p></td>
 </tr>
 <tr class="row-even"><td><p>3</p></td>
-<td><p><a class="reference internal" href="#an-ingress">Ingress source</a></p></td>
+<td><p><a class="reference internal" href="#a-route">Route source</a></p></td>
 <td><p>it has a web UI or an API</p></td>
 </tr>
 <tr class="row-odd"><td><p>4</p></td>
@@ -490,7 +490,7 @@ try it on the cluster as in <a class="reference internal" href="work-in-branches
 <section id="the-application-template">
 <h3>The Application template<a class="headerlink" href="#the-application-template" title="Link to this heading">#</a></h3>
 <p>Create <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/&lt;service&gt;.yaml</span></code>. This is ntfy’s, in
-full apart from the ingress annotations:</p>
+full apart from its route’s <code class="docutils literal notranslate"><span class="pre">gateway_request_timeout</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">argoproj.io/v1alpha1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Application</span>
 <span class="nt">metadata</span><span class="p">:</span>
@@ -560,7 +560,7 @@ Jellyfin’s:</p>
 </pre></div>
 </div>
 <p>Most services here combine the two: an upstream chart, plus sources from
-this repo for the ingress and any extra manifests.</p>
+this repo for the route and any extra manifests.</p>
 </section>
 <section id="the-service-s-own-manifests">
 <h3>The service’s own manifests<a class="headerlink" href="#the-service-s-own-manifests" title="Link to this heading">#</a></h3>
@@ -586,13 +586,13 @@ context where the image allows it, and an image tag that is a version, not
 <code class="docutils literal notranslate"><span class="pre">latest</span></code>. Pods on amd64-only images need a <code class="docutils literal notranslate"><span class="pre">nodeSelector</span></code> for
 <code class="docutils literal notranslate"><span class="pre">kubernetes.io/arch:</span> <span class="pre">amd64</span></code>: half the cluster is arm64.</p>
 </section>
-<section id="an-ingress">
-<h3>An ingress<a class="headerlink" href="#an-ingress" title="Link to this heading">#</a></h3>
-<p>A web UI gets its <code class="docutils literal notranslate"><span class="pre">Ingress</span></code> from the shared chart in
+<section id="a-route">
+<h3>A route<a class="headerlink" href="#a-route" title="Link to this heading">#</a></h3>
+<p>A web UI gets its HTTPRoute on Cilium’s Gateway from the shared chart in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code>, added as one more source (as in
-ntfy’s template above). It makes an Ingress named <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;-ingress</span></code> for the
-host <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code>, served with the wildcard certificate. Its
-values:</p>
+ntfy’s template above). It makes an HTTPRoute named <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;</span></code> for the
+host <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code>, which the Gateway serves with the wildcard
+certificate on its HTTPS listener (<a class="reference internal" href="gateway.html"><span class="doc">Check Cilium’s Gateway</span></a>). Its values:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Value</p></th>
@@ -601,25 +601,25 @@ values:</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
-<td><p>The hostname’s first label, and the Ingress’s name</p></td>
+<td><p>The hostname’s first label, and the HTTPRoute’s name</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
 <td><p>Always <code class="docutils literal notranslate"><span class="pre">{{</span> <span class="pre">.Values.cluster_domain</span> <span class="pre">}}</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">service_name</span></code>, <code class="docutils literal notranslate"><span class="pre">service_port</span></code></p></td>
-<td><p>The Service to send requests to. Port 443 switches the backend to HTTPS passthrough</p></td>
+<td><p>The Service to send requests to, over plain HTTP. Port 443 is refused: an HTTPS backend would need a BackendTLSPolicy, which the chart does not make</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> puts the shared oauth2-proxy in front, so only <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get in. Use it for anything without a login of its own</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> puts the shared oauth2-proxy in front (an ExternalAuth filter), so only <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> get in. Use it for anything without a login of its own; the namespace must also be in <code class="docutils literal notranslate"><span class="pre">external_auth_namespaces</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/gateway.yaml</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code></p></td>
-<td><p>Whether HTTP is redirected to HTTPS (nginx’s annotation, and on the Gateway an HTTPS-only route plus a <code class="docutils literal notranslate"><span class="pre">-https-redirect</span></code> route). Copy the <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop</p></td>
+<td><p>Whether HTTP is redirected to HTTPS (an HTTPS-only route plus a <code class="docutils literal notranslate"><span class="pre">-https-redirect</span></code> route). Copy the <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">basic_auth</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> asks for the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> password (the Secret must exist in the service’s namespace)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gateway_request_timeout</span></code></p></td>
+<td><p>The route’s <code class="docutils literal notranslate"><span class="pre">timeouts.request</span></code>. Unset, Envoy gives each request 15 s in all; <code class="docutils literal notranslate"><span class="pre">0s</span></code> turns that off, for an app that streams or runs long requests (WebSockets, server-sent events, uploads), as ntfy does</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">extra_annotations</span></code></p></td>
-<td><p>Any other ingress-nginx annotations. ntfy turns off buffering and lengthens timeouts for its long-lived streams</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">namespace</span></code></p></td>
+<td><p>The route’s namespace, when it is not the Application’s own (it must sit beside its Service)</p></td>
 </tr>
 </tbody>
 </table>
@@ -628,7 +628,7 @@ values:</p>
 do) leaves <code class="docutils literal notranslate"><span class="pre">oauth2_proxy</span></code> off and needs a Dex client instead; see
 <a class="reference internal" href="oauth-setup.html"><span class="doc">Set up OAuth authentication</span></a>.</p>
 <p>A service that should not have a hostname at all, like Jellyfin (reached
-on nuc2’s own address from the LAN and the tailnet), simply has no ingress
+on nuc2’s own address from the LAN and the tailnet), simply has no route
 source.</p>
 </section>
 <section id="a-new-chart-repository">
@@ -741,7 +741,7 @@ use it.</p></li>
 </section>
 <section id="a-public-hostname">
 <h3>A public hostname<a class="headerlink" href="#a-public-hostname" title="Link to this heading">#</a></h3>
-<p>An Ingress alone has no public DNS name. To publish <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code> through the Cloudflare Tunnel,
+<p>An HTTPRoute alone has no public DNS name. To publish <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code> through the Cloudflare Tunnel,
 add one line to <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>, then plan and
 apply: <a class="reference internal" href="cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>. That one entry is the tunnel route and the
 DNS record, and the wildcard Cloudflare Access application then asks every
@@ -816,7 +816,7 @@ scripts, and its row in <a class="reference internal" href="../reference/service
 </ol>
 <p>The root application prunes the child Application, and the child’s
 finalizer deletes everything the application created: Deployments,
-Services, Ingresses, SealedSecrets and their Secrets, and its
+Services, HTTPRoutes, SealedSecrets and their Secrets, and its
 PersistentVolumeClaims.</p>
 <p>Pruning does not remove everything, mostly on purpose:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -923,7 +923,7 @@ values together.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-a-service">Add a service</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-application-template">The Application template</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-service-s-own-manifests">The service’s own manifests</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#an-ingress">An ingress</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-route">A route</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-new-chart-repository">A new chart repository</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#storage">Storage</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#secrets">Secrets</a></li>

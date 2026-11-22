@@ -1,9 +1,9 @@
 # 16. Cilium's Gateway API Replaces ingress-nginx
 
-**Status:** Proposed. The first of two PRs is in: the Gateway runs beside
-ingress-nginx and carries every Cloudflare tunnel route, while ingress-nginx
-keeps the node addresses. Phase 2 (removing ingress-nginx) marks this
-Accepted.
+**Status:** Accepted. Done in two PRs: the first ran the Gateway beside
+ingress-nginx and moved every Cloudflare tunnel route to it; the second
+(phase 2, below) removed ingress-nginx and gave the Gateway the node
+addresses.
 
 ## Context
 
@@ -158,7 +158,7 @@ How the nginx annotations map:
 
 | Annotation | Where | On the Gateway |
 |------------|-------|----------------|
-| `ssl-redirect` | all, `"false"` with the tunnel on | Off: the route attaches to both listeners. On: the route attaches to the HTTPS listener only, and a second route on the HTTP listener answers with a `RequestRedirect` to HTTPS. Phase 2 decides the LAN redirect. |
+| `ssl-redirect` | all, `"false"` with the tunnel on | Off: the route attaches to both listeners. On: the route attaches to the HTTPS listener only, and a second route on the HTTP listener answers with a `RequestRedirect` to HTTPS. Phase 2 keeps this (below). |
 | `auth-url`, `auth-signin`, `auth-response-headers` | the five gated apps | The ExternalAuth filter, below |
 | `proxy-body-size` | scrap and `/mcp` (50m), ntfy (64k) | None. Envoy streams the body and sets no limit; Gateway API and Cilium have no field for one. scrap and ntfy keep their own limits (ntfy's messages are at most 4k, attachments off). |
 | `proxy-buffering: off`, `proxy-request-buffering: off` | ntfy, `/mcp` | None needed: Envoy streams both ways ([Cilium's annotation guide](https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-to-gateway/nginx-annotations-migration/) lists buffering as dropped). |
@@ -256,39 +256,78 @@ port
 ([Ingress and network policy](https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-and-network-policy/),
 [entities](https://docs.cilium.io/en/v1.20/security/policy/layer3/#entities-based)).
 
+### Phase 2: ingress-nginx removed
+
+The second PR removed the `ingress` Application (the ingress-nginx chart),
+every Ingress (the ingress sub-chart's, the ones from the
+kube-prometheus-stack, oauth2-proxy and scrap charts, scrap's `/mcp` one and
+ArgoCD's from the cluster role) and the NetworkPolicy peers that named the
+`ingress-nginx` namespace. The ingress sub-chart now renders only the
+HTTPRoutes, which are unchanged.
+
+- **The node addresses.** The infrastructure label is now
+  `svccontroller.k3s.cattle.io/lbpool: ""`, with an infrastructure
+  annotation added in the same commit so that servicelb re-renders the
+  Service's DaemonSet (above). servicelb then runs a svclb pod for the
+  Gateway on every node that takes workloads, as it did for nginx (the
+  control plane's `NoSchedule` taint and ws03's `workstation` taint keep
+  them off those two), so the Service lists 192.168.1.83, .84, .91 and .92,
+  and Cilium serves ports 80 and 443 on them and on those nodes' other
+  addresses, such as nuc2's tailnet one, which the VPS uses for `/mcp`. The
+  svclb pods forward to the ClusterIP (`externalTrafficPolicy: Cluster`),
+  so the Service still needs no NodePorts. The Gateway reports
+  `Programmed: True` and the `gateway` Application is Healthy.
+- **The redirect to HTTPS.** Unchanged, and the same as nginx's. With the
+  tunnel on, every app has `ssl_redirect: false`, so its route attaches to
+  both listeners and plain HTTP on port 80 is served, not redirected:
+  cloudflared sends plain HTTP to port 80 too, and the Gateway cannot tell
+  its requests from a LAN client's on the same port. nginx did the same, as
+  `ssl-redirect: "false"` applied to every client. What uses the node
+  addresses speaks HTTPS: the home page's `home-lan` and `home-tailnet`
+  probes fetch `https://` URLs, and the VPS calls
+  `https://scrap.gkcluster.org/mcp`. Telling tunnel requests apart (a
+  separate listener port for cloudflared, or matching on the
+  `Cf-Connecting-Ip` header) was not done: a second port would be published
+  on the node addresses too, a header is the client's to set, and no LAN
+  client uses plain HTTP. Without the tunnel, `ssl_redirect` is on and port
+  80 answers every host with a redirect.
+- **In-cluster sign-in.** The `coredns-custom` override, from the cluster
+  role, resolves `argocd.gkcluster.org` to the Gateway's ClusterIP instead
+  of nginx's, so the in-cluster calls to Dex (argocd-server, Grafana's token
+  and user-info calls, argocd-monitor's oauth2-proxy) reach it on 443, which
+  serves the wildcard certificate. On a new cluster the role waits for
+  the Gateway's Service, which appears once the `gateway` Application has
+  synced and the Cilium operator has made it, then writes the override and
+  restarts argocd-server, as it did for nginx's.
+- **NetworkPolicies.** scrap's has no peers left, ntfy's only its
+  in-cluster publishers, and the scrap-public web port is open to any peer,
+  as the scrap chart does with no `webFrom`: it serves only public files.
+  The CiliumNetworkPolicies above admit the Gateway.
+
 ## Consequences
 
-- The tunnel reaches the Gateway, while the node addresses (`home-lan`,
-  `home-tailnet` and the VPS) still reach ingress-nginx, and every Ingress
-  renders as before. Browsers at home use the tunnel too: the router has no
-  local `*.gkcluster.org` names. The change restarts every Cilium agent and
+- Every hostname is served by the Gateway, from the tunnel, the LAN, the
+  tailnet and the VPS. Browsers at home use the tunnel too: the router has
+  no local `*.gkcluster.org` names. Phase 1 restarted every Cilium agent and
   the operator (new values), and oauth2-proxy (new upstream).
-- The `gateway` Application stays Progressing until phase 2 gives the Gateway
-  an address; `/rebuild-cluster` counts that as healthy until then.
+- The `gateway` Application was Progressing while phase 1 kept the Gateway
+  off the node addresses; since phase 2 it is Healthy.
 - The custom sign-in page replaces oauth2-proxy's everywhere, so on
   `oauth2.gkcluster.org` itself the "Sign in with GitHub" button is gone and
   the page goes straight to GitHub. A sign-out that lands there signs straight
   back in while the GitHub session lasts. Nothing links to sign-out today.
-- Envoy does not merge `..` path segments as nginx does (Cilium sets no path
+- Envoy does not merge `..` path segments as nginx did (Cilium sets no path
   normalisation), so `scrap.gkcluster.org/mcp/../x` matches the `/mcp` route,
   which has no oauth2-proxy; scrap then sees the path unchanged.
   `docs/how-to/gateway.md` has the check.
 - The trial moved all 13 tunnel routes to the Gateway in one `just cf-apply`
   on 22 Nov 2026, and every app passed: sign-in on the five gated apps, ntfy
-  to a phone, scrap's MCP, Hubble and ArgoCD. A route can go back to
-  ingress-nginx with a one-line change in `cloudflare/locals.tf` until phase
-  2 (`docs/how-to/gateway.md`).
+  to a phone, scrap's MCP, Hubble and ArgoCD. Until phase 2 a route could go
+  back to ingress-nginx with a one-line change in `cloudflare/locals.tf`;
+  there is no fallback now.
 - A new gated app needs its namespace added to the oauth2-proxy
   ReferenceGrant's list in `templates/gateway.yaml`, or it fails closed.
 - Gateway API upgrades follow Cilium's supported version and are not
   automerged.
 - Not covered: HTTP/2 and gRPC to backends (`enableAppProtocol`), and access
   logs.
-
-### Left for phase 2
-
-Removing ingress-nginx and its Ingresses; dropping the lbpool label so the
-Gateway takes the node addresses (LAN, `home-lan`, `home-tailnet`, and the
-VPS on nuc2's tailnet address); the LAN HTTPS redirect; the `coredns-custom`
-override for `argocd.gkcluster.org`, which points at nginx's ClusterIP; and a
-`/rebuild-cluster` test.

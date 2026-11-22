@@ -15,7 +15,7 @@ flowchart TB
     mcp["MCP client<br/>(Claude Code)"]
     reader["Anyone"]
     cf["Cloudflare Tunnel and Access"]
-    nginx["Cilium's Gateway"]
+    gw["Cilium's Gateway"]
     o2p["oauth2-proxy<br/>(GitHub, admin_emails)"]
     subgraph ns1["namespace scrap (any node)"]
         scrap["scrap pod:<br/>scrap, litestream, jobs"]
@@ -29,10 +29,10 @@ flowchart TB
     browser -->|"scrap.gkcluster.org<br/>Access: Owner"| cf
     mcp -->|"scrap.gkcluster.org/mcp<br/>Access: service token"| cf
     reader -->|"pages.gkcluster.org<br/>Access: bypass, cached"| cf
-    cf --> nginx
-    nginx -.->|"auth check<br/>(not for /mcp)"| o2p
-    nginx --> scrap
-    nginx --> pub
+    cf --> gw
+    gw -.->|"auth check<br/>(not for /mcp)"| o2p
+    gw --> scrap
+    gw --> pub
     scrap -->|"pushes public pages"| pub
     scrap --- nas
     nas -->|"00:50 copy"| nuc2
@@ -46,10 +46,10 @@ sources:
   `targetRevision`). It runs scrap in Litestream mode with a NetworkPolicy,
   Claude ingest (photo reading and text enrichment, with a daily spend cap),
   the nightly and monthly backup CronJobs and the public-pages site.
-- **`kubernetes-services/additions/scrap/`**: the `/mcp`-only Ingress, the
+- **`kubernetes-services/additions/scrap/`**: the `/mcp`-only HTTPRoute, the
   SealedSecrets, the `scrap-public` namespace, the static NFS volumes and the
   nightly copy of the newest backup to nuc2.
-- **`kubernetes-services/additions/ingress/`**: the main Ingress for
+- **`kubernetes-services/additions/ingress/`**: the main HTTPRoute for
   `scrap.gkcluster.org`, behind oauth2-proxy.
 
 ## Authentication layers
@@ -60,26 +60,25 @@ scrap has no login of its own, so access control is layered in front of it.
 |------|----------------------|-------------------------|
 | Web UI and PWA | Cloudflare Access: the Owner policy of the `clusterapps` application | oauth2-proxy GitHub login, limited to `admin_emails` |
 | `/mcp` | Cloudflare Access service token (`CF-Access-Client-Id` and `CF-Access-Client-Secret` headers) | scrap's bearer token, `SCRAP_MCP_TOKEN` |
-| `/mcp` from the claude-canary VPS, over the tailnet ({ref}`scrap-canary`) | None: the tailnet policy lets the VPS reach nuc2's ingress-nginx, not Cloudflare | The VPS's own bearer token, `SCRAP_MCP_TOKEN_CANARY` |
+| `/mcp` from the claude-canary VPS, over the tailnet ({ref}`scrap-canary`) | None: the tailnet policy lets the VPS reach the Gateway on nuc2, not Cloudflare | The VPS's own bearer token, `SCRAP_MCP_TOKEN_CANARY` |
 | `pages.gkcluster.org` | None: a bypass Access application, as the site is public | None: static files only, and nothing on that side can reach scrap |
 
 The `/mcp` path cannot use oauth2-proxy, because an MCP client cannot complete
-a browser login. It has its own Ingress, `scrap-mcp-ingress`, without the
-oauth2 annotations; nginx routes to the most specific path, so `/mcp` requests
-go there and everything else goes to the gated `scrap-ingress`. On the Gateway,
-which the tunnel reaches, the same file makes a `/mcp` HTTPRoute without the
-ExternalAuth filter, and Envoy likewise picks the longest matching prefix.
+a browser login. It has its own HTTPRoute, `scrap-mcp`
+(`additions/scrap/templates/mcp-route.yaml`), without the ExternalAuth filter;
+Envoy picks the longest matching path prefix, so `/mcp` requests go there and
+everything else goes to the gated `scrap` route.
 
-The NetworkPolicy admits only the `ingress-nginx` namespace, and the
-`scrap-from-gateway` CiliumNetworkPolicy only Cilium's Gateway, to the scrap
-pod, so nothing else in the cluster can reach it or forge the identity headers that
+The chart's NetworkPolicy admits no peers, and the `scrap-from-gateway`
+CiliumNetworkPolicy admits only Cilium's Gateway, to the scrap pod, so nothing
+else in the cluster can reach it or forge the identity headers that
 oauth2-proxy sets.
 
 :::{warning}
-The `/mcp` Ingress is switched by `mcp_ingress_enabled` in
+The `/mcp` route is switched by `mcp_route_enabled` in
 `kubernetes-services/templates/scrap.yaml` (`true`). It is only safe with
 `mcp.tokenSecret` set, as it is: without scrap's bearer token, Cloudflare
-would be the only protection on `/mcp`, and ingress-nginx can be reached
+would be the only protection on `/mcp`, and the Gateway can be reached
 directly from the LAN and the tailnet, bypassing Cloudflare.
 :::
 
@@ -164,11 +163,12 @@ IP:
 100.125.90.58  scrap.gkcluster.org
 ```
 
-nuc2 runs a ServiceLB pod for ingress-nginx's LoadBalancer Service, which
-takes port 443 on every address of the node, `tailscale0` included. The VPS
-therefore talks to ingress-nginx directly: the wildcard certificate matches,
-the `Host` is the one scrap's DNS-rebinding check expects, and nginx routes
-`/mcp` to `scrap-mcp-ingress` as for any other client. The MCP entry is the
+nuc2 runs a ServiceLB pod for the Gateway's LoadBalancer Service
+(`gateway/cilium-gateway-web`), which takes port 443 on every address of the
+node, `tailscale0` included. The VPS therefore talks to the Gateway directly:
+the wildcard certificate matches, the `Host` is the one scrap's DNS-rebinding
+check expects, and Envoy routes `/mcp` to the `scrap-mcp` route as for any
+other client. The MCP entry is the
 usual `https://scrap.gkcluster.org/mcp` with only the
 `Authorization: Bearer <canary token>` header.
 
@@ -187,7 +187,7 @@ Limits:
   `nuc2` host alias and the VPS's `/etc/hosts`. If nuc2 rejoins the tailnet
   with a new IP (a reinstall or a logout), update both; until then the VPS
   just loses scrap.
-- **The grant opens all of ingress-nginx on nuc2, not only scrap.** Every
+- **The grant opens all of the Gateway on nuc2, not only scrap.** Every
   `*.gkcluster.org` host is reachable from the VPS without Cloudflare Access,
   as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
   argocd-monitor's own oauth2-proxy sidecar, Argo CD's Dex, Grafana, ntfy's
@@ -258,12 +258,15 @@ This repository provides:
   `scrap-public-publish-secret.yaml` (`scrap-public`). Both must hold the same
   token; `kubernetes-services/additions/scrap/README.md` has the command that
   seals a new one into both;
-- the Ingress for `pages.gkcluster.org` (the chart's `public.ingress`) on the
-  `nginx` class with the wildcard certificate, **without** the oauth2-proxy
-  annotations. Only nginx is on it; the receiver never is;
-- `public.networkPolicy.webFrom`, which admits only the `ingress-nginx`
-  namespace to nginx. The chart's NetworkPolicy admits only scrap's pods to
-  the receiver, and denies all egress from the pod.
+- the HTTPRoute `pages` for `pages.gkcluster.org`, from `additions/ingress`
+  in the `scrap-public` namespace, **without** the ExternalAuth filter (the
+  chart's own `public.ingress` is off). Only nginx is on it; the receiver
+  never is;
+- `public.networkPolicy.webFrom` empty, which leaves nginx's port open to any
+  peer, as it serves only public files (the `scrap-public-from-gateway`
+  CiliumNetworkPolicy also admits the Gateway). The chart's NetworkPolicy
+  admits only scrap's pods to the receiver, and denies all egress from the
+  pod.
 
 The site is held in an `emptyDir`, so it starts empty when the pod moves;
 scrap checks the receiver's manifest at start and every 10 minutes and pushes
@@ -311,7 +314,7 @@ chart is published to the same OCI registry as the Minecraft dashboard's
 ## Notes on the unauthenticated path
 
 - Kubernetes probes talk to the pod directly, so no health endpoint is exposed
-  through the Ingress.
+  through the Gateway.
 - oauth2-proxy sets one cookie on `.gkcluster.org`, shared by every service
   behind it. Its default lifetime is 168 hours with no refresh, and the cookie
   is `SameSite=Lax`. After it expires, background `fetch` calls from the PWA
@@ -321,7 +324,8 @@ chart is published to the same OCI registry as the Minecraft dashboard's
 - A cross-site top-level POST (an Android share target started from another
   app) does not carry a `Lax` cookie, so the first share after expiry may land
   on the login page.
-- nginx does not strip client-supplied identity headers on the `/mcp` path.
+- The Gateway does not strip client-supplied identity headers on the `/mcp`
+  path, which has no ExternalAuth filter.
   Nothing there relies on an identity header: the bearer token is the gate.
 
 ## Verify
@@ -345,7 +349,7 @@ kubectl -n scrap logs deploy/scrap -c db-init
 For public pages:
 
 ```bash
-kubectl -n scrap-public get pods,ingress,networkpolicy,secret
+kubectl -n scrap-public get pods,httproute,networkpolicy,secret
 ```
 
 From outside the LAN and the tailnet:
@@ -353,7 +357,7 @@ From outside the LAN and the tailnet:
 - `https://pages.gkcluster.org/` returns 200, with no Cloudflare Access
   redirect.
 - `https://pages.gkcluster.org/v1/manifest` returns 404: the receiver is not
-  on the Ingress.
+  on the route.
 - In scrap, `/api/health` shows `enabled: true` in its `publish` block.
 
 ## How it got here: the move off a local volume

@@ -922,15 +922,15 @@ child then syncs its own chart or manifests.</p>
     ANS[&quot;Ansible cluster role&quot;] --&gt;|&quot;creates&quot;| ROOT[&quot;all-cluster-services&lt;br/&gt;root Application&quot;]
     REPO[&quot;kubernetes-services/&lt;br/&gt;Chart.yaml, values.yaml, templates/&quot;] --&gt;|&quot;rendered by&quot;| ROOT
 
-    ROOT --&gt; P[&quot;Platform&lt;br/&gt;cilium, sealed-secrets, cert-manager, ingress,&lt;br/&gt;oauth2-proxy, cloudflared, coredns&quot;]
+    ROOT --&gt; P[&quot;Platform&lt;br/&gt;cilium, gateway-api-crds, gateway, sealed-secrets,&lt;br/&gt;cert-manager, oauth2-proxy, cloudflared, coredns&quot;]
     ROOT --&gt; S[&quot;Storage and backups&lt;br/&gt;local-storage, nfs-csi, backups&quot;]
     ROOT --&gt; M[&quot;Nodes and maintenance&lt;br/&gt;kured, system-upgrade, kernel-settings,&lt;br/&gt;intel-gpu-plugin, nvidia-device-plugin&quot;]
     ROOT --&gt; O[&quot;Observability and UIs&lt;br/&gt;grafana-prometheus, headlamp, hubble-ui,&lt;br/&gt;argocd-monitor, home, echo&quot;]
     ROOT --&gt; A[&quot;Applications&lt;br/&gt;scrap, jellyfin, minecraft,&lt;br/&gt;ntfy, vps-relay&quot;]
 
     P &amp; S &amp; M &amp; O &amp; A --&gt;|&quot;sync&quot;| K[&quot;Cluster resources&quot;]
-    </pre><p>Those are the 26 child Applications in the live cluster
-(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">applications</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code> shows 27 with the root). A 27th
+    </pre><p>Those are the 27 child Applications in the live cluster
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">applications</span> <span class="pre">-n</span> <span class="pre">argo-cd</span></code> shows 28 with the root). A 28th
 template, <code class="docutils literal notranslate"><span class="pre">kyverno.yaml</span></code>, renders nothing because <code class="docutils literal notranslate"><span class="pre">enable_kyverno</span></code> is
 <code class="docutils literal notranslate"><span class="pre">false</span></code>: the app never settled to Synced and no policies were in use.</p>
 <p>All Applications belong to the AppProject <code class="docutils literal notranslate"><span class="pre">kubernetes</span></code>, which may deploy to
@@ -941,13 +941,13 @@ registry there and apply it with <code class="docutils literal notranslate"><spa
 Application.</p>
 <section id="repository-layout">
 <h3>Repository layout<a class="headerlink" href="#repository-layout" title="Link to this heading">#</a></h3>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>argo-cd/                  # root Application, AppProject and ArgoCD&#39;s Ingress (applied by Ansible)
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>argo-cd/                  # root Application and AppProject (applied by Ansible)
 kubernetes-services/
 ├── Chart.yaml            # the meta chart
 ├── values.yaml           # every setting ArgoCD-delivered services share
 ├── templates/            # one ArgoCD Application per service
 └── additions/            # this repository&#39;s own manifests and charts, one folder per service
-    └── ingress/          # the reusable Ingress sub-chart
+    └── ingress/          # the reusable HTTPRoute sub-chart
 </pre></div>
 </div>
 <p><a class="reference internal" href="../../reference/services.html"><span class="doc">Services reference</span></a> is the catalogue: each service’s chart, version,
@@ -991,10 +991,10 @@ template is the complete answer to “how is this configured?”.</p>
 <td><p>The Application exists only when <code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code></p></td>
-<td><p>Whether the Headlamp Ingress carries the oauth2-proxy annotations; scrap and the Minecraft dashboard are always behind oauth2-proxy</p></td>
+<td><p>Whether the Headlamp HTTPRoute carries the oauth2-proxy ExternalAuth filter; scrap and the Minecraft dashboard are always behind oauth2-proxy</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code></p></td>
-<td><p>Turns off the HTTP-to-HTTPS redirect on tunnelled Ingresses, since Cloudflare terminates TLS at the edge</p></td>
+<td><p>Turns off the HTTP-to-HTTPS redirect on every HTTPRoute, since Cloudflare terminates TLS at the edge and cloudflared sends plain HTTP</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">offsite_backup.enabled</span></code></p></td>
 <td><p>Runs the nightly off-site copy and enables its alerts</p></td>
@@ -1009,7 +1009,7 @@ template is the complete answer to “how is this configured?”.</p>
 <section id="upstream-chart-plus-additions">
 <h3>Upstream chart plus additions<a class="headerlink" href="#upstream-chart-plus-additions" title="Link to this heading">#</a></h3>
 <p>Most services combine up to three sources in one Application: an upstream
-Helm chart, a folder of this repository’s own manifests, and the Ingress
+Helm chart, a folder of this repository’s own manifests, and the HTTPRoute
 sub-chart. Headlamp is a short real example
 (<code class="docutils literal notranslate"><span class="pre">templates/dashboard.yaml</span></code>, abridged):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sources</span><span class="p">:</span>
@@ -1020,7 +1020,7 @@ sub-chart. Headlamp is a short real example
 <span class="w">    </span><span class="nt">helm</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">valuesObject</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="w"> </span><span class="nv">...</span><span class="w"> </span><span class="p p-Indicator">}</span>
 
-<span class="w">  </span><span class="c1"># 2. The Ingress, from the shared sub-chart</span>
+<span class="w">  </span><span class="c1"># 2. The HTTPRoute, from the shared sub-chart</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./kubernetes-services/additions/ingress</span>
 <span class="w">    </span><span class="nt">repoURL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.Values.repo_remote</span><span class="w"> </span><span class="p p-Indicator">}}</span>
 <span class="w">    </span><span class="nt">targetRevision</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{{</span><span class="w"> </span><span class="nv">.Values.repo_branch</span><span class="w"> </span><span class="p p-Indicator">}}</span>
@@ -1040,12 +1040,14 @@ rules, a ServiceMonitor and the <code class="docutils literal notranslate"><span
 <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code> it is a small chart with the ClusterIssuer and the wildcard
 Certificate.</p>
 </section>
-<section id="the-ingress-sub-chart">
-<h3>The Ingress sub-chart<a class="headerlink" href="#the-ingress-sub-chart" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> is a one-template chart that produces <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;-ingress</span></code>
-for the host <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code>, so no service repeats Ingress
-boilerplate. TLS needs no per-service secret: ingress-nginx serves the
-wildcard certificate <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code> by default.</p>
+<section id="the-httproute-sub-chart">
+<h3>The HTTPRoute sub-chart<a class="headerlink" href="#the-httproute-sub-chart" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">additions/ingress/</span></code> is a one-template chart that produces an HTTPRoute
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;</span></code> on Cilium’s Gateway <code class="docutils literal notranslate"><span class="pre">web</span></code> for the host <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.gkcluster.org</span></code>, so no
+service repeats route boilerplate
+(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>). TLS needs
+no per-service secret: the Gateway’s HTTPS listener serves the wildcard
+certificate <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Value</p></th>
@@ -1054,22 +1056,22 @@ wildcard certificate <code class="docutils literal notranslate"><span class="pre
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
-<td><p>The Ingress name and host</p></td>
+<td><p>The HTTPRoute name and host</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">service_name</span></code>, <code class="docutils literal notranslate"><span class="pre">service_port</span></code></p></td>
-<td><p>The backend. Port <code class="docutils literal notranslate"><span class="pre">443</span></code> makes ingress-nginx speak HTTPS to the backend</p></td>
+<td><p>The backend Service. Port <code class="docutils literal notranslate"><span class="pre">443</span></code> (an HTTPS backend) is refused: it would need a BackendTLSPolicy</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code></p></td>
-<td><p>Adds the <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations, so requests must pass oauth2-proxy (<a class="reference internal" href="authentication.html"><span class="doc">Authentication</span></a>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">namespace</span></code></p></td>
+<td><p>The route’s namespace when it is not the Application’s own (pages lives in <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">basic_auth:</span> <span class="pre">true</span></code></p></td>
-<td><p>nginx basic auth from the <code class="docutils literal notranslate"><span class="pre">admin-auth</span></code> secret (no service uses it today)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code></p></td>
+<td><p>Adds the ExternalAuth filter, so requests must pass oauth2-proxy (<a class="reference internal" href="authentication.html"><span class="doc">Authentication</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code></p></td>
-<td><p>Defaults to <code class="docutils literal notranslate"><span class="pre">true</span></code>; tunnelled services set it <code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Defaults to <code class="docutils literal notranslate"><span class="pre">true</span></code>: the route takes the HTTPS listener only, and a <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;-https-redirect</span></code> route redirects plain HTTP. Tunnelled services set it <code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extra_annotations</span></code></p></td>
-<td><p>Any further annotations, as used by scrap and ntfy</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gateway_request_timeout</span></code></p></td>
+<td><p>The route’s <code class="docutils literal notranslate"><span class="pre">timeouts.request</span></code>. Empty keeps Envoy’s 15 s limit on a whole request; <code class="docutils literal notranslate"><span class="pre">0s</span></code> turns it off, for apps that stream</p></td>
 </tr>
 </tbody>
 </table>
@@ -1291,7 +1293,7 @@ Once ArgoCD is back it syncs every service from Git on its own.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-values-flow">How values flow</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-an-application-is-made-of">What an Application is made of</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#upstream-chart-plus-additions">Upstream chart plus additions</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-ingress-sub-chart">The Ingress sub-chart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-httproute-sub-chart">The HTTPRoute sub-chart</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#other-shapes">Other shapes</a></li>
 </ul>
 </li>

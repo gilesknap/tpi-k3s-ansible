@@ -1108,7 +1108,7 @@ it. The reasoning is in ADR 0005
         NV[&quot;NVIDIA device plugin&quot;]
     end
 
-    HA[&quot;Two replicas each, never on one node:&lt;br/&gt;ingress-nginx, oauth2-proxy, cloudflared, CoreDNS&quot;]
+    HA[&quot;Two replicas each, never on one node:&lt;br/&gt;oauth2-proxy, cloudflared, CoreDNS&quot;]
     HA -.-&gt; SB &amp; W4 &amp; W1 &amp; W2
     </pre><p>The scheduling rules behind the picture:</p>
 <ul class="simple">
@@ -1127,12 +1127,14 @@ GPU is.</p></li>
 node in <code class="docutils literal notranslate"><span class="pre">spec.nodeAffinity</span></code>, so a pod that claims one can only run there.
 A new workload of this kind gets its own volume and an explicit node
 choice, never a shared pool.</p></li>
-<li><p><strong>Shared services run twice.</strong> ingress-nginx and oauth2-proxy spread
-their two replicas with a <code class="docutils literal notranslate"><span class="pre">topologySpreadConstraints</span></code> rule on hostname,
+<li><p><strong>Shared services run twice.</strong> oauth2-proxy spreads its two replicas
+with a <code class="docutils literal notranslate"><span class="pre">topologySpreadConstraints</span></code> rule on hostname,
 cloudflared uses a required pod anti-affinity, and CoreDNS is held at two
 by a fixed HorizontalPodAutoscaler. A node reboot or drain therefore
 always leaves one of each serving. They can land on any untainted worker
-or the standby.</p></li>
+or the standby. Cilium’s Gateway needs no such rule: its Envoy is a
+DaemonSet on every node, and the node addresses it answers on are those
+of four nodes.</p></li>
 <li><p><strong>Everything else floats.</strong> scrap, ntfy, ArgoCD, cert-manager and the
 rest keep their data on the NAS (or have none), so they run wherever
 there is room and move when a node is drained.</p></li>

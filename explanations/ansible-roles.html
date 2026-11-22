@@ -1512,7 +1512,7 @@ file has the upstream issues and when the workaround can go.</p>
 <ul class="simple">
 <li><p>Downloads the K3s install script.</p></li>
 <li><p>Writes <code class="docutils literal notranslate"><span class="pre">/etc/rancher/k3s/config.yaml</span></code> and runs <code class="docutils literal notranslate"><span class="pre">k3s</span> <span class="pre">server</span></code> with it.</p></li>
-<li><p>Traefik is disabled because the cluster uses ingress-nginx.</p></li>
+<li><p>Traefik is disabled because the cluster uses Cilium’s Gateway.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">cluster-init</span></code> enables embedded etcd.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tls-san</span></code> adds <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> to the API server certificate. A config
 change restarts k3s before the workers are touched.</p></li>
@@ -1634,8 +1634,9 @@ come from, so an Application cannot pull manifests from anywhere else.
 Destinations and cluster-scoped resources are not restricted. A service
 from a new chart repository needs a line there and a <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">cluster</span></code>
 run (<a class="reference internal" href="../how-to/add-remove-services.html"><span class="doc">Add or remove a service</span></a>).</p></li>
-<li><p><strong>Create ArgoCD Ingress</strong> — an Ingress for <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code> to
-<code class="docutils literal notranslate"><span class="pre">argocd-server:80</span></code> (TLS at ingress-nginx).</p></li>
+<li><p><strong>Remove the old ArgoCD Ingress</strong> — deletes the ingress-nginx Ingress
+<code class="docutils literal notranslate"><span class="pre">argocd-ingress</span></code> that earlier runs made. ArgoCD’s HTTPRoute comes from the
+<code class="docutils literal notranslate"><span class="pre">gateway</span></code> Application.</p></li>
 <li><p><strong>Bootstrap sealed-secrets</strong> — applies the sealed-secrets Application on
 its own and waits for the controller to be ready.</p></li>
 <li><p><strong>Generate secrets</strong> (only with <code class="docutils literal notranslate"><span class="pre">GENERATE_SECRETS=true</span></code>) — runs
@@ -1646,9 +1647,10 @@ before the root app is created.</p></li>
 <code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code>, and <code class="docutils literal notranslate"><span class="pre">domain_email</span></code> as Helm values.</p></li>
 <li><p><strong>Dex secret</strong> — applies the <code class="docutils literal notranslate"><span class="pre">argocd-dex-secret</span></code> SealedSecret and labels the
 Secret <code class="docutils literal notranslate"><span class="pre">app.kubernetes.io/part-of:</span> <span class="pre">argocd</span></code> so <code class="docutils literal notranslate"><span class="pre">dex.config</span></code> can resolve it.</p></li>
-<li><p><strong>CoreDNS split-horizon</strong> — once ArgoCD has provisioned ingress-nginx,
-creates the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that resolves <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code>
-to the ingress ClusterIP from inside the cluster.</p></li>
+<li><p><strong>CoreDNS split-horizon</strong> — once Cilium has made the Gateway’s Service
+(<code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>), creates the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap
+that resolves <code class="docutils literal notranslate"><span class="pre">argocd.&lt;cluster_domain&gt;</span></code> to its ClusterIP from inside the
+cluster.</p></li>
 </ol>
 <p>After this role completes, ArgoCD takes over and syncs all services defined in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/</span></code>: see <a class="reference internal" href="architecture/gitops.html"><span class="doc">GitOps delivery with ArgoCD</span></a>.

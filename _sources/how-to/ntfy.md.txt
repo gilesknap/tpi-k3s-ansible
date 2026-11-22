@@ -19,12 +19,11 @@ The cluster wiring is:
 - A small local chart (`kubernetes-services/additions/ntfy/`) with the
   Deployment, Service, the `server.yml` ConfigMap, a NetworkPolicy and the
   `ntfy-auth` SealedSecret.
-- An ingress for `ntfy.gkcluster.org` through the Cloudflare Tunnel, with no
-  oauth2-proxy and no Cloudflare Access login, because the phone app can
-  complete neither. The tunnel reaches it through its HTTPRoute on Cilium's
-  Gateway, which sets no request timeout (`gateway_request_timeout: 0s`), as
-  a subscription is a long-lived stream; the Ingress's annotations do the
-  same on nginx (no buffering, a 180 second read timeout).
+- An HTTPRoute on Cilium's Gateway for `ntfy.gkcluster.org`, reached through
+  the Cloudflare Tunnel, with no oauth2-proxy and no Cloudflare Access login,
+  because the phone app can complete neither. It sets no request timeout
+  (`gateway_request_timeout: 0s`), as a subscription is a long-lived stream,
+  and Envoy streams it without buffering.
 
 The pod runs `binwiederhier/ntfy:v2.34.0` (the `image` value in
 `kubernetes-services/additions/ntfy/values.yaml`), one replica with the
@@ -73,17 +72,17 @@ longer configured. Nobody runs `ntfy user add`.
 - The user names are listed once, in `SENDERS` in
   `scripts/lib/ntfy_auth.py`; every script derives them from there.
 
-The NetworkPolicy admits only `ingress-nginx` (the `allowed_namespaces`
-value), Cilium's Gateway (the `ntfy-from-gateway` CiliumNetworkPolicy), the Alertmanager pods in `monitoring` and the scrap pods in `scrap`
-(`allowed_pods`), which publish to the Service directly. Another in-cluster publisher adds its pods
-to `allowed_pods`. This limits who reaches the pod
-*directly*; anything that can reach ingress-nginx or the Gateway can still
-talk to ntfy through them, so ntfy's token auth is the real gate.
+The NetworkPolicy admits only the Alertmanager pods in `monitoring` and the
+scrap pods in `scrap` (`allowed_pods`), which publish to the Service
+directly, and the `ntfy-from-gateway` CiliumNetworkPolicy admits Cilium's
+Gateway. Another in-cluster publisher adds its pods to `allowed_pods`. This
+limits who reaches the pod *directly*; anything that can reach the Gateway
+can still talk to ntfy through it, so ntfy's token auth is the real gate.
 
 :::{warning}
-`CF-Connecting-IP` is trusted from anyone who reaches ingress-nginx or the
-Gateway. On the tunnel path Cloudflare's edge sets it, but a LAN host (through
-ingress-nginx's LoadBalancer IPs) or a pod (through either ClusterIP) can send
+`CF-Connecting-IP` is trusted from anyone who reaches the Gateway. On the
+tunnel path Cloudflare's edge sets it, but a LAN or tailnet host (through the
+node addresses) or a pod (through the Gateway's ClusterIP) can send
 any value, and so dodge the per-IP rate limits and the daily cap. ntfy
 counts users without a tier per IP, so the daily cap is also per address,
 not per account: a leaked token used from many addresses gets 500 messages

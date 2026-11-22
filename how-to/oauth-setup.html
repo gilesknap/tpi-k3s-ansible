@@ -52,7 +52,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Manage Sealed Secrets" href="manage-sealed-secrets.html" />
-    <link rel="prev" title="Check Cilium’s Gateway, and move a route back to ingress-nginx" href="gateway.html" />
+    <link rel="prev" title="Check Cilium’s Gateway" href="gateway.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -328,7 +328,7 @@
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -443,7 +443,7 @@ its own GitHub OAuth app:</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">https://argocd.gkcluster.org/api/dex/callback</span></code></p></td>
 <td><p>ArgoCD, Grafana, argocd-monitor: services that speak OIDC</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>oauth2-proxy</strong> (two replicas in <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>), a forward-auth gateway on the ingress</p></td>
+<tr class="row-odd"><td><p><strong>oauth2-proxy</strong> (two replicas in <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code>), the login check in front of the Gateway’s routes</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">https://oauth2.gkcluster.org/oauth2/callback</span></code></p></td>
 <td><p>Headlamp, Alertmanager, the Minecraft dashboard, scrap: admin-only services with no OIDC of their own</p></td>
 </tr>
@@ -586,8 +586,8 @@ and login then fails with “Failed to get token from provider”.</p></li>
 <section id="part-b-oauth2-proxy">
 <h2>Part B: oauth2-proxy<a class="headerlink" href="#part-b-oauth2-proxy" title="Link to this heading">#</a></h2>
 <p>oauth2-proxy (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/oauth2-proxy.yaml</span></code>)
-authenticates a browser with GitHub and answers ingress-nginx’s
-auth subrequests. It lets in only the addresses in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
+authenticates a browser with GitHub and answers the auth checks of
+Cilium’s Gateway (its ExternalAuth filter). It lets in only the addresses in <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code>
 (<code class="docutils literal notranslate"><span class="pre">authenticatedEmailsFile</span></code>, with <code class="docutils literal notranslate"><span class="pre">email_domains</span> <span class="pre">=</span> <span class="pre">[]</span></code> so that the
 chart’s default of “any address” does not override the list), and sets
 its cookie on <code class="docutils literal notranslate"><span class="pre">.gkcluster.org</span></code> so that one sign-in covers every
@@ -657,19 +657,21 @@ cookie secret signs everyone out.</p>
 </section>
 <section id="how-a-service-is-put-behind-oauth2-proxy">
 <h3>How a service is put behind oauth2-proxy<a class="headerlink" href="#how-a-service-is-put-behind-oauth2-proxy" title="Link to this heading">#</a></h3>
-<p>A service’s ingress comes from the shared chart
+<p>A service’s HTTPRoute comes from the shared chart
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress</span></code>. Setting <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in
-its values adds three annotations:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">nginx.ingress.kubernetes.io/auth-url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth&quot;</span>
-<span class="nt">nginx.ingress.kubernetes.io/auth-signin</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://oauth2.gkcluster.org/oauth2/start?rd=https://$host$escaped_request_uri&quot;</span>
-<span class="nt">nginx.ingress.kubernetes.io/auth-response-headers</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;X-Auth-Request-User,X-Auth-Request-Email&quot;</span>
-</pre></div>
-</div>
-<p>ingress-nginx then asks oauth2-proxy about every request, sends a
-browser without a session to <code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code> to sign in, and
-passes the signed-in address to the backend as <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code>.
-The <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> is the in-cluster Service on purpose: the public name
-resolves to Cloudflare, which pods cannot rely on reaching.</p>
+its values adds an <code class="docutils literal notranslate"><span class="pre">ExternalAuth</span></code> filter to the route
+(<code class="docutils literal notranslate"><span class="pre">additions/ingress/templates/httproute.yaml</span></code>): Envoy sends every request
+first to the in-cluster Service <code class="docutils literal notranslate"><span class="pre">oauth2-proxy.oauth2-proxy</span></code> (path prefixed
+with <code class="docutils literal notranslate"><span class="pre">/gateway-auth</span></code>, only the <code class="docutils literal notranslate"><span class="pre">Cookie</span></code> header), and lets it through only
+on a 200. A browser without a session gets a 403 carrying oauth2-proxy’s
+sign-in page, which sends it on to <code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org/oauth2/start</span></code> to
+sign in. A signed-in request reaches the backend with
+<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-User</span></code> and <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> set by oauth2-proxy,
+replacing any the client sent. The backend is the in-cluster Service on
+purpose: the public name resolves to Cloudflare, which pods cannot rely
+on reaching. A gated route’s namespace must be in the oauth2-proxy
+ReferenceGrant’s list (<code class="docutils literal notranslate"><span class="pre">external_auth_namespaces</span></code> in
+<code class="docutils literal notranslate"><span class="pre">templates/gateway.yaml</span></code>), or every request gets a 500.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Service</p></th>
@@ -681,16 +683,16 @@ resolves to Cloudflare, which pods cannot rely on reaching.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">{{</span> <span class="pre">.Values.enable_oauth2_proxy</span> <span class="pre">}}</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/dashboard.yaml</span></code>; Headlamp then asks for a ServiceAccount token (<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">headlamp-token</span></code>)</p></td>
 </tr>
 <tr class="row-odd"><td><p>Hubble UI</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/hubble-ui.yaml</span></code>, whose Application exists only while <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> is on, so the UI never has an Ingress without it; it has no login of its own</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/hubble-ui.yaml</span></code>, whose Application exists only while <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> is on, so the UI never has a route without it; it has no login of its own</p></td>
 </tr>
 <tr class="row-even"><td><p>Alertmanager</p></td>
-<td><p>The same annotations written out in <code class="docutils literal notranslate"><span class="pre">templates/grafana.yaml</span></code> (the chart makes that ingress); Alertmanager has no login of its own</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>, hard-wired in the <code class="docutils literal notranslate"><span class="pre">alertmanager</span></code> route source in <code class="docutils literal notranslate"><span class="pre">templates/grafana.yaml</span></code>; Alertmanager has no login of its own</p></td>
 </tr>
 <tr class="row-odd"><td><p>Minecraft dashboard</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>, hard-wired in <code class="docutils literal notranslate"><span class="pre">templates/minecraft.yaml</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>scrap</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>, hard-wired in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code> for the web app; its <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> ingress has none and uses a bearer token</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>, hard-wired in <code class="docutils literal notranslate"><span class="pre">templates/scrap.yaml</span></code> for the web app; its <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> route has none and uses a bearer token</p></td>
 </tr>
 </tbody>
 </table>
@@ -702,11 +704,11 @@ is one of the tunnel’s hostnames (<code class="docutils literal notranslate"><
 <section id="the-enable-oauth2-proxy-flag">
 <h3>The <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> flag<a class="headerlink" href="#the-enable-oauth2-proxy-flag" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>.
-Today it switches only Headlamp’s ingress annotations: the oauth2-proxy
-Application is always deployed, and the other three services are
-hard-wired so that they fail closed (ingress-nginx returns an error when
-the auth subrequest fails) instead of opening up if oauth2-proxy is
-missing.</p>
+Today it switches only Headlamp’s ExternalAuth filter (and whether the
+Hubble UI exists at all): the oauth2-proxy Application is always
+deployed, and the other services are hard-wired so that they fail closed
+(the Gateway answers 403 or 500 when the auth check cannot be made)
+instead of opening up if oauth2-proxy is missing.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><strong>Rebuild note.</strong> The flag exists for a build that has no GitHub OAuth
@@ -736,10 +738,10 @@ Dex or oauth2-proxy.</p>
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <section id="redirect-loop-on-a-protected-service">
 <h3>Redirect loop on a protected service<a class="headerlink" href="#redirect-loop-on-a-protected-service" title="Link to this heading">#</a></h3>
-<p>The oauth2-proxy ingress must not itself be behind oauth2-proxy. Its
-ingress is made by the oauth2-proxy chart in <code class="docutils literal notranslate"><span class="pre">templates/oauth2-proxy.yaml</span></code>
-and has no <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> annotation; check that none has been added:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>oauth2-proxy<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>auth-
+<p>The oauth2-proxy route must not itself be behind oauth2-proxy. Its
+HTTPRoute, <code class="docutils literal notranslate"><span class="pre">oauth2</span></code> in <code class="docutils literal notranslate"><span class="pre">templates/oauth2-proxy.yaml</span></code>, has
+<code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">false</span></code>; check that it has no ExternalAuth filter:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>oauth2-proxy<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>oauth2<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>externalauth
 </pre></div>
 </div>
 <p>A service with its own oauth2-proxy sidecar (argocd-monitor) needs its
@@ -756,11 +758,15 @@ Viewers cannot use these services, by design.</p>
 Cloudflare Access can sign in, as a viewer. A 403 there comes from the
 service’s own roles (A4).</p>
 </section>
-<section id="on-every-protected-service">
-<h3>500 on every protected service<a class="headerlink" href="#on-every-protected-service" title="Link to this heading">#</a></h3>
-<p>ingress-nginx could not complete the auth subrequest. Check that the
-oauth2-proxy pods are running and that the ingress’s <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> is the
-in-cluster Service address shown above.</p>
+<section id="or-500-on-every-protected-service">
+<h3>403 or 500 on every protected service<a class="headerlink" href="#or-500-on-every-protected-service" title="Link to this heading">#</a></h3>
+<p>A 403 with no sign-in page means Envoy could not reach oauth2-proxy (the
+filter fails closed): check that the oauth2-proxy pods are running. A 500
+means the Gateway refused the filter’s reference to the oauth2-proxy
+Service: check that the route’s namespace is in <code class="docutils literal notranslate"><span class="pre">external_auth_namespaces</span></code>
+(<code class="docutils literal notranslate"><span class="pre">templates/gateway.yaml</span></code>) and that the route is accepted
+(<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">describe</span> <span class="pre">httproute</span> <span class="pre">&lt;service&gt;</span></code>). <a class="reference internal" href="gateway.html"><span class="doc">Check Cilium’s Gateway</span></a>
+has the other symptoms.</p>
 </section>
 <section id="login-fails-right-after-a-reseal">
 <h3>Login fails right after a reseal<a class="headerlink" href="#login-fails-right-after-a-reseal" title="Link to this heading">#</a></h3>
@@ -782,8 +788,8 @@ is 44 characters.</p>
 </section>
 <section id="a-service-loads-without-a-login">
 <h3>A service loads without a login<a class="headerlink" href="#a-service-loads-without-a-login" title="Link to this heading">#</a></h3>
-<p>Check that the annotations are on its Ingress:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>auth-
+<p>Check that its HTTPRoute has the ExternalAuth filter:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>&lt;service&gt;<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>-A3<span class="w"> </span>externalauth
 </pre></div>
 </div>
 <p>For Headlamp, also check that <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p>
@@ -796,7 +802,8 @@ is 44 characters.</p>
 libraries do not follow the redirect.</p>
 <p>If the discovery document comes back as HTML (<code class="docutils literal notranslate"><span class="pre">expected</span> <span class="pre">Content-Type</span> <span class="pre">=</span> <span class="pre">application/json,</span> <span class="pre">got</span> <span class="pre">&quot;text/html&quot;</span></code>), the pod’s request went out to
 Cloudflare and met the Access login page. Inside the cluster,
-<code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> must resolve to ingress-nginx’s ClusterIP: the
+<code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> must resolve to the Gateway’s ClusterIP
+(<code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>): the
 <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap that does this is written by
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code>.</p>
 </section>
@@ -827,7 +834,7 @@ the callback it sends matches the one registered.</p>
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Check Cilium’s Gateway, and move a route back to ingress-nginx</p>
+        <p class="prev-next-title">Check Cilium’s Gateway</p>
       </div>
     </a>
     <a class="right-next"
@@ -877,7 +884,7 @@ the callback it sends matches the one registered.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#redirect-loop-on-a-protected-service">Redirect loop on a protected service</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#after-github-login">403 after GitHub login</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#on-every-protected-service">500 on every protected service</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#or-500-on-every-protected-service">403 or 500 on every protected service</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#login-fails-right-after-a-reseal">Login fails right after a reseal</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oauth2-proxy-crash-loops-at-start">oauth2-proxy crash-loops at start</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-service-loads-without-a-login">A service loads without a login</a></li>

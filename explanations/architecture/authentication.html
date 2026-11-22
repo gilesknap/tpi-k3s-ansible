@@ -872,7 +872,7 @@ window.addEventListener("load", load);</script>
 <h1>Authentication<a class="headerlink" href="#authentication" title="Link to this heading">#</a></h1>
 <p>Every web service on the cluster is published through Cloudflare, and a
 request passes up to three checks before it gets a response: Cloudflare
-Access at the edge, a GitHub login at the ingress, and a role inside the
+Access at the edge, a GitHub login at the Gateway, and a role inside the
 application. This page says which service uses which, and why there are two
 different login mechanisms. How a request physically reaches Cilium’s Gateway
 is on the <a class="reference internal" href="networking.html"><span class="doc">networking page</span></a>.</p>
@@ -884,7 +884,7 @@ is on the <a class="reference internal" href="networking.html"><span class="doc"
         CF[&quot;Access application&lt;br/&gt;Owner, Viewers, bypass or service token&quot;]
     end
 
-    subgraph L2[&quot;Layer 2: login at the ingress&quot;]
+    subgraph L2[&quot;Layer 2: login at the Gateway&quot;]
         DEX[&quot;Dex OIDC&lt;br/&gt;inside ArgoCD&quot;]
         OAP[&quot;oauth2-proxy&lt;br/&gt;admin_emails only&quot;]
     end
@@ -902,16 +902,15 @@ runs at Cloudflare’s edge, before anything is sent down the tunnel.</p>
 <p><strong>Layer 2</strong> proves identity again inside the cluster, with GitHub as the
 identity source both times. Services that speak OIDC use Dex, the provider
 built into ArgoCD. Services with no login of their own sit behind
-oauth2-proxy, which Cilium’s Gateway consults on every tunnelled request
-through its ExternalAuth filter
-(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>).
-ingress-nginx, which still answers on the node addresses until the Gateway
-replaces it, consults it the same way through its <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> annotation.</p>
+oauth2-proxy, which Cilium’s Gateway consults on every request through its
+ExternalAuth filter
+(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>).</p>
 <p><strong>Layer 3</strong> maps the email address from layer 2 to a role. The addresses in
 <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> are administrators; anyone else who got this far is read-only.</p>
 <p>The layers overlap on purpose. Access is the one that matters from the
-internet, but ingress-nginx also answers on the LAN, where Access is not in
-the path, so layer 2 has to stand on its own.</p>
+internet, but the Gateway also answers on the node addresses, on the LAN
+and the tailnet, where Access is not in the path, so layer 2 has to stand
+on its own.</p>
 </section>
 <section id="layer-1-cloudflare-access">
 <h2>Layer 1: Cloudflare Access<a class="headerlink" href="#layer-1-cloudflare-access" title="Link to this heading">#</a></h2>
@@ -1110,18 +1109,15 @@ directly, not through Dex, and admits only the addresses in <code class="docutil
     OAP--&gt;&gt;GW: 200 and X-Auth-Request-Email
     GW-&gt;&gt;Svc: Forward the request
     Svc-&gt;&gt;User: Response
-    </pre><p>The shared Ingress chart (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code>) adds the
-ExternalAuth filter to the service’s HTTPRoute, and the <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and
-<code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> annotations to its Ingress, when a service sets
+    </pre><p>The shared route chart (<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress/</span></code>) adds the
+ExternalAuth filter to the service’s HTTPRoute when a service sets
 <code class="docutils literal notranslate"><span class="pre">oauth2_proxy:</span> <span class="pre">true</span></code>. Headlamp follows the <code class="docutils literal notranslate"><span class="pre">enable_oauth2_proxy</span></code> switch; the
 Minecraft dashboard and scrap have it hard-wired on, so that without the
 proxy they fail closed.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>Both checks use the Service’s cluster address (the ExternalAuth filter names
-the <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code> Service; <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> is
-<code class="docutils literal notranslate"><span class="pre">http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth</span></code>), not
-<code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code>. The public name resolves to Cloudflare, over an IPv6
+<p>The check uses the Service’s cluster address (the ExternalAuth filter names
+the <code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code> Service), not <code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code>. The public name resolves to Cloudflare, over an IPv6
 address the pods cannot reach, and the subrequest would fail with
 intermittent 500 errors.</p>
 </div>
@@ -1131,11 +1127,11 @@ intermittent 500 errors.</p>
 one for the <code class="docutils literal notranslate"><span class="pre">headlamp</span></code> ServiceAccount, which is bound to <code class="docutils literal notranslate"><span class="pre">cluster-admin</span></code>.</p></li>
 <li><p><strong>The Minecraft dashboard</strong> does no authentication itself, but logs
 <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> with every action.</p></li>
-<li><p><strong>scrap</strong> has a second Ingress for <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> only, without the oauth2-proxy
-annotations, because an MCP client cannot do a browser login. That path is
-protected by the Access service token at the edge and by scrap’s own
-bearer token. NetworkPolicies admit only ingress-nginx and the Gateway to
-the scrap pod, so nothing else in the cluster can forge the identity headers.</p></li>
+<li><p><strong>scrap</strong> has a second HTTPRoute for <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> only, without the
+ExternalAuth filter, because an MCP client cannot do a browser login. That
+path is protected by the Access service token at the edge and by scrap’s
+own bearer token. NetworkPolicies admit only the Gateway to the scrap pod,
+so nothing else in the cluster can forge the identity headers.</p></li>
 </ul>
 </section>
 <section id="who-can-reach-what">
@@ -1255,7 +1251,7 @@ the scrap pod, so nothing else in the cluster can forge the identity headers.</p
     end
 
     subgraph Cluster[&quot;K3s cluster&quot;]
-        NGINX[&quot;Cilium's Gateway&quot;]
+        GW[&quot;Cilium's Gateway&quot;]
         DexSvc[&quot;Dex clients:&lt;br/&gt;ArgoCD, argocd-monitor, Grafana&quot;]
         ProxySvc[&quot;oauth2-proxy gated:&lt;br/&gt;Headlamp, Alertmanager,&lt;br/&gt;Minecraft dashboard, scrap&quot;]
         Plain[&quot;No login: home, echo&quot;]
@@ -1266,12 +1262,12 @@ the scrap pod, so nothing else in the cluster can forge the identity headers.</p
 
     GH[&quot;GitHub OAuth&quot;]
 
-    Internet --&gt; CFA --&gt; NGINX
-    Internet --&gt; BYP --&gt; NGINX
-    NGINX --&gt; DexSvc
-    NGINX --&gt; ProxySvc
-    NGINX --&gt; Plain
-    NGINX --&gt; Own
+    Internet --&gt; CFA --&gt; GW
+    Internet --&gt; BYP --&gt; GW
+    GW --&gt; DexSvc
+    GW --&gt; ProxySvc
+    GW --&gt; Plain
+    GW --&gt; Own
 
     DexSvc &lt;-.-&gt; DexPod
     ProxySvc &lt;-.-&gt; OAP

@@ -965,22 +965,19 @@ behind oauth2-proxy (admins only). From a shell,
 <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">exec</span> <span class="pre">ds/cilium</span> <span class="pre">-c</span> <span class="pre">cilium-agent</span> <span class="pre">--</span> <span class="pre">hubble</span> <span class="pre">observe</span></code>
 shows one node’s flows. Flow, drop, DNS and policy-verdict metrics go to
 Prometheus, with the chart’s Grafana dashboards.</p></li>
-<li><p><strong>Ingress controller:</strong> ingress-nginx, two replicas spread over different
-nodes with a PodDisruptionBudget, so a drain or a nightly reboot always
-leaves one serving. K3s’s bundled Traefik is disabled
-(<code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>); ingress-nginx is used
-because oauth2-proxy relies on its <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> and <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code>
-annotations.</p></li>
-<li><p><strong>Gateway API:</strong> Cilium’s Gateway, which is to replace ingress-nginx,
-runs beside it on Cilium’s Envoy and carries every tunnel route (see
-<a class="reference internal" href="#net-gateway"><span class="std std-ref">below</span></a>). ingress-nginx still answers on the node
-addresses.</p></li>
-<li><p><strong>Load balancer:</strong> K3s’s ServiceLB publishes the ingress-nginx Service on
-ports 80 and 443 of every node that its pods can run on (Cilium serves the
-host ports and the load-balancer addresses in kube-proxy’s place). Today that is
-<code class="docutils literal notranslate"><span class="pre">192.168.1.83</span></code>, <code class="docutils literal notranslate"><span class="pre">.84</span></code>, <code class="docutils literal notranslate"><span class="pre">.91</span></code> and <code class="docutils literal notranslate"><span class="pre">.92</span></code>: node02 (control-plane taint) and
-ws03 (workstation taint) are left out. Any of the four addresses reaches
-either controller replica.</p></li>
+<li><p><strong>Gateway API:</strong> Cilium’s Gateway serves every web app, on the Envoy
+that Cilium runs on each node (the <code class="docutils literal notranslate"><span class="pre">cilium-envoy</span></code> DaemonSet), so a drain
+or a nightly reboot leaves the other nodes serving (see
+<a class="reference internal" href="#net-gateway"><span class="std std-ref">below</span></a>). It replaced ingress-nginx
+(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>). K3s’s
+bundled Traefik is disabled
+(<code class="docutils literal notranslate"><span class="pre">roles/k3s/templates/k3s-server-config.yml.j2</span></code>).</p></li>
+<li><p><strong>Load balancer:</strong> K3s’s ServiceLB publishes the Gateway’s Service,
+<code class="docutils literal notranslate"><span class="pre">cilium-gateway-web</span></code>, on ports 80 and 443 of every node that its svclb
+pods can run on (Cilium serves the host ports and the load-balancer
+addresses in kube-proxy’s place). Today that is <code class="docutils literal notranslate"><span class="pre">192.168.1.83</span></code>, <code class="docutils literal notranslate"><span class="pre">.84</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.91</span></code> and <code class="docutils literal notranslate"><span class="pre">.92</span></code>: node02 (control-plane taint) and ws03 (workstation
+taint) are left out. Any of the four addresses reaches the Gateway.</p></li>
 <li><p><strong>Cluster DNS:</strong> K3s owns the CoreDNS Deployment, so the <code class="docutils literal notranslate"><span class="pre">coredns</span></code> app
 only adds an HPA with <code class="docutils literal notranslate"><span class="pre">minReplicas</span></code> and <code class="docutils literal notranslate"><span class="pre">maxReplicas</span></code> both 2, plus a PDB.
 That holds CoreDNS at two replicas on different nodes without fighting
@@ -1007,7 +1004,6 @@ that raises the socket buffer limits <code class="docutils literal notranslate">
     subgraph cluster[&quot;K3s cluster&quot;]
         cfd[&quot;cloudflared x2&quot;]
         gw[&quot;Cilium's Gateway&quot;]
-        nginx[&quot;ingress-nginx x2&quot;]
         relay[&quot;vps-relay pod:&lt;br/&gt;frpc + Tailscale&quot;]
         apps[&quot;Web services&quot;]
         mc[&quot;Minecraft worlds&lt;br/&gt;NodePorts on nuc2&quot;]
@@ -1021,7 +1017,7 @@ that raises the socket buffer limits <code class="docutils literal notranslate">
     relay -. &quot;dials out over the tailnet&quot; .-&gt; vps
     vps --&gt; relay --&gt; mc
     lan --&gt; jf
-    lan -- &quot;home-lan, home-tailnet&quot; --&gt; nginx --&gt; apps
+    lan -- &quot;home-lan, home-tailnet&quot; --&gt; gw
     </pre><section id="the-cloudflare-tunnel-every-web-service">
 <h3>1. The Cloudflare Tunnel: every web service<a class="headerlink" href="#the-cloudflare-tunnel-every-web-service" title="Link to this heading">#</a></h3>
 <p>Each web hostname is one entry in <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> in
@@ -1053,13 +1049,15 @@ it to the Gateway as plain HTTP inside the cluster.</p>
     </pre><p>Two consequences of that last hop being HTTP:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/values.yaml</span></code> sets
-<code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code> on every tunnelled Ingress, and attaches each
-HTTPRoute to the Gateway’s plain HTTP listener as well as its HTTPS one.
+<code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code> for every app, which attaches each HTTPRoute to the
+Gateway’s plain HTTP listener as well as its HTTPS one, with no redirect.
 With the redirect on, each tunnelled request would be answered with a
-redirect to HTTPS and the browser would loop.</p></li>
-<li><p>ArgoCD runs with <code class="docutils literal notranslate"><span class="pre">server.insecure:</span> <span class="pre">&quot;true&quot;</span></code> and lets the Gateway (and
-ingress-nginx) front it like any other service, so it can go through the
-tunnel too.</p></li>
+redirect to HTTPS and the browser would loop. The tunnel and direct
+clients share port 80, so plain HTTP on a node address is not redirected
+either, as with ingress-nginx before; the direct clients (the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code>
+and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> probes, the VPS) use HTTPS on 443.</p></li>
+<li><p>ArgoCD runs with <code class="docutils literal notranslate"><span class="pre">server.insecure:</span> <span class="pre">&quot;true&quot;</span></code> and lets the Gateway front it
+like any other service, so it can go through the tunnel too.</p></li>
 </ul>
 <p>LAN clients take the same route. The public names resolve to Cloudflare from
 everywhere, so a laptop at home reaches <code class="docutils literal notranslate"><span class="pre">grafana.gkcluster.org</span></code> through the
@@ -1069,45 +1067,40 @@ reason about, and no split DNS on the router.</p>
 <code class="docutils literal notranslate"><span class="pre">cloudflare/</span></code>, applied with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-plan</span></code> and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>; see
 <a class="reference internal" href="../../how-to/cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>.</p>
 </section>
-<section id="cilium-s-gateway-beside-ingress-nginx">
-<span id="net-gateway"></span><h3>Cilium’s Gateway beside ingress-nginx<a class="headerlink" href="#cilium-s-gateway-beside-ingress-nginx" title="Link to this heading">#</a></h3>
-<p>ingress-nginx is retired upstream, and Cilium’s Gateway API implementation
-is to replace it
-(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>). Until
-ingress-nginx is removed the two run side by side:</p>
+<section id="cilium-s-gateway">
+<span id="net-gateway"></span><h3>Cilium’s Gateway<a class="headerlink" href="#cilium-s-gateway" title="Link to this heading">#</a></h3>
+<p>ingress-nginx was retired upstream, and Cilium’s Gateway API implementation
+replaced it
+(<a class="reference internal" href="../decisions/0016-cilium-gateway-api.html"><span class="doc">ADR 16</span></a>):</p>
 <ul class="simple">
-<li><p><strong>The Gateway</strong> is <code class="docutils literal notranslate"><span class="pre">web</span></code> in the <code class="docutils literal notranslate"><span class="pre">gateway</span></code> namespace, with an HTTP listener
-on port 80 (what cloudflared sends) and an HTTPS one on 443 with the same
-wildcard certificate. Cilium serves it from its Envoy DaemonSet, through
-the Service <code class="docutils literal notranslate"><span class="pre">cilium-gateway-web</span></code>.</p></li>
-<li><p><strong>Each Ingress has an HTTPRoute twin</strong> with the same host, path and
-backend, made from the same values by the ingress sub-chart. The five apps
-behind oauth2-proxy get an ExternalAuth filter that asks oauth2-proxy about
-every request, as nginx’s <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> does.</p></li>
-<li><p><strong>Off the node addresses.</strong> A servicelb node-pool label that no node
-carries keeps servicelb from publishing the Gateway on ports 80 and 443 of
-the nodes, which ingress-nginx holds. The Gateway’s Service has only its
-ClusterIP, and the Gateway reports that it is waiting for an address.</p></li>
+<li><p><strong>The Gateway</strong> is <code class="docutils literal notranslate"><span class="pre">web</span></code> in the <code class="docutils literal notranslate"><span class="pre">gateway</span></code> namespace (GatewayClass
+<code class="docutils literal notranslate"><span class="pre">cilium-gateway</span></code>), with an HTTP listener on port 80 (what cloudflared
+sends) and an HTTPS one on 443 with the wildcard certificate. Cilium
+serves it from its Envoy DaemonSet, through the Service
+<code class="docutils literal notranslate"><span class="pre">cilium-gateway-web</span></code>.</p></li>
+<li><p><strong>Each app has an HTTPRoute</strong>, made by the ingress sub-chart
+(<code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ingress</span></code>). The five apps behind
+oauth2-proxy get an ExternalAuth filter that asks oauth2-proxy about every
+request.</p></li>
 <li><p><strong>The tunnel goes to the Gateway.</strong> Every route defaults to
 <code class="docutils literal notranslate"><span class="pre">http://cilium-gateway-web.gateway.svc.cluster.local</span></code> (<code class="docutils literal notranslate"><span class="pre">local.gateway</span></code> in
-<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>). ingress-nginx serves only what reaches the node
-addresses: the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> probes and the VPS’s
-<code class="docutils literal notranslate"><span class="pre">/mcp</span></code>. A route can be sent back to ingress-nginx in an emergency:
-<a class="reference internal" href="../../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></a>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>).</p></li>
+<li><p><strong>So do the node addresses.</strong> servicelb publishes the same Service on
+ports 80 and 443 of <code class="docutils literal notranslate"><span class="pre">192.168.1.83</span></code>, <code class="docutils literal notranslate"><span class="pre">.84</span></code>, <code class="docutils literal notranslate"><span class="pre">.91</span></code> and <code class="docutils literal notranslate"><span class="pre">.92</span></code>, and on nuc2’s
+tailnet address: the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> probes and the VPS’s
+<code class="docutils literal notranslate"><span class="pre">/mcp</span></code> come in that way, over HTTPS.</p></li>
 </ul>
 <pre  class="mermaid">
         flowchart LR
     cfd[&quot;cloudflared x2&quot;]
-    lan[&quot;home-lan, home-tailnet,&lt;br/&gt;the VPS&quot;]
-    nginx[&quot;ingress-nginx&lt;br/&gt;(node addresses)&quot;]
+    lan[&quot;home-lan, home-tailnet,&lt;br/&gt;the VPS (node addresses)&quot;]
     gw[&quot;Gateway web&lt;br/&gt;Cilium's Envoy&quot;]
     oap[&quot;oauth2-proxy&quot;]
     apps[&quot;Web services&quot;]
 
-    cfd --&gt;|&quot;every tunnel route&quot;| gw --&gt; apps
-    lan --&gt; nginx --&gt; apps
+    cfd --&gt;|&quot;every tunnel route, port 80&quot;| gw --&gt; apps
+    lan --&gt;|&quot;port 443&quot;| gw
     gw -. &quot;ExternalAuth, gated apps&quot; .-&gt; oap
-    nginx -. &quot;auth-url, gated apps&quot; .-&gt; oap
     </pre></section>
 <section id="direct-on-the-lan-or-the-tailnet">
 <h3>2. Direct, on the LAN or the tailnet<a class="headerlink" href="#direct-on-the-lan-or-the-tailnet" title="Link to this heading">#</a></h3>
@@ -1116,13 +1109,13 @@ addresses: the <code class="docutils literal notranslate"><span class="pre">home
 <li><p><strong>Jellyfin</strong> runs on nuc2 with <code class="docutils literal notranslate"><span class="pre">hostNetwork</span></code> (<code class="docutils literal notranslate"><span class="pre">jellyfin.host_network</span></code>), so
 it listens on port 8096 of every interface nuc2 has: both LANs and
 <code class="docutils literal notranslate"><span class="pre">tailscale0</span></code>. That keeps video off Cloudflare, and lets UDP 7359 client
-discovery work. It has no Ingress and no tunnel route.</p></li>
+discovery work. It has no HTTPRoute and no tunnel route.</p></li>
 <li><p><strong>Minecraft RCON</strong> ports are NodePorts <code class="docutils literal notranslate"><span class="pre">30600</span></code> to <code class="docutils literal notranslate"><span class="pre">30619</span></code> on nuc2, for
 build tools on the LAN. RCON is plain text, so a NetworkPolicy limits it to
 LAN sources and the range is never added to the VPS relay.</p></li>
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">home-lan</span></code> and <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code></strong> are DNS-only A records that point at a
-LAN address and a tailnet address of a node running the ingress load
-balancer. Both serve the landing page’s <code class="docutils literal notranslate"><span class="pre">/healthz</span></code>. The page at
+LAN address and a tailnet address of a node where servicelb publishes the
+Gateway. Both serve the landing page’s <code class="docutils literal notranslate"><span class="pre">/healthz</span></code>. The page at
 <code class="docutils literal notranslate"><span class="pre">home.gkcluster.org</span></code> fetches both in the background: a probe only succeeds
 when the browser is on that network, and the page then enables its LAN and
 tailnet links (Jellyfin, for example).</p></li>
@@ -1130,7 +1123,7 @@ tailnet links (Jellyfin, for example).</p></li>
 the API at <code class="docutils literal notranslate"><span class="pre">https://k3s.lan:6443</span></code>. From outside the house that means the
 tailnet. There is no Cloudflare route for SSH.</p></li>
 </ul>
-<p>The ingress-nginx load balancer addresses also answer on the LAN, which is
+<p>The Gateway’s load balancer addresses also answer on the LAN, which is
 what the <code class="docutils literal notranslate"><span class="pre">home-lan</span></code> probe uses. The web services’ own names never resolve to
 them.</p>
 <p>Tailscale on the hosts (nuc2 and ws03) is installed and signed in by hand.
@@ -1246,7 +1239,7 @@ a forward: <a class="reference internal" href="../../how-to/vps-relay.html"><spa
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">home-lan</span></code></p></td>
 <td><p>DNS only, LAN address</p></td>
-<td><p>Landing page <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> through ingress-nginx</p></td>
+<td><p>Landing page <code class="docutils literal notranslate"><span class="pre">/healthz</span></code> through the Gateway</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code></p></td>
 <td><p>DNS only, tailnet address</p></td>
@@ -1267,12 +1260,13 @@ a forward: <a class="reference internal" href="../../how-to/vps-relay.html"><spa
 <h2>TLS<a class="headerlink" href="#tls" title="Link to this heading">#</a></h2>
 <p>Browsers see Cloudflare’s certificate, because Cloudflare ends TLS for every
 tunnelled name. The cluster still holds its own certificate for the names
-that are reached directly (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>) and so that
-ingress-nginx always has a valid one to present.</p>
+that are reached directly (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>, scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> from
+the VPS, and <code class="docutils literal notranslate"><span class="pre">argocd</span></code> from inside the cluster) and so that the Gateway
+always has a valid one to present.</p>
 <p>cert-manager issues a single wildcard certificate, for <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> and
-<code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, into the Secret <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>. ingress-nginx
-serves it as its default certificate (<code class="docutils literal notranslate"><span class="pre">default-ssl-certificate</span></code>), so no
-Ingress carries a cert-manager annotation or a certificate of its own.</p>
+<code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, into the Secret <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>. The Gateway’s
+HTTPS listener names it (a ReferenceGrant in <code class="docutils literal notranslate"><span class="pre">cert-manager</span></code> allows that),
+so no route carries a certificate of its own.</p>
 <pre  class="mermaid">
         sequenceDiagram
     participant CM as cert-manager
@@ -1304,12 +1298,14 @@ public DNS gets Cloudflare, and Cloudflare Access answers a pod’s OIDC
 discovery request with a login page.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role therefore writes a <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code> ConfigMap
 (<code class="docutils literal notranslate"><span class="pre">roles/cluster/tasks/main.yml</span></code>) with one extra server block: inside the
-cluster, <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolves to the ClusterIP of the
-ingress-nginx Service. Token exchanges stay inside the cluster and never
-meet Access. The role looks the ClusterIP up at run time, so after a rebuild
+cluster, <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code> resolves to the ClusterIP of the Gateway’s
+Service, <code class="docutils literal notranslate"><span class="pre">gateway/cilium-gateway-web</span></code>, whose port 443 serves the wildcard
+certificate. Token exchanges stay inside the cluster and never meet
+Access. The role looks the ClusterIP up at run time, so after a rebuild
 <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span> <span class="pre">pb_all.yml</span> <span class="pre">--tags</span> <span class="pre">cluster</span></code> puts the new address in place.</p>
-<p>It is the only name overridden. oauth2-proxy’s <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> avoids the same
-trap in a different way, by using the Service’s cluster address directly.</p>
+<p>It is the only name overridden. The gated routes’ ExternalAuth filter
+avoids the same trap in a different way, by naming oauth2-proxy’s Service
+directly.</p>
 </section>
 </section>
 
@@ -1364,7 +1360,7 @@ trap in a different way, by using the Service’s cluster address directly.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inside-the-cluster">Inside the cluster</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#three-ways-in">Three ways in</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cloudflare-tunnel-every-web-service">1. The Cloudflare Tunnel: every web service</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cilium-s-gateway-beside-ingress-nginx">Cilium’s Gateway beside ingress-nginx</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cilium-s-gateway">Cilium’s Gateway</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-on-the-lan-or-the-tailnet">2. Direct, on the LAN or the tailnet</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-vps-relay-game-ports">3. The VPS relay: game ports</a></li>
 </ul>

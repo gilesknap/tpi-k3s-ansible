@@ -14,7 +14,7 @@ This repository provides the cluster wiring:
 - the ArgoCD Application `kubernetes-services/templates/minecraft.yaml`,
   switched on by `enable_minecraft` and configured from the `minecraft` block
   in `kubernetes-services/values.yaml`;
-- an Ingress for `minecraft.gkcluster.org` behind oauth2-proxy (`admin_emails`
+- an HTTPRoute for `minecraft.gkcluster.org` behind oauth2-proxy (`admin_emails`
   only, like Headlamp);
 - the `minecraft` forward on the {doc}`VPS relay </how-to/vps-relay>`, which
   is how players reach the game ports;
@@ -30,14 +30,14 @@ flowchart LR
     cf["Cloudflare Tunnel<br/>and Access"]
     vps["VPS: frps<br/>mc.gkcluster.org"]
     relay["vps-relay pod<br/>(frpc, over the tailnet)"]
-    nginx["Cilium's Gateway<br/>and oauth2-proxy"]
+    gw["Cilium's Gateway<br/>and oauth2-proxy"]
     dash["minecraft-dashboard"]
     subgraph nuc2["nuc2 (192.168.1.92)"]
         worlds["World pods<br/>game NodePorts 30565-30584<br/>RCON NodePorts 30600-30619"]
     end
     nas["The NAS: archive, store,<br/>one folder per world"]
 
-    admin -->|"minecraft.gkcluster.org"| cf --> nginx --> dash
+    admin -->|"minecraft.gkcluster.org"| cf --> gw --> dash
     dash -->|"helm, RCON"| worlds
     player -->|"mc.gkcluster.org:port"| vps --> relay -->|"192.168.1.92:port"| worlds
     tool -->|"RCON NodePort"| worlds
@@ -69,9 +69,9 @@ Game servers see every player as coming from the relay. Whitelists and ops are
 by name and work normally; IP bans do not.
 
 The dashboard does no authentication itself; it logs the
-`X-Auth-Request-Email` header that oauth2-proxy sets, per action. Its Ingress
+`X-Auth-Request-Email` header that oauth2-proxy sets, per action. Its route
 therefore has `oauth2_proxy: true` hard-wired in the template, not tied to
-`enable_oauth2_proxy`: without the proxy the Ingress fails closed.
+`enable_oauth2_proxy`: without the proxy the route fails closed.
 
 ## Configuration
 
@@ -357,7 +357,7 @@ archive folder on the NAS ({doc}`/how-to/nfs-stable-paths`).
 Then:
 
 1. Set `enable_minecraft: false` and push. ArgoCD prunes the dashboard and its
-   Ingress. The archive and the store are static NFS volumes and are never
+   HTTPRoute. The archive and the store are static NFS volumes and are never
    deleted by the cluster.
 2. Remove `{ name = "minecraft" }` from `tunnel_services` and `mc` from
    `dns_only_records`, then `just cf-apply`.

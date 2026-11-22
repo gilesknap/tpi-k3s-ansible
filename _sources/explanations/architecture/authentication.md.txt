@@ -2,7 +2,7 @@
 
 Every web service on the cluster is published through Cloudflare, and a
 request passes up to three checks before it gets a response: Cloudflare
-Access at the edge, a GitHub login at the ingress, and a role inside the
+Access at the edge, a GitHub login at the Gateway, and a role inside the
 application. This page says which service uses which, and why there are two
 different login mechanisms. How a request physically reaches Cilium's Gateway
 is on the {doc}`networking page </explanations/architecture/networking>`.
@@ -15,7 +15,7 @@ flowchart TB
         CF["Access application<br/>Owner, Viewers, bypass or service token"]
     end
 
-    subgraph L2["Layer 2: login at the ingress"]
+    subgraph L2["Layer 2: login at the Gateway"]
         DEX["Dex OIDC<br/>inside ArgoCD"]
         OAP["oauth2-proxy<br/>admin_emails only"]
     end
@@ -36,18 +36,17 @@ runs at Cloudflare's edge, before anything is sent down the tunnel.
 **Layer 2** proves identity again inside the cluster, with GitHub as the
 identity source both times. Services that speak OIDC use Dex, the provider
 built into ArgoCD. Services with no login of their own sit behind
-oauth2-proxy, which Cilium's Gateway consults on every tunnelled request
-through its ExternalAuth filter
+oauth2-proxy, which Cilium's Gateway consults on every request through its
+ExternalAuth filter
 ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`).
-ingress-nginx, which still answers on the node addresses until the Gateway
-replaces it, consults it the same way through its `auth-url` annotation.
 
 **Layer 3** maps the email address from layer 2 to a role. The addresses in
 `admin_emails` are administrators; anyone else who got this far is read-only.
 
 The layers overlap on purpose. Access is the one that matters from the
-internet, but ingress-nginx also answers on the LAN, where Access is not in
-the path, so layer 2 has to stand on its own.
+internet, but the Gateway also answers on the node addresses, on the LAN
+and the tailnet, where Access is not in the path, so layer 2 has to stand
+on its own.
 
 ## Layer 1: Cloudflare Access
 
@@ -220,18 +219,15 @@ sequenceDiagram
     Svc->>User: Response
 ```
 
-The shared Ingress chart (`kubernetes-services/additions/ingress/`) adds the
-ExternalAuth filter to the service's HTTPRoute, and the `auth-url` and
-`auth-signin` annotations to its Ingress, when a service sets
+The shared route chart (`kubernetes-services/additions/ingress/`) adds the
+ExternalAuth filter to the service's HTTPRoute when a service sets
 `oauth2_proxy: true`. Headlamp follows the `enable_oauth2_proxy` switch; the
 Minecraft dashboard and scrap have it hard-wired on, so that without the
 proxy they fail closed.
 
 :::{important}
-Both checks use the Service's cluster address (the ExternalAuth filter names
-the `oauth2-proxy` Service; `auth-url` is
-`http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth`), not
-`oauth2.gkcluster.org`. The public name resolves to Cloudflare, over an IPv6
+The check uses the Service's cluster address (the ExternalAuth filter names
+the `oauth2-proxy` Service), not `oauth2.gkcluster.org`. The public name resolves to Cloudflare, over an IPv6
 address the pods cannot reach, and the subrequest would fail with
 intermittent 500 errors.
 :::
@@ -242,11 +238,11 @@ Three services add something on top:
   one for the `headlamp` ServiceAccount, which is bound to `cluster-admin`.
 - **The Minecraft dashboard** does no authentication itself, but logs
   `X-Auth-Request-Email` with every action.
-- **scrap** has a second Ingress for `/mcp` only, without the oauth2-proxy
-  annotations, because an MCP client cannot do a browser login. That path is
-  protected by the Access service token at the edge and by scrap's own
-  bearer token. NetworkPolicies admit only ingress-nginx and the Gateway to
-  the scrap pod, so nothing else in the cluster can forge the identity headers.
+- **scrap** has a second HTTPRoute for `/mcp` only, without the
+  ExternalAuth filter, because an MCP client cannot do a browser login. That
+  path is protected by the Access service token at the edge and by scrap's
+  own bearer token. NetworkPolicies admit only the Gateway to the scrap pod,
+  so nothing else in the cluster can forge the identity headers.
 
 ## Who can reach what
 
@@ -283,7 +279,7 @@ flowchart TB
     end
 
     subgraph Cluster["K3s cluster"]
-        NGINX["Cilium's Gateway"]
+        GW["Cilium's Gateway"]
         DexSvc["Dex clients:<br/>ArgoCD, argocd-monitor, Grafana"]
         ProxySvc["oauth2-proxy gated:<br/>Headlamp, Alertmanager,<br/>Minecraft dashboard, scrap"]
         Plain["No login: home, echo"]
@@ -294,12 +290,12 @@ flowchart TB
 
     GH["GitHub OAuth"]
 
-    Internet --> CFA --> NGINX
-    Internet --> BYP --> NGINX
-    NGINX --> DexSvc
-    NGINX --> ProxySvc
-    NGINX --> Plain
-    NGINX --> Own
+    Internet --> CFA --> GW
+    Internet --> BYP --> GW
+    GW --> DexSvc
+    GW --> ProxySvc
+    GW --> Plain
+    GW --> Own
 
     DexSvc <-.-> DexPod
     ProxySvc <-.-> OAP

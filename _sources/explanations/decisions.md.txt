@@ -27,7 +27,7 @@ the {doc}`architecture pages </explanations/architecture>`.
 | 13 | {doc}`scrap runs on any node: Litestream on NFS <decisions/0013-scrap-litestream-on-nfs>` | Accepted | Yes ({doc}`/explanations/architecture/backups`) |
 | 14 | {doc}`A second, immutable off-site copy on Backblaze B2 <decisions/0014-immutable-offsite-copy>` | Accepted | Yes, once `offsite_backup.b2.enabled` is on ({doc}`/explanations/architecture/backups`) |
 | 15 | {doc}`Cilium replaces flannel, kube-proxy and k3s's policy controller <decisions/0015-cilium-network-layer>` | Accepted | Yes ({doc}`/explanations/architecture/networking`) |
-| 16 | {doc}`Cilium's Gateway API replaces ingress-nginx <decisions/0016-cilium-gateway-api>` | Proposed: the Gateway runs beside ingress-nginx | In part: the Gateway carries the tunnel, ingress-nginx still answers on the node addresses ({doc}`/explanations/architecture/networking`) |
+| 16 | {doc}`Cilium's Gateway API replaces ingress-nginx <decisions/0016-cilium-gateway-api>` | Accepted | Yes ({doc}`/explanations/architecture/networking`) |
 
 ```{toctree}
 :maxdepth: 1
