@@ -157,8 +157,8 @@ applies to that run only.
 | `k3s.upgrade_window` | every day, `01:00` to `02:00`, `Europe/London` | When system-upgrade-controller may start a round of K3s upgrades |
 | `kured.start_time` / `end_time` / `time_zone` | `02:30` / `05:00` / `Europe/London` | The window in which kured reboots nodes that need it, one at a time ({doc}`/explanations/upgrade-model`) |
 | `headlamp.argocd_plugin.enabled` / `version` / `sha256` | `true` / `0.1.0-alpha` / *(checksum)* | The Argo CD plugin an init container unpacks into Headlamp; bump `version` and `sha256` together |
-| `enable_oauth2_proxy` | `true` | Put oauth2-proxy in front of the protected ingresses ({doc}`/explanations/architecture/authentication`). `false` leaves them open, which is only for the first hours of a build, before the OAuth credentials are sealed ({doc}`/how-to/oauth-setup`) |
-| `enable_cloudflare_tunnel` | `true` | Turn off the ingress's SSL redirect on tunnelled services, since Cloudflare terminates TLS at its edge and a redirect would loop ({doc}`/how-to/cloudflare-as-code`) |
+| `enable_oauth2_proxy` | `true` | Put oauth2-proxy in front of the protected routes ({doc}`/explanations/architecture/authentication`). `false` leaves them open, which is only for the first hours of a build, before the OAuth credentials are sealed ({doc}`/how-to/oauth-setup`) |
+| `enable_cloudflare_tunnel` | `true` | Turn off the Gateway's HTTPS redirect on tunnelled services, since Cloudflare terminates TLS at its edge and a redirect would loop ({doc}`/how-to/cloudflare-as-code`) |
 | `cf_access_team` | *(team name)* | The Cloudflare Zero Trust team (`<team>.cloudflareaccess.com`); used by the `/test-oauth-flow` command to build the Access logout URL |
 | `admin_emails` | *(list)* | GitHub-linked addresses with admin rights: Grafana Admin, and the only addresses oauth2-proxy lets through. ArgoCD admin comes from the copy in `group_vars/all.yml`. **SYNC:** that copy |
 | `nfs.server` | `192.168.1.3` | The NAS: NFS server for the static backup, Minecraft, scrap and media volumes |

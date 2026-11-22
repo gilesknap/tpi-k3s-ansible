@@ -189,8 +189,9 @@ kubectl drain node03 --ignore-daemonsets --delete-emptydir-data
 kubectl uncordon node03
 ```
 
-CoreDNS, ingress-nginx, oauth2-proxy and cloudflared each run two replicas
-with a PodDisruptionBudget, so draining one node leaves them serving; drain
+CoreDNS, oauth2-proxy and cloudflared each run two replicas with a
+PodDisruptionBudget, so draining one node leaves them serving; the Gateway's
+Envoy is the `cilium-envoy` DaemonSet, which a drain leaves running. Drain
 one node at a time. scrap restarts on another node, restoring its database
 from its Litestream replica. Pods bound to a `local-nvme` PV on the drained
 node (Prometheus and Grafana on `node04`, Jellyfin on `nuc2`) and the

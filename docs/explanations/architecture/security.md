@@ -164,18 +164,18 @@ matters:
 
 | Namespace | Policy | Admits |
 |-----------|--------|--------|
-| `scrap` | `scrap` | Only the `ingress-nginx` namespace. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them |
-| `scrap-public` | `scrap-public` | ingress-nginx to the web port; scrap's pod to the upload receiver. All egress is denied |
-| `ntfy` | `ntfy` | The `ingress-nginx` namespace and the Alertmanager pods in `monitoring`, on port 8080 |
+| `scrap` | `scrap` | No peers: only the Gateway, through `scrap-from-gateway` below. scrap trusts the identity headers oauth2-proxy sets, so no other pod may reach it and forge them |
+| `scrap-public` | `scrap-public` | Anyone to the web port, which serves only public pages; scrap's pod to the upload receiver. All egress is denied |
+| `ntfy` | `ntfy` | The Alertmanager pods in `monitoring` and scrap's pod, on port 8080 (`allowed_pods`), and the Gateway through `ntfy-from-gateway` |
 | `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, from nuc2's second LAN and from the world's own node |
 | `minecraft` | `minecraft-rcon-nodes` (a CiliumNetworkPolicy) | RCON (25575) from the hosts of `minecraft.worlds.rcon_allowed_nodes` (ws03), which reach the world pod from their Cilium address, not their LAN one |
 | `cloudflared` | `cloudflared` | Nothing. The tunnel only dials out, and nothing scrapes its metrics port |
-| `scrap`, `scrap-public`, `ntfy` | `scrap-from-gateway`, `scrap-public-from-gateway`, `ntfy-from-gateway` (CiliumNetworkPolicies) | Cilium's Gateway (its reserved `ingress` identity), on the same ports as ingress-nginx. Its routes put oauth2-proxy in front of scrap as nginx does ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`) |
+| `scrap`, `scrap-public`, `ntfy` | `scrap-from-gateway`, `scrap-public-from-gateway`, `ntfy-from-gateway` (CiliumNetworkPolicies) | Cilium's Gateway (its reserved `ingress` identity, which a NetworkPolicy cannot name), on the apps' ports. Its routes put oauth2-proxy in front of scrap ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`) |
 | `backups` | `backups-egress` (a CiliumNetworkPolicy) | Egress only: cluster DNS, and on port 443 Google Drive, Backblaze B2 and the GitHub release download for age. Everything else the backup jobs try is dropped |
 
 ```mermaid
 flowchart LR
-    nginx["ingress-nginx"]
+    gw["Cilium's Gateway"]
     am["Alertmanager"]
     dash["Minecraft dashboard"]
     lan["LAN hosts<br/>not cluster nodes"]
@@ -188,15 +188,16 @@ flowchart LR
     game["World game port 25565"]
     cfd["cloudflared"]
 
-    nginx --> scrap
-    nginx -->|"web"| pub
+    gw --> scrap
+    any -->|"web"| pub
     scrap -->|"upload"| pub
-    nginx --> ntfy
+    gw --> ntfy
+    scrap --> ntfy
     am --> ntfy
     dash --> rcon
     lan --> rcon
     any --> game
-    cfd -. "outbound only,<br/>no inbound allowed" .-> nginx
+    cfd -. "outbound only,<br/>no inbound allowed" .-> gw
 ```
 
 Three properties of Cilium's enforcement are worth knowing:
@@ -226,7 +227,7 @@ names and opens only those. `hubble observe -n backups --verdict DROPPED`
 (in an agent pod, or the Hubble UI) shows what it refused.
 
 The ntfy and scrap policies limit who reaches the pod directly. Anything
-that can reach ingress-nginx, or Cilium's Gateway, can still reach them through it, which is why
+that can reach Cilium's Gateway can still reach them through it, which is why
 ntfy's tokens and the oauth2-proxy check are the real gates.
 
 ## The nodes
@@ -342,11 +343,11 @@ These are known and left as they are.
   (node04), and Jellyfin and the Minecraft worlds (nuc2), have no replica.
   That is the price of not running replicated storage
   ({doc}`/explanations/architecture/storage`).
-- **The LAN is trusted more than the internet.** ingress-nginx answers on
-  the LAN without Cloudflare Access in front. The in-cluster login still
-  applies, but the services with no login at the ingress (`home`, `echo`)
-  are open to any device on the LAN, and Jellyfin and RCON are LAN services
-  by design.
+- **The LAN is trusted more than the internet.** The Gateway answers on
+  the node addresses, on the LAN and the tailnet, without Cloudflare Access
+  in front. The in-cluster login still applies, but the services with no
+  login at the Gateway (`home`, `echo`) are open to any device on the LAN,
+  and Jellyfin and RCON are LAN services by design.
 - **No default-deny between namespaces.** A compromised pod can reach most
   other Services in the cluster.
 - **NFS trusts its clients.** The NAS's exports take a client's word for its

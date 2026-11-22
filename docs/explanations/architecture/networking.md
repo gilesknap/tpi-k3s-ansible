@@ -63,22 +63,19 @@ Two details matter to the cluster:
   `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe`
   shows one node's flows. Flow, drop, DNS and policy-verdict metrics go to
   Prometheus, with the chart's Grafana dashboards.
-- **Ingress controller:** ingress-nginx, two replicas spread over different
-  nodes with a PodDisruptionBudget, so a drain or a nightly reboot always
-  leaves one serving. K3s's bundled Traefik is disabled
-  (`roles/k3s/templates/k3s-server-config.yml.j2`); ingress-nginx is used
-  because oauth2-proxy relies on its `auth-url` and `auth-signin`
-  annotations.
-- **Gateway API:** Cilium's Gateway, which is to replace ingress-nginx,
-  runs beside it on Cilium's Envoy and carries every tunnel route (see
-  {ref}`below <net-gateway>`). ingress-nginx still answers on the node
-  addresses.
-- **Load balancer:** K3s's ServiceLB publishes the ingress-nginx Service on
-  ports 80 and 443 of every node that its pods can run on (Cilium serves the
-  host ports and the load-balancer addresses in kube-proxy's place). Today that is
-  `192.168.1.83`, `.84`, `.91` and `.92`: node02 (control-plane taint) and
-  ws03 (workstation taint) are left out. Any of the four addresses reaches
-  either controller replica.
+- **Gateway API:** Cilium's Gateway serves every web app, on the Envoy
+  that Cilium runs on each node (the `cilium-envoy` DaemonSet), so a drain
+  or a nightly reboot leaves the other nodes serving (see
+  {ref}`below <net-gateway>`). It replaced ingress-nginx
+  ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). K3s's
+  bundled Traefik is disabled
+  (`roles/k3s/templates/k3s-server-config.yml.j2`).
+- **Load balancer:** K3s's ServiceLB publishes the Gateway's Service,
+  `cilium-gateway-web`, on ports 80 and 443 of every node that its svclb
+  pods can run on (Cilium serves the host ports and the load-balancer
+  addresses in kube-proxy's place). Today that is `192.168.1.83`, `.84`,
+  `.91` and `.92`: node02 (control-plane taint) and ws03 (workstation
+  taint) are left out. Any of the four addresses reaches the Gateway.
 - **Cluster DNS:** K3s owns the CoreDNS Deployment, so the `coredns` app
   only adds an HPA with `minReplicas` and `maxReplicas` both 2, plus a PDB.
   That holds CoreDNS at two replicas on different nodes without fighting
@@ -104,7 +101,6 @@ flowchart LR
     subgraph cluster["K3s cluster"]
         cfd["cloudflared x2"]
         gw["Cilium's Gateway"]
-        nginx["ingress-nginx x2"]
         relay["vps-relay pod:<br/>frpc + Tailscale"]
         apps["Web services"]
         mc["Minecraft worlds<br/>NodePorts on nuc2"]
@@ -118,7 +114,7 @@ flowchart LR
     relay -. "dials out over the tailnet" .-> vps
     vps --> relay --> mc
     lan --> jf
-    lan -- "home-lan, home-tailnet" --> nginx --> apps
+    lan -- "home-lan, home-tailnet" --> gw
 ```
 
 ### 1. The Cloudflare Tunnel: every web service
@@ -156,13 +152,15 @@ sequenceDiagram
 Two consequences of that last hop being HTTP:
 
 - `enable_cloudflare_tunnel: true` in `kubernetes-services/values.yaml` sets
-  `ssl-redirect: "false"` on every tunnelled Ingress, and attaches each
-  HTTPRoute to the Gateway's plain HTTP listener as well as its HTTPS one.
+  `ssl_redirect: false` for every app, which attaches each HTTPRoute to the
+  Gateway's plain HTTP listener as well as its HTTPS one, with no redirect.
   With the redirect on, each tunnelled request would be answered with a
-  redirect to HTTPS and the browser would loop.
-- ArgoCD runs with `server.insecure: "true"` and lets the Gateway (and
-  ingress-nginx) front it like any other service, so it can go through the
-  tunnel too.
+  redirect to HTTPS and the browser would loop. The tunnel and direct
+  clients share port 80, so plain HTTP on a node address is not redirected
+  either, as with ingress-nginx before; the direct clients (the `home-lan`
+  and `home-tailnet` probes, the VPS) use HTTPS on 443.
+- ArgoCD runs with `server.insecure: "true"` and lets the Gateway front it
+  like any other service, so it can go through the tunnel too.
 
 LAN clients take the same route. The public names resolve to Cloudflare from
 everywhere, so a laptop at home reaches `grafana.gkcluster.org` through the
@@ -174,45 +172,40 @@ The tunnel, its DNS records and the Access applications are OpenTofu code in
 {doc}`/how-to/cloudflare-as-code`.
 
 (net-gateway)=
-### Cilium's Gateway beside ingress-nginx
+### Cilium's Gateway
 
-ingress-nginx is retired upstream, and Cilium's Gateway API implementation
-is to replace it
-({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). Until
-ingress-nginx is removed the two run side by side:
+ingress-nginx was retired upstream, and Cilium's Gateway API implementation
+replaced it
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`):
 
-- **The Gateway** is `web` in the `gateway` namespace, with an HTTP listener
-  on port 80 (what cloudflared sends) and an HTTPS one on 443 with the same
-  wildcard certificate. Cilium serves it from its Envoy DaemonSet, through
-  the Service `cilium-gateway-web`.
-- **Each Ingress has an HTTPRoute twin** with the same host, path and
-  backend, made from the same values by the ingress sub-chart. The five apps
-  behind oauth2-proxy get an ExternalAuth filter that asks oauth2-proxy about
-  every request, as nginx's `auth-url` does.
-- **Off the node addresses.** A servicelb node-pool label that no node
-  carries keeps servicelb from publishing the Gateway on ports 80 and 443 of
-  the nodes, which ingress-nginx holds. The Gateway's Service has only its
-  ClusterIP, and the Gateway reports that it is waiting for an address.
+- **The Gateway** is `web` in the `gateway` namespace (GatewayClass
+  `cilium-gateway`), with an HTTP listener on port 80 (what cloudflared
+  sends) and an HTTPS one on 443 with the wildcard certificate. Cilium
+  serves it from its Envoy DaemonSet, through the Service
+  `cilium-gateway-web`.
+- **Each app has an HTTPRoute**, made by the ingress sub-chart
+  (`kubernetes-services/additions/ingress`). The five apps behind
+  oauth2-proxy get an ExternalAuth filter that asks oauth2-proxy about every
+  request.
 - **The tunnel goes to the Gateway.** Every route defaults to
   `http://cilium-gateway-web.gateway.svc.cluster.local` (`local.gateway` in
-  `cloudflare/locals.tf`). ingress-nginx serves only what reaches the node
-  addresses: the `home-lan` and `home-tailnet` probes and the VPS's
-  `/mcp`. A route can be sent back to ingress-nginx in an emergency:
-  {doc}`/how-to/gateway`.
+  `cloudflare/locals.tf`).
+- **So do the node addresses.** servicelb publishes the same Service on
+  ports 80 and 443 of `192.168.1.83`, `.84`, `.91` and `.92`, and on nuc2's
+  tailnet address: the `home-lan` and `home-tailnet` probes and the VPS's
+  `/mcp` come in that way, over HTTPS.
 
 ```mermaid
 flowchart LR
     cfd["cloudflared x2"]
-    lan["home-lan, home-tailnet,<br/>the VPS"]
-    nginx["ingress-nginx<br/>(node addresses)"]
+    lan["home-lan, home-tailnet,<br/>the VPS (node addresses)"]
     gw["Gateway web<br/>Cilium's Envoy"]
     oap["oauth2-proxy"]
     apps["Web services"]
 
-    cfd -->|"every tunnel route"| gw --> apps
-    lan --> nginx --> apps
+    cfd -->|"every tunnel route, port 80"| gw --> apps
+    lan -->|"port 443"| gw
     gw -. "ExternalAuth, gated apps" .-> oap
-    nginx -. "auth-url, gated apps" .-> oap
 ```
 
 ### 2. Direct, on the LAN or the tailnet
@@ -222,13 +215,13 @@ A few things are deliberately not behind Cloudflare:
 - **Jellyfin** runs on nuc2 with `hostNetwork` (`jellyfin.host_network`), so
   it listens on port 8096 of every interface nuc2 has: both LANs and
   `tailscale0`. That keeps video off Cloudflare, and lets UDP 7359 client
-  discovery work. It has no Ingress and no tunnel route.
+  discovery work. It has no HTTPRoute and no tunnel route.
 - **Minecraft RCON** ports are NodePorts `30600` to `30619` on nuc2, for
   build tools on the LAN. RCON is plain text, so a NetworkPolicy limits it to
   LAN sources and the range is never added to the VPS relay.
 - **`home-lan` and `home-tailnet`** are DNS-only A records that point at a
-  LAN address and a tailnet address of a node running the ingress load
-  balancer. Both serve the landing page's `/healthz`. The page at
+  LAN address and a tailnet address of a node where servicelb publishes the
+  Gateway. Both serve the landing page's `/healthz`. The page at
   `home.gkcluster.org` fetches both in the background: a probe only succeeds
   when the browser is on that network, and the page then enables its LAN and
   tailnet links (Jellyfin, for example).
@@ -236,7 +229,7 @@ A few things are deliberately not behind Cloudflare:
   the API at `https://k3s.lan:6443`. From outside the house that means the
   tailnet. There is no Cloudflare route for SSH.
 
-The ingress-nginx load balancer addresses also answer on the LAN, which is
+The Gateway's load balancer addresses also answer on the LAN, which is
 what the `home-lan` probe uses. The web services' own names never resolve to
 them.
 
@@ -310,7 +303,7 @@ Every name under `gkcluster.org`, from `cloudflare/locals.tf` and the
 | `pages` | Tunnel, public, cached at the edge | scrap's public pages (`scrap-public`) |
 | `ntfy` | Tunnel, public, ntfy's own tokens | ntfy |
 | `echo` | Tunnel | Echo test service |
-| `home-lan` | DNS only, LAN address | Landing page `/healthz` through ingress-nginx |
+| `home-lan` | DNS only, LAN address | Landing page `/healthz` through the Gateway |
 | `home-tailnet` | DNS only, tailnet address | The same, over the tailnet |
 | `mc` | DNS only, the VPS | frps, then nuc2's game NodePorts |
 
@@ -323,13 +316,14 @@ Publishing a new hostname is one line in `tunnel_services` and
 
 Browsers see Cloudflare's certificate, because Cloudflare ends TLS for every
 tunnelled name. The cluster still holds its own certificate for the names
-that are reached directly (`home-lan`, `home-tailnet`) and so that
-ingress-nginx always has a valid one to present.
+that are reached directly (`home-lan`, `home-tailnet`, scrap's `/mcp` from
+the VPS, and `argocd` from inside the cluster) and so that the Gateway
+always has a valid one to present.
 
 cert-manager issues a single wildcard certificate, for `*.gkcluster.org` and
-`gkcluster.org`, into the Secret `cert-manager/wildcard-tls`. ingress-nginx
-serves it as its default certificate (`default-ssl-certificate`), so no
-Ingress carries a cert-manager annotation or a certificate of its own.
+`gkcluster.org`, into the Secret `cert-manager/wildcard-tls`. The Gateway's
+HTTPS listener names it (a ReferenceGrant in `cert-manager` allows that),
+so no route carries a certificate of its own.
 
 ```mermaid
 sequenceDiagram
@@ -366,10 +360,12 @@ discovery request with a login page.
 
 The `cluster` role therefore writes a `coredns-custom` ConfigMap
 (`roles/cluster/tasks/main.yml`) with one extra server block: inside the
-cluster, `argocd.gkcluster.org` resolves to the ClusterIP of the
-ingress-nginx Service. Token exchanges stay inside the cluster and never
-meet Access. The role looks the ClusterIP up at run time, so after a rebuild
+cluster, `argocd.gkcluster.org` resolves to the ClusterIP of the Gateway's
+Service, `gateway/cilium-gateway-web`, whose port 443 serves the wildcard
+certificate. Token exchanges stay inside the cluster and never meet
+Access. The role looks the ClusterIP up at run time, so after a rebuild
 `ansible-playbook pb_all.yml --tags cluster` puts the new address in place.
 
-It is the only name overridden. oauth2-proxy's `auth-url` avoids the same
-trap in a different way, by using the Service's cluster address directly.
+It is the only name overridden. The gated routes' ExternalAuth filter
+avoids the same trap in a different way, by naming oauth2-proxy's Service
+directly.

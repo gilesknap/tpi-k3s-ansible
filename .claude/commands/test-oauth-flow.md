@@ -126,7 +126,8 @@ For each service:
 #### Known gotchas
 
 - **Cloudflare Access redirect** — some services may
-  sit behind a Cloudflare Access app in addition to ingress oauth2-proxy.
+  sit behind a Cloudflare Access app in addition to oauth2-proxy (the
+  Gateway's ExternalAuth filter).
   The non-incognito Chrome session usually has an existing
   `CF_Authorization` cookie that auto-approves. **But**: each Access app
   also sets a per-app `CF_AppSession` cookie with the `HttpOnly` flag.
@@ -188,9 +189,17 @@ If services fail:
 4. **502/503** — diagnose cluster-side vs edge-side before touching pods:
    - `curl -o /dev/null -w '%{http_code}\n' https://<service>.<domain>` —
      a 302 to `*.cloudflareaccess.com` means the cluster-side path is fine.
-   - The tunnel goes to Cilium's Gateway, whose Envoy keeps no access log.
-     `kubectl get httproute -A` (each Accepted) and the checks in
-     `docs/how-to/gateway.md` show whether the cluster side answers; a
-     healthy cluster side + a 503 in the browser = Cloudflare Access stale
-     cookie (see gotcha above), not a pod issue.
+   - The tunnel goes to Cilium's Gateway. Read-only checks: `kubectl -n gateway get gateway web`
+     (Programmed True), `kubectl get httproute -A` and
+     `kubectl -n <ns> describe httproute <name>` (Accepted, ResolvedRefs).
+     The `cilium-envoy` pods log no requests; to see the Gateway's traffic
+     to a backend, and any drops, use Hubble on the node the backend runs
+     on: `kubectl -n kube-system exec <cilium pod on that node> -c cilium-agent
+     -- hubble observe --identity ingress` (add `--verdict DROPPED` for
+     NetworkPolicy drops). The symptom table in `docs/how-to/gateway.md`
+     maps Envoy's 403/404/500/503/504 to causes. A response from the cluster
+     carries Envoy's `x-envoy-upstream-service-time` header (Cloudflare
+     replaces `server`); a healthy cluster side + a 503 in the browser
+     without it = Cloudflare Access stale cookie (see gotcha above), not a
+     pod issue.
    - Only after ruling those out: `kubectl get pods -A | grep -v Running`.

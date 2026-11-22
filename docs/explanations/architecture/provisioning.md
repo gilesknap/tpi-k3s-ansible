@@ -132,8 +132,8 @@ on the list of nodes ({doc}`/how-to/node-operations`).
   `cluster-init: true`; the other five run agents. There is no second
   server: resilience comes from the nightly etcd backup and the warm
   standby ({doc}`/how-to/recover-control-plane`).
-- **Traefik is disabled** (`disable: [traefik]`). ingress-nginx, delivered
-  by ArgoCD, is the ingress controller.
+- **Traefik is disabled** (`disable: [traefik]`). Cilium's Gateway,
+  delivered by ArgoCD, serves every app.
 - **A stable API name.** `k3s_api_name` (`k3s.lan`, a record on the
   router) is in the server certificate (`tls-san`), is what agents join
   (`https://k3s.lan:6443`), and is the server in the exported kubeconfig.
@@ -172,8 +172,9 @@ order that matters:
 2. Install the ArgoCD Helm chart into `argo-cd`, then upgrade it with the
    full configuration: Dex with the GitHub connector, RBAC from
    `admin_emails`, the local admin account disabled.
-3. Create the AppProject `kubernetes` (the allow-list of chart sources) and
-   ArgoCD's own Ingress.
+3. Create the AppProject `kubernetes` (the allow-list of chart sources), and
+   remove the ingress-nginx Ingress for ArgoCD that older runs made (its
+   HTTPRoute comes from the `gateway` Application).
 4. Create the `sealed-secrets` Application on its own and wait for the
    controller. It must be running before anything applies a
    `SealedSecret`.
@@ -181,9 +182,10 @@ order that matters:
    it with the new cluster's key, commit and push.
 6. Create the root Application `all-cluster-services`. ArgoCD now deploys
    everything else.
-7. Wait for ingress-nginx, then write the `coredns-custom` ConfigMap that
-   resolves `argocd.gkcluster.org` to the ingress controller inside the
-   cluster, so ArgoCD's sign-in does not loop out through Cloudflare.
+7. Wait for the Gateway's Service (`gateway/cilium-gateway-web`), then
+   write the `coredns-custom` ConfigMap that resolves `argocd.gkcluster.org`
+   to its ClusterIP inside the cluster, so ArgoCD's sign-in does not loop
+   out through Cloudflare.
 
 ```mermaid
 flowchart LR
@@ -194,8 +196,8 @@ flowchart LR
         A1 --> A2 --> A3
     end
     subgraph ARGO["ArgoCD owns"]
-        G1["26 child Applications<br/>from kubernetes-services/"]
-        G2["Every workload,<br/>Secret, Ingress and volume"]
+        G1["27 child Applications<br/>from kubernetes-services/"]
+        G2["Every workload,<br/>Secret, route and volume"]
         G1 --> G2
     end
     A3 ==>|"hand-over"| G1

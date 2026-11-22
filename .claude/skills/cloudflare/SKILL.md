@@ -8,7 +8,7 @@ description: Cloudflare Tunnel and Access configuration for exposing K3s service
 ## Architecture
 - **Cloudflare Tunnel**: runs as a pod in the cluster, exposes services externally
 - **Cloudflare Access**: wildcard policy on `*.gkcluster.org` — all subdomains protected
-- **Flow**: Internet → Cloudflare edge → Tunnel pod → NGINX Ingress → Service
+- **Flow**: Internet → Cloudflare edge → Tunnel pod → Cilium's Gateway (HTTPRoute) → Service
 
 ## Exposed Services
 The tunnelled hostnames are the `tunnel_services` list in
@@ -49,16 +49,17 @@ rather than trusting a copy.
 - DNS resolution: nodes use local DNS (`192.168.1.1`), not Cloudflare DNS
   - a node with `systemd-resolved` overridden to `1.1.1.1` cannot resolve `<node>.lan` names
   - Fix: `sudo resolvectl dns enp5s0 192.168.1.1`
-- Adding new services requires both: ingress in repo + an entry in
+- Adding new services requires both: an HTTPRoute in repo
+  (`additions/ingress` sub-chart) + an entry in
   `tunnel_services` in `cloudflare/locals.tf` (route + DNS), then plan/apply
 - **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
   tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
   static clients must list both `http://` and `https://` redirect URIs.
 - **Tunnel routes must go through the Gateway** — every tunnel hostname
   defaults to Cilium's Gateway, `http://cilium-gateway-web.gateway.svc.cluster.local`
-  (`local.gateway`; ADR 0016). ingress-nginx still serves the node addresses
-  until phase 2, and a route can go back to it in an emergency
-  (docs/how-to/gateway.md). Direct-to-service routes (e.g.
+  (`local.gateway`; ADR 0016), which also serves the node addresses (LAN,
+  tailnet, the VPS) through servicelb; there is no other ingress
+  controller (docs/how-to/gateway.md). Direct-to-service routes (e.g.
   `http://home.home.svc.cluster.local`) bypass the HTTPRoutes and
   oauth2-proxy entirely, so auth headers like
   `X-Auth-Request-Email` will be empty. Cloudflare Access still authenticates,
@@ -79,4 +80,4 @@ rather than trusting a copy.
 - `cloudflare/` — OpenTofu edge config (tunnel, DNS, Access, WAF)
 - `kubernetes-services/additions/cloudflared/` — cloudflared Deployment and tunnel-secret
 - `kubernetes-services/values.yaml` — `enable_cloudflare_tunnel` toggle
-- `kubernetes-services/additions/ingress/` — ingress definitions for tunneled services
+- `kubernetes-services/additions/ingress/` — the per-app HTTPRoute sub-chart for tunneled services

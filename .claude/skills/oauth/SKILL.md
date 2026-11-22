@@ -15,8 +15,8 @@ description: OAuth2-proxy authentication setup, configuration, and troubleshooti
 
 ## Configuration
 - oauth2-proxy enabled in `kubernetes-services/values.yaml`
-- Reusable ingress sub-chart at `kubernetes-services/additions/ingress/` supports `oauth2_proxy` annotation mode
-- Services behind OAuth get ingress annotations pointing to the oauth2-proxy auth endpoint
+- Reusable HTTPRoute sub-chart at `kubernetes-services/additions/ingress/` supports `oauth2_proxy: true`
+- Services behind OAuth get an ExternalAuth filter on their HTTPRoute that sends each request to oauth2-proxy (`/gateway-auth` prefix, `Cookie` only, 200 allows; anything else, such as the 403 sign-in page, goes back to the browser). The route's namespace must be in `external_auth_namespaces` (`templates/gateway.yaml`) or every request gets a 500
 
 ## MCP servers need a different auth model — do NOT try to reuse oauth2-proxy
 
@@ -102,11 +102,11 @@ The established pattern for MCP servers in this cluster is:
   `kubectl rollout restart sts grafana-prometheus -n monitoring`.
   Without this, Dex reports "invalid client_secret" even though the
   Secret objects match. See `/sealed-secrets` for the full namespace list.
-- **Ingress auth-url must be cluster-internal** — the ingress sub-chart's
-  `auth-url` uses the internal service (`oauth2-proxy.oauth2-proxy.svc`).
-  Using the external domain resolves via Cloudflare to IPv6, which is
-  unreachable from the cluster, causing intermittent 500s on all
-  oauth2-protected ingresses.
+- **The auth backend must be cluster-internal** — the ExternalAuth filter's
+  backendRef is the internal Service (`oauth2-proxy` in `oauth2-proxy`).
+  The external domain resolves via Cloudflare to IPv6, which is
+  unreachable from the cluster; an unreachable auth service makes Envoy
+  answer 403 on every gated route (it fails closed).
 - **Dex base URL redirects** — `/api/dex` 301s to `/api/dex/` which returns
   404. OIDC clients that don't follow redirects
   need the full discovery URL: `.well-known/openid-configuration`.
@@ -115,5 +115,5 @@ The established pattern for MCP servers in this cluster is:
   Also set `[auth].disable_signup_form: true` to block manual signup.
 ## Key Files
 - `kubernetes-services/values.yaml` — oauth2-proxy toggle and config
-- `kubernetes-services/additions/ingress/` — reusable ingress with auth modes
+- `kubernetes-services/additions/ingress/` — reusable HTTPRoute with the oauth2-proxy filter
 - `kubernetes-services/templates/` — ArgoCD Application CRDs

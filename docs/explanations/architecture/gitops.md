@@ -39,7 +39,7 @@ flowchart TB
     ANS["Ansible cluster role"] -->|"creates"| ROOT["all-cluster-services<br/>root Application"]
     REPO["kubernetes-services/<br/>Chart.yaml, values.yaml, templates/"] -->|"rendered by"| ROOT
 
-    ROOT --> P["Platform<br/>cilium, sealed-secrets, cert-manager, ingress,<br/>oauth2-proxy, cloudflared, coredns"]
+    ROOT --> P["Platform<br/>cilium, gateway-api-crds, gateway, sealed-secrets,<br/>cert-manager, oauth2-proxy, cloudflared, coredns"]
     ROOT --> S["Storage and backups<br/>local-storage, nfs-csi, backups"]
     ROOT --> M["Nodes and maintenance<br/>kured, system-upgrade, kernel-settings,<br/>intel-gpu-plugin, nvidia-device-plugin"]
     ROOT --> O["Observability and UIs<br/>grafana-prometheus, headlamp, hubble-ui,<br/>argocd-monitor, home, echo"]
@@ -48,8 +48,8 @@ flowchart TB
     P & S & M & O & A -->|"sync"| K["Cluster resources"]
 ```
 
-Those are the 26 child Applications in the live cluster
-(`kubectl get applications -n argo-cd` shows 27 with the root). A 27th
+Those are the 27 child Applications in the live cluster
+(`kubectl get applications -n argo-cd` shows 28 with the root). A 28th
 template, `kyverno.yaml`, renders nothing because `enable_kyverno` is
 `false`: the app never settled to Synced and no policies were in use.
 
@@ -63,13 +63,13 @@ Application.
 ### Repository layout
 
 ```
-argo-cd/                  # root Application, AppProject and ArgoCD's Ingress (applied by Ansible)
+argo-cd/                  # root Application and AppProject (applied by Ansible)
 kubernetes-services/
 ├── Chart.yaml            # the meta chart
 ├── values.yaml           # every setting ArgoCD-delivered services share
 ├── templates/            # one ArgoCD Application per service
 └── additions/            # this repository's own manifests and charts, one folder per service
-    └── ingress/          # the reusable Ingress sub-chart
+    └── ingress/          # the reusable HTTPRoute sub-chart
 ```
 
 {doc}`/reference/services` is the catalogue: each service's chart, version,
@@ -109,8 +109,8 @@ Optional services are switched in `values.yaml`:
 | Toggle | Effect |
 |--------|--------|
 | `enable_jellyfin`, `enable_minecraft`, `enable_vps_relay`, `enable_kyverno` | The Application exists only when `true` |
-| `enable_oauth2_proxy` | Whether the Headlamp Ingress carries the oauth2-proxy annotations; scrap and the Minecraft dashboard are always behind oauth2-proxy |
-| `enable_cloudflare_tunnel` | Turns off the HTTP-to-HTTPS redirect on tunnelled Ingresses, since Cloudflare terminates TLS at the edge |
+| `enable_oauth2_proxy` | Whether the Headlamp HTTPRoute carries the oauth2-proxy ExternalAuth filter; scrap and the Minecraft dashboard are always behind oauth2-proxy |
+| `enable_cloudflare_tunnel` | Turns off the HTTP-to-HTTPS redirect on every HTTPRoute, since Cloudflare terminates TLS at the edge and cloudflared sends plain HTTP |
 | `offsite_backup.enabled` | Runs the nightly off-site copy and enables its alerts |
 
 All are `true` on this cluster except `enable_kyverno`.
@@ -120,7 +120,7 @@ All are `true` on this cluster except `enable_kyverno`.
 ### Upstream chart plus additions
 
 Most services combine up to three sources in one Application: an upstream
-Helm chart, a folder of this repository's own manifests, and the Ingress
+Helm chart, a folder of this repository's own manifests, and the HTTPRoute
 sub-chart. Headlamp is a short real example
 (`templates/dashboard.yaml`, abridged):
 
@@ -133,7 +133,7 @@ sources:
     helm:
       valuesObject: { ... }
 
-  # 2. The Ingress, from the shared sub-chart
+  # 2. The HTTPRoute, from the shared sub-chart
   - path: ./kubernetes-services/additions/ingress
     repoURL: {{ .Values.repo_remote }}
     targetRevision: {{ .Values.repo_branch }}
@@ -153,21 +153,23 @@ rules, a ServiceMonitor and the `SealedSecret` resources; for
 `cert-manager` it is a small chart with the ClusterIssuer and the wildcard
 Certificate.
 
-### The Ingress sub-chart
+### The HTTPRoute sub-chart
 
-`additions/ingress/` is a one-template chart that produces `<name>-ingress`
-for the host `<name>.gkcluster.org`, so no service repeats Ingress
-boilerplate. TLS needs no per-service secret: ingress-nginx serves the
-wildcard certificate `cert-manager/wildcard-tls` by default.
+`additions/ingress/` is a one-template chart that produces an HTTPRoute
+`<name>` on Cilium's Gateway `web` for the host `<name>.gkcluster.org`, so no
+service repeats route boilerplate
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). TLS needs
+no per-service secret: the Gateway's HTTPS listener serves the wildcard
+certificate `cert-manager/wildcard-tls`.
 
 | Value | Effect |
 |-------|--------|
-| `name`, `cluster_domain` | The Ingress name and host |
-| `service_name`, `service_port` | The backend. Port `443` makes ingress-nginx speak HTTPS to the backend |
-| `oauth2_proxy: true` | Adds the `auth-url` and `auth-signin` annotations, so requests must pass oauth2-proxy ({doc}`/explanations/architecture/authentication`) |
-| `basic_auth: true` | nginx basic auth from the `admin-auth` secret (no service uses it today) |
-| `ssl_redirect` | Defaults to `true`; tunnelled services set it `false` |
-| `extra_annotations` | Any further annotations, as used by scrap and ntfy |
+| `name`, `cluster_domain` | The HTTPRoute name and host |
+| `service_name`, `service_port` | The backend Service. Port `443` (an HTTPS backend) is refused: it would need a BackendTLSPolicy |
+| `namespace` | The route's namespace when it is not the Application's own (pages lives in `scrap-public`) |
+| `oauth2_proxy: true` | Adds the ExternalAuth filter, so requests must pass oauth2-proxy ({doc}`/explanations/architecture/authentication`) |
+| `ssl_redirect` | Defaults to `true`: the route takes the HTTPS listener only, and a `<name>-https-redirect` route redirects plain HTTP. Tunnelled services set it `false` |
+| `gateway_request_timeout` | The route's `timeouts.request`. Empty keeps Envoy's 15 s limit on a whole request; `0s` turns it off, for apps that stream |
 
 An Application can use the sub-chart more than once: `home` creates
 `home`, `home-lan` and `home-tailnet`.

@@ -47,7 +47,7 @@ Around the nodes:
 
 ## What runs on it
 
-**Platform.** ingress-nginx, cert-manager (one Let's Encrypt wildcard
+**Platform.** Cilium's Gateway, cert-manager (one Let's Encrypt wildcard
 certificate, by DNS-01), Sealed Secrets, oauth2-proxy and ArgoCD's Dex for
 GitHub sign-in, cloudflared, the NFS CSI driver with static `local-nvme`
 volumes beside it, and device plugins for the Intel and NVIDIA GPUs.
