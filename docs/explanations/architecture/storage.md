@@ -186,7 +186,6 @@ dataset, fail ({ref}`nas-snapshot-hold`).
     backups/
       grafana/  jellyfin/   daily tarballs, and weekly/ below each
       scrap/                scrap's backup runs, and monthly/
-      scrap-curated/        scrap runs kept by hand
       etcd/                 encrypted etcd bundles and sealing keys
   media/                    Jellyfin's library, mounted read-only
   minecraft-archive/        precious world archive, read-only

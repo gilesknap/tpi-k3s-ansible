@@ -81,8 +81,6 @@ Here each is owned by its one writer, mode `0755`: Grafana's backups by
 which node02's root-run job is squashed to. Only that writer can add or
 delete backups there (pruning older files of other owners included), and the
 off-site copy, which reads `backups/` as `65534`, can still read them all.
-`backups/scrap-curated/` becomes `0750`, scrap's alone, like its other
-directories.
 
 Two things follow from moving NAS:
 

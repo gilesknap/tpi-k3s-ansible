@@ -211,7 +211,7 @@ applies to that run only.
 | `offsite_backup.age.version` / `sha256.amd64` / `sha256.arm64` | `1.3.2` / *(checksums)* | age release an init container fetches, checked against these checksums; bump all three together |
 | `offsite_backup.deadline_hours` | `6` | A run is stopped after this long; the next carries on |
 | `offsite_backup.backups.uid` | `65534` | User the `backups` container runs as: the NAS's squashed-root owner of the etcd bundles. It uploads everything under `backups/` but the `run_dirs` |
-| `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly, scrap-curated]` | Folders under `backups/` whose subfolders are runs, each uploaded by the `scrap` container as one tarball once complete (`<run>.incomplete.tar.age` if it has no `COMPLETE` marker once its folder is two days old) |
+| `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly]` | Folders under `backups/` whose subfolders are runs, each uploaded by the `scrap` container as one tarball once complete (`<run>.incomplete.tar.age` if it has no `COMPLETE` marker once its folder is two days old) |
 | `offsite_backup.backups.exclude` | `etcd/LATEST`, `etcd/sealed-secrets-keys.yaml.age{,.sha256}` | Paths under `backups/` rewritten in place, never uploaded |
 | `offsite_backup.backups.prune_days` / `keep_min` | `180` / `4` | Delete a file on Drive only once its source is gone from the NAS and it was uploaded over `prune_days` ago (`0`: never), always keeping the `keep_min` newest of each series |
 | `offsite_backup.scrap.uid` / `gid` | `10001` / `10001` | User the `scrap` container runs as: scrap's, as hard-coded in `additions/scrap/templates/backup-copy.yaml`, which owns its backup runs' files |
