@@ -11,14 +11,15 @@ How each ingress-nginx annotation maps (ADR 0016 has the reasons):
   ExternalAuth filter below. oauth2-proxy answers an unsigned-in browser with
   its sign-in page, which sends it on to oauth2.<cluster_domain>/oauth2/start
   (additions/oauth2-proxy/error-templates.yaml).
-- extra_annotations (proxy-buffering, proxy-body-size, timeouts): none. Envoy
+- extra_annotations (proxy-buffering, proxy-body-size): none. Envoy
   streams requests and responses without buffering and has no body size
   limit.
-- gateway_request_timeout: with no timeouts on the route, Envoy gives the
-  whole request 15 s, which ingress-nginx has no equivalent of. An app that
-  streams or runs long requests (WebSockets, server-sent events, uploads)
-  sets 0s, which turns that limit off; the rest keep the 15 s. Either way
-  Envoy closes a stream idle for 5 minutes (the Cilium chart's
+- extra_annotations (proxy-read-timeout, proxy-send-timeout): the
+  gateway_request_timeout value instead. With no timeouts on the route, Envoy
+  gives the whole request 15 s, which ingress-nginx has no equivalent of. An
+  app that streams or runs long requests (WebSockets, server-sent events,
+  uploads) sets 0s, which turns that limit off; the rest keep the 15 s.
+  Either way Envoy closes a stream idle for 5 minutes (the Cilium chart's
   envoy.streamIdleTimeoutDurationSeconds).
 */}}
 {{- if and .Values.http_route (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1/HTTPRoute") }}

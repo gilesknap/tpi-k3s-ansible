@@ -171,12 +171,12 @@ whole-response limit, only one between reads. So the route of each app that
 streams or runs long requests sets `timeouts.request: 0s`, which turns the
 route timeout off ([GEP-1742](https://gateway-api.sigs.k8s.io/geps/gep-1742/)):
 ntfy's subscriptions, Headlamp's, Grafana's and Hubble UI's live streams,
-ArgoCD's watch streams, argocd-monitor's log stream, and scrap's uploads,
-attachment downloads and MCP event streams (its public pages too). The
-ingress sub-chart's `gateway_request_timeout` value sets it. The rest (echo,
-home, oauth2-proxy, Alertmanager, the Minecraft dashboard) keep Envoy's 15 s,
-which bounds a request that hangs. For the streaming apps what is left is Envoy's idle
-timeout for a stream, 5 minutes for all of Cilium's Envoy
+ArgoCD's watch streams, the log streams of argocd-monitor and the Minecraft
+dashboard, and scrap's uploads, attachment downloads and MCP event streams
+(its public pages too). The ingress sub-chart's `gateway_request_timeout`
+value sets it. The rest (echo, home, oauth2-proxy, Alertmanager) keep Envoy's
+15 s, which bounds a request that hangs. For the streaming apps what is left
+is Envoy's idle timeout for a stream, 5 minutes for all of Cilium's Envoy
 (`envoy.streamIdleTimeoutDurationSeconds`): longer than ntfy's 180 s (its
 clients send keepalives every 45 s), shorter than `/mcp`'s 3600 s. MCP clients
 reconnect; the trial shows whether that matters.
