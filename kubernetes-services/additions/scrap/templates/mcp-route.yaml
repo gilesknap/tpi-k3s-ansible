@@ -1,0 +1,36 @@
+{{- if and .Values.mcp_route_enabled (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1/HTTPRoute") }}
+# /mcp only, WITHOUT the ExternalAuth filter (ADR 0016). Same host as the main
+# scrap HTTPRoute (additions/ingress), which covers / behind oauth2-proxy;
+# Gateway API picks the longest matching path prefix across both routes, so
+# /mcp and /mcp/... come here. MCP clients cannot do a browser GitHub login:
+# this path is protected by Cloudflare Access (service token) at the edge and
+# by scrap's own bearer token (mcp.tokenSecret), which is all there is on the
+# node addresses (the LAN, the tailnet and the VPS). Enable it only with a
+# scrap release that checks that token.
+#
+# timeouts.request 0s turns off Envoy's 15 s route timeout for the long-lived
+# MCP streams; Envoy closes a stream idle for 5 minutes.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: scrap-mcp
+spec:
+  parentRefs:
+    - name: web
+      namespace: gateway
+      {{- if eq (toString .Values.ssl_redirect) "true" }}
+      sectionName: https
+      {{- end }}
+  hostnames:
+    - scrap.{{ .Values.cluster_domain }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mcp
+      backendRefs:
+        - name: scrap
+          port: 80
+      timeouts:
+        request: 0s
+{{- end }}

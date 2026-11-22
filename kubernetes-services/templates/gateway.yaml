@@ -11,8 +11,8 @@ spec:
     namespace: gateway
   project: kubernetes
   sources:
-    # Cilium's Gateway, which is to replace ingress-nginx (ADR 0016). Each
-    # app's HTTPRoute comes with its Ingress, from additions/ingress.
+    # Cilium's Gateway, which serves every app (ADR 0016). Each app's
+    # HTTPRoute comes with the app, from additions/ingress.
     - path: ./kubernetes-services/additions/gateway
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -30,8 +30,8 @@ spec:
             - scrap
           {{- end }}
 
-    # ArgoCD's route. Its Ingress is made by the cluster role
-    # (argo-cd/ingress.yaml), not by an Application.
+    # ArgoCD's route. ArgoCD itself is installed by the cluster role, not by
+    # an Application.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -46,7 +46,6 @@ spec:
           ssl_redirect: false
           # Turns off Envoy's 15 s cap on a request, for ArgoCD's UI watch streams (ADR 0016).
           gateway_request_timeout: 0s
-          ingress: false
   syncPolicy:
     automated:
       prune: true

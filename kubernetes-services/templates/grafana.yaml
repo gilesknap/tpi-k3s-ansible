@@ -129,26 +129,11 @@ spec:
 {{- end }}
 
           alertmanager:
-            ingress:
-              enabled: true
-              ingressClassName: nginx
-              annotations:
-                nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth"
-                nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.{{ .Values.cluster_domain }}/oauth2/start?rd=https://$host$escaped_request_uri"
-                nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-{{- if .Values.enable_cloudflare_tunnel }}
-                nginx.ingress.kubernetes.io/ssl-redirect: "false"
-{{- end }}
-              hosts:
-                - alertmanager.{{ .Values.cluster_domain }}
-              tls:
-                - hosts:
-                    - alertmanager.{{ .Values.cluster_domain }}
             alertmanagerSpec:
               # No workstation toleration: workstation nodes reboot outside
               # the kured window, so Alertmanager stays on cluster nodes.
               # The public URL, so links in notifications (and the UI's own)
-              # point at the ingress rather than an internal address.
+              # point at its HTTPRoute rather than an internal address.
               externalUrl: https://alertmanager.{{ .Values.cluster_domain }}
               # The ntfy alertmanager user's token (a copy of the
               # alertmanager-token key of ntfy-auth in the ntfy namespace),
@@ -294,7 +279,7 @@ spec:
             admissionWebhooks:
               # Disabled: hook jobs (admission-create/patch) delete themselves before
               # ArgoCD records Succeeded, causing every sync to get permanently stuck.
-              # Same fix as ingress-nginx (eaaa0f1). The webhook validates CRD syntax
+              # Same fix as ingress-nginx had (eaaa0f1). The webhook validates CRD syntax
               # but is not required for operation.
               enabled: false
               # Part of the v0.94.2 pin above: only used if webhooks are re-enabled.
@@ -552,9 +537,7 @@ spec:
           # Turns off Envoy's 15 s cap on a request, for Grafana Live's WebSocket (ADR 0016).
           gateway_request_timeout: 0s
 
-    # Alertmanager's HTTPRoute (ADR 0016). Its Ingress comes from the
-    # kube-prometheus-stack chart above (alertmanager.ingress), always behind
-    # oauth2-proxy.
+    # Alertmanager's HTTPRoute (ADR 0016), always behind oauth2-proxy.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -566,7 +549,6 @@ spec:
           service_port: 9093
           oauth2_proxy: true
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
-          ingress: false
   ignoreDifferences:
   - group: apps
     kind: StatefulSet

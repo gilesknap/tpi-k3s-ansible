@@ -72,7 +72,7 @@ spec:
         # attaches to, and on nuc2 and ws03 that is tailscale0's 1280, which
         # left their pods at 1230. tailscale0 stays one of those devices
         # rather than being left out of `devices`: the VPS reaches
-        # ingress-nginx on nuc2's tailnet address (servicelb's host port 443),
+        # the Gateway on nuc2's tailnet address (servicelb's host port 443),
         # and only Cilium's programs on the device serve a host port there,
         # as nothing else (no portmap plugin, no iptables) does. Pod traffic
         # into the tailnet still fits tailscale0 through path MTU discovery.
@@ -107,8 +107,8 @@ spec:
             enabled: true
         envoy:
           rollOutPods: true
-        # Cilium's Gateway API controller, to replace ingress-nginx (ADR
-        # 0016). The operator only starts it if the Gateway API CRDs exist
+        # Cilium's Gateway API controller, which serves every app's route
+        # (ADR 0016). The operator only starts it if the Gateway API CRDs exist
         # when it starts, so the k3s role installs them before this chart
         # (additions/gateway-api-crds). The GatewayClass is the cluster's own,
         # with parameters (additions/gateway), so the chart makes none; that
@@ -150,7 +150,7 @@ spec:
             prometheus:
               enabled: true
           # The web UI, at hubble.<cluster_domain> behind oauth2-proxy
-          # (templates/hubble-ui.yaml makes the Ingress, not this chart).
+          # (templates/hubble-ui.yaml makes the HTTPRoute, not this chart).
           ui:
             enabled: true
             rollOutPods: true
