@@ -44,6 +44,11 @@ switch-branch branch:
 argocd-sync:
     scripts/argocd-sync
 
+# Run the hubble CLI against hubble-relay, through a port-forward that lasts
+# for the command, e.g. just hubble observe --last 20
+hubble *args:
+    scripts/hubble {{ args }}
+
 # Fence a dead node so its pods restart elsewhere (out-of-service taint).
 # Refuses a Ready node; the node must be powered off.
 node-fence node:

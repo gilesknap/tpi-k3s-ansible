@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Run the hubble CLI against hubble-relay through a temporary port-forward.
+# Usage: scripts/hubble <hubble args>, e.g. scripts/hubble observe --last 20
+set -euo pipefail
+port="${HUBBLE_PORT:-4245}"
+kubectl -n kube-system port-forward svc/hubble-relay "${port}:80" >/dev/null &
+pf=$!
+trap 'kill "$pf" 2>/dev/null || true' EXIT
+for _ in $(seq 50); do
+    if (exec 3<>"/dev/tcp/127.0.0.1/${port}") 2>/dev/null; then break; fi
+    kill -0 "$pf" 2>/dev/null || { echo "port-forward to hubble-relay failed" >&2; exit 1; }
+    sleep 0.1
+done
+hubble --server "localhost:${port}" "$@"

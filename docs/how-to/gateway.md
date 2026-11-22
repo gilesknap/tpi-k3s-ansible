@@ -90,7 +90,7 @@ it must not return scrap's app without the MCP bearer token.
 | `404` from Envoy | The route is not attached: `kubectl -n <ns> describe httproute <name>`. |
 | `500` on a gated app | The ExternalAuth reference is refused: is the namespace in `external_auth_namespaces` (`kubernetes-services/templates/gateway.yaml`)? |
 | `403` on a gated app, with no sign-in page | Envoy could not reach oauth2-proxy (it fails closed): check its pods. |
-| `503`, or a connection reset | A NetworkPolicy drops Envoy: `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --identity ingress --verdict DROPPED`. |
+| `503`, or a connection reset | A NetworkPolicy drops Envoy: `just hubble observe --identity ingress --verdict DROPPED`. |
 | A `504` (`upstream request timeout`) after 15 s | The app streams or runs long requests: set `gateway_request_timeout: 0s` in its `additions/ingress` values ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). |
 | A request cut after 5 minutes of quiet | Envoy's stream idle timeout ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`). |
 | A sign-in loop | Check that `rd` in the address bar is the app's URL, and oauth2-proxy's log. |

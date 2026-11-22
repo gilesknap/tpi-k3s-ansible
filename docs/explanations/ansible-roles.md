@@ -55,6 +55,7 @@ Installs the command-line tools that manage the cluster into `bin_dir`
 | `helm` | 3.20.0 | Kubernetes package manager |
 | `kubectl` | latest stable | Kubernetes CLI |
 | `kubeseal` | 0.35.0 | Sealed Secrets CLI |
+| `hubble` | 1.20.4 | Cilium's flow CLI (`just hubble`) |
 | `helm-diff` | plugin | Shows Helm upgrade diffs |
 | `argocd` | 3.3.2 | ArgoCD CLI |
 
@@ -72,6 +73,7 @@ The role is split across multiple task files:
 - `helm.yml` — Helm binary + helm-diff plugin
 - `kubectl.yml` — kubectl binary + completions
 - `kubeseal.yml` — kubeseal binary
+- `hubble.yml` — hubble CLI binary
 - `argocd.yml` — ArgoCD CLI binary
 - `scripts.yml` — port-forward helper scripts
 - `kubeconfig.yml` — copies the kubeconfig from the control plane to
