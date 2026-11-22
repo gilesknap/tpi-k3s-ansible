@@ -50,7 +50,7 @@ Every install:
 - sets the hostname from `hosts.yml`, the locale `en_GB.UTF-8`, a UK keyboard
   and the time zone Europe/London;
 - takes DHCP on every Ethernet port (the router reserves each host's
-  address);
+  `lan_ip` for its hostname, {doc}`/how-to/router-dhcp`);
 - powers off when it is done.
 
 The menu has no default and no timeout. An install starts only when someone

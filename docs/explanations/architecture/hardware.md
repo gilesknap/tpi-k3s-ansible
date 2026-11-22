@@ -208,7 +208,9 @@ manages it, apart from the cluster playbooks
 
 **The router** (OpenWrt, 192.168.1.1) resolves the `.lan` node names and
 serves `k3s.lan`, the name of the Kubernetes API, which currently points at
-node02. `just k3s-api-dns <ip>` repoints it when the control plane moves.
+node02. Its DNS and DHCP are code ({doc}`/how-to/router-dhcp`): `k3s.lan`
+follows `control_plane`, and `just k3s-api-dns <ip>` repoints it at once in
+an emergency.
 
 **The VPS** runs frps and publishes the Minecraft game ports as
 `mc.gkcluster.org`. It is reached only over the tailnet and never connects

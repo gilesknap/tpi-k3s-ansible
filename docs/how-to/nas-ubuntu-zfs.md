@@ -57,10 +57,15 @@ difference.
 | `minecraft-archive` | Read-write over NFS (read-only only by mode and the PV) | Read-only in the export too |
 | One filesystem? | Yes: `bigdisk` and `k8s-dynamic` were one ext4 volume | No: each dataset is its own filesystem and its own export. A move between datasets is a copy, not a rename |
 
-`nas_nfs_clients` in the role's defaults holds the client list, and each
-entry of `nas_nfs_exports` can narrow it (`clients`) or make it read-only to
-some hosts (`read_only_for`). A new node must be added there (and the
-playbook re-run) before its pods can mount anything from the NAS. The nodes
+`nas_nfs_clients` in the role's defaults holds the client list, by name,
+and each entry of `nas_nfs_exports` can narrow it (`clients`) or make it
+read-only to some hosts (`read_only_for`). The exports admit each host by
+its IP, its `lan_ip` in `hosts.yml`, the address the router reserves for
+it ({doc}`/how-to/router-dhcp`): IPs, not names, so NFS does not depend on
+the router's DNS. A name not in `hosts.yml` is left out, and an export left
+with no hosts is not written. A new node must be added to
+`nas_nfs_clients` (and the playbook re-run) before its pods can mount
+anything from the NAS. The nodes
 still reach `/bigdisk/k8s-cluster` and `/bigdisk/media` without `/bigdisk`
 itself being exported to them: the server's NFSv4 pseudo-root shows them the
 path down to the exports they are given, and nothing else in it.
@@ -130,9 +135,10 @@ port is USB 3. The firmware setup opens with **Del** at power-on.
    UEFI entry first in the boot order, before the DOM (QTS).
 
 The NAS has two 2.5GbE ports, `enp2s0` and `enp3s0`; the install takes DHCP
-on whichever is cabled. The router's reservation for 192.168.1.3 is by
-`enp3s0`'s MAC address, so cable that port (`ip -br link` on the NAS shows
-each port's name and MAC). The installer's netplan configures both ports
+on whichever is cabled. The router reserves 192.168.1.3 (`lan_ip` in
+`hosts.yml`) for the hostname `gknas`, which either port sends, so cable
+one port only (`enp3s0` today; `ip -br link` on the NAS shows each port's
+name and MAC). The installer's netplan configures both ports
 under one `en*` match, so every boot waits two minutes for the port with no
 cable and then logs `systemd-networkd-wait-online` as failed; `nas_os`
 replaces it with one entry per port (`nas_netplan_ethernets`), each matched

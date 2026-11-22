@@ -273,6 +273,17 @@ router-backup:
         grep -v "^#" /var/lib/node_exporter/textfile_collector/router_backup.prom; \
         exit $rc'
 
+# Show the diff of the router's DHCP and DNS against the template, then on y
+# push it with confirm-or-revert. args go to both ansible-playbook runs (in
+# the Claude sandbox: --private-key ...). See docs/how-to/router-dhcp.md.
+router-dhcp *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ansible-playbook pb_router.yml --tags dhcp-diff {{ args }}
+    read -rp "Apply this to the router, with confirm-or-revert? [y/N] " answer || answer=n
+    [[ $answer == y ]] || { echo "Nothing changed."; exit 0; }
+    ansible-playbook pb_router.yml --tags change -e router_change_tasks=dhcp {{ args }}
+
 # Point k3s_api_name at a control-plane IP on the dns_router (OpenWrt, uci)
 # and check it resolves here. See docs/how-to/recover-control-plane.md.
 k3s-api-dns ip:

@@ -6,13 +6,16 @@
 #
 #   ansible-playbook pb_router.yml --tags check
 #       Checks the router is doing its job: the internet, its DNS, k3s_api_name,
-#       the cluster API and SSH to it.
+#       <control_plane>.lan, the cluster API and SSH to it.
 #   ansible-playbook pb_router.yml --tags change [-e router_change_tasks=<name>]
 #       A change with confirm-or-revert: backs the router up to the NAS,
 #       snapshots it, arms a revert on the router (router_guard_timeout,
 #       300 s), runs roles/router/tasks/<name>.yml, then the checks. Only if
 #       they pass is the revert disarmed. With no change it arms, checks and
-#       disarms.
+#       disarms. -e router_change_tasks=dhcp pushes the router's DHCP and
+#       DNS from roles/router/templates/dhcp.j2 (`just router-dhcp`).
+#   ansible-playbook pb_router.yml --tags dhcp-diff
+#       Shows what that would change, and changes nothing.
 #   ansible-playbook pb_router.yml --tags drill
 #       Proves the revert: arms it, writes a note into the router's system
 #       settings, leaves it unconfirmed, and checks the router reverted and
@@ -34,6 +37,18 @@
       ansible.builtin.include_role:
         name: router
         tasks_from: check
+
+- name: Show what the DHCP and DNS template would change on the router
+  hosts: router
+  gather_facts: false
+  tags: [never, dhcp-diff]
+  tasks:
+    - name: Compare the router's DHCP and DNS with the template
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: dhcp
+      vars:
+        router_dhcp_apply: false
 
 - name: Change the router, reverting by itself unless the checks pass
   hosts: router

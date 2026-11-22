@@ -63,12 +63,36 @@ standby_control_plane: node03
 # Cilium agents reach the API by this name too; the k3s role checks).
 k3s_api_name: k3s.lan
 # SSH target (user@host) of the OpenWrt router that serves k3s_api_name.
-# Used by `just k3s-api-dns <ip>` (scripts/k3s-api-dns), which needs its
-# dnsmasq managed with uci, by the control plane's daily router backup
-# (roles/etcd_backup, router.yml) and by pb_router.yml's restore
-# (docs/how-to/router-recovery.md). With any other LAN DNS, create the
-# record by hand instead.
+# Used by pb_router.yml (its DHCP template points k3s_api_name at
+# control_plane's lan_ip; docs/how-to/router-dhcp.md), by the emergency
+# `just k3s-api-dns <ip>` (scripts/k3s-api-dns, uci) and by the control
+# plane's daily router backup (roles/etcd_backup, router.yml). With any
+# other LAN DNS, create the record by hand instead.
 dns_router: root@192.168.1.1
+# The router's DHCP and DNS (its whole /etc/config/dhcp), rendered from
+# roles/router/templates/dhcp.j2 and pushed with confirm-or-revert by
+# `just router-dhcp` (docs/how-to/router-dhcp.md). Besides the lists
+# below, it reserves each host's lan_ip in hosts.yml for the host's name,
+# and points k3s_api_name at control_plane's lan_ip. cluster_domain is the
+# router's rebind_domain: its public records may point at LAN addresses.
+#
+# The upstream DNS servers dnsmasq forwards to.
+router_dns_servers: [1.1.1.1, 1.0.0.1]
+# The static leases of the other devices, matched by MAC as this repo
+# does not set their hostnames (the Turing Pi BMC among them, though it is
+# in hosts.yml): name (optional), ip and macs. Each name is served as
+# <name>.lan whether or not the device holds a lease.
+router_dhcp_hosts:
+  - {name: turingpi, ip: 192.168.1.80, macs: ["c4:ff:84:10:01:05"]}
+  - {name: node01, ip: 192.168.1.81, macs: ["2c:cf:67:30:d8:2d"]}
+  - {name: GX7050, ip: 192.168.1.5, macs: ["34:9f:7b:ca:b4:52"]}
+  - {name: GoogleTV, ip: 192.168.1.6, macs: ["b8:7b:d4:de:95:9d"]}
+  - {ip: 192.168.1.195, macs: ["00:a0:de:97:22:ae"]} # unnamed
+  - {ip: 192.168.1.141, macs: ["58:cb:52:b0:3c:fe"]} # unnamed
+  - {name: pi1, ip: 192.168.1.31, macs: ["e4:5f:01:0e:3c:79"]}
+  - {name: pi2, ip: 192.168.1.32, macs: ["dc:a6:32:dd:77:85"]}
+  - {name: pi3, ip: 192.168.1.33, macs: ["dc:a6:32:66:c7:dd"]}
+  - {name: pi4, ip: 192.168.1.34, macs: ["e4:5f:01:94:43:6f"]}
 # age public key (age1...) for the nightly encrypted etcd backup
 # (roles/etcd_backup). Only the public key belongs here: the private key
 # stays offline with the cluster owner, so nothing on the cluster can

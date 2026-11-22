@@ -1,0 +1,100 @@
+# The router's DHCP and DNS as code: render /etc/config/dhcp from
+# templates/dhcp.j2 on the controller, show the diff against the router's
+# copy and, if they differ and router_dhcp_apply is true, push it and
+# reload dnsmasq and odhcpd. With no difference it changes nothing. See
+# docs/how-to/router-dhcp.md.
+#
+#   ansible-playbook pb_router.yml --tags dhcp-diff          # the diff only
+#   ansible-playbook pb_router.yml --tags change -e router_change_tasks=dhcp
+
+- name: Check the control plane has a lan_ip in hosts.yml, for {{ k3s_api_name }}
+  ansible.builtin.assert:
+    that: hostvars[control_plane].lan_ip is defined
+    fail_msg: "{{ control_plane }} (control_plane) needs lan_ip in hosts.yml"
+    quiet: true
+
+# No tty: with one, the router's output comes back with CRLF line ends.
+- name: Read the router's /etc/config/dhcp
+  ansible.builtin.raw: cat /etc/config/dhcp
+  vars:
+    ansible_ssh_use_tty: false
+  register: router_dhcp_live
+  changed_when: false
+
+- name: Make a working directory on the controller
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: router-dhcp.
+  delegate_to: localhost
+  register: router_dhcp_tmp
+  changed_when: false
+
+- name: Compare, and push if asked
+  block:
+    - name: Keep the router's copy
+      ansible.builtin.copy:
+        content: "{{ router_dhcp_live.stdout }}"
+        dest: "{{ router_dhcp_tmp.path }}/live"
+        mode: "0600"
+      delegate_to: localhost
+      changed_when: false
+
+    - name: Render the new configuration
+      ansible.builtin.template:
+        src: dhcp.j2
+        dest: "{{ router_dhcp_tmp.path }}/dhcp"
+        mode: "0600"
+      delegate_to: localhost
+      changed_when: false
+
+    - name: Compare them
+      ansible.builtin.command:
+        cmd: >-
+          diff -u --label {{ router_address }}:/etc/config/dhcp --label roles/router/templates/dhcp.j2
+          {{ router_dhcp_tmp.path }}/live {{ router_dhcp_tmp.path }}/dhcp
+      delegate_to: localhost
+      register: router_dhcp_diff
+      changed_when: false
+      failed_when: router_dhcp_diff.rc > 1
+
+    - name: Show the difference
+      ansible.builtin.debug:
+        msg: "{{ router_dhcp_diff.stdout_lines if router_dhcp_diff.rc == 1 else 'No difference: the router already has this configuration.' }}"
+
+    # script copies the file to a temporary directory on the router and
+    # runs the executable with its path as $0. The new file is written
+    # beside the old (0600, as uci writes it) and renamed over it, so
+    # dnsmasq never reads half a file.
+    - name: Push the new configuration
+      ansible.builtin.script:
+        cmd: "{{ router_dhcp_tmp.path }}/dhcp"
+        executable: >-
+          sh -c 'umask 077 && cat "$0" > /etc/config/dhcp.new && mv /etc/config/dhcp.new /etc/config/dhcp'
+      register: router_dhcp_push
+      when: router_dhcp_apply | bool and router_dhcp_diff.rc == 1
+
+    # dnsmasq's reload regenerates its configuration and restarts it if
+    # that changed (procd watches the file), else sends it SIGHUP to reread
+    # its hosts files; odhcpd's is a SIGHUP.
+    - name: Reload dnsmasq and odhcpd
+      ansible.builtin.raw: /etc/init.d/dnsmasq reload && /etc/init.d/odhcpd reload
+      changed_when: true
+      register: router_dhcp_reload
+      when: router_dhcp_apply | bool and router_dhcp_diff.rc == 1
+
+    # The guard runs a change with ignore_unreachable (for steps that drop
+    # their own session); neither of these does, so a lost session here
+    # means the push may not have happened: fail, and the guard reverts.
+    - name: Check the push and reload reached the router
+      ansible.builtin.assert:
+        that: not (router_dhcp_push.unreachable | default(false)) and not (router_dhcp_reload.unreachable | default(false))
+        fail_msg: SSH to the router dropped during the push or reload.
+        quiet: true
+
+  always:
+    - name: Remove the working directory
+      ansible.builtin.file:
+        path: "{{ router_dhcp_tmp.path }}"
+        state: absent
+      delegate_to: localhost
+      changed_when: false

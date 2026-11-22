@@ -10,10 +10,14 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - Decommission: `pb_decommission.yml`
 - Router: `pb_router.yml` (host `router`, group `routers`; no Python: `raw`,
   and `script` for the restore's file copy;
-  every play tagged `never`: `--tags check|change|drill|restore`; in the
-  sandbox add `--private-key /root/.config/claude-ssh/id_ed25519`).
+  every play tagged `never`: `--tags check|change|dhcp-diff|drill|restore`;
+  in the sandbox add `--private-key /root/.config/claude-ssh/id_ed25519`).
   Change the router only through `--tags change` (confirm-or-revert);
-  see `docs/how-to/router-recovery.md`.
+  see `docs/how-to/router-recovery.md`. Its `/etc/config/dhcp` is a
+  template (`roles/router/templates/dhcp.j2`): nodes reserved by hostname
+  from `lan_ip` in hosts.yml, other devices by MAC in `router_dhcp_hosts`;
+  `just router-dhcp` previews then applies (`-e router_change_tasks=dhcp`).
+  See `docs/how-to/router-dhcp.md`.
 - Vars: `group_vars/all.yml` — single source of truth for cluster-wide settings
 - Inventory: `hosts.yml`
 - ArgoCD apps: `kubernetes-services/templates/`; extra manifests in
@@ -199,8 +203,11 @@ pins an exact release, but only on the `k3s_minor` line. See
   `k3s.lan`, a router DNS record), not the control plane's IP. The role
   asserts it resolves to `control_plane` on every node and the
   controller (warns only under `--check`). Moving the control plane =
-  change `control_plane` + repoint the record (`just k3s-api-dns <ip>`,
-  OpenWrt `dns_router` via uci); see `docs/how-to/recover-control-plane.md`.
+  change `control_plane` + push the router template (`just router-dhcp`,
+  which points the record at `control_plane`'s `lan_ip`); in an emergency
+  `just k3s-api-dns <ip>` repoints it via uci, then `just router-dhcp` once
+  `control_plane` is updated, or the next push resets it; see
+  `docs/how-to/recover-control-plane.md`.
 - **`known_hosts` write tasks need `throttle: 1`** — parallel writes
   race on the shared file. The scans run in parallel; don't add `serial`.
 - **Traefik is disabled** — `--disable=traefik`; Cilium's Gateway API

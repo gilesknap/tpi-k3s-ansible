@@ -150,7 +150,7 @@ These are open, not fixed. Each is a question for the owner.
 | Intel iGPU for Jellyfin | `intel_gpu_node` in `hosts.yml`; Jellyfin requests `gpu.intel.com/i915`; `jellyfin.render_gid` | Without an Intel iGPU the Jellyfin pod stays `Pending`: set `enable_jellyfin: false`, or buy a box with one |
 | NVIDIA GPU | `nvidia_gpu_node`, `workstation` on `ws03` | Not needed: only GPU and monitoring pods ran there |
 | nuc2's two NICs | `node_ip` on `nuc2` | Drop it on a single-NIC box |
-| Fixed addresses | DHCP leases on the router; `nfs.server`, `nas_nfs_clients`, `vps_relay.forwards`, `k3s.etcd_metrics_endpoints` | Keep the old addresses on the new router and almost nothing changes |
+| Fixed addresses | `lan_ip` in `hosts.yml`, reserved on the router; `nfs.server`, `vps_relay.forwards`, `k3s.etcd_metrics_endpoints` | Keep the old addresses on the new router and almost nothing changes |
 | `k3s.lan` | `k3s_api_name`, `dns_router` in `group_vars/all.yml`; `just k3s-api-dns` assumes OpenWrt | On another router, add the record by hand, or set `k3s_api_name` to the server's IP, and `k8sServiceHost` in `kubernetes-services/templates/cilium.yaml` to the same |
 
 ### The smallest rebuild: two x86 boxes
@@ -187,8 +187,9 @@ The edits, made on a branch (step 5):
 - `roles/nas/defaults/main.yml`: `nas_pool_disks`, `nas_netplan_ethernets`,
   `nas_qnap_ec_driver: false` (unless it is a QNAP again); leave
   `nas_backup_pool_disks` empty until there is a backup disk. Leave
-  `nas_nfs_clients` and `nas_nfs_exports` alone: they name `nuc2` at .92,
-  and the entries for the missing hosts admit nobody.
+  `nas_nfs_clients` and `nas_nfs_exports` alone: the exports take each
+  client's address from its `lan_ip` in `hosts.yml`, leave out the hosts no
+  longer there, and drop the ws03-only exports.
 - The defaults that keep in step with these for a standalone
   `helm template`: `node` and `path` in
   `kubernetes-services/additions/local-storage/values.yaml` and

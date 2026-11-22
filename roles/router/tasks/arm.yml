@@ -4,23 +4,18 @@
 
 # As `just router-backup`: an encrypted copy on the NAS, in case the
 # revert itself goes wrong. systemctl start waits for the oneshot job and
-# fails if it fails.
+# fails if it fails. The control plane is reached at its lan_ip, not by a
+# name the router serves, so this works while the router's DNS is broken;
+# HostKeyAlias matches its known_hosts entry by name.
 - name: Back the router up to the NAS
   ansible.builtin.systemd_service:
     name: router-backup.service
     state: started
   delegate_to: "{{ control_plane }}"
   become: true
-
-# Now, not in the checks: the control plane is reached by a name the
-# router's DNS serves, which a DNS change may break, and an unreachable
-# host would skip confirm.yml's revert.
-- name: Read the control plane's address
-  ansible.builtin.setup:
-    gather_subset: [network]
-    filter: [ansible_default_ipv4]
-  delegate_to: "{{ control_plane }}"
-  delegate_facts: true
+  vars:
+    ansible_host: "{{ hostvars[control_plane].lan_ip }}"
+    ansible_ssh_extra_args: -o HostKeyAlias={{ control_plane }}
 
 # mkdir is the lock: it fails if a guard is already armed, rather than
 # overwrite its snapshot with the state it is guarding against.

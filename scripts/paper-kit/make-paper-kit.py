@@ -495,14 +495,13 @@ def inventory() -> list[tuple[str, str, str]]:
                     comment = "Turing Pi BMC (name from LAN DNS); ssh root@" + name
                 cur = {"name": name, "group": group, "note": comment}
                 if group == "nas":
-                    cur["ip"] = "192.168.1.3"
                     cur["note"] = ("NAS (QNAP TS-253D hardware, Ubuntu Server + ZFS); "
                                    "ssh ansible@" + name + " (key only, no password); "
                                    "NFS export /bigdisk; cluster data in /bigdisk/k8s-cluster")
                 rows.append(cur)  # type: ignore[arg-type]
             elif ind == 6 and cur is not None and ":" in line:
                 k, v = (s.strip() for s in line.split(":", 1))
-                if k in ("node_ip",):
+                if k in ("node_ip", "lan_ip"):
                     cur["ip"] = v
                 elif k in ("type", "slot_num", "root_dev"):
                     cur["note"] = (cur["note"] + f"; {k} {v}").lstrip("; ")

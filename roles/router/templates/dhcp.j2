@@ -1,0 +1,73 @@
+# The router's /etc/config/dhcp, rendered by tpi-k3s-ansible from
+# roles/router/templates/dhcp.j2 (docs/how-to/router-dhcp.md): change it
+# there, not here. A uci commit or LuCI save drops this comment, so the
+# next `just router-dhcp` shows the change as a diff.
+
+config dnsmasq
+	option domainneeded '1'
+	option localise_queries '1'
+	option rebind_protection '1'
+	option rebind_localhost '1'
+	option local '/{{ router_dns_domain }}/'
+	option domain '{{ router_dns_domain }}'
+	option expandhosts '1'
+	option cachesize '1000'
+	option authoritative '1'
+	option readethers '1'
+	option leasefile '/tmp/dhcp.leases'
+	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+	option localservice '1'
+	option ednspacket_max '1232'
+	list rebind_domain '{{ cluster_domain }}'
+{% for server in router_dns_servers %}
+	list server '{{ server }}'
+{% endfor %}
+
+config dhcp 'lan'
+	option interface 'lan'
+	option start '100'
+	option limit '150'
+	option leasetime '12h'
+	option dhcpv4 'server'
+	option dhcpv6 'server'
+	option ra 'server'
+	option ra_slaac '1'
+	list ra_flags 'managed-config'
+	list ra_flags 'other-config'
+
+config dhcp 'wan'
+	option interface 'wan'
+	option ignore '1'
+
+config odhcpd 'odhcpd'
+	option maindhcp '0'
+	option leasefile '/tmp/hosts/odhcpd'
+	option leasetrigger '/usr/sbin/odhcpd-update'
+	option loglevel '4'
+{# The inventory's hosts, by the hostname each sends with its request. #}
+{% for name in groups['all'] if hostvars[name].lan_ip is defined %}
+
+config host
+	option name '{{ name }}'
+	option ip '{{ hostvars[name].lan_ip }}'
+	option dns '1'
+{% endfor %}
+{# Other devices, by MAC. #}
+{% for host in router_dhcp_hosts %}
+
+config host
+{% if host.name is defined %}
+	option name '{{ host.name }}'
+{% endif %}
+{% for mac in host.macs %}
+	list mac '{{ mac | upper }}'
+{% endfor %}
+	option ip '{{ host.ip }}'
+	option dns '1'
+{% endfor %}
+
+config domain
+	option name '{{ k3s_api_name }}'
+	option ip '{{ hostvars[control_plane].lan_ip }}'
+
+{# uci ends the file with a blank line, as above. #}

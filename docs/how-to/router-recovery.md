@@ -6,6 +6,7 @@ running OpenWrt 23.05.5, at 192.168.1.1 (`dns_router` in
 DNS, not only the cluster's. This page covers its daily backup, changing
 it with a revert that fires by itself unless the change is confirmed,
 restoring it with a playbook, and getting it back when SSH to it is gone.
+Its DNS and DHCP configuration is code: {doc}`/how-to/router-dhcp`.
 
 `pb_router.yml` reaches the router as the `router` host in `hosts.yml`
 (user and address from `dns_router`), with `raw`, as it has no Python.
@@ -110,14 +111,19 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    child of init in a session of its own, with no terminal: the SSH
    session ending, or dying with the network, does not reach it. The play
    prints the time the revert fires (controller time).
-4. **The change:** the task file `roles/router/tasks/<name>.yml`. With no
+4. **The change:** the task file `roles/router/tasks/<name>.yml`, e.g.
+   `dhcp`, which pushes the router's DNS and DHCP from a template
+   ({doc}`/how-to/router-dhcp`). With no
    `router_change_tasks` the play skips this and only arms, checks and
    disarms, a harmless test of the guard.
 5. **The checks**, from the controller (`roles/router/tasks/check.yml`):
    - the internet answers: HTTPS to `router_check_url` (`https://github.com`);
    - the router's DNS answers a public name (`host -t A github.com 192.168.1.1`);
    - `k3s.lan` (`k3s_api_name`) resolves via the router to node02's
-     address, read from node02 itself;
+     `lan_ip` in `hosts.yml` (192.168.1.82);
+   - `node02.lan` (`control_plane` in the `lan` domain) resolves via the
+     router to the same address: a static name, served from the router's
+     DHCP configuration ({doc}`/how-to/router-dhcp`);
    - the cluster API answers on port 6443 (any HTTP status: anonymous
      requests get 401);
    - a new SSH login to the router works.
@@ -166,6 +172,11 @@ ansible-playbook pb_router.yml --tags check
 ```
 
 ### Drill the revert
+
+Push the DNS and DHCP template once first (`just router-dhcp`,
+{doc}`/how-to/router-dhcp`): until then the drill's reboot loses the `.lan`
+names, and the `<control_plane>.lan` check fails for hours although the
+guard worked.
 
 Proves the guard on the real router. It arms the guard, writes a note
 into the router's system settings (`uci set system.@system[0].notes='router-guard drill <time>'`,

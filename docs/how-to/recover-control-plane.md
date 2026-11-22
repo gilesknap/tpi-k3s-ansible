@@ -221,6 +221,21 @@ ansible-playbook pb_all.yml --limit node03 --tags k3s
 This is safe now: the role sees the restored server and skips the install.
 It stops if the DNS record does not point at the new node yet.
 
+`just k3s-api-dns` edits the router behind the back of its template
+({doc}`/how-to/router-dhcp`), which points `k3s.lan` at `control_plane`'s
+`lan_ip`. Once `control_plane` in `group_vars/all.yml` names the new node
+and the `k3s` tag above has installed its router backup timer, bring the
+router back in line with the template:
+
+```bash
+just router-dhcp
+```
+
+The diff should show only the template's header comment coming back. If it
+moves `k3s.lan` back to the old node, `control_plane` is wrong: answer `n`
+and fix it, or the push breaks the cluster's API name (the guard's checks
+would then fail and revert it).
+
 ## 5. Check the cluster
 
 The workers have kept running their pods throughout. Their k3s agents

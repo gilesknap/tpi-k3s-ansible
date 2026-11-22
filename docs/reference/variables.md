@@ -19,8 +19,10 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `known_hosts_files` | `~/.ssh/known_hosts`, `/etc/ssh/ssh_known_hosts` | Files the `known_hosts` role keeps current. The system-wide one is what claude-sandbox reads, as its `$HOME` is a fresh tmpfs |
 | `control_plane` | `node02` | The (single) control plane node |
 | `standby_control_plane` | `node03` | Warm-standby control plane: the node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
-| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and this record. Every address it resolves to must be the control plane's |
+| `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane: the router's DHCP template points it at `control_plane`'s `lan_ip` ({doc}`/how-to/router-dhcp`). Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and pushing the router's template. Every address it resolves to must be the control plane's |
 | `dns_router` | `root@192.168.1.1` | SSH target (`user@host`) of the OpenWrt router (dnsmasq, `uci`). Used by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane, by the control plane's daily router backup (`etcd_backup_router`) and by `pb_router.yml`, through the `router` host in `hosts.yml` ({doc}`/how-to/router-recovery`) |
+| `router_dns_servers` | `[1.1.1.1, 1.0.0.1]` | The upstream DNS servers the router's dnsmasq forwards to ({doc}`/how-to/router-dhcp`) |
+| `router_dhcp_hosts` | *(list)* | The router's static leases matched by MAC, for devices whose hostname this repo doesn't set (the Turing Pi BMC, node01, the Raspberry Pis, ...): `name` (optional), `ip` and `macs`. Hosts in `hosts.yml` with `lan_ip` are reserved by name instead ({doc}`/how-to/router-dhcp`) |
 | `etcd_backup_age_recipient` | *(age public key)* | The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. **SYNC:** `offsite_backup.age_recipient` (`scripts/check-age-recipient`, run by `just check`, fails if they differ) |
 | `cluster_domain` | `gkcluster.org` | Domain of every ingress host |
 | `domain_email` | *(an address)* | Let's Encrypt registration address for cert-manager |
@@ -35,8 +37,8 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 
 ### Host variables (`hosts.yml`)
 
-Set per host: `slot_num`, `type`, `root_dev`, `nvidia_gpu_node`,
-`intel_gpu_node`, `workstation` and `node_ip`. They are
+Set per host: `lan_ip`, `slot_num`, `type`, `root_dev`,
+`nvidia_gpu_node`, `intel_gpu_node`, `workstation` and `node_ip`. They are
 described, with the values each node has, in {doc}`/reference/inventory`.
 
 ### `tools` role (`roles/tools/vars/main.yml`)
@@ -99,6 +101,8 @@ Used by `pb_router.yml` ({doc}`/how-to/router-recovery`, "Change the router safe
 | `router_guard_dir` | `/tmp/router-guard` | On the router (RAM): the snapshot, the watchdog's pid file, and the lock against arming twice |
 | `router_change_tasks` | `""` | The change `--tags change` makes: a task file of the role, `roles/router/tasks/<name>.yml`. Empty: arm, check and disarm only |
 | `router_check_url` / `router_check_name` | `https://github.com` / `github.com` | The public URL the controller must reach, and the public name the router's DNS must answer, in the checks |
+| `router_dns_domain` | `local_domain` without its dot (`lan`) | The LAN's DNS domain on the router: every reserved host resolves as `<name>.lan`. The checks ask for `<control_plane>.lan` |
+| `router_dhcp_apply` | `true` | Whether the `dhcp` change pushes the rendered `/etc/config/dhcp` when it differs. `--tags dhcp-diff` sets it `false`: the diff only ({doc}`/how-to/router-dhcp`) |
 
 ### `nas` role (`roles/nas/defaults/main.yml`)
 
@@ -112,7 +116,7 @@ documents each one; these are the ones a rebuild touches.
 | `nas_create_pool`, `nas_create_backup_pool`, `nas_force` | `false` | Command-line only. Create the pool (destroying the disks' contents); `nas_force` also allows disks that are not blank |
 | `nas_datasets` | `tank/bigdisk` (`/bigdisk`) and its children, `tank/k8s-dynamic`, `tank/Minecraft` | Datasets and their properties; their mountpoints are the paths the cluster mounts |
 | `nas_directories` | The cluster's tree | Directories created inside the datasets with their owner and mode: each backup directory owned by its one writer, `0755` ({doc}`/how-to/nas-ubuntu-zfs`) |
-| `nas_nfs_clients` | The nodes and `ws03`, by IP | The only hosts the exports admit. **SYNC:** `hosts.yml` |
+| `nas_nfs_clients` | `[ws03, node02, node03, node04, nuc1, nuc2]` | The only hosts the exports admit, by name; each is exported by its `lan_ip` in `hosts.yml`. A name not in `hosts.yml` is left out |
 | `nas_nfs_exports` | One per dataset | Path and export options; `/bigdisk` and its children squash root, `/k8s-dynamic` does not (as on QTS). Optional `clients` narrows the hosts, `read_only_for` makes it read-only to some (`/bigdisk`, `Photos-Archive` (read-only), `/Minecraft`: `ws03` only; `k8s-cluster`: the nodes only; `media`: read-only to the nodes) |
 | `nas_snapshot_retention` / `nas_backup_retention` | 48 hourly, 30 daily, 8 weekly, 12 monthly / 60 daily, 24 monthly | sanoid's retention on the main pool and on the backup pool. `weekly` on the main pool must be at least 1 while any dataset is held |
 | `nas_hold_tag` / `nas_hold_datasets` | `nas-keep` / every dataset of `tank` in `nas_datasets` | The ZFS hold kept on the newest weekly snapshot of each dataset, against an accidental destroy ({doc}`/how-to/nas-ubuntu-zfs`) |
