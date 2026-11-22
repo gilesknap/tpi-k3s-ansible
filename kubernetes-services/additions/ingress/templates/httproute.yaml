@@ -13,9 +13,13 @@ How each ingress-nginx annotation maps (ADR 0016 has the reasons):
   (additions/oauth2-proxy/error-templates.yaml).
 - extra_annotations (proxy-buffering, proxy-body-size, timeouts): none. Envoy
   streams requests and responses without buffering and has no body size
-  limit, and timeouts.request 0s turns off Envoy's 15 s route timeout, which
-  ingress-nginx has no equivalent of. Envoy still closes a stream idle for 5
-  minutes (the Cilium chart's envoy.streamIdleTimeoutDurationSeconds).
+  limit.
+- gateway_request_timeout: with no timeouts on the route, Envoy gives the
+  whole request 15 s, which ingress-nginx has no equivalent of. An app that
+  streams or runs long requests (WebSockets, server-sent events, uploads)
+  sets 0s, which turns that limit off; the rest keep the 15 s. Either way
+  Envoy closes a stream idle for 5 minutes (the Cilium chart's
+  envoy.streamIdleTimeoutDurationSeconds).
 */}}
 {{- if and .Values.http_route (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1/HTTPRoute") }}
 {{- if .Values.basic_auth | default false }}
@@ -80,8 +84,10 @@ spec:
       backendRefs:
         - name: {{ .Values.service_name }}
           port: {{ .Values.service_port }}
+      {{- with .Values.gateway_request_timeout }}
       timeouts:
-        request: 0s
+        request: {{ . }}
+      {{- end }}
 {{- if $redirect }}
 ---
 apiVersion: gateway.networking.k8s.io/v1

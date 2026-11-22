@@ -160,19 +160,23 @@ How the nginx annotations map:
 | `auth-url`, `auth-signin`, `auth-response-headers` | the five gated apps | The ExternalAuth filter, below |
 | `proxy-body-size` | scrap and `/mcp` (50m), ntfy (64k) | None. Envoy streams the body and sets no limit; Gateway API and Cilium have no field for one. scrap and ntfy keep their own limits (ntfy's messages are at most 4k, attachments off). |
 | `proxy-buffering: off`, `proxy-request-buffering: off` | ntfy, `/mcp` | None needed: Envoy streams both ways ([Cilium's annotation guide](https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-to-gateway/nginx-annotations-migration/) lists buffering as dropped). |
-| `proxy-read-timeout`, `proxy-send-timeout` | ntfy (180 s), `/mcp` (3600 s) | `timeouts.request: 0s` on every route |
+| `proxy-read-timeout`, `proxy-send-timeout` | ntfy (180 s), `/mcp` (3600 s) | `timeouts.request: 0s` on the routes of apps that stream or run long requests, below |
 
 The timeouts need care in the other direction. Envoy's route timeout defaults
 to 15 s for the whole response
 ([RouteAction.timeout](https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/route/v3/route_components.proto)),
 and Cilium leaves it at that default when a route sets no timeout
 (`operator/pkg/model/translation/envoy_virtual_host.go`). nginx has no
-whole-response limit, only one between reads. So every route sets
-`timeouts.request: 0s`, which turns the route timeout off
-([GEP-1742](https://gateway-api.sigs.k8s.io/geps/gep-1742/)); that keeps
-streams such as ntfy's subscriptions, Headlamp's and Grafana's WebSockets,
-ArgoCD's watch streams and MCP's event streams open. What is left is Envoy's
-idle timeout for a stream, 5 minutes for all of Cilium's Envoy
+whole-response limit, only one between reads. So the route of each app that
+streams or runs long requests sets `timeouts.request: 0s`, which turns the
+route timeout off ([GEP-1742](https://gateway-api.sigs.k8s.io/geps/gep-1742/)):
+ntfy's subscriptions, Headlamp's, Grafana's and Hubble UI's live streams,
+ArgoCD's watch streams, argocd-monitor's log stream, and scrap's uploads,
+attachment downloads and MCP event streams (its public pages too). The
+ingress sub-chart's `gateway_request_timeout` value sets it. The rest (echo,
+home, oauth2-proxy, Alertmanager, the Minecraft dashboard) keep Envoy's 15 s,
+which bounds a request that hangs. For the streaming apps what is left is Envoy's idle
+timeout for a stream, 5 minutes for all of Cilium's Envoy
 (`envoy.streamIdleTimeoutDurationSeconds`): longer than ntfy's 180 s (its
 clients send keepalives every 45 s), shorter than `/mcp`'s 3600 s. MCP clients
 reconnect; the trial shows whether that matters.
