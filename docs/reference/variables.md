@@ -198,7 +198,7 @@ applies to that run only.
 | `offsite_backup.backups.run_dirs` | `[scrap, scrap/monthly, scrap-curated]` | Folders under `backups/` whose subfolders are runs, each uploaded by the `scrap` container as one tarball once complete (`<run>.incomplete.tar.age` if it has no `COMPLETE` marker once its folder is two days old) |
 | `offsite_backup.backups.exclude` | `etcd/LATEST`, `etcd/sealed-secrets-keys.yaml.age{,.sha256}` | Paths under `backups/` rewritten in place, never uploaded |
 | `offsite_backup.backups.prune_days` / `keep_min` | `180` / `4` | Delete a file on Drive only once its source is gone from the NAS and it was uploaded over `prune_days` ago (`0`: never), always keeping the `keep_min` newest of each series |
-| `offsite_backup.scrap.uid` / `gid` | `10001` / `10001` | User the `scrap` container runs as: scrap's, as hard-coded in `additions/scrap/templates` (`backup-copy.yaml`, `migrate-job.yaml`), which owns its backup runs' files |
+| `offsite_backup.scrap.uid` / `gid` | `10001` / `10001` | User the `scrap` container runs as: scrap's, as hard-coded in `additions/scrap/templates/backup-copy.yaml`, which owns its backup runs' files |
 | `offsite_backup.minecraft.enabled` | `true` | Also upload the Minecraft store, worlds and archive (only with `enable_minecraft`) |
 | `offsite_backup.minecraft.uid` / `gid` | `1000` / `1000` | User the `minecraft` container runs as: the owner of the worlds' files |
 | `offsite_backup.minecraft.worlds_path` | `""` (`nfs_csi.stable_share`) | Share whose `minecraft/` (live worlds) and `archived-minecraft/` (deleted worlds) folders go in the nightly tarball |
@@ -221,7 +221,7 @@ applies to that run only.
 | `vps_relay.frp_port` | `7000` | frps control port on the VPS's tailnet address |
 | `vps_relay.forwards` | `minecraft`: tcp `30565-30584` to `192.168.1.92` | List of `name`, `protocol` (`tcp`/`udp`), `ports` (port or `min-max`) and `target`; each publishes `ports` on the VPS and relays them to the same ports on `target`. The VPS's `allowPorts` and firewall must match |
 | `enable_kyverno` / `kyverno.chart_version` | `false` / `3.9.1` | Kyverno is off: the app never settled to Synced on its CRDs, and no policies were in use |
-| `local_storage.<name>` | `grafana` and `prometheus` on `node04`; `scrap`, `scrap_backup_copy` and `jellyfin` on `nuc2` | One static `local-nvme` PV each: `node`, `path`, `capacity` and the `claim_namespace`/`claim_name` it is pre-bound to ({doc}`/explanations/architecture/storage`). The `scrap` entry is the frozen pre-Litestream copy, kept so its PV is not pruned under a bound claim. **SYNC:** `k8s_data_dirs` |
+| `local_storage.<name>` | `grafana` and `prometheus` on `node04`; `scrap_backup_copy` and `jellyfin` on `nuc2` | One static `local-nvme` PV each: `node`, `path`, `capacity` and the `claim_namespace`/`claim_name` it is pre-bound to ({doc}`/explanations/architecture/storage`). **SYNC:** `k8s_data_dirs` |
 
 The root Application passes `repo_branch` in from Ansible, so the copy in values.yaml is
 only a default for `helm template` runs; switch branches with

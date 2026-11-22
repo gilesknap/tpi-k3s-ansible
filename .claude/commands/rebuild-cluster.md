@@ -13,8 +13,8 @@ Default behaviour: **local PV data is preserved.** Grafana sqlite,
 Prometheus TSDB and Jellyfin's config live on on-disk directories
 that `pb_decommission.yml` does NOT touch:
 - `/var/lib/k8s-data/{grafana,prometheus}` (RK1s)
-- `/home/k8s-data/*` (nuc2) — Jellyfin's config, scrap's frozen
-  pre-Litestream copy and its off-NAS backup copy
+- `/home/k8s-data/*` (nuc2) — Jellyfin's config and scrap's off-NAS
+  backup copy
 
 scrap's live data is on static NFS PVs (`/bigdisk/k8s-cluster/scrap-data`,
 `backups/scrap`), which re-bind after the rebuild.

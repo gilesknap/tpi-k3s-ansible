@@ -141,8 +141,8 @@ spec:
                       kubernetes.io/metadata.name: ingress-nginx
 
     # /mcp-only Ingress (no oauth2-proxy), the SealedSecrets, the
-    # scrap-public namespace, the static NFS volumes, the off-NAS backup copy
-    # and the one-off move from the local volume.
+    # scrap-public namespace, the static NFS volumes and the off-NAS backup
+    # copy.
     - path: ./kubernetes-services/additions/scrap
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -161,21 +161,6 @@ spec:
             claim: {{ .claim_name }}
             volume: scrap-backup-copy-local
             size: {{ .capacity }}
-          {{- end }}
-          {{- with .Values.local_storage.scrap }}
-          # The pre-Litestream local volume, kept as a frozen copy.
-          legacy:
-            claim: {{ .claim_name }}
-            volume: scrap-local
-            size: {{ .capacity }}
-            # The one-off move to NFS (additions/scrap/templates/migrate-job.yaml)
-            # is done and checked (scripts/scrap-cutover-check): retired, so a
-            # rebuild no longer needs the old volume's node. An install still to
-            # move off its local volume sets it true until its move is checked.
-            migrate: false
-            # legacy.backups is not set: the old dynamic backups claim
-            # (scrap-backups) is no longer rendered. Prune=false keeps it in
-            # the cluster until it is deleted by hand (docs/how-to/scrap.md).
           {{- end }}
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           # Only enable with a scrap release that supports SCRAP_MCP_TOKEN

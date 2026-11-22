@@ -31,8 +31,8 @@
   bodies are historical and not rewritten.
 - **Local PV data paths are sacred.** `/home/k8s-data/*` (nuc2) and
   `/var/lib/k8s-data/*` (RK1s) back the static `local-nvme` PVs that
-  carry Grafana/Prometheus state, Jellyfin's config, scrap's frozen
-  pre-Litestream copy and its off-NAS backup copy across rebuilds.
+  carry Grafana/Prometheus state, Jellyfin's config and scrap's
+  off-NAS backup copy across rebuilds.
   Do not wipe them. `pb_decommission.yml` preserves them by default;
   only `-e wipe_local_data=true` (opt-in, destructive) removes them.
   scrap's live data is on the NAS (`/bigdisk/k8s-cluster/scrap-data`,

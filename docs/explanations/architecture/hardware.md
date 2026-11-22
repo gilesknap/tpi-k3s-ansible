@@ -24,7 +24,7 @@ Taints, the labels this repository sets, and what is tied to each node:
 | `node03` | `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` | | Nothing: it is kept light on purpose |
 | `node04` | | | The Prometheus and Grafana `local-nvme` volumes (`/var/lib/k8s-data/*`) |
 | `nuc1` | | | Nothing |
-| `nuc2` | | `intel.feature.node.kubernetes.io/gpu=true`, one `gpu.intel.com/i915` | Jellyfin and its volume, every Minecraft world pod, scrap's backup copy and its frozen pre-Litestream copy (`/home/k8s-data/*`) |
+| `nuc2` | | `intel.feature.node.kubernetes.io/gpu=true`, one `gpu.intel.com/i915` | Jellyfin and its volume, every Minecraft world pod, scrap's backup copy (`/home/k8s-data/*`) |
 | `ws03` | `workstation=true:NoSchedule` | `node-role=workstation`, `nvidia.com/gpu.present=true`, one `nvidia.com/gpu` | The NVIDIA device plugin |
 
 The inventory (`hosts.yml`) is where these properties come from:
@@ -158,7 +158,7 @@ flowchart TB
     subgraph W2["nuc2"]
         JF["Jellyfin, Iris Xe"]
         MC["Minecraft worlds"]
-        SC["scrap's backup copy<br/>and frozen copy"]
+        SC["scrap's backup copy"]
     end
     subgraph WS["ws03: workstation NoSchedule"]
         NV["NVIDIA device plugin"]

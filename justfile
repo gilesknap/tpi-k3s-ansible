@@ -87,11 +87,6 @@ cf-env-tunnel-token:
 cf-tunnel-disconnect:
     scripts/cf-tunnel-disconnect
 
-# After scrap's move to NFS: list writes in the frozen old database
-# that the live one lacks (read-only on both sides)
-scrap-cutover-check node="nuc2":
-    scripts/scrap-cutover-check {{ node }}
-
 # Restart Dex and ArgoCD server (use after changing dex.config or secrets)
 restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd

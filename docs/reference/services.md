@@ -224,7 +224,7 @@ PodDisruptionBudget. See {doc}`/explanations/upgrade-model`.
 
 `local-storage` defines the `local-nvme` class and one static, node-pinned PV
 per entry of `local_storage` in `values.yaml`: Prometheus and Grafana on
-node04, Jellyfin, scrap's backup copy and scrap's frozen copy on nuc2. It also
+node04, Jellyfin and scrap's backup copy on nuc2. It also
 marks K3s's `local-path` class as not the default.
 
 `nfs-csi` provides the two dynamic classes on the NAS: `nfs-stable` (the
