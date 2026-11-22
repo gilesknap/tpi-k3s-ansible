@@ -5,6 +5,17 @@ commands, hostnames and paths.
 
 ```{toctree}
 :maxdepth: 1
+:caption: Recovery
+
+how-to/backup-restore
+how-to/paper-kit
+how-to/recover-control-plane
+how-to/rebuild-from-nothing
+how-to/reflash-rebuild
+```
+
+```{toctree}
+:maxdepth: 1
 :caption: Edge, auth and secrets
 
 how-to/cloudflare-as-code
@@ -32,13 +43,8 @@ how-to/add-remove-services
 :maxdepth: 1
 :caption: Operations
 
-how-to/backup-restore
-how-to/paper-kit
-how-to/recover-control-plane
-how-to/rebuild-from-nothing
 how-to/node-operations
 how-to/upgrade-k3s
-how-to/reflash-rebuild
 how-to/install-stick
 how-to/nfs-stable-paths
 ```
