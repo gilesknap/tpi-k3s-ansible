@@ -420,79 +420,75 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 <td><p><code class="docutils literal notranslate"><span class="pre">/mnt/sdcard/images</span></code></p></td>
 <td><p>Where OS images are staged on the BMC’s SD card before <code class="docutils literal notranslate"><span class="pre">tpi</span> <span class="pre">flash</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vault_password_file</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">~/.ansible_vault_password</span></code></p></td>
-<td><p>Ansible vault password file. Nothing in the repo is vaulted today (secrets are <code class="docutils literal notranslate"><span class="pre">SealedSecret</span></code>s), so it is unused</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bin_dir</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bin_dir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/root/bin</span></code> (from <code class="docutils literal notranslate"><span class="pre">$BIN_DIR</span></code>; <code class="docutils literal notranslate"><span class="pre">$HOME/bin</span></code> without it)</p></td>
 <td><p>Where the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role installs helm, kubectl, kubeseal, argocd and the port-forward scripts: a volume, so it survives a devcontainer rebuild</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_minor</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_minor</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">v1.34</span></code> (read from <code class="docutils literal notranslate"><span class="pre">k3s.minor</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>)</p></td>
 <td><p>The K3s minor line the cluster follows. Edit it in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code>, not here</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">do_flash</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">do_flash</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Whether the <code class="docutils literal notranslate"><span class="pre">flash</span></code> role runs; true when <code class="docutils literal notranslate"><span class="pre">flash_force</span></code> (or <code class="docutils literal notranslate"><span class="pre">force_flash</span></code>) is passed, or set directly with <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">do_flash=true</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_domain</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_domain</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">.lan</span></code></p></td>
 <td><p>Suffix the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role adds to a node name to look up its addresses</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">known_hosts_files</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">known_hosts_files</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">~/.ssh/known_hosts</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/ssh/ssh_known_hosts</span></code></p></td>
 <td><p>Files the <code class="docutils literal notranslate"><span class="pre">known_hosts</span></code> role keeps current. The system-wide one is what claude-sandbox reads, as its <code class="docutils literal notranslate"><span class="pre">$HOME</span></code> is a fresh tmpfs</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">control_plane</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">control_plane</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">node02</span></code></p></td>
 <td><p>The (single) control plane node</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">standby_control_plane</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">node03</span></code></p></td>
 <td><p>Warm-standby control plane: the node a restore goes onto (<a class="reference internal" href="../how-to/recover-control-plane.html"><span class="doc">Recover the control plane</span></a>). The <code class="docutils literal notranslate"><span class="pre">cluster</span></code> tag taints it <code class="docutils literal notranslate"><span class="pre">node-role.kubernetes.io/standby-control-plane:PreferNoSchedule</span></code> and removes that taint from any other node. Empty for none</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></p></td>
 <td><p>Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a <code class="docutils literal notranslate"><span class="pre">tls-san</span></code> on the server certificate and the kubeconfig uses it, so moving the control plane means changing <code class="docutils literal notranslate"><span class="pre">control_plane</span></code> and this record. Every address it resolves to must be the control plane’s</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">root&#64;192.168.1.1</span></code></p></td>
 <td><p>SSH target of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>), used only by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
 <td><p>The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">offsite_backup.age_recipient</span></code> (<code class="docutils literal notranslate"><span class="pre">scripts/check-age-recipient</span></code>, run by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>, fails if they differ)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_domain</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code></p></td>
 <td><p>Domain of every ingress host</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">domain_email</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">domain_email</span></code></p></td>
 <td><p><em>(an address)</em></p></td>
 <td><p>Let’s Encrypt registration address for cert-manager</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">admin_emails</span></code></p></td>
 <td><p><em>(list)</em></p></td>
 <td><p>GitHub-linked addresses mapped to ArgoCD admin in the Ansible-rendered ArgoCD config. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">admin_emails</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">repo_remote</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">repo_remote</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">https://github.com/gilesknap/tpi-k3s-ansible.git</span></code></p></td>
 <td><p>The repo ArgoCD deploys from</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">repo_branch</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">main</span></code></p></td>
 <td><p>The branch ArgoCD tracks. The root Application passes it to every child app (<a class="reference internal" href="../how-to/work-in-branches.html"><span class="doc">Develop and ship a change</span></a>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_gpu_node</span></code>, <code class="docutils literal notranslate"><span class="pre">intel_gpu_node</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Defaults for the per-node GPU flags below</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_install_list</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cluster_install_list</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[argocd]</span></code></p></td>
 <td><p>What the <code class="docutils literal notranslate"><span class="pre">cluster</span></code> role installs itself; everything else is ArgoCD’s</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code></p></td>
 <td><p>prometheus and grafana on <code class="docutils literal notranslate"><span class="pre">node04</span></code> (<code class="docutils literal notranslate"><span class="pre">/var/lib/k8s-data/...</span></code>); scrap, scrap-backup-copy and jellyfin on <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> (<code class="docutils literal notranslate"><span class="pre">/home/k8s-data/...</span></code>)</p></td>
 <td><p>Host directories behind the <code class="docutils literal notranslate"><span class="pre">local-nvme</span></code> PVs, each with <code class="docutils literal notranslate"><span class="pre">node</span></code>, <code class="docutils literal notranslate"><span class="pre">path</span></code>, <code class="docutils literal notranslate"><span class="pre">owner</span></code>, <code class="docutils literal notranslate"><span class="pre">group</span></code> and <code class="docutils literal notranslate"><span class="pre">mode</span></code>. The <code class="docutils literal notranslate"><span class="pre">k8s_data_dirs</span></code> role creates them and never deletes one. <strong>SYNC:</strong> <code class="docutils literal notranslate"><span class="pre">node</span></code> and <code class="docutils literal notranslate"><span class="pre">path</span></code> with <code class="docutils literal notranslate"><span class="pre">local_storage</span></code> in <code class="docutils literal notranslate"><span class="pre">values.yaml</span></code></p></td>
 </tr>
@@ -1183,11 +1179,7 @@ the dynamic NFS StorageClasses separately.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">/bash-config/zshrc</span></code></p></td>
 <td><p>The zsh rc file the <code class="docutils literal notranslate"><span class="pre">tools</span></code> role edits</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ANSIBLE_VAULT_PASSWORD_FILE</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">/etc/ansible/.vault_password.txt</span></code></p></td>
-<td><p>The host’s <code class="docutils literal notranslate"><span class="pre">~/.ansible_vault_password</span></code>, mounted read-only</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">UV_*</span></code>, <code class="docutils literal notranslate"><span class="pre">VIRTUAL_ENV</span></code>, <code class="docutils literal notranslate"><span class="pre">PRE_COMMIT_HOME</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">UV_*</span></code>, <code class="docutils literal notranslate"><span class="pre">VIRTUAL_ENV</span></code>, <code class="docutils literal notranslate"><span class="pre">PRE_COMMIT_HOME</span></code></p></td>
 <td><p>under <code class="docutils literal notranslate"><span class="pre">/cache</span></code></p></td>
 <td><p>Keep the Python environment and caches on a persistent volume</p></td>
 </tr>

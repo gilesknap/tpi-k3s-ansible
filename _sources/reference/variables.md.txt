@@ -12,7 +12,6 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `ansible_account` | `ansible` | The account Ansible uses on every node (created by the RK1 cloud-init seed, or by `pb_add_nodes.yml`) |
 | `tpi_user` | `root` | SSH user on the Turing Pi BMC |
 | `tpi_images_path` | `/mnt/sdcard/images` | Where OS images are staged on the BMC's SD card before `tpi flash` |
-| `vault_password_file` | `~/.ansible_vault_password` | Ansible vault password file. Nothing in the repo is vaulted today (secrets are `SealedSecret`s), so it is unused |
 | `bin_dir` | `/root/bin` (from `$BIN_DIR`; `$HOME/bin` without it) | Where the `tools` role installs helm, kubectl, kubeseal, argocd and the port-forward scripts: a volume, so it survives a devcontainer rebuild |
 | `k3s_minor` | `v1.34` (read from `k3s.minor` in `values.yaml`) | The K3s minor line the cluster follows. Edit it in `values.yaml`, not here |
 | `do_flash` | `false` | Whether the `flash` role runs; true when `flash_force` (or `force_flash`) is passed, or set directly with `-e do_flash=true` |
@@ -241,7 +240,6 @@ Set for the devcontainer by `.devcontainer/devcontainer.json`:
 |----------|-------|-------------|
 | `BIN_DIR` | `/root/bin` | Becomes `bin_dir`: the `iac2-bin` volume the CLIs are installed into |
 | `ZSHRC` | `/bash-config/zshrc` | The zsh rc file the `tools` role edits |
-| `ANSIBLE_VAULT_PASSWORD_FILE` | `/etc/ansible/.vault_password.txt` | The host's `~/.ansible_vault_password`, mounted read-only |
 | `UV_*`, `VIRTUAL_ENV`, `PRE_COMMIT_HOME` | under `/cache` | Keep the Python environment and caches on a persistent volume |
 
 Read by the scripts. Each is optional unless marked; a script that needs a
