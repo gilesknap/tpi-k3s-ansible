@@ -1,0 +1,73 @@
+# Daily encrypted backup of the OpenWrt router's configuration
+# (etcd_backup_router), sharing the etcd backup's NAS mount, age recipient
+# and textfile directory. The router has no Python, so the tasks run on it
+# use `raw`.
+
+- name: Create the router backup SSH key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -q -t ed25519 -N ""
+      -C k3s-router-backup@{{ inventory_hostname }}
+      -f {{ etcd_backup_router_key }}
+    creates: "{{ etcd_backup_router_key }}"
+
+- name: Read the router backup public key
+  ansible.builtin.slurp:
+    src: "{{ etcd_backup_router_key }}.pub"
+  register: etcd_backup_router_pubkey
+
+# Dropbear reads /etc/dropbear/authorized_keys, not /root/.ssh. The key may
+# only run `sysupgrade -b -`. A control plane that moves leaves its old
+# host's line behind; delete that by hand if it matters.
+- name: Authorize the key on the router for sysupgrade -b only, and read its host key
+  vars:
+    ansible_user: "{{ etcd_backup_router.split('@') | first }}"
+    etcd_backup_router_line: >-
+      command="sysupgrade -b -",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty
+      {{ (etcd_backup_router_pubkey.content | b64decode).strip() }}
+  ansible.builtin.raw: >-
+    grep -qxF {{ etcd_backup_router_line | quote }} /etc/dropbear/authorized_keys ||
+    { echo {{ etcd_backup_router_line | quote }} >> /etc/dropbear/authorized_keys && echo ADDED; };
+    dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key
+  delegate_to: "{{ etcd_backup_router_host }}"
+  become: false
+  register: etcd_backup_router_auth
+  changed_when: "'ADDED' in etcd_backup_router_auth.stdout_lines"
+
+- name: Pin the router's host key for the backup job
+  ansible.builtin.copy:
+    content: >
+      {{ etcd_backup_router_host }}
+      {{ (etcd_backup_router_auth.stdout_lines | select('match', '^ssh-ed25519 ') | first).split()[:2] | join(' ') }}
+    dest: "{{ etcd_backup_router_known_hosts }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the router backup script
+  ansible.builtin.template:
+    src: k3s-router-backup.sh.j2
+    dest: /usr/local/sbin/k3s-router-backup
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the router backup service and timer units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - k3s-router-backup.service
+    - k3s-router-backup.timer
+
+# A daemon reload here rather than the handler: flush_handlers cannot take
+# the `when` this file is imported with.
+- name: Enable and start the router backup timer
+  ansible.builtin.systemd_service:
+    name: k3s-router-backup.timer
+    daemon_reload: true
+    enabled: true
+    state: started

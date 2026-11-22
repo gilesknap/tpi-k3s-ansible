@@ -42,3 +42,23 @@ etcd_backup_textfile_dir: /var/lib/node_exporter/textfile_collector
 # (and dated copies in <dest>/sealed-secrets-keys/, keeping
 # etcd_backup_keep).
 etcd_backup_sealed_secrets_namespace: kube-system
+
+# Daily encrypted backup of the OpenWrt router's configuration
+# (`sysupgrade -b`), by a second timer on the same host, to the same NAS
+# share and age recipient. The SSH target, user@host; empty means no
+# router backup. See docs/how-to/router-recovery.md.
+etcd_backup_router: "{{ dns_router | default('') }}"
+# Its host part, the router's address (scripts/check-no-destroy allows
+# delegating to this name).
+etcd_backup_router_host: "{{ etcd_backup_router.split('@') | last }}"
+# Below etcd_backup_mount_point. Must exist on the NAS and be writable by
+# the root-squashed uid (docs/how-to/nas-setup.md).
+etcd_backup_router_dest_subdir: backups/router
+# Daily backups kept on the NAS (about 8 KB each).
+etcd_backup_router_keep: 30
+# Before the etcd backup at 23:15; the two also share a lock.
+etcd_backup_router_on_calendar: "*-*-* 23:00:00 Europe/London"
+# The job's own SSH key (made on the host, never leaves it) and the
+# router's pinned host key.
+etcd_backup_router_key: /etc/k3s-etcd-backup/router_ed25519
+etcd_backup_router_known_hosts: /etc/k3s-etcd-backup/router_known_hosts

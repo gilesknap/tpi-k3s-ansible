@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# Encrypted backup of the OpenWrt router's configuration.
+#
+# Asks the router ({{ etcd_backup_router }}) for `sysupgrade -b -` over SSH,
+# with a key the router accepts for that one command only, encrypts the
+# tarball, held only in RAM (/run), with age to the public key(s) in
+# /etc/k3s-etcd-backup/recipients, and copies the result to the NAS. The
+# tarball holds the router's WAN login, root password hash and SSH host
+# keys: the plaintext is never written to disk. This host cannot decrypt
+# the backups.
+#
+# Run by k3s-router-backup.timer and by `just router-backup`. Writes
+# node-exporter textfile metrics so a failed or stale backup raises an
+# alert.
+set -euo pipefail
+umask 077
+
+RECIPIENTS=/etc/k3s-etcd-backup/recipients
+ROUTER={{ etcd_backup_router | quote }}
+KEY={{ etcd_backup_router_key }}
+KNOWN_HOSTS={{ etcd_backup_router_known_hosts }}
+STATE_DIR=/var/lib/k3s-etcd-backup
+# tmpfs, so the plaintext tarball never reaches a disk.
+WORK_DIR=/run/k3s-router-backup
+MOUNT={{ etcd_backup_mount_point }}
+DEST="$MOUNT/{{ etcd_backup_router_dest_subdir }}"
+KEEP={{ etcd_backup_router_keep }}
+TEXTFILE_DIR={{ etcd_backup_textfile_dir }}
+
+log() { echo "k3s-router-backup: $*" >&2; }
+
+mounted_here=false
+size=0
+files=0
+
+write_metrics() {
+    local success=$1 now last_success=0 prom tmp
+    now=$(date +%s)
+    if [[ $success == 1 ]]; then
+        echo "$now" > "$STATE_DIR/router_last_success"
+    fi
+    [[ -r $STATE_DIR/router_last_success ]] && last_success=$(cat "$STATE_DIR/router_last_success")
+    [[ -d $TEXTFILE_DIR ]] || return 0
+    prom="$TEXTFILE_DIR/router_backup.prom"
+    tmp=$(mktemp "$prom.XXXXXX")
+    cat > "$tmp" <<EOF
+# HELP router_backup_last_run_timestamp_seconds When the router backup job last ran.
+# TYPE router_backup_last_run_timestamp_seconds gauge
+router_backup_last_run_timestamp_seconds $now
+# HELP router_backup_last_run_success 1 if the last router backup run succeeded.
+# TYPE router_backup_last_run_success gauge
+router_backup_last_run_success $success
+# HELP router_backup_last_success_timestamp_seconds When an encrypted router backup last reached the NAS.
+# TYPE router_backup_last_success_timestamp_seconds gauge
+router_backup_last_success_timestamp_seconds $last_success
+# HELP router_backup_last_size_bytes Size of the last encrypted router backup.
+# TYPE router_backup_last_size_bytes gauge
+router_backup_last_size_bytes $size
+# HELP router_backup_last_files Files in the last router backup.
+# TYPE router_backup_last_files gauge
+router_backup_last_files $files
+EOF
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$prom"
+}
+
+# Partial copy on the NAS for the current ship(), removed if the run dies.
+partial=""
+
+cleanup() {
+    local rc=$?
+    rm -rf "$WORK_DIR"
+    if [[ -n $partial ]]; then
+        rm -f "$partial" || log "warning: could not remove $partial"
+    fi
+    if $mounted_here; then
+        umount "$MOUNT" || log "warning: could not unmount $MOUNT"
+    fi
+    if [[ $rc != 0 ]]; then
+        log "FAILED (exit $rc)"
+        write_metrics 0
+    fi
+    exit "$rc"
+}
+trap cleanup EXIT
+
+die() { log "ERROR: $*"; exit 1; }
+
+{% include "backup-functions.sh.j2" %}
+
+
+# 1. Refuse to run without a recipient: never produce anything unencrypted.
+if ! grep -qE '^age1[0-9a-z]+$' "$RECIPIENTS" 2>/dev/null; then
+    die "no age recipient in $RECIPIENTS; set etcd_backup_age_recipient" \
+        "in group_vars/all.yml and re-run ansible --tags etcd_backup." \
+        "Nothing was uploaded."
+fi
+command -v age > /dev/null || die "age is not installed"
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+
+# 2. Fetch, check and encrypt. The router runs `sysupgrade -b -` for this
+#    key whatever command is asked for.
+name="router-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
+plain="$WORK_DIR/router.tar.gz"
+ssh -n -i "$KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=30 \
+    -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS" \
+    "$ROUTER" 'sysupgrade -b -' > "$plain" \
+    || die "could not fetch the backup from $ROUTER"
+tar -tzf "$plain" > "$WORK_DIR/files" || die "the router's backup is not a whole .tar.gz"
+grep -qx etc/config/network "$WORK_DIR/files" \
+    || die "the router's backup has no etc/config/network"
+files=$(wc -l < "$WORK_DIR/files")
+age -R "$RECIPIENTS" -o "$WORK_DIR/$name" "$plain"
+rm -f "$plain"
+size=$(stat -c %s "$WORK_DIR/$name")
+
+# 3. Mount the NAS share for the duration of the run, copy, prune.
+if ! mountpoint -q "$MOUNT"; then
+    mount "$MOUNT" || die "could not mount $MOUNT"
+    mounted_here=true
+fi
+[[ -d $DEST && -w $DEST ]] \
+    || die "$DEST does not exist or is not writable (see docs/how-to/nas-setup.md)"
+ship "$WORK_DIR/$name" "$DEST" "$name"
+prune "$DEST" "$KEEP" '*.tar.gz.age'
+log "uploaded $DEST/$name ($size bytes, $files files)"
+
+write_metrics 1

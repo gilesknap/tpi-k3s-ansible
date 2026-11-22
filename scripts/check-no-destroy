@@ -30,7 +30,9 @@ The guarantee the README makes about the NAS (gknas), enforced:
    only with nas_force (also off by default).
 3. The cluster playbooks (every pb_*.yml but pb_nas.yml, and what they
    import) never target or delegate to the NAS, and never run the nas
-   role.
+   role. The two templated delegates allowed, the control plane and the
+   router (etcd_backup_router_host, from dns_router), are checked not to
+   be NAS hosts.
 
 Run by `just check` and the pre-commit hooks. Comment lines are skipped.
 """
@@ -356,9 +358,13 @@ def check_cluster_playbooks():
     if not nas_hosts:
         errors.append("hosts.yml: no hosts in the nas group")
     nas_names = nas_hosts | {g for g, h in groups.items() if h & nas_hosts}
-    # The roles delegate to "{{ control_plane }}" (allowed below).
-    if (load_yaml("group_vars/all.yml") or {}).get("control_plane") in nas_hosts:
+    # The roles delegate to "{{ control_plane }}" and, for the router backup,
+    # to dns_router's host (both allowed below).
+    all_vars = load_yaml("group_vars/all.yml") or {}
+    if all_vars.get("control_plane") in nas_hosts:
         errors.append("group_vars/all.yml: control_plane is a NAS host")
+    if str(all_vars.get("dns_router", "")).split("@")[-1] in nas_hosts:
+        errors.append("group_vars/all.yml: dns_router is a NAS host")
 
     def targets_nas(pattern):
         if isinstance(pattern, list):  # hosts: [a, b]
@@ -402,6 +408,9 @@ def check_cluster_playbooks():
                 roles.add(dep["role"] if isinstance(dep, dict) else dep)
 
 
+# Templated delegate_to values checked in check_cluster_playbooks().
+ALLOWED_DELEGATES = ("{{ control_plane }}", "{{ etcd_backup_router_host }}")
+
 TASK_INCLUDES = (
     "ansible.builtin.import_tasks",
     "ansible.builtin.include_tasks",
@@ -432,7 +441,7 @@ def check_tasks(path, data, roles, targets_nas, seen=None):
                 if cand and cand not in seen:
                     check_tasks(cand, load_yaml(cand), roles, targets_nas, seen)
                     break
-        if "delegate_to" in d and targets_nas(d["delegate_to"]) and d["delegate_to"] != "{{ control_plane }}":
+        if "delegate_to" in d and targets_nas(d["delegate_to"]) and d["delegate_to"] not in ALLOWED_DELEGATES:
             errors.append(f"{path}: delegates to the NAS: {d['delegate_to']}")
 
 

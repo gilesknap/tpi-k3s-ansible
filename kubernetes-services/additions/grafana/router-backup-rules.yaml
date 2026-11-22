@@ -1,0 +1,62 @@
+# Alerts for the daily encrypted backup of the OpenWrt router's
+# configuration (roles/etcd_backup, router.yml). The job writes
+# node-exporter textfile metrics on the control plane; see
+# docs/how-to/router-recovery.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: router-backup
+  namespace: monitoring
+  labels:
+    release: grafana-prometheus
+spec:
+  groups:
+    - name: router-backup
+      rules:
+        - alert: RouterBackupFailed
+          expr: router_backup_last_run_success == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The router backup job failed on {{ $labels.instance }}.
+            description: >-
+              The last run of k3s-router-backup.service did not put an
+              encrypted backup of the router's configuration on the NAS.
+              Check `journalctl -u k3s-router-backup` on the control plane.
+        # last_success is 0 until the first backup reaches the NAS; that
+        # case is RouterBackupNeverSucceeded.
+        - alert: RouterBackupStale
+          expr: >-
+            time() - max(router_backup_last_success_timestamp_seconds > 0)
+            > 36 * 3600
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: No router backup has reached the NAS for over 36 hours.
+            description: >-
+              The newest backup of the router's configuration is
+              {{ $value | humanizeDuration }} old.
+        - alert: RouterBackupNeverSucceeded
+          expr: max(router_backup_last_success_timestamp_seconds) == 0
+          for: 36h
+          labels:
+            severity: warning
+          annotations:
+            summary: The router backup job has never uploaded a backup.
+            description: >-
+              The job runs but no encrypted router backup has reached the
+              NAS yet. Check `journalctl -u k3s-router-backup` on the
+              control plane.
+        - alert: RouterBackupMetricsMissing
+          expr: absent(router_backup_last_run_timestamp_seconds)
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: The router backup job reports no metrics.
+            description: >-
+              Either the control plane's node-exporter is down or the
+              etcd_backup role has not been applied
+              (`ansible-playbook pb_all.yml --limit <control-plane> --tags etcd_backup`).

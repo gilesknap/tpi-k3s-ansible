@@ -261,6 +261,17 @@ etcd-backup-now:
         sudo journalctl -u k3s-etcd-backup.service -n 20 --no-pager; \
         cat /var/lib/node_exporter/textfile_collector/k3s_etcd_backup.prom | grep -v "^#"'
 
+# Run it before every change to the router. See docs/how-to/router-recovery.md.
+# Back up the router's config to the NAS now, encrypted, and show the result
+router-backup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    node=$(awk '/^control_plane:/ {print $2}' group_vars/all.yml)
+    ssh ansible@"$node" 'sudo systemctl start k3s-router-backup.service; rc=$?; \
+        sudo journalctl -u k3s-router-backup.service -n 5 --no-pager -o cat; \
+        grep -v "^#" /var/lib/node_exporter/textfile_collector/router_backup.prom; \
+        exit $rc'
+
 # Point k3s_api_name at a control-plane IP on the dns_router (OpenWrt, uci)
 # and check it resolves here. See docs/how-to/recover-control-plane.md.
 k3s-api-dns ip:

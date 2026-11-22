@@ -15,6 +15,7 @@ cluster's state from it. What is **not** in Git:
 | scrap | the NAS (`/bigdisk/k8s-cluster/scrap-data`), database replicated by Litestream | the scrap chart's CronJobs to `backups/scrap/`, and a nightly copy off the NAS to nuc2 |
 | Sealed Secrets private keys | Secrets in `kube-system` | nightly age-encrypted export to `backups/etcd/`, plus an offline copy |
 | etcd snapshot and K3s token | node02 | nightly age-encrypted bundle to `backups/etcd/` |
+| OpenWrt router configuration | the router, 192.168.1.1 | daily age-encrypted `sysupgrade -b` tarball to `backups/router/`, from node02 ({doc}`/how-to/router-recovery`) |
 | Admin password | the `admin-auth` Secret (not in Git) | re-create it with `just set-admin-password` |
 | Cloudflare OpenTofu state and its passphrase | `cloudflare/terraform.tfstate` and `cloudflare/.secrets/state-passphrase` (both gitignored) | not backed up by the cluster: keep a copy of the state on the NAS and the passphrase in the password manager; see below |
 | `nfs-stable` volumes, including the Minecraft worlds | the NAS, `/k8s-dynamic/stable/<namespace>/<pvc>` | they survive a rebuild in place; the worlds also go off site |
@@ -42,6 +43,7 @@ compromised cluster, can delete from for 30 days ({ref}`offsite-b2`).
 
 | When | What | Runs as |
 |------|------|---------|
+| 23:00 Europe/London | the router's configuration | `k3s-router-backup.timer` on node02 |
 | 23:15 Europe/London | etcd bundle and sealed-secrets keys | `k3s-etcd-backup.timer` on node02 |
 | 00:30 Europe/London (monthly: the 1st, 00:40) | scrap | CronJobs `scrap-backup`, `scrap-backup-monthly` in `scrap` |
 | 00:35 Europe/London (weekly: Sunday 00:40) | Grafana | CronJobs `grafana-daily`, `grafana-weekly` in `backups`, on node04 |
@@ -549,6 +551,14 @@ sudo k3s server --cluster-reset \
 sudo systemctl start k3s
 ```
 
+## Router configuration
+
+node02 backs up the OpenWrt router's configuration every day at 23:00,
+encrypted to the same age key, to `backups/router/` on the NAS, from where
+the off-site jobs copy it like the rest of `backups/`. Run
+`just router-backup` before changing the router. Restoring, including when
+SSH to the router is gone, is in {doc}`/how-to/router-recovery`.
+
 (offsite-backup)=
 ## Off-site copy to Google Drive
 
@@ -564,7 +574,7 @@ Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
 
 | On Drive | From | When |
 |----------|------|------|
-| `backups/<path>.age` | each file under `backups/` on the NAS (the Grafana and Jellyfin tarballs, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`); files that already end `.age` (the etcd bundles, `pre-upgrade/` snapshots and dated sealed-secrets key exports) go up as they are | once, the first night it is there |
+| `backups/<path>.age` | each file under `backups/` on the NAS (the Grafana and Jellyfin tarballs, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`); files that already end `.age` (the etcd bundles, `pre-upgrade/` snapshots, dated sealed-secrets key exports and router backups) go up as they are | once, the first night it is there |
 | `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's daily, monthly and curated runs) as one tarball | once it has its `COMPLETE` marker |
 | `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once the run folder is two days old (its modification time) |
 | `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`/bigdisk/k8s-cluster/minecraft`: its backups, snapshots and state), and from `/k8s-dynamic/stable` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
@@ -917,8 +927,8 @@ off nothing is rendered.
 ### What goes to B2
 
 Only the NAS `backups/` tree (`offsite_backup.b2.include: [backups]`):
-scrap's runs, the Grafana and Jellyfin tarballs, the etcd bundles and the
-sealed-secrets key exports. The Minecraft nightly tarball and the world
+scrap's runs, the Grafana and Jellyfin tarballs, the etcd bundles, the
+sealed-secrets key exports and the router backups. The Minecraft nightly tarball and the world
 archive stay on Drive only; the archive has other copies. `include` takes
 the same three entries as the Drive job's `offsite_backup.include`
 (`backups`, `minecraft-nightly`, `minecraft-archive`), so either can be
