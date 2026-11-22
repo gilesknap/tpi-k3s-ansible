@@ -184,7 +184,7 @@ PVs, so each claim binds to the directory or NAS folder it had before.
 | Data | Where it lives | After a rebuild |
 |------|----------------|-----------------|
 | Prometheus, Grafana | `/var/lib/k8s-data/*` on `node04` | Kept; the new PVCs bind to the same `local-nvme` PVs |
-| Jellyfin config, scrap's backup copy and frozen copy | `/home/k8s-data/*` on `nuc2` | Kept |
+| Jellyfin config, scrap's backup copy | `/home/k8s-data/*` on `nuc2` | Kept |
 | scrap's live data and backups | The NAS, static NFS PVs under `/bigdisk/k8s-cluster` | Kept; scrap restores its database from the Litestream replica |
 | Minecraft worlds and other `nfs-stable` claims | The NAS, `/k8s-dynamic/stable/<namespace>/<claim>` | Kept; a claim of the same name finds its folder ({doc}`/how-to/nfs-stable-paths`) |
 | `nfs-rwx` claims | The NAS, a folder whose name includes the PV's | Left on the NAS, but the new claim starts empty in a new folder |

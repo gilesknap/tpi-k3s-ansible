@@ -41,7 +41,6 @@ is not always the section of the `justfile` they sit in.
 | `just node-fence <node>` | Adds the `out-of-service` taint to a dead node so its pods restart elsewhere; refuses a Ready node | Only for a node that is powered off ({ref}`fence-a-dead-node`) |
 | `just node-unfence <node>` | Removes the taint once the node is back | |
 | `just upgrade-workstation <node> [args]` | Drains `ws03`, reinstalls its K3s agent at the control plane's version, uncordons it | Devcontainer terminal only: the sandbox cannot SSH to its own host ({doc}`/how-to/upgrade-k3s`) |
-| `just scrap-cutover-check [node]` | Lists writes in scrap's frozen pre-Litestream database on `nuc2` that the live one lacks; reads both sides only | Left from the move to NFS ({doc}`/how-to/scrap`) |
 | `just restart-dex` | Restarts `argocd-dex-server`, `argocd-server` and `argocd-repo-server` | After a change to Dex's config or secrets ({doc}`/how-to/oauth-setup`) |
 | `just headlamp-token` | Prints a 100 day token for the `headlamp` ServiceAccount, to paste into Headlamp's login page | The output is a credential |
 | `just k3s-api-dns <ip>` | Points `k3s.lan` at a control plane address on the router (`dns_router`) and checks it resolves | Needs SSH to the router ({doc}`/how-to/recover-control-plane`) |

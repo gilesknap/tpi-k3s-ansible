@@ -16,9 +16,6 @@ This directory is a small Helm chart holding these things for scrap:
 - `templates/nfs-volumes.yaml`: the static NFS PVs and PVCs `scrap-data-nfs` and
   `scrap-backups-nfs` the chart uses (Litestream mode), and
   `templates/backup-copy.yaml`: the nightly copy of the newest backup off the NAS.
-- `templates/legacy-pvc.yaml` and `templates/migrate-job.yaml`: the claims from
-  before Litestream, kept as a frozen copy, and the one-off Job that moved the
-  data to NFS (see docs/how-to/scrap.md).
 
 This chart's `templates/` must contain a SealedSecret `scrap-secret.yaml` that unseals to a Secret named
 `scrap-secrets` in the `scrap` namespace with the keys `ANTHROPIC_API_KEY` (the

@@ -77,7 +77,6 @@ an NFS folder enforces them.
 | `prometheus-local` | Prometheus | `local-nvme` | node04 `/var/lib/k8s-data/prometheus` | 40Gi | Nothing, on purpose |
 | `jellyfin-local` | Jellyfin data, config, logs | `local-nvme` | nuc2 `/home/k8s-data/jellyfin` | 60Gi | `jellyfin-daily`, `jellyfin-weekly` to the NAS, then Drive |
 | `scrap-backup-copy-local` | `scrap-backup-copy` CronJob | `local-nvme` | nuc2 `/home/k8s-data/scrap-backup-copy` | 10Gi | It is a backup: the newest scrap run, kept off the NAS |
-| `scrap-local` | Nothing (frozen copy) | `local-nvme` | nuc2 `/home/k8s-data/scrap` | 5Gi | Nothing; see the note under scrap below |
 | `scrap-data-nfs` | scrap: files, previews, database replica | static NFS | NAS `/bigdisk/k8s-cluster/scrap-data` | 5Gi | scrap's own backup CronJobs |
 | `scrap-backups-nfs` | scrap's backup runs | static NFS | NAS `/bigdisk/k8s-cluster/backups/scrap` | 20Gi | Copied to nuc2 and to Drive |
 | `jellyfin-media-nfs` | Jellyfin library | static NFS, read-only | NAS `/bigdisk/media` | 4Ti | Not the cluster's data |
@@ -257,13 +256,6 @@ scrap therefore has no node selector. It restarts on any node after a drain,
 and after a node is fenced. Both of its volumes are static NFS volumes bound
 to fixed NAS directories, with `Prune=false,Delete=false`, so neither a
 rebuild nor an ArgoCD mistake can detach them from their data.
-
-:::{note}
-`scrap-local` (`/home/k8s-data/scrap` on nuc2) is scrap's volume from before
-that change, kept as a frozen copy. Nothing mounts it. Its entries stay in
-`local_storage` and `k8s_data_dirs` because removing them would prune a
-volume that still has a bound claim.
-:::
 
 ### Ephemeral on purpose
 
