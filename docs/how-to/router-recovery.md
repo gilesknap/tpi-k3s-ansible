@@ -130,9 +130,13 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    router does so on time. Either way the internet is down for a minute or
    two while it reboots; afterwards run the checks again (below).
 
-A change that drops SSH while it is being applied can leave the play
-hanging until the router reverts and reboots, which closes the session:
-that is expected, and the play then fails.
+A change step may reload networking or the firewall and drop its own SSH
+session: that is fine, the play carries on to the checks, and they decide.
+A change that silently drops packets leaves a step waiting until SSH's
+keepalive gives up, about a minute (`ServerAliveInterval=15`,
+`ServerAliveCountMax=4` for the `routers` group in `hosts.yml`); then the
+checks run and fail, and the play reverts or reports the deadline as
+above.
 
 If the play is stopped (Ctrl-C) while the guard is armed, the router still
 reverts at the deadline. To keep the change instead, disarm it by hand:

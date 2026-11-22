@@ -6,8 +6,14 @@
 
 - name: Change the router, check it and confirm the change
   block:
+    # A step that drops its own SSH session (a network or firewall reload)
+    # is unreachable, which skips a rescue: carry on into the checks,
+    # whose fresh SSH login fails into the rescue if the router is lost.
     - name: Apply the change
-      ansible.builtin.include_tasks: "{{ router_change_tasks }}.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ router_change_tasks }}.yml"
+        apply:
+          ignore_unreachable: true
       when: router_change_tasks | length > 0
 
     - name: Run the checks
