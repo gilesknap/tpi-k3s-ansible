@@ -42,7 +42,12 @@ metadata:
   {{- end }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    # group, kind and weight are the API's defaults, written out because
+    # grafana-prometheus syncs with ServerSideApply, whose diff otherwise
+    # shows them as drift and keeps the app OutOfSync.
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
       namespace: {{ .Values.gateway.namespace }}
       {{- if $redirect }}
       sectionName: https
@@ -71,6 +76,8 @@ spec:
           externalAuth:
             protocol: HTTP
             backendRef:
+              group: ""
+              kind: Service
               name: oauth2-proxy
               namespace: oauth2-proxy
               port: 80
@@ -83,8 +90,11 @@ spec:
                 - X-Auth-Request-Email
       {{- end }}
       backendRefs:
-        - name: {{ .Values.service_name }}
+        - group: ""
+          kind: Service
+          name: {{ .Values.service_name }}
           port: {{ .Values.service_port }}
+          weight: 1
       {{- with .Values.gateway_request_timeout }}
       timeouts:
         request: {{ . }}
@@ -100,7 +110,9 @@ metadata:
   {{- end }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
       namespace: {{ .Values.gateway.namespace }}
       sectionName: http
   hostnames:
