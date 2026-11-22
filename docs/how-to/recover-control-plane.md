@@ -374,25 +374,34 @@ On a former agent, the binary and `/var/lib/rancher/k3s` do no harm: the
 restore installs over them.
 
 On a former server, `/var/lib/rancher/k3s/server` still holds the old etcd
-database and token, and the `etcd_backup` role's files remain: the backup
-script and its configuration and state, the `noauto` NAS mount in
-`/etc/fstab` (only the backup uses it), and its metric files in the
-node-exporter textfile directory. If the node later runs node-exporter as
-a worker, stale metric files there would hide a missing backup from the
-`K3sEtcdBackupMetricsMissing` alert. Remove them all once the new control
+database and token, and the `etcd_backup` role's files remain: the etcd
+and router backup scripts and their configuration, SSH key and state, the
+`noauto` NAS mount in `/etc/fstab` (only the backups use it), and their
+metric files in the node-exporter textfile directory. If the node later
+runs node-exporter as a worker, stale metric files there would hide a
+missing backup from the `K3sEtcdBackupMetricsMissing` and
+`RouterBackupMetricsMissing` alerts. Remove them all once the new control
 plane is healthy:
 
 ```bash
 ssh ansible@node02 'sudo bash -s' <<'END'
 set -e
 rm -f /etc/systemd/system/k3s-etcd-backup.service \
-  /etc/systemd/system/k3s-etcd-backup.timer
+  /etc/systemd/system/k3s-etcd-backup.timer \
+  /etc/systemd/system/router-backup.service \
+  /etc/systemd/system/router-backup.timer
 systemctl daemon-reload
-rm -f /usr/local/sbin/k3s-etcd-backup \
-  /var/lib/node_exporter/textfile_collector/k3s_etcd_backup*
+rm -f /usr/local/sbin/k3s-etcd-backup /usr/local/sbin/router-backup \
+  /var/lib/node_exporter/textfile_collector/k3s_etcd_backup* \
+  /var/lib/node_exporter/textfile_collector/router_backup*
 rm -rf /etc/k3s-etcd-backup /var/lib/k3s-etcd-backup
 sed -i '\| /mnt/k8s-cluster |d' /etc/fstab
 rmdir /mnt/k8s-cluster
 rm -rf /var/lib/rancher/k3s/server /etc/rancher/k3s
 END
 ```
+
+The router still accepts the old node's backup key, for `sysupgrade -b`
+only: its line in the router's `/etc/dropbear/authorized_keys` ends
+`router-backup@node02`. It does no harm; delete it by hand when
+convenient.

@@ -117,7 +117,7 @@ object without that label is ignored without an error.
 | Cilium and Hubble | `additions/grafana/cilium-servicemonitors.yaml`: the agents, Envoy, the operator, Hubble's flow metrics and Hubble Relay, in `kube-system`. Here for the same reason as cert-manager's: the `k3s` role installs Cilium before the CRD exists. The Cilium chart adds its own Grafana dashboards (Cilium, Cilium Operator, Hubble), as ConfigMaps in `kube-system` |
 | kured | The kured chart's ServiceMonitor (`kubernetes-services/templates/kured.yaml`), in the `kured` namespace |
 | etcd | A static `kube-etcd` scrape job (`additionalScrapeConfigs` in `grafana.yaml`; not the chart's Service and ServiceMonitor, whose hand-made Endpoints ArgoCD never applies), targeting the control plane's address (`k3s.etcd_metrics_endpoints` in `values.yaml`), port 2381. K3s serves etcd's metrics there because the `k3s` role sets `etcd-expose-metrics: true` in node02's `/etc/rancher/k3s/config.yaml` |
-| Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd backup timer on node02 (`roles/etcd_backup`) writes its `k3s_etcd_backup_*` metrics there |
+| Host-side jobs | node-exporter's **textfile collector** reads `/var/lib/node_exporter/textfile_collector` on each node. The etcd and router backup timers on node02 (`roles/etcd_backup`) write their `k3s_etcd_backup_*` and `router_backup_*` metrics there |
 
 Three chart defaults are switched off: the scrape targets and rules for
 kube-scheduler, kube-controller-manager and kube-proxy. K3s runs the first
@@ -154,7 +154,7 @@ the comment there says.
 ## Alert rules
 
 The chart ships its default rules (node health, pod restarts, volumes filling,
-API server, kubelet and so on). This cluster adds four rule files in
+API server, kubelet and so on). This cluster adds five rule files in
 `kubernetes-services/additions/grafana/`:
 
 | File | Alerts | Fires when |
@@ -163,6 +163,7 @@ API server, kubelet and so on). This cluster adds four rule files in
 | | `K3sEtcdBackupStale` | The newest successful backup is over 36 hours old (for 30 minutes) |
 | | `K3sEtcdBackupNeverSucceeded` | No backup has ever succeeded (for 36 hours) |
 | | `K3sEtcdBackupMetricsMissing` | The job's metrics are absent (for 2 hours): the timer or the textfile collector is broken |
+| `router-backup-rules.yaml` | `RouterBackupFailed`, `RouterBackupStale`, `RouterBackupNeverSucceeded`, `RouterBackupMetricsMissing` | As the four above, for node02's daily backup of the router's configuration ({doc}`/how-to/router-recovery`) |
 | `offsite-backup-rules.yaml` | `OffsiteBackupFailed` | The newest run of an off-site CronJob failed: `offsite-backup` (Google Drive) or `offsite-backup-b2` (Backblaze B2), named in its `cronjob` label |
 | | `OffsiteBackupStale` | That CronJob has not succeeded for over 36 hours |
 | | `OffsiteBackupNeverSucceeded` | That CronJob has existed for over 36 hours without a success |
@@ -206,6 +207,7 @@ The configuration is the `alertmanager.config` block in `grafana.yaml`.
 | Any `severity=critical` | Yes, ntfy priority 5 (urgent) |
 | The chart's etcd rules at `severity=critical`: `etcdHighNumberOfFailedGRPCRequests`, `etcdGRPCRequestsSlow`, `etcdHighFsyncDurations` (critical variants) and `etcdDatabaseQuotaLowSpace` | Yes, as any critical. Their warning variants and the other etcd rules go to `null` |
 | `K3sEtcdBackup*` (the four etcd backup alerts) | Yes, priority 3 |
+| `RouterBackup*` (the four router backup alerts) | Yes, priority 3 |
 | `OffsiteBackup*` (the three off-site backup alerts, for either target) | Yes, priority 3 |
 | `BackupJob*` (the three alerts for the Grafana, Jellyfin and scrap CronJobs) | Yes, priority 3 |
 | `KubeNodeNotReady` (fires after 15 minutes; not for a cordoned node) | Yes, priority 3 |

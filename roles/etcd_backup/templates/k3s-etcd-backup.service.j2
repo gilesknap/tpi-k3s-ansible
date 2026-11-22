@@ -6,7 +6,9 @@ After=network-online.target k3s.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/k3s-etcd-backup
+# The lock keeps this job and router-backup from sharing (and one of
+# them unmounting) the NAS mount, e.g. when both timers catch up at boot.
+ExecStart=/usr/bin/flock /run/k3s-backup-nas.lock /usr/local/sbin/k3s-etcd-backup
 Nice=10
 IOSchedulingClass=idle
 TimeoutStartSec=30min

@@ -166,48 +166,7 @@ bundle() {
     rm -rf "$stage"
 }
 
-# read_back FILE: sha256 of FILE as stored on the NAS. O_DIRECT bypasses
-# the local page cache, so the check reads what the server holds rather
-# than what was just written. Some mounts refuse O_DIRECT; a one-block
-# probe detects that, and then this file's cached pages are dropped and
-# it is read normally instead. A read error after a good probe fails.
-read_back() {
-    if dd if="$1" of=/dev/null iflag=direct bs=1M count=1 status=none 2> /dev/null; then
-        dd if="$1" iflag=direct bs=1M status=none | sha256sum | cut -d' ' -f1
-    else
-        log "warning: $MOUNT does not support O_DIRECT reads, verifying via a normal read"
-        dd if="$1" of=/dev/null iflag=nocache count=0 status=none 2> /dev/null || true
-        sha256sum < "$1" | cut -d' ' -f1
-    fi
-}
-
-# ship LOCAL DIR NAME: copy to DIR/NAME via a .partial file, verify, rename.
-ship() {
-    local local_file=$1 dir=$2 name=$3 want got
-    want=$(sha256sum "$local_file" | cut -d' ' -f1)
-    partial="$dir/.$name.partial"
-    cp "$local_file" "$partial"
-    sync -f "$partial"
-    got=$(read_back "$partial")
-    [[ $want == "$got" ]] || die "checksum mismatch writing $dir/$name"
-    mv -f "$partial" "$dir/$name"
-    partial=""
-    echo "$want  $name" > "$dir/$name.sha256"
-}
-
-# prune DIR KEEP [GLOB]: keep the newest KEEP files matching GLOB
-# (default *.tar.age) by mtime (not by name, which starts with the node
-# name), and drop stray .partial files from failed runs once they are a
-# day old.
-prune() {
-    local dir=$1 keep=$2 glob=${3:-*.tar.age} old
-    find "$dir" -maxdepth 1 -type f -name "$glob" -printf '%T@ %f\n' \
-        | sort -n | cut -d' ' -f2- \
-        | head -n -"$keep" | while read -r old; do
-            rm -f "$dir/$old" "$dir/$old.sha256"
-        done
-    find "$dir" -maxdepth 1 -type f -name '.*.partial' -mmin +1440 -delete
-}
+{% include "backup-functions.sh.j2" %}
 
 # export_keys OUT: encrypt the sealed-secrets controller's sealing key
 # Secrets to OUT. The YAML is piped straight into age. Sets key_count to
