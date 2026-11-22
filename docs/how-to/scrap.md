@@ -67,7 +67,9 @@ scrap has no login of its own, so access control is layered in front of it.
 The `/mcp` path cannot use oauth2-proxy, because an MCP client cannot complete
 a browser login. It has its own Ingress, `scrap-mcp-ingress`, without the
 oauth2 annotations; nginx routes to the most specific path, so `/mcp` requests
-go there and everything else goes to the gated `scrap-ingress`.
+go there and everything else goes to the gated `scrap-ingress`. On the Gateway,
+which the tunnel reaches, the same file makes a `/mcp` HTTPRoute without the
+ExternalAuth filter, and Envoy likewise picks the longest matching prefix.
 
 The NetworkPolicy admits only the `ingress-nginx` namespace, and the
 `scrap-from-gateway` CiliumNetworkPolicy only Cilium's Gateway, to the scrap

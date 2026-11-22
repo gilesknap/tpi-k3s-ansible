@@ -148,7 +148,7 @@ values:
 | `cluster_domain` | Always `{{ .Values.cluster_domain }}` |
 | `service_name`, `service_port` | The Service to send requests to. Port 443 switches the backend to HTTPS passthrough |
 | `oauth2_proxy` | `true` puts the shared oauth2-proxy in front, so only `admin_emails` get in. Use it for anything without a login of its own |
-| `ssl_redirect` | Whether nginx redirects HTTP to HTTPS. Copy the `enable_cloudflare_tunnel` expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop |
+| `ssl_redirect` | Whether HTTP is redirected to HTTPS (nginx's annotation, and on the Gateway an HTTPS-only route plus a `-https-redirect` route). Copy the `enable_cloudflare_tunnel` expression above: requests arriving through the tunnel are already plain HTTP inside the cluster, and a redirect would loop |
 | `basic_auth` | `true` asks for the `admin-auth` password (the Secret must exist in the service's namespace) |
 | `extra_annotations` | Any other ingress-nginx annotations. ntfy turns off buffering and lengthens timeouts for its long-lived streams |
 

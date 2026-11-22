@@ -447,17 +447,21 @@ encrypted on Google Drive. The restore recipes are in
 
 ## Networking
 
-### Ingress returning 404 or 503
+### Web service returning 404 or 503
 
-**Symptom:** `https://<service>.gkcluster.org` returns 404 Not Found or 503
-Service Temporarily Unavailable from nginx.
+**Symptom:** `https://<service>.gkcluster.org` returns 404 Not Found, or 503
+("no healthy upstream"), from Envoy (`server: envoy`): the tunnel reaches
+Cilium's Gateway. Through a node address (`home-lan`, `home-tailnet`) the
+same errors come from ingress-nginx.
 
 **Checklist:**
 
 1. **Service exists?** `kubectl get svc -n <namespace>`
 2. **Endpoints populated?** `kubectl get endpoints -n <namespace> <svc-name>`
-3. **Ingress resource correct?** `kubectl get ingress -n <namespace> -o yaml`
-   (ingresses made by `additions/ingress` are named `<service>-ingress`)
+3. **HTTPRoute correct?** `kubectl -n <namespace> get httproute <service> -o yaml`
+   (routes made by `additions/ingress` are named after the service). For the
+   node-address path, the Ingress: `kubectl get ingress -n <namespace> -o yaml`
+   (named `<service>-ingress`)
 4. **Is the request reaching the Gateway?** `dig <service>.gkcluster.org`
    returns Cloudflare addresses for every tunnelled name, not node addresses:
    the path is Cloudflare, cloudflared, then Cilium's Gateway, which matches
