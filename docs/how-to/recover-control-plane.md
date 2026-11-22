@@ -388,10 +388,10 @@ ssh ansible@node02 'sudo bash -s' <<'END'
 set -e
 rm -f /etc/systemd/system/k3s-etcd-backup.service \
   /etc/systemd/system/k3s-etcd-backup.timer \
-  /etc/systemd/system/k3s-router-backup.service \
-  /etc/systemd/system/k3s-router-backup.timer
+  /etc/systemd/system/router-backup.service \
+  /etc/systemd/system/router-backup.timer
 systemctl daemon-reload
-rm -f /usr/local/sbin/k3s-etcd-backup /usr/local/sbin/k3s-router-backup \
+rm -f /usr/local/sbin/k3s-etcd-backup /usr/local/sbin/router-backup \
   /var/lib/node_exporter/textfile_collector/k3s_etcd_backup* \
   /var/lib/node_exporter/textfile_collector/router_backup*
 rm -rf /etc/k3s-etcd-backup /var/lib/k3s-etcd-backup
@@ -403,5 +403,5 @@ END
 
 The router still accepts the old node's backup key, for `sysupgrade -b`
 only: its line in the router's `/etc/dropbear/authorized_keys` ends
-`k3s-router-backup@node02`. It does no harm; delete it by hand when
+`router-backup@node02`. It does no harm; delete it by hand when
 convenient.

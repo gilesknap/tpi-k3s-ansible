@@ -16,7 +16,7 @@ repository**, decrypted or not.
 ## How the backup runs
 
 The `etcd_backup` role installs a second timer next to the etcd backup on
-the control plane (node02), `k3s-router-backup.timer`. Every day at 23:00
+the control plane (node02), `router-backup.timer`. Every day at 23:00
 Europe/London it:
 
 1. connects to the router as `root` with its own SSH key,
@@ -104,6 +104,16 @@ For a router that still answers SSH, e.g. after a bad change.
 The backup holds the router's own host keys and `authorized_keys`, so SSH
 works afterwards as before.
 
+A restore only unpacks the tarball over `/`: files added since the backup
+(a new `/etc/nftables.d/*.nft` or `/etc/config/*`) stay. To undo a bad
+change that added files, reset the saved configuration first with
+`firstboot -y` and a reboot (as in failsafe, below), then restore.
+
+An older backup also brings back its `authorized_keys`. If the control
+plane has been rebuilt since, its backup key is not in them: rerun
+`ansible-playbook pb_all.yml --limit node02 --tags etcd_backup` afterwards
+to authorize it again.
+
 ## When SSH to the router is gone
 
 When a bad firewall, network or Dropbear change locks everyone out, use
@@ -150,8 +160,9 @@ tar -tzf /dev/shm/router.tar.gz   # etc/config/network, etc/shadow, ...
 
 ### 3. Boot the router into failsafe mode
 
-The hEX S has one status LED, the blue power LED, and two buttons, `reset`
-and `mode`. During boot OpenWrt waits 2 seconds for a button press; any
+The hEX S has two LEDs besides the port lights: the blue power LED, which
+OpenWrt uses for boot and failsafe, and a blue SFP link LED. It has two
+buttons, `reset` and `mode`. During boot OpenWrt waits 2 seconds for a button press; any
 button press then enters failsafe.
 
 1. Set the laptop to the static address 192.168.1.2/24 (no gateway) and
@@ -197,7 +208,10 @@ reboot -f
 ```
 
 `sysupgrade -r` only unpacks the tarball over `/`, as
-`tar -C / -xzf /tmp/router.tar.gz` would. The router boots with the
+`tar -C / -xzf /tmp/router.tar.gz` would, so files added since the backup
+stay (see "Restore with the playbook"; `firstboot -y` below clears them).
+As there, an older backup may need the control plane's backup key
+authorized again. The router boots with the
 restored configuration, its own host keys and `authorized_keys`; set the
 laptop back to DHCP and check the internet, DNS (`k3s.lan` resolves) and
 `ssh root@192.168.1.1`.

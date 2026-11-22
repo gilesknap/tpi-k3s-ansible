@@ -267,8 +267,8 @@ router-backup:
     #!/usr/bin/env bash
     set -euo pipefail
     node=$(awk '/^control_plane:/ {print $2}' group_vars/all.yml)
-    ssh ansible@"$node" 'sudo systemctl start k3s-router-backup.service; rc=$?; \
-        sudo journalctl -u k3s-router-backup.service -n 5 --no-pager -o cat; \
+    ssh ansible@"$node" 'sudo systemctl start router-backup.service; rc=$?; \
+        sudo journalctl -u router-backup.service -n 5 --no-pager -o cat; \
         grep -v "^#" /var/lib/node_exporter/textfile_collector/router_backup.prom; \
         exit $rc'
 

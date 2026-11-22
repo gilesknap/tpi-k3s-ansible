@@ -83,7 +83,7 @@ described, with the values each node has, in {doc}`/reference/inventory`.
 | `etcd_backup_on_calendar` | `*-*-* 23:15:00 Europe/London` | systemd `OnCalendar` schedule |
 | `etcd_backup_sealed_secrets_namespace` | `kube-system` | Namespace whose sealed-secrets keys the job also exports, encrypted, to `<dest>/sealed-secrets-keys.yaml.age` |
 | `etcd_backup_textfile_dir` | `/var/lib/node_exporter/textfile_collector` | node-exporter textfile directory for the job's metrics |
-| `etcd_backup_router` | `dns_router` | SSH target of the router whose `sysupgrade -b` backup a second timer, `k3s-router-backup.timer`, encrypts to the same recipient; empty for none ({doc}`/how-to/router-recovery`) |
+| `etcd_backup_router` | `dns_router` | SSH target of the router whose `sysupgrade -b` backup a second timer, `router-backup.timer`, encrypts to the same recipient; empty for none ({doc}`/how-to/router-recovery`) |
 | `etcd_backup_router_dest_subdir` | `backups/router` | Its destination below the mount point |
 | `etcd_backup_router_keep` | `30` | Router backups kept on the NAS |
 | `etcd_backup_router_on_calendar` | `*-*-* 23:00:00 Europe/London` | Its systemd `OnCalendar` schedule |

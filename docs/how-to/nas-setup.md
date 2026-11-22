@@ -32,7 +32,7 @@ mounted at the paths the cluster's volumes name.
 | `/bigdisk/k8s-cluster/backups/grafana/` (with `weekly/`) | `additions/backups` | Grafana's backup CronJobs | `472:472`, `0755` |
 | `/bigdisk/k8s-cluster/backups/jellyfin/` (with `weekly/`) | `additions/backups` | Jellyfin's backup CronJobs | `122:124`, `0755` |
 | `/bigdisk/k8s-cluster/backups/etcd/` (with `pre-upgrade/`) | `etcd_backup_dest_subdir` | node02's `k3s-etcd-backup` job, as root, so squashed to `65534` | `65534:65534`, `0755` |
-| `/bigdisk/k8s-cluster/backups/router/` | `etcd_backup_router_dest_subdir` | node02's `k3s-router-backup` job, as root, so squashed to `65534` | `65534:65534`, `0755` |
+| `/bigdisk/k8s-cluster/backups/router/` | `etcd_backup_router_dest_subdir` | node02's `router-backup` job, as root, so squashed to `65534` | `65534:65534`, `0755` |
 | `/bigdisk/k8s-cluster/scrap-data/` | `additions/scrap` (`storage.data_dir`) | the `scrap-data-nfs` PV | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/scrap/` | `additions/scrap` (`storage.backups_dir`) | the `scrap-backups-nfs` PV | `10001:10001`, `0750` |
 | `/bigdisk/k8s-cluster/backups/scrap-curated/` | `offsite_backup.backups.run_dirs` | the off-site backup, read-only (scrap backup runs kept by hand) | `10001:10001`, `0750` |

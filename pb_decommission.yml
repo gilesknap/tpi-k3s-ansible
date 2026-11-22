@@ -66,6 +66,20 @@
         state: stopped
       when: decommission_etcd_backup_service.stat.exists
 
+    # The router backup (same role) would otherwise keep running on a
+    # decommissioned control plane.
+    - name: Check for the router backup timer
+      ansible.builtin.stat:
+        path: /etc/systemd/system/router-backup.timer
+      register: decommission_router_backup_timer
+
+    - name: Stop and disable the router backup timer
+      ansible.builtin.systemd_service:
+        name: router-backup.timer
+        state: stopped
+        enabled: false
+      when: decommission_router_backup_timer.stat.exists
+
 # ---------------------------------------------------------------------------
 # Play 1: Stop ArgoCD reconciliation (orphan cascade)
 # ---------------------------------------------------------------------------
@@ -274,6 +288,10 @@
         - k3s-apparmor-profile.service
         - k3s-etcd-backup.timer
         - k3s-etcd-backup.service
+        # Not k3s*, so no bar to the uninstall: removed so a
+        # decommissioned control plane stops backing up the router.
+        - router-backup.timer
+        - router-backup.service
       register: decommission_extra_units
 
     # Stopping the AppArmor unit does not unload the profile (it has no

@@ -7,7 +7,7 @@
   ansible.builtin.command:
     cmd: >-
       ssh-keygen -q -t ed25519 -N ""
-      -C k3s-router-backup@{{ inventory_hostname }}
+      -C router-backup@{{ inventory_hostname }}
       -f {{ etcd_backup_router_key }}
     creates: "{{ etcd_backup_router_key }}"
 
@@ -26,13 +26,24 @@
       command="sysupgrade -b -",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty
       {{ (etcd_backup_router_pubkey.content | b64decode).strip() }}
   ansible.builtin.raw: >-
-    grep -qxF {{ etcd_backup_router_line | quote }} /etc/dropbear/authorized_keys ||
-    { echo {{ etcd_backup_router_line | quote }} >> /etc/dropbear/authorized_keys && echo ADDED; };
+    { grep -qxF {{ etcd_backup_router_line | quote }} /etc/dropbear/authorized_keys ||
+    { echo {{ etcd_backup_router_line | quote }} >> /etc/dropbear/authorized_keys && echo ADDED; }; } &&
     dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key
   delegate_to: "{{ etcd_backup_router_host }}"
   become: false
+  # A router that is down must not fail a rebuild; see the warning below.
+  ignore_unreachable: true
   register: etcd_backup_router_auth
-  changed_when: "'ADDED' in etcd_backup_router_auth.stdout_lines"
+  changed_when: "'ADDED' in etcd_backup_router_auth.stdout_lines | default([])"
+
+- name: Warn that the router backup is not authorized
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: the router ({{ etcd_backup_router }}) was unreachable, so the
+      router backup key is not authorized there and its host key is not
+      pinned: router-backup will fail until you rerun
+      `ansible-playbook pb_all.yml --limit {{ inventory_hostname }} --tags etcd_backup`.
+  when: etcd_backup_router_auth.unreachable | default(false)
 
 - name: Pin the router's host key for the backup job
   ansible.builtin.copy:
@@ -43,11 +54,12 @@
     owner: root
     group: root
     mode: "0644"
+  when: not (etcd_backup_router_auth.unreachable | default(false))
 
 - name: Install the router backup script
   ansible.builtin.template:
-    src: k3s-router-backup.sh.j2
-    dest: /usr/local/sbin/k3s-router-backup
+    src: router-backup.sh.j2
+    dest: /usr/local/sbin/router-backup
     owner: root
     group: root
     mode: "0755"
@@ -60,14 +72,14 @@
     group: root
     mode: "0644"
   loop:
-    - k3s-router-backup.service
-    - k3s-router-backup.timer
+    - router-backup.service
+    - router-backup.timer
 
 # A daemon reload here rather than the handler: flush_handlers cannot take
 # the `when` this file is imported with.
 - name: Enable and start the router backup timer
   ansible.builtin.systemd_service:
-    name: k3s-router-backup.timer
+    name: router-backup.timer
     daemon_reload: true
     enabled: true
     state: started

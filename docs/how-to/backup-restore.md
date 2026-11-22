@@ -43,7 +43,7 @@ compromised cluster, can delete from for 30 days ({ref}`offsite-b2`).
 
 | When | What | Runs as |
 |------|------|---------|
-| 23:00 Europe/London | the router's configuration | `k3s-router-backup.timer` on node02 |
+| 23:00 Europe/London | the router's configuration | `router-backup.timer` on node02 |
 | 23:15 Europe/London | etcd bundle and sealed-secrets keys | `k3s-etcd-backup.timer` on node02 |
 | 00:30 Europe/London (monthly: the 1st, 00:40) | scrap | CronJobs `scrap-backup`, `scrap-backup-monthly` in `scrap` |
 | 00:35 Europe/London (weekly: Sunday 00:40) | Grafana | CronJobs `grafana-daily`, `grafana-weekly` in `backups`, on node04 |

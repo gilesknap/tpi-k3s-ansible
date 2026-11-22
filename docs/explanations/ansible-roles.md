@@ -672,7 +672,7 @@ recipient, and ships the `pre-upgrade-*` snapshots that the K3s upgrade Plan
 takes. See {doc}`/explanations/architecture/backups` and
 {doc}`/how-to/backup-restore`.
 
-A second timer, `k3s-router-backup.timer`, backs up the OpenWrt router's
+A second timer, `router-backup.timer`, backs up the OpenWrt router's
 configuration (`sysupgrade -b`) at 23:00 to `backups/router/`, encrypted
 to the same recipient. The role makes the job its own SSH key on the
 control plane and, with `raw` (the router has no Python), authorizes it in
