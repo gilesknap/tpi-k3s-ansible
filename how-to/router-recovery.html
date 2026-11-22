@@ -430,7 +430,8 @@
 <p>The home router is a MikroTik hEX S (RouterBOARD 760iGS, MediaTek MT7621)
 running OpenWrt 23.05.5, at 192.168.1.1 (<code class="docutils literal notranslate"><span class="pre">dns_router</span></code> in
 <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). It carries every household device’s traffic and
-DNS, not only the cluster’s. This page covers its daily backup, changing
+DNS, not only the cluster’s. This page covers its daily backup, its
+firewall, changing
 it with a revert that fires by itself unless the change is confirmed,
 restoring it with a playbook, and getting it back when SSH to it is gone.
 Its DNS and DHCP configuration is code: <a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>.</p>
@@ -501,6 +502,38 @@ its log and metrics. To list the backups:</p>
 </pre></div>
 </div>
 </section>
+</section>
+<section id="firewall">
+<span id="router-firewall"></span><h2>Firewall<a class="headerlink" href="#firewall" title="Link to this heading">#</a></h2>
+<p>The router’s firewall is OpenWrt’s default, with one change: hardware
+flow offloading, <code class="docutils literal notranslate"><span class="pre">option</span> <span class="pre">flow_offloading</span> <span class="pre">'1'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">option</span> <span class="pre">flow_offloading_hw</span> <span class="pre">'1'</span></code> in <code class="docutils literal notranslate"><span class="pre">config</span> <span class="pre">defaults</span></code> of
+<code class="docutils literal notranslate"><span class="pre">/etc/config/firewall</span></code>. Everything else is as shipped (compare it with
+<code class="docutils literal notranslate"><span class="pre">/rom/etc/config/firewall</span></code>):</p>
+<ul class="simple">
+<li><p>zone <code class="docutils literal notranslate"><span class="pre">lan</span></code> accepts input, output and forward;</p></li>
+<li><p>zone <code class="docutils literal notranslate"><span class="pre">wan</span></code> rejects input and forward, masquerades and clamps the MSS
+(<code class="docutils literal notranslate"><span class="pre">mtu_fix</span></code>);</p></li>
+<li><p>one forwarding, <code class="docutils literal notranslate"><span class="pre">lan</span></code> to <code class="docutils literal notranslate"><span class="pre">wan</span></code>;</p></li>
+<li><p>the stock rules: Allow-DHCP-Renew, Allow-Ping, Allow-IGMP, Allow-DHCPv6,
+Allow-MLD, Allow-ICMPv6-Input, Allow-ICMPv6-Forward, Allow-IPSec-ESP and
+Allow-ISAKMP.</p></li>
+</ul>
+<p>The live file differs from the ROM copy in formatting too, because <code class="docutils literal notranslate"><span class="pre">uci</span></code>
+and LuCI rewrite it: no comments, different quoting, and <code class="docutils literal notranslate"><span class="pre">syn_flood</span></code>
+written as its newer name <code class="docutils literal notranslate"><span class="pre">synflood_protect</span></code>. These change nothing.</p>
+<p>There are no port forwards. The WAN is behind CGNAT, so a forward from
+the internet would never be reached; the Minecraft server is reached
+through the VPS instead (<a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>). The last forward, a
+DNAT of WAN TCP 30565-30584 to nuc2, was removed on 22 Nov 2026.
+<code class="docutils literal notranslate"><span class="pre">/etc/nftables.d/10-custom-filter-chains.nft</span></code> is OpenWrt’s example,
+entirely commented out.</p>
+<p>The firewall is not managed as code: the daily backup above carries it,
+and a restore brings it back. If a real rule is ever needed, push it the
+way the DNS and DHCP are pushed (<a class="reference internal" href="router-dhcp.html"><span class="doc">Manage the router’s DNS and DHCP</span></a>): a template
+in <code class="docutils literal notranslate"><span class="pre">roles/router/templates/</span></code> and a change task like
+<code class="docutils literal notranslate"><span class="pre">roles/router/tasks/dhcp.yml</span></code>, run under <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">change</span></code> so a rule that
+cuts the router off reverts by itself.</p>
 </section>
 <section id="change-the-router-safely">
 <h2>Change the router safely<a class="headerlink" href="#change-the-router-safely" title="Link to this heading">#</a></h2>
@@ -808,6 +841,7 @@ once the cluster is back.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#back-up-now">Back up now</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#firewall">Firewall</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#change-the-router-safely">Change the router safely</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-router">Check the router</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drill-the-revert">Drill the revert</a></li>
