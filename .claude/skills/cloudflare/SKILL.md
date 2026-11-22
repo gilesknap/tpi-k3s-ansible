@@ -54,10 +54,13 @@ rather than trusting a copy.
 - **Cloudflare tunnel sends `http://` redirect_uri** — services behind the
   tunnel with `ssl_redirect: false` generate `http://` OAuth callbacks. Dex
   static clients must list both `http://` and `https://` redirect URIs.
-- **Tunnel routes must go through the ingress** — route all tunnel hostnames
-  to `http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local`.
-  Direct-to-service routes (e.g. `http://home.home.svc.cluster.local`) bypass
-  the ingress controller and oauth2-proxy entirely, so auth headers like
+- **Tunnel routes must go through the Gateway** — every tunnel hostname
+  defaults to Cilium's Gateway, `http://cilium-gateway-web.gateway.svc.cluster.local`
+  (`local.gateway`; ADR 0016). ingress-nginx still serves the node addresses
+  until phase 2, and a route can go back to it in an emergency
+  (docs/how-to/gateway.md). Direct-to-service routes (e.g.
+  `http://home.home.svc.cluster.local`) bypass the HTTPRoutes and
+  oauth2-proxy entirely, so auth headers like
   `X-Auth-Request-Email` will be empty. Cloudflare Access still authenticates,
   but oauth2-proxy features (email headers, sign-out) won't work.
 - **Cloudflare Access login methods** — GitHub (the Owner policy requires

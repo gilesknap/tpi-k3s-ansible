@@ -1,0 +1,43 @@
+# Cilium's Gateway (ADR 0016) reaches backends from Envoy, as the reserved
+# "ingress" identity, not from a pod in the ingress-nginx namespace, so the
+# scrap chart's NetworkPolicies (ingress-nginx only) would drop it. These
+# admit that identity too, on the same ports. Allow rules add up, so the
+# chart's policies are widened by the Gateway and nothing else. Clients
+# still cannot forge scrap's identity headers through it: its route replaces
+# them with oauth2-proxy's (additions/ingress/templates/httproute.yaml).
+# https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-and-network-policy/
+# https://docs.cilium.io/en/v1.20/security/policy/layer3/#entities-based
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: scrap-from-gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: scrap
+      app.kubernetes.io/name: scrap
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: http
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: scrap-public-from-gateway
+  namespace: scrap-public
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: scrap
+      app.kubernetes.io/name: scrap-public
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: web
+              protocol: TCP

@@ -83,7 +83,7 @@ flowchart TB
   How a merged commit becomes a running workload: the app-of-apps, how
   values flow, sync policy, and the path of a change through PR and CI.
 - {doc}`/explanations/architecture/networking`:
-  The routes into the cluster: Cloudflare Tunnel to ingress-nginx, the LAN
+  The routes into the cluster: Cloudflare Tunnel to Cilium's Gateway, the LAN
   and tailnet names, the VPS relay for game ports, and DNS inside and out.
 - {doc}`/explanations/architecture/authentication`:
   Who is allowed in: Cloudflare Access at the edge, then GitHub sign-in

@@ -34,7 +34,11 @@ spec:
             cookie-domain: ".{{ .Values.cluster_domain }}"
             whitelist-domain: ".{{ .Values.cluster_domain }}"
             cookie-secure: "true"
-            upstream: "static://202"
+            # Answers a signed-in request on any path but oauth2-proxy's own.
+            # 200, not 202: Cilium's Gateway (Envoy's ext_authz) allows only
+            # a 200 (additions/ingress/templates/httproute.yaml). ingress-nginx
+            # uses /oauth2/auth instead, which answers 202 whatever this is.
+            upstream: "static://200"
             set-xauthrequest: "true"
             pass-access-token: "true"
             custom-templates-dir: "/etc/oauth2-proxy/templates"
@@ -90,6 +94,21 @@ spec:
     - path: ./kubernetes-services/additions/oauth2-proxy
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
+
+    # oauth2.<cluster_domain>'s HTTPRoute (ADR 0016); its Ingress comes from
+    # the chart above.
+    - path: ./kubernetes-services/additions/ingress
+      repoURL: {{ .Values.repo_remote }}
+      targetRevision: {{ .Values.repo_branch }}
+      helm:
+        valuesObject:
+          name: oauth2
+          cluster_domain: {{ .Values.cluster_domain }}
+          service_name: oauth2-proxy
+          service_port: 80
+          oauth2_proxy: false
+          ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
+          ingress: false
   syncPolicy:
     automated:
       prune: true

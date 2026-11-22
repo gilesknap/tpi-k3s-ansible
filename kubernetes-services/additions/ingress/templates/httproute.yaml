@@ -1,0 +1,133 @@
+{{- /*
+The Gateway API twin of templates/ingress.yaml: the same host, path and
+backend, on Cilium's Gateway (additions/gateway, ADR 0016). Only rendered once
+the Gateway API CRDs exist, so an Application never fails its sync for want of
+them (the k3s role installs them before Cilium on a new cluster).
+
+How each ingress-nginx annotation maps (ADR 0016 has the reasons):
+- ssl-redirect: when on, the route attaches to the HTTPS listener only, and a
+  second route answers plain HTTP with a redirect to HTTPS.
+- auth-url / auth-signin / auth-response-headers (oauth2_proxy): the
+  ExternalAuth filter below. oauth2-proxy answers an unsigned-in browser with
+  its sign-in page, which sends it on to oauth2.<cluster_domain>/oauth2/start
+  (additions/oauth2-proxy/error-templates.yaml).
+- extra_annotations (proxy-buffering, proxy-body-size): none. Envoy
+  streams requests and responses without buffering and has no body size
+  limit.
+- extra_annotations (proxy-read-timeout, proxy-send-timeout): the
+  gateway_request_timeout value instead. With no timeouts on the route, Envoy
+  gives the whole request 15 s, which ingress-nginx has no equivalent of. An
+  app that streams or runs long requests (WebSockets, server-sent events,
+  uploads) sets 0s, which turns that limit off; the rest keep the 15 s.
+  Either way Envoy closes a stream idle for 5 minutes (the Cilium chart's
+  envoy.streamIdleTimeoutDurationSeconds).
+*/}}
+{{- if and .Values.http_route (.Capabilities.APIVersions.Has "gateway.networking.k8s.io/v1/HTTPRoute") }}
+{{- if .Values.basic_auth | default false }}
+{{- fail "basic_auth has no HTTPRoute equivalent: set http_route: false" }}
+{{- end }}
+{{- if eq (int .Values.service_port) 443 }}
+{{- fail "an HTTPS backend (service_port 443) needs a BackendTLSPolicy: set http_route: false" }}
+{{- end }}
+{{- $redirect := true }}
+{{- if not (kindIs "invalid" .Values.ssl_redirect) }}
+{{- $redirect = eq (toString .Values.ssl_redirect) "true" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.name }}
+  {{- with .Values.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+# Both routes write out the API's defaults (group and kind in parentRefs and
+# backendRefs, weight, the ExternalAuth backendRef's group and kind, and the
+# redirect's catch-all match) because grafana-prometheus syncs with
+# ServerSideApply, whose diff otherwise shows them as drift and keeps the app
+# OutOfSync.
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      {{- if $redirect }}
+      sectionName: https
+      {{- end }}
+  hostnames:
+    - {{ .Values.name }}.{{ .Values.cluster_domain }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      {{- if .Values.oauth2_proxy | default false }}
+      filters:
+        # Every request is first sent to oauth2-proxy, with the path prefixed
+        # by /gateway-auth so that none of oauth2-proxy's own paths (/ping,
+        # /robots.txt, /oauth2/...) can answer it: they would allow a request
+        # without a session. oauth2-proxy's catch-all handler answers 200 for a
+        # valid session (static://200 in templates/oauth2-proxy.yaml) and its
+        # sign-in page otherwise; Envoy allows only a 200 and sends anything
+        # else back to the browser. Only the session cookie is sent, and only
+        # the user and email headers come back to the app, replacing any the
+        # client sent; the access token oauth2-proxy also returns stays out.
+        # The ReferenceGrant in additions/gateway lets this namespace's routes
+        # name the Service; without it Envoy answers 500, failing closed.
+        - type: ExternalAuth
+          externalAuth:
+            protocol: HTTP
+            backendRef:
+              group: ""
+              kind: Service
+              name: oauth2-proxy
+              namespace: oauth2-proxy
+              port: 80
+            http:
+              path: /gateway-auth
+              allowedHeaders:
+                - Cookie
+              allowedResponseHeaders:
+                - X-Auth-Request-User
+                - X-Auth-Request-Email
+      {{- end }}
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .Values.service_name }}
+          port: {{ .Values.service_port }}
+          weight: 1
+      {{- with .Values.gateway_request_timeout }}
+      timeouts:
+        request: {{ . }}
+      {{- end }}
+{{- if $redirect }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.name }}-https-redirect
+  {{- with .Values.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: http
+  hostnames:
+    - {{ .Values.name }}.{{ .Values.cluster_domain }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+{{- end }}
+{{- end }}

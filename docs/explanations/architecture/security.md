@@ -170,6 +170,7 @@ matters:
 | `minecraft` | `minecraft-dashboard-worlds` | The game port (25565) from anywhere. RCON (25575) only from the dashboard pod, from LAN addresses that are not cluster nodes, from nuc2's second LAN and from the world's own node |
 | `minecraft` | `minecraft-rcon-nodes` (a CiliumNetworkPolicy) | RCON (25575) from the hosts of `minecraft.worlds.rcon_allowed_nodes` (ws03), which reach the world pod from their Cilium address, not their LAN one |
 | `cloudflared` | `cloudflared` | Nothing. The tunnel only dials out, and nothing scrapes its metrics port |
+| `scrap`, `scrap-public`, `ntfy` | `scrap-from-gateway`, `scrap-public-from-gateway`, `ntfy-from-gateway` (CiliumNetworkPolicies) | Cilium's Gateway (its reserved `ingress` identity), on the same ports as ingress-nginx. Its routes put oauth2-proxy in front of scrap as nginx does ({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`) |
 | `backups` | `backups-egress` (a CiliumNetworkPolicy) | Egress only: cluster DNS, and on port 443 Google Drive, Backblaze B2 and the GitHub release download for age. Everything else the backup jobs try is dropped |
 
 ```mermaid
@@ -225,7 +226,7 @@ names and opens only those. `hubble observe -n backups --verdict DROPPED`
 (in an agent pod, or the Hubble UI) shows what it refused.
 
 The ntfy and scrap policies limit who reaches the pod directly. Anything
-that can reach ingress-nginx can still reach them through it, which is why
+that can reach ingress-nginx, or Cilium's Gateway, can still reach them through it, which is why
 ntfy's tokens and the oauth2-proxy check are the real gates.
 
 ## The nodes

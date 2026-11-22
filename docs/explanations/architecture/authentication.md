@@ -4,8 +4,8 @@ Every web service on the cluster is published through Cloudflare, and a
 request passes up to three checks before it gets a response: Cloudflare
 Access at the edge, a GitHub login at the ingress, and a role inside the
 application. This page says which service uses which, and why there are two
-different login mechanisms. How a request physically reaches ingress-nginx is
-on the {doc}`networking page </explanations/architecture/networking>`.
+different login mechanisms. How a request physically reaches Cilium's Gateway
+is on the {doc}`networking page </explanations/architecture/networking>`.
 
 ## Three layers
 
@@ -36,7 +36,11 @@ runs at Cloudflare's edge, before anything is sent down the tunnel.
 **Layer 2** proves identity again inside the cluster, with GitHub as the
 identity source both times. Services that speak OIDC use Dex, the provider
 built into ArgoCD. Services with no login of their own sit behind
-oauth2-proxy, which ingress-nginx consults on every request.
+oauth2-proxy, which Cilium's Gateway consults on every tunnelled request
+through its ExternalAuth filter
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`).
+ingress-nginx, which still answers on the node addresses until the Gateway
+replaces it, consults it the same way through its `auth-url` annotation.
 
 **Layer 3** maps the email address from layer 2 to a role. The addresses in
 `admin_emails` are administrators; anyone else who got this far is read-only.
@@ -195,36 +199,38 @@ directly, not through Dex, and admits only the addresses in `admin_emails`.
 ```mermaid
 sequenceDiagram
     actor User
-    participant NGINX as ingress-nginx
+    participant GW as Cilium's Gateway
     participant OAP as oauth2-proxy
     participant GitHub
     participant Svc as Backend service
 
-    User->>NGINX: Visit alertmanager.gkcluster.org
-    NGINX->>OAP: Auth subrequest
-    OAP-->>NGINX: 401, not signed in
-    NGINX->>User: Redirect to oauth2.gkcluster.org
-    User->>OAP: /oauth2/start
+    User->>GW: Visit alertmanager.gkcluster.org
+    GW->>OAP: ExternalAuth check, session cookie only
+    OAP-->>GW: 403 and the sign-in page
+    GW->>User: The sign-in page, at the app's URL
+    User->>OAP: oauth2.gkcluster.org/oauth2/start
     OAP->>GitHub: Redirect to GitHub OAuth
     GitHub->>OAP: Auth code and user info
     OAP->>OAP: Check the email against admin_emails
     OAP->>User: Set the session cookie
-    User->>NGINX: Retry the original request
-    NGINX->>OAP: Auth subrequest
-    OAP-->>NGINX: 202 and X-Auth-Request-Email
-    NGINX->>Svc: Forward the request
+    User->>GW: Retry the original request
+    GW->>OAP: ExternalAuth check
+    OAP-->>GW: 200 and X-Auth-Request-Email
+    GW->>Svc: Forward the request
     Svc->>User: Response
 ```
 
 The shared Ingress chart (`kubernetes-services/additions/ingress/`) adds the
-`auth-url` and `auth-signin` annotations when a service sets
+ExternalAuth filter to the service's HTTPRoute, and the `auth-url` and
+`auth-signin` annotations to its Ingress, when a service sets
 `oauth2_proxy: true`. Headlamp follows the `enable_oauth2_proxy` switch; the
 Minecraft dashboard and scrap have it hard-wired on, so that without the
 proxy they fail closed.
 
 :::{important}
-`auth-url` uses the Service's cluster address,
-`http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth`, not
+Both checks use the Service's cluster address (the ExternalAuth filter names
+the `oauth2-proxy` Service; `auth-url` is
+`http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth`), not
 `oauth2.gkcluster.org`. The public name resolves to Cloudflare, over an IPv6
 address the pods cannot reach, and the subrequest would fail with
 intermittent 500 errors.
@@ -239,8 +245,8 @@ Three services add something on top:
 - **scrap** has a second Ingress for `/mcp` only, without the oauth2-proxy
   annotations, because an MCP client cannot do a browser login. That path is
   protected by the Access service token at the edge and by scrap's own
-  bearer token. A NetworkPolicy admits only ingress-nginx to the scrap pod,
-  so nothing else in the cluster can forge the identity headers.
+  bearer token. NetworkPolicies admit only ingress-nginx and the Gateway to
+  the scrap pod, so nothing else in the cluster can forge the identity headers.
 
 ## Who can reach what
 
@@ -277,7 +283,7 @@ flowchart TB
     end
 
     subgraph Cluster["K3s cluster"]
-        NGINX["ingress-nginx"]
+        NGINX["Cilium's Gateway"]
         DexSvc["Dex clients:<br/>ArgoCD, argocd-monitor, Grafana"]
         ProxySvc["oauth2-proxy gated:<br/>Headlamp, Alertmanager,<br/>Minecraft dashboard, scrap"]
         Plain["No login: home, echo"]

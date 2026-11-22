@@ -400,7 +400,10 @@ while true; do
   nodes_total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
   nodes_ready=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
   apps_total=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | wc -l)
-  apps_healthy=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Healthy' || true)
+  # The gateway app stays Progressing while its Gateway is kept off the node
+  # addresses (ADR 0016, until phase 2), so count that as healthy.
+  apps_healthy=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null \
+    | awk '$3 == "Healthy" || ($1 == "gateway" && $3 == "Progressing")' | wc -l)
   apps_synced=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Synced' || true)
   ss_total=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)
   ss_ok=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | grep -c 'True' || true)

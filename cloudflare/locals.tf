@@ -1,14 +1,14 @@
 locals {
-  # Every tunnel route goes through the cluster's ingress controller, so
-  # oauth2-proxy and the ingress rules apply (see the cloudflare skill).
-  ingress_nginx = "http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+  # Every tunnel route goes through Cilium's Gateway (ADR 0016), so
+  # oauth2-proxy and the HTTPRoutes apply (see the cloudflare skill).
+  gateway = "http://cilium-gateway-web.gateway.svc.cluster.local"
 
   # The one list of public services. Each entry is a tunnel ingress rule
   # (in this order, ahead of the 404 catch-all) and a proxied CNAME to the
   # tunnel. Removing a service here removes its route and its DNS record.
   #
   #   name           - hostname below var.domain
-  #   service        - origin URL; defaults to the ingress controller
+  #   service        - origin URL; defaults to the Gateway
   #   origin_request - optional per-route cloudflared settings
   #   cache          - true adds a "cache everything" rule for the host
   #   access_bypass  - true allows an Access app that lets anyone in
@@ -16,7 +16,7 @@ locals {
   #                    plan fails on such an app (see access_guard.tf)
   tunnel_services = [
     { name = "echo" },
-    { name = "grafana", service = "${local.ingress_nginx}:80" },
+    { name = "grafana" },
     { name = "headlamp" },
     { name = "hubble" },
     { name = "oauth2" },
@@ -36,7 +36,7 @@ locals {
     [
       for s in local.tunnel_services : {
         hostname       = "${s.name}.${var.domain}"
-        service        = lookup(s, "service", local.ingress_nginx)
+        service        = lookup(s, "service", local.gateway)
         origin_request = lookup(s, "origin_request", null)
       }
     ],

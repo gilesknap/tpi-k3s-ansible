@@ -30,7 +30,7 @@ flowchart LR
     cf["Cloudflare Tunnel<br/>and Access"]
     vps["VPS: frps<br/>mc.gkcluster.org"]
     relay["vps-relay pod<br/>(frpc, over the tailnet)"]
-    nginx["ingress-nginx<br/>and oauth2-proxy"]
+    nginx["Cilium's Gateway<br/>and oauth2-proxy"]
     dash["minecraft-dashboard"]
     subgraph nuc2["nuc2 (192.168.1.92)"]
         worlds["World pods<br/>game NodePorts 30565-30584<br/>RCON NodePorts 30600-30619"]
@@ -164,7 +164,7 @@ re-run the ingest script, and lock it again.
 Both names are code in `cloudflare/` ({doc}`/how-to/cloudflare-as-code`):
 
 - **The dashboard.** `{ name = "minecraft" }` in `tunnel_services` in
-  `cloudflare/locals.tf` creates the tunnel route to ingress-nginx and the
+  `cloudflare/locals.tf` creates the tunnel route to Cilium's Gateway and the
   proxied CNAME. The `clusterapps` Access application (`*.gkcluster.org`,
   owner only) already covers the hostname, so there is nothing to add in
   `access.tf`.

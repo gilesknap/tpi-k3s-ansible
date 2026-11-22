@@ -1,0 +1,27 @@
+# Defaults for the per-app ingress sub-chart. Each Application that uses it
+# sets name, cluster_domain, service_name, service_port, ssl_redirect and
+# oauth2_proxy in its valuesObject.
+
+# The ingress-nginx Ingress (templates/ingress.yaml). false emits only the
+# HTTPRoute, for an app whose Ingress comes from its own chart (Alertmanager,
+# oauth2-proxy, scrap's public pages) or from Ansible (ArgoCD).
+ingress: true
+
+# The Gateway API HTTPRoute that mirrors the Ingress (templates/httproute.yaml,
+# ADR 0016). It is rendered only once the Gateway API CRDs exist.
+http_route: true
+
+# The namespace for the HTTPRoute, when it is not the Application's own: an
+# HTTPRoute must sit beside its backend Service unless a ReferenceGrant allows
+# otherwise. Empty means the release namespace.
+namespace: ""
+
+# The HTTPRoute's timeouts.request (ADR 0016). Empty leaves it out, so Envoy
+# gives each request 15 s in all; an app that streams or runs long requests
+# sets "0s", which turns that limit off.
+gateway_request_timeout: ""
+
+# The Gateway the HTTPRoutes attach to (additions/gateway).
+gateway:
+  name: web
+  namespace: gateway

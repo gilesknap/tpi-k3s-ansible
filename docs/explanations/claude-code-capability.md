@@ -23,7 +23,7 @@ stacking on top of each other:
 | **Provisioning layers** | Ansible (OS and K3s), then Ansible installing ArgoCD and its root application, then ArgoCD for everything else, with OpenTofu for the Cloudflare edge alongside. Each layer fails in its own way |
 | **Stateful data** | Grafana and Prometheus on node04; Jellyfin's library database on nuc2; scrap's database, replicated to the NAS; every Minecraft world on the NAS. All of it must survive a rebuild ({doc}`/explanations/architecture/storage`) |
 | **Secret management** | 13 SealedSecrets, sealed again on every rebuild because the sealing key is new. Some values are generated at random, some come from outside (GitHub OAuth apps, Cloudflare, Tailscale, Google Drive), and some are held by clients and must not change (scrap's MCP token, the ntfy tokens) |
-| **Auth stack** | Cloudflare Access at the edge, then ingress-nginx, then either Dex (ArgoCD, Grafana, argocd-monitor) or oauth2-proxy (Headlamp, Alertmanager, scrap, Minecraft), all ending at GitHub. A chain where any link can break without an error ({doc}`/explanations/architecture/authentication`) |
+| **Auth stack** | Cloudflare Access at the edge, then Cilium's Gateway, then either Dex (ArgoCD, Grafana, argocd-monitor) or oauth2-proxy (Headlamp, Alertmanager, scrap, Minecraft), all ending at GitHub. A chain where any link can break without an error ({doc}`/explanations/architecture/authentication`) |
 
 An agent that can operate this system safely is doing something non-trivial.
 The rest of this page explains what makes it possible.

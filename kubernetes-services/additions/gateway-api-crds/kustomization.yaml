@@ -1,0 +1,26 @@
+# Gateway API CRDs, experimental channel, for Cilium's Gateway (ADR 0016).
+#
+# The experimental channel because the HTTPRoute ExternalAuth filter
+# (GEP-1494), which gates the oauth2-proxy apps, is only in its CRDs. The
+# version is the one Cilium 1.20.5 is built and documented against
+# (gateway_api_version in its Documentation/conf.py); a Gateway API bump goes
+# with a Cilium release that supports it, so read Cilium's upgrade notes first
+# (Renovate does not automerge it, renovate.json).
+#
+# This file is the one copy of the version. ArgoCD syncs it (the
+# gateway-api-crds Application), and on a new cluster the k3s role applies the
+# same build before it installs Cilium (roles/k3s/tasks/cilium.yml): the
+# Cilium operator only starts its Gateway API controller if these CRDs exist
+# when it starts.
+#
+# The bundle also holds the upstream safe-upgrades ValidatingAdmissionPolicy,
+# which refuses an experimental-channel CRD over a standard one and any
+# bundle older than v1.5. It does not stop the opposite: a standard-channel
+# HTTPRoute CRD applied over this one (by another chart, say) would drop the
+# externalAuth field from the gated routes, and Cilium skips a filter with
+# no body, so they would serve without oauth2-proxy. Nothing here installs
+# standard-channel CRDs (k3s's Traefik is disabled); keep it that way.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubernetes-sigs/gateway-api/config/crd/experimental?ref=v1.6.3

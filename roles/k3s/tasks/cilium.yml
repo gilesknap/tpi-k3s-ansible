@@ -45,6 +45,20 @@
 - name: Install Cilium {{ k3s_cilium_app.spec.source.targetRevision }}
   when: k3s_cilium_ds.resources | length == 0
   block:
+    # The Cilium operator enables its Gateway API controller only if these
+    # CRDs exist when it starts (ADR 0016), so they go first. The same
+    # kustomize build that the gateway-api-crds Application syncs, with
+    # ArgoCD's server-side apply field manager, so ArgoCD adopts them as its
+    # own; it owns them from then on. Server-side, as the HTTPRoute CRD is too
+    # big for client-side apply's last-applied annotation.
+    - name: Install the Gateway API CRDs
+      kubernetes.core.k8s:
+        definition: "{{ lookup('kubernetes.core.kustomize', dir=playbook_dir ~ '/kubernetes-services/additions/gateway-api-crds') }}"
+        apply: true
+        server_side_apply:
+          field_manager: argocd-controller
+          force_conflicts: true
+
     # Waits for the agents and operator, and for Hubble Relay and UI, which
     # can only start once the agents have made the nodes Ready.
     - name: Install the Cilium chart

@@ -1,0 +1,36 @@
+# The Gateway API CRDs (experimental channel) for Cilium's Gateway, ADR 0016.
+# The version is in additions/gateway-api-crds/kustomization.yaml.
+#
+# No resources finalizer, unlike the other Applications, and no pruning:
+# deleting or renaming this Application, or a CRD that a later release drops,
+# must orphan the CRDs rather than delete them, as deleting a CRD deletes
+# every Gateway and route made from it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api-crds
+  namespace: argo-cd
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+  project: kubernetes
+  source:
+    path: ./kubernetes-services/additions/gateway-api-crds
+    repoURL: {{ .Values.repo_remote }}
+    targetRevision: {{ .Values.repo_branch }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      # The HTTPRoute and Gateway CRDs are too big for client-side apply's
+      # last-applied annotation. The k3s role applies them with the same
+      # field manager as ArgoCD (argocd-controller), so ArgoCD adopts them
+      # without a field-ownership conflict.
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2

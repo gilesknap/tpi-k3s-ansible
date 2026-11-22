@@ -15,7 +15,7 @@ flowchart TB
     mcp["MCP client<br/>(Claude Code)"]
     reader["Anyone"]
     cf["Cloudflare Tunnel and Access"]
-    nginx["ingress-nginx"]
+    nginx["Cilium's Gateway"]
     o2p["oauth2-proxy<br/>(GitHub, admin_emails)"]
     subgraph ns1["namespace scrap (any node)"]
         scrap["scrap pod:<br/>scrap, litestream, jobs"]
@@ -67,10 +67,13 @@ scrap has no login of its own, so access control is layered in front of it.
 The `/mcp` path cannot use oauth2-proxy, because an MCP client cannot complete
 a browser login. It has its own Ingress, `scrap-mcp-ingress`, without the
 oauth2 annotations; nginx routes to the most specific path, so `/mcp` requests
-go there and everything else goes to the gated `scrap-ingress`.
+go there and everything else goes to the gated `scrap-ingress`. On the Gateway,
+which the tunnel reaches, the same file makes a `/mcp` HTTPRoute without the
+ExternalAuth filter, and Envoy likewise picks the longest matching prefix.
 
-The NetworkPolicy admits only the `ingress-nginx` namespace to the scrap pod,
-so nothing else in the cluster can reach it or forge the identity headers that
+The NetworkPolicy admits only the `ingress-nginx` namespace, and the
+`scrap-from-gateway` CiliumNetworkPolicy only Cilium's Gateway, to the scrap
+pod, so nothing else in the cluster can reach it or forge the identity headers that
 oauth2-proxy sets.
 
 :::{warning}
@@ -94,7 +97,7 @@ The edge half of the table above is code in `cloudflare/`
 dashboard except the service token itself.
 
 In `cloudflare/locals.tf`, two `tunnel_services` entries create the tunnel
-routes to ingress-nginx and the proxied CNAMEs:
+routes to Cilium's Gateway and the proxied CNAMEs:
 
 ```hcl
 { name = "scrap" },
