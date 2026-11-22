@@ -6,7 +6,8 @@ out the LAN's addresses and answers its DNS with dnsmasq. Its whole
 `roles/router/templates/dhcp.j2`, filled from `hosts.yml` and
 `group_vars/all.yml`. Change those, preview the diff, and push it with
 confirm-or-revert. Don't edit the router's copy in LuCI or with `uci`: the
-next push puts the template's version back.
+next push puts the template's version back. The router's firewall is not
+code yet ({ref}`router-firewall`).
 
 In the Claude sandbox add
 `--private-key /root/.config/claude-ssh/id_ed25519` to the commands on this

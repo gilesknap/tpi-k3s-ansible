@@ -3,7 +3,8 @@
 The home router is a MikroTik hEX S (RouterBOARD 760iGS, MediaTek MT7621)
 running OpenWrt 23.05.5, at 192.168.1.1 (`dns_router` in
 `group_vars/all.yml`). It carries every household device's traffic and
-DNS, not only the cluster's. This page covers its daily backup, changing
+DNS, not only the cluster's. This page covers its daily backup, its
+firewall, changing
 it with a revert that fires by itself unless the change is confirmed,
 restoring it with a playbook, and getting it back when SSH to it is gone.
 Its DNS and DHCP configuration is code: {doc}`/how-to/router-dhcp`.
@@ -82,6 +83,41 @@ its log and metrics. To list the backups:
 ```bash
 ssh nas sudo ls -l /bigdisk/k8s-cluster/backups/router
 ```
+
+(router-firewall)=
+## Firewall
+
+The router's firewall is OpenWrt's default, with one change: hardware
+flow offloading, `option flow_offloading '1'` and
+`option flow_offloading_hw '1'` in `config defaults` of
+`/etc/config/firewall`. Everything else is as shipped (compare it with
+`/rom/etc/config/firewall`):
+
+- zone `lan` accepts input, output and forward;
+- zone `wan` rejects input and forward, masquerades and clamps the MSS
+  (`mtu_fix`);
+- one forwarding, `lan` to `wan`;
+- the stock rules: Allow-DHCP-Renew, Allow-Ping, Allow-IGMP, Allow-DHCPv6,
+  Allow-MLD, Allow-ICMPv6-Input, Allow-ICMPv6-Forward, Allow-IPSec-ESP and
+  Allow-ISAKMP.
+
+The live file differs from the ROM copy in formatting too, because `uci`
+and LuCI rewrite it: no comments, different quoting, and `syn_flood`
+written as its newer name `synflood_protect`. These change nothing.
+
+There are no port forwards. The WAN is behind CGNAT, so a forward from
+the internet would never be reached; the Minecraft server is reached
+through the VPS instead ({doc}`/how-to/vps-relay`). The last forward, a
+DNAT of WAN TCP 30565-30584 to nuc2, was removed on 22 Nov 2026.
+`/etc/nftables.d/10-custom-filter-chains.nft` is OpenWrt's example,
+entirely commented out.
+
+The firewall is not managed as code: the daily backup above carries it,
+and a restore brings it back. If a real rule is ever needed, push it the
+way the DNS and DHCP are pushed ({doc}`/how-to/router-dhcp`): a template
+in `roles/router/templates/` and a change task like
+`roles/router/tasks/dhcp.yml`, run under `--tags change` so a rule that
+cuts the router off reverts by itself.
 
 ## Change the router safely
 
