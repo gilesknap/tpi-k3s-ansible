@@ -1,6 +1,8 @@
 # Is the router doing its job? Run on the controller, except the last,
 # which logs in to the router afresh. Each check fails the play (or, in a
-# guarded change, the confirm block) on its own.
+# guarded change, the confirm block) on its own. router_check_retries
+# (default none) retries the internet and DNS checks every 10 s, for a
+# router still bringing its WAN up after a reboot.
 #
 #   ansible-playbook pb_router.yml --tags check
 
@@ -10,6 +12,7 @@
     filter: [ansible_default_ipv4]
   delegate_to: "{{ control_plane }}"
   delegate_facts: true
+  when: hostvars[control_plane].ansible_facts.default_ipv4 is not defined
 
 - name: Check the internet is reachable
   ansible.builtin.uri:
@@ -17,6 +20,10 @@
     method: HEAD
     timeout: 15
   delegate_to: localhost
+  register: router_check_internet
+  retries: "{{ router_check_retries | default(0) }}"
+  delay: 10
+  until: router_check_internet is not failed
 
 # host, not dig: dig cannot exit cleanly in the Claude sandbox.
 - name: Check the router's DNS answers {{ router_check_name }}
@@ -26,6 +33,9 @@
   register: router_check_public
   changed_when: false
   failed_when: router_check_public.rc != 0 or ' has address ' not in router_check_public.stdout
+  retries: "{{ router_check_retries | default(0) }}"
+  delay: 10
+  until: router_check_public is not failed
 
 - name: Check the router resolves the API name to the control plane, {{ k3s_api_name }}
   ansible.builtin.command:

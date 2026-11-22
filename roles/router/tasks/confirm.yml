@@ -1,10 +1,15 @@
-# After a change: run the checks and, only if they all pass, disarm the
-# revert that arm.yml set. If a check fails and SSH to the router still
-# works, revert now; without SSH, the router reverts by itself at
-# router_guard_deadline. Either way the play fails.
+# Apply the change (router_change_tasks), run the checks and, only if
+# they all pass, disarm the revert that arm.yml set. If the change or a
+# check fails and SSH to the router still works, revert now; without SSH,
+# the router reverts by itself at router_guard_deadline. Either way the
+# play fails.
 
-- name: Check the router and confirm the change
+- name: Change the router, check it and confirm the change
   block:
+    - name: Apply the change
+      ansible.builtin.include_tasks: "{{ router_change_tasks }}.yml"
+      when: router_change_tasks | length > 0
+
     - name: Run the checks
       ansible.builtin.include_tasks: check.yml
 

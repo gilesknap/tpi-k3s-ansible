@@ -8,7 +8,8 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 ## Playbook Structure
 - Entry point: `pb_all.yml` (NOT `site.yml`)
 - Decommission: `pb_decommission.yml`
-- Router: `pb_router.yml` (host `router`, group `routers`; `raw` only,
+- Router: `pb_router.yml` (host `router`, group `routers`; no Python: `raw`,
+  and `script` for the restore's file copy;
   every play tagged `never`: `--tags check|change|drill|restore`; in the
   sandbox add `--private-key /root/.config/claude-ssh/id_ed25519`).
   Change the router only through `--tags change` (confirm-or-revert);

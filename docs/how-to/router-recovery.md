@@ -123,12 +123,27 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    - a new SSH login to the router works.
 6. **Confirm or revert.** Only if every check passes does the play disarm
    the watchdog (`start-stop-daemon -K`) and delete `/tmp/router-guard`.
-   If one fails and SSH to the router still works, the play runs the
+   If the change or a check fails and SSH to the router still works, the play runs the
    revert at once (`sysupgrade -r` on the snapshot, then a reboot), waits
    for the router to come back, and fails, naming the check. If SSH fails
    too, it fails saying when the router will revert by itself, and the
    router does so on time. Either way the internet is down for a minute or
    two while it reboots; afterwards run the checks again (below).
+
+A change that drops SSH while it is being applied can leave the play
+hanging until the router reverts and reboots, which closes the session:
+that is expected, and the play then fails.
+
+If the play is stopped (Ctrl-C) while the guard is armed, the router still
+reverts at the deadline. To keep the change instead, disarm it by hand:
+
+```bash
+ssh root@192.168.1.1 'start-stop-daemon -K -p /tmp/router-guard/pid; rm -rf /tmp/router-guard'
+```
+
+The same `rm -rf /tmp/router-guard` clears a stale lock left by an arm
+that failed after creating it (a failed `sysupgrade -b`), which otherwise
+makes the next run fail at `mkdir`; a reboot clears it too.
 
 The snapshot only unpacks over `/`, as a restore does: a change that adds
 files (a new `/etc/nftables.d/*.nft`) leaves them behind after a revert,
@@ -152,7 +167,8 @@ Proves the guard on the real router. It arms the guard, writes a note
 into the router's system settings (`uci set system.@system[0].notes='router-guard drill <time>'`,
 committed), deliberately does not confirm it, waits for the watchdog to
 restore the snapshot and reboot the router, then checks the note is gone
-and runs the checks:
+and runs the checks, retrying the internet and DNS checks for up to two
+minutes while the WAN comes back:
 
 ```bash
 ansible-playbook pb_router.yml --tags drill
