@@ -261,7 +261,8 @@ etcd-backup-now:
         sudo journalctl -u k3s-etcd-backup.service -n 20 --no-pager; \
         cat /var/lib/node_exporter/textfile_collector/k3s_etcd_backup.prom | grep -v "^#"'
 
-# Run it before every change to the router. See docs/how-to/router-recovery.md.
+# pb_router.yml --tags change runs it first itself; run it by hand before any
+# other change to the router. See docs/how-to/router-recovery.md.
 # Back up the router's config to the NAS now, encrypted, and show the result
 router-backup:
     #!/usr/bin/env bash

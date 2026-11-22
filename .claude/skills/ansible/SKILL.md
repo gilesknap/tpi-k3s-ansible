@@ -8,6 +8,11 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 ## Playbook Structure
 - Entry point: `pb_all.yml` (NOT `site.yml`)
 - Decommission: `pb_decommission.yml`
+- Router: `pb_router.yml` (host `router`, group `routers`; `raw` only,
+  every play tagged `never`: `--tags check|change|drill|restore`; in the
+  sandbox add `--private-key /root/.config/claude-ssh/id_ed25519`).
+  Change the router only through `--tags change` (confirm-or-revert);
+  see `docs/how-to/router-recovery.md`.
 - Vars: `group_vars/all.yml` — single source of truth for cluster-wide settings
 - Inventory: `hosts.yml`
 - ArgoCD apps: `kubernetes-services/templates/`; extra manifests in

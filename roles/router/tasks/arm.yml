@@ -1,0 +1,45 @@
+# Back the router up off the router, snapshot it on the router, and arm a
+# watchdog there that restores the snapshot and reboots unless confirm.yml
+# disarms it within router_guard_timeout seconds.
+
+# As `just router-backup`: an encrypted copy on the NAS, in case the
+# revert itself goes wrong. systemctl start waits for the oneshot job and
+# fails if it fails.
+- name: Back the router up to the NAS
+  ansible.builtin.systemd_service:
+    name: router-backup.service
+    state: started
+  delegate_to: "{{ control_plane }}"
+  become: true
+
+# mkdir is the lock: it fails if a guard is already armed, rather than
+# overwrite its snapshot with the state it is guarding against.
+# start-stop-daemon -b forks, calls setsid, points stdio at /dev/null and
+# forks again, so the watchdog belongs to init, in a session of its own:
+# the SSH session ending (or dying with the network) does not touch it.
+# It reverts only if the snapshot is still there: disarming kills it and
+# removes the directory.
+- name: Snapshot the router and arm the revert
+  vars:
+    router_guard_watchdog: >-
+      sleep {{ router_guard_timeout | int }};
+      [ -f {{ router_guard_dir }}/backup.tar.gz ] &&
+      logger -t router-guard 'change not confirmed: restoring the snapshot and rebooting' &&
+      sysupgrade -r {{ router_guard_dir }}/backup.tar.gz && reboot
+  ansible.builtin.raw: >-
+    umask 077 && mkdir {{ router_guard_dir }} &&
+    sysupgrade -b {{ router_guard_dir }}/backup.tar.gz &&
+    start-stop-daemon -S -b -m -p {{ router_guard_dir }}/pid -x /bin/sh -- -c {{ router_guard_watchdog | quote }} &&
+    sleep 1 && start-stop-daemon -K -t -q -p {{ router_guard_dir }}/pid
+  changed_when: true
+
+- name: Note when the router reverts by itself
+  ansible.builtin.set_fact:
+    router_guard_deadline: "{{ '%H:%M:%S' | strftime(now().timestamp() + router_guard_timeout | int) }}"
+
+- name: Show the deadline
+  ansible.builtin.debug:
+    msg: >-
+      Armed: unless the checks pass and disarm it, the router restores its
+      configuration from before the change and reboots at {{ router_guard_deadline }}
+      (controller time).

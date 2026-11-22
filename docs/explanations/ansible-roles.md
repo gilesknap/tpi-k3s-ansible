@@ -698,6 +698,23 @@ that are blank (or with `nas_force`). See {doc}`/how-to/nas-ubuntu-zfs`.
 
 ---
 
+## `router` — the OpenWrt router (separate playbook)
+
+**Runs on:** `router` (the `routers` group) only, from `pb_router.yml`
+**Tags:** `check`, `change`, `drill`, `restore`, each with `never`
+
+Task files for the home router, which has no Python: `raw` on the router,
+and everything else delegated to the controller or the control plane.
+`check.yml` checks the router is doing its job, `arm.yml` and
+`confirm.yml` wrap a change in confirm-or-revert (an encrypted backup to
+the NAS, a snapshot and a watchdog on the router that restores it unless
+the checks pass), `drill.yml` proves the revert, and `reboot_wait.yml`
+waits out a reboot. A change is another task file of the role, named by
+`router_change_tasks` and run between `arm` and `confirm`.
+See {doc}`/how-to/router-recovery`.
+
+---
+
 ## `cluster` — ArgoCD and service deployment
 
 **Runs on:** localhost (devcontainer)

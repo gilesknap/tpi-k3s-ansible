@@ -1,0 +1,22 @@
+# Wait for the router to go down and for its SSH to come back. Ansible's
+# open connection to it died with the reboot: close it, so the next task
+# logs in afresh.
+
+- name: Wait for the router to go down
+  ansible.builtin.wait_for:
+    host: "{{ router_address }}"
+    port: 22
+    state: stopped
+    timeout: "{{ router_down_timeout | default(120) }}"
+  delegate_to: localhost
+
+- name: Wait for SSH on the router to come back
+  ansible.builtin.wait_for:
+    host: "{{ router_address }}"
+    port: 22
+    delay: 10
+    timeout: 300
+  delegate_to: localhost
+
+- name: Close the old SSH connection to the router
+  ansible.builtin.meta: reset_connection

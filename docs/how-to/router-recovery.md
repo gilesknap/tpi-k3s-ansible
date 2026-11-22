@@ -3,8 +3,15 @@
 The home router is a MikroTik hEX S (RouterBOARD 760iGS, MediaTek MT7621)
 running OpenWrt 23.05.5, at 192.168.1.1 (`dns_router` in
 `group_vars/all.yml`). It carries every household device's traffic and
-DNS, not only the cluster's. This page covers its daily backup, restoring
-it with a playbook, and getting it back when SSH to it is gone.
+DNS, not only the cluster's. This page covers its daily backup, changing
+it with a revert that fires by itself unless the change is confirmed,
+restoring it with a playbook, and getting it back when SSH to it is gone.
+
+`pb_router.yml` reaches the router as the `router` host in `hosts.yml`
+(user and address from `dns_router`), with `raw`, as it has no Python.
+Every play in it is tagged `never`, so a run names one with `--tags`. In
+the Claude sandbox, add `--private-key /root/.config/claude-ssh/id_ed25519`
+to each `ansible-playbook` command on this page.
 
 A backup is a `sysupgrade -b` tarball: everything under `/etc/config/`,
 `/etc/passwd`, `/etc/shadow` (the root password hash), the Dropbear host
@@ -61,7 +68,8 @@ just router-backup
 
 ### Back up now
 
-Run this **before every change to the router**:
+`pb_router.yml --tags change` (below) runs this first itself. Run it
+**before any other change to the router**, over SSH by hand or in LuCI:
 
 ```bash
 just router-backup
@@ -73,6 +81,86 @@ its log and metrics. To list the backups:
 ```bash
 ssh nas sudo ls -l /bigdisk/k8s-cluster/backups/router
 ```
+
+## Change the router safely
+
+A bad firewall, network or DNS change can cut the internet for the whole
+house, and with it the SSH session that made it. LuCI rolls an unconfirmed
+change back after 90 seconds; changes over SSH get the same from
+`pb_router.yml --tags change`:
+
+```bash
+ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
+```
+
+1. **Backup off the router.** It starts `router-backup.service` on node02,
+   as `just router-backup` does, and stops unless it succeeds: an
+   encrypted copy from just before the change is on the NAS.
+2. **Snapshot on the router.** `sysupgrade -b /tmp/router-guard/backup.tar.gz`,
+   in RAM. Creating `/tmp/router-guard` is also the lock: a second run
+   while a guard is armed fails there, rather than snapshot the state the
+   first one guards against.
+3. **Arm the revert.** A watchdog on the router, started with
+   `start-stop-daemon -b -m -p /tmp/router-guard/pid`, sleeps
+   `router_guard_timeout` seconds (default 300, `-e router_guard_timeout=<s>`
+   to change it), then, if the snapshot is still there, logs
+   `router-guard` to syslog, runs `sysupgrade -r` on the snapshot and
+   reboots. `start-stop-daemon -b` forks, calls `setsid`, points stdin,
+   stdout and stderr at `/dev/null` and forks again, so the watchdog is a
+   child of init in a session of its own, with no terminal: the SSH
+   session ending, or dying with the network, does not reach it. The play
+   prints the time the revert fires (controller time).
+4. **The change:** the task file `roles/router/tasks/<name>.yml`. With no
+   `router_change_tasks` the play skips this and only arms, checks and
+   disarms, a harmless test of the guard.
+5. **The checks**, from the controller (`roles/router/tasks/check.yml`):
+   - the internet answers: HTTPS to `router_check_url` (`https://github.com`);
+   - the router's DNS answers a public name (`host -t A github.com 192.168.1.1`);
+   - `k3s.lan` (`k3s_api_name`) resolves via the router to node02's
+     address, read from node02 itself;
+   - the cluster API answers on port 6443 (any HTTP status: anonymous
+     requests get 401);
+   - a new SSH login to the router works.
+6. **Confirm or revert.** Only if every check passes does the play disarm
+   the watchdog (`start-stop-daemon -K`) and delete `/tmp/router-guard`.
+   If one fails and SSH to the router still works, the play runs the
+   revert at once (`sysupgrade -r` on the snapshot, then a reboot), waits
+   for the router to come back, and fails, naming the check. If SSH fails
+   too, it fails saying when the router will revert by itself, and the
+   router does so on time. Either way the internet is down for a minute or
+   two while it reboots; afterwards run the checks again (below).
+
+The snapshot only unpacks over `/`, as a restore does: a change that adds
+files (a new `/etc/nftables.d/*.nft`) leaves them behind after a revert,
+so a change edits the existing `/etc/config/*` files rather than add new
+ones.
+A power cut while the guard is armed clears the snapshot and the watchdog
+with the rest of RAM, and the router boots with the change; the backup on
+the NAS from step 1 is the way back then.
+
+### Check the router
+
+The checks of step 5, on their own, change nothing:
+
+```bash
+ansible-playbook pb_router.yml --tags check
+```
+
+### Drill the revert
+
+Proves the guard on the real router. It arms the guard, writes a note
+into the router's system settings (`uci set system.@system[0].notes='router-guard drill <time>'`,
+committed), deliberately does not confirm it, waits for the watchdog to
+restore the snapshot and reboot the router, then checks the note is gone
+and runs the checks:
+
+```bash
+ansible-playbook pb_router.yml --tags drill
+```
+
+It takes `router_guard_timeout` (5 minutes) plus the reboot, and **the
+internet is down for everyone for a minute or two** during the reboot.
+`-e router_guard_timeout=60` makes it shorter.
 
 ## Restore with the playbook
 
@@ -93,12 +181,12 @@ For a router that still answers SSH, e.g. after a bad change.
    ansible-playbook pb_router.yml --tags restore -e router_restore_file=/dev/shm/router.tar.gz
    ```
 
-   The playbook runs on the controller with your own ssh to `dns_router`,
-   the same way `just k3s-api-dns` does. It lists the files in the backup
-   and asks you to type `yes` (anything else stops it), then pipes the file to
-   `sysupgrade -r -` on the router (no scp or copy in `/tmp` needed),
-   reboots the router and waits for its SSH to come back. The internet is
-   down for everyone for a minute or two.
+   It lists the files in the backup and asks you to type `yes` (anything
+   else stops it). Ansible's `script` module then copies the file into a
+   temporary directory in the router's `/tmp` (RAM), runs `sysupgrade -r`
+   on it and deletes the directory. The play reboots the router and waits
+   for its SSH to come back. The internet is down for everyone for a
+   minute or two.
 
 3. Delete `/dev/shm/router.tar.gz`.
 

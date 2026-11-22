@@ -487,7 +487,7 @@ def inventory() -> list[tuple[str, str, str]]:
             if ind == 0:
                 group = line.rstrip(":")
                 cur = None
-            elif ind == 4 and line.endswith(":") and group not in ("all_nodes",):
+            elif ind == 4 and line.endswith(":") and group not in ("all_nodes", "routers"):
                 name = line.strip().rstrip(":")
                 if group == "controller":
                     continue

@@ -17,9 +17,10 @@ For what the machines are, see {doc}`/explanations/architecture/hardware`.
 | `extra_nodes` | `ws03`, `nuc2`, `nuc1` | `pb_add_nodes.yml`, which gives Ansible its account on a machine whose OS was installed by hand; member of `all_nodes` |
 | `all_nodes` | `turingpi_nodes` and `extra_nodes` | Every node play in `pb_all.yml` (`known_hosts`, `servers`, `k3s`, `claude_key`) and `pb_decommission.yml` |
 | `nas` | `gknas` (the NAS) | `pb_nas.yml` only ({doc}`/how-to/nas-ubuntu-zfs`). The NAS is not a cluster node: it is in no other group, so no play of `pb_all.yml`, `pb_add_nodes.yml` or `pb_decommission.yml` reaches it, and the `nas` role refuses a host that is in `all_nodes` |
+| `routers` | `router` (the OpenWrt router) | `pb_router.yml` only ({doc}`/how-to/router-recovery`). Its address and user come from `dns_router`, and it is in no other group. It has no Python, so its plays use `raw` and `script` and gather no facts; `script` sends files with `dd` (`ansible_ssh_transfer_method: piped`), as the router has no SFTP |
 
-`turing_pis` connects as `tpi_user` (`root`); the node groups connect as
-`ansible_account` (`ansible`), with sudo.
+`turing_pis` connects as `tpi_user` (`root`), and `routers` as `root`; the
+node groups connect as `ansible_account` (`ansible`), with sudo.
 
 ### The `<bmc>_nodes` rule
 
@@ -65,8 +66,10 @@ control plane is not an inventory setting: `control_plane` and
 | `nuc2` | `extra_nodes` | 192.168.1.92 | | | | `node_ip: 192.168.1.92`, `intel_gpu_node` | Worker |
 | `nuc1` | `extra_nodes` | 192.168.1.91 | | | | | Worker |
 | `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` |
+| `router` | `routers` | 192.168.1.1 | | | | | No: the OpenWrt router, changed only by `pb_router.yml` |
 
-The addresses are not in `hosts.yml`; they are the ones the router hands out,
+The addresses are not in `hosts.yml` (the router's comes from `dns_router`);
+they are the ones the router hands out,
 and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.
 
 Slot 1 of the board is not in the inventory. It holds `node01`, a CM4 that
