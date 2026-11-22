@@ -1,0 +1,59 @@
+# Apply the change (router_change_tasks), run the checks and, only if
+# they all pass, disarm the revert that arm.yml set. If the change or a
+# check fails and SSH to the router still works, revert now; without SSH,
+# the router reverts by itself at router_guard_deadline. Either way the
+# play fails.
+
+- name: Change the router, check it and confirm the change
+  block:
+    # A step that drops its own SSH session (a network or firewall reload)
+    # is unreachable, which skips a rescue: carry on into the checks,
+    # whose fresh SSH login fails into the rescue if the router is lost.
+    - name: Apply the change
+      ansible.builtin.include_tasks:
+        file: "{{ router_change_tasks }}.yml"
+        apply:
+          ignore_unreachable: true
+      when: router_change_tasks | length > 0
+
+    - name: Run the checks
+      ansible.builtin.include_tasks: check.yml
+
+    # Fails if the watchdog is gone (it has already fired).
+    - name: Disarm the revert
+      ansible.builtin.raw: >-
+        start-stop-daemon -K -p {{ router_guard_dir }}/pid &&
+        rm -rf {{ router_guard_dir }}
+      changed_when: true
+
+  rescue:
+    - name: Close the SSH connection to the router
+      ansible.builtin.meta: reset_connection
+
+    - name: See whether SSH to the router still works
+      ansible.builtin.raw: "true"
+      changed_when: false
+      ignore_unreachable: true
+      register: router_guard_ssh
+
+    - name: Revert now
+      when: not (router_guard_ssh.unreachable | default(false))
+      block:
+        # The session may drop as the router goes down (ssh exits 255).
+        - name: Restore the snapshot and reboot
+          ansible.builtin.raw: sysupgrade -r {{ router_guard_dir }}/backup.tar.gz && reboot
+          changed_when: true
+          failed_when: false
+          ignore_unreachable: true
+
+        - name: Wait for the router to reboot
+          ansible.builtin.include_tasks: reboot_wait.yml
+
+    - name: Report the failed check
+      ansible.builtin.fail:
+        msg: >-
+          {{ ansible_failed_task.name }} failed: {{ ansible_failed_result.msg | default('') or ansible_failed_result.stdout | default('') }}
+          {{ 'The router restored its configuration from before the change and rebooted.'
+             if not (router_guard_ssh.unreachable | default(false)) else
+             'SSH to the router fails too, so it reverts by itself at ' ~ router_guard_deadline
+             ~ ' (controller time) and reboots.' }}

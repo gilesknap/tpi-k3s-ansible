@@ -20,7 +20,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `control_plane` | `node02` | The (single) control plane node |
 | `standby_control_plane` | `node03` | Warm-standby control plane: the node a restore goes onto ({doc}`/how-to/recover-control-plane`). The `cluster` tag taints it `node-role.kubernetes.io/standby-control-plane:PreferNoSchedule` and removes that taint from any other node. Empty for none |
 | `k3s_api_name` | `k3s.lan` | Stable DNS name for the Kubernetes API, a record on the router that resolves to the control plane. Agents join it, it is a `tls-san` on the server certificate and the kubeconfig uses it, so moving the control plane means changing `control_plane` and this record. Every address it resolves to must be the control plane's |
-| `dns_router` | `root@192.168.1.1` | SSH target (`user@host`) of the OpenWrt router (dnsmasq, `uci`). Used by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane, by the control plane's daily router backup (`etcd_backup_router`) and by `pb_router.yml --tags restore` ({doc}`/how-to/router-recovery`) |
+| `dns_router` | `root@192.168.1.1` | SSH target (`user@host`) of the OpenWrt router (dnsmasq, `uci`). Used by `just k3s-api-dns <ip>` to point `k3s_api_name` at the control plane, by the control plane's daily router backup (`etcd_backup_router`) and by `pb_router.yml`, through the `router` host in `hosts.yml` ({doc}`/how-to/router-recovery`) |
 | `etcd_backup_age_recipient` | *(age public key)* | The key the nightly etcd backup is encrypted to; the private key is kept offline. Empty makes the backup fail without uploading. **SYNC:** `offsite_backup.age_recipient` (`scripts/check-age-recipient`, run by `just check`, fails if they differ) |
 | `cluster_domain` | `gkcluster.org` | Domain of every ingress host |
 | `domain_email` | *(an address)* | Let's Encrypt registration address for cert-manager |
@@ -88,6 +88,17 @@ described, with the values each node has, in {doc}`/reference/inventory`.
 | `etcd_backup_router_keep` | `30` | Router backups kept on the NAS |
 | `etcd_backup_router_on_calendar` | `*-*-* 23:00:00 Europe/London` | Its systemd `OnCalendar` schedule |
 | `etcd_backup_router_key` / `etcd_backup_router_known_hosts` | `/etc/k3s-etcd-backup/router_ed25519` / `router_known_hosts` | The job's SSH key, made on the control plane, and the router's pinned host key |
+
+### `router` role (`roles/router/defaults/main.yml`)
+
+Used by `pb_router.yml` ({doc}`/how-to/router-recovery`, "Change the router safely").
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `router_guard_timeout` | `300` | Seconds the router waits for a change to be confirmed before it restores its snapshot and reboots |
+| `router_guard_dir` | `/tmp/router-guard` | On the router (RAM): the snapshot, the watchdog's pid file, and the lock against arming twice |
+| `router_change_tasks` | `""` | The change `--tags change` makes: a task file of the role, `roles/router/tasks/<name>.yml`. Empty: arm, check and disarm only |
+| `router_check_url` / `router_check_name` | `https://github.com` / `github.com` | The public URL the controller must reach, and the public name the router's DNS must answer, in the checks |
 
 ### `nas` role (`roles/nas/defaults/main.yml`)
 

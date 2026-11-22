@@ -1,21 +1,70 @@
-# The OpenWrt router (dns_router in group_vars/all.yml). It has no Python,
-# so this runs on the controller and reaches the router with plain ssh, as
-# `just k3s-api-dns` does: your own ssh setup must log in to dns_router.
+# The OpenWrt router (dns_router in group_vars/all.yml), the `router` host
+# in hosts.yml. It has no Python, so the plays use raw and script, and
+# run their checks on the controller. Every play is tagged `never`: name
+# the one you want. In the Claude sandbox add
+# --private-key /root/.config/claude-ssh/id_ed25519.
 #
+#   ansible-playbook pb_router.yml --tags check
+#       Checks the router is doing its job: the internet, its DNS, k3s_api_name,
+#       the cluster API and SSH to it.
+#   ansible-playbook pb_router.yml --tags change [-e router_change_tasks=<name>]
+#       A change with confirm-or-revert: backs the router up to the NAS,
+#       snapshots it, arms a revert on the router (router_guard_timeout,
+#       300 s), runs roles/router/tasks/<name>.yml, then the checks. Only if
+#       they pass is the revert disarmed. With no change it arms, checks and
+#       disarms.
+#   ansible-playbook pb_router.yml --tags drill
+#       Proves the revert: arms it, writes a note into the router's system
+#       settings, leaves it unconfirmed, and checks the router reverted and
+#       rebooted. The internet is down for a minute or two.
 #   ansible-playbook pb_router.yml --tags restore -e router_restore_file=<file>
+#       <file> is a backup already decrypted with the offline age key, e.g.
+#       `(umask 077; age -d -i <key> router-<time>.tar.gz.age > /dev/shm/router.tar.gz)`.
+#       Lists the files, asks you to type yes, unpacks them over the router's
+#       own with `sysupgrade -r`, then reboots the router and waits for SSH.
 #
-# <file> is a backup already decrypted with the offline age key, e.g.
-# `(umask 077; age -d -i <key> router-<time>.tar.gz.age > /dev/shm/router.tar.gz)`.
-# The restore lists the files, asks you to type yes, unpacks them over the router's
-# own with `sysupgrade -r`, then reboots the router and waits for SSH.
 # See docs/how-to/router-recovery.md.
 
-- name: Restore the router's configuration from a backup
-  hosts: localhost
+- name: Check the router
+  hosts: router
   gather_facts: false
-  tags: restore
+  tags: [never, check]
+  tasks:
+    - name: Run the checks
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: check
+
+- name: Change the router, reverting by itself unless the checks pass
+  hosts: router
+  gather_facts: false
+  tags: [never, change]
+  tasks:
+    - name: Arm the revert
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: arm
+
+    - name: Change, check and confirm
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: confirm
+
+- name: Drill the confirm-or-revert guard
+  hosts: router
+  gather_facts: false
+  tags: [never, drill]
+  tasks:
+    - name: Run the drill
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: drill
+
+- name: Restore the router's configuration from a backup
+  hosts: router
+  gather_facts: false
+  tags: [never, restore]
   vars:
-    router_host: "{{ dns_router.split('@') | last }}"
     router_restore_path: "{{ router_restore_file | realpath }}"
   tasks:
     - name: Check a backup file was given
@@ -28,6 +77,7 @@
       ansible.builtin.shell:
         cmd: set -o pipefail && gzip -dc {{ router_restore_path | quote }} | tar -t
         executable: /bin/bash
+      delegate_to: localhost
       register: router_restore_list
       changed_when: false
 
@@ -49,31 +99,23 @@
         fail_msg: Not confirmed; nothing was changed on the router.
         quiet: true
 
-    # sysupgrade reads the archive from stdin with `-`, so nothing needs
-    # scp or a copy in the router's /tmp.
+    # script copies the file into a temporary directory on the router (in
+    # RAM), runs `sysupgrade -r <copy>` and removes the directory again.
     - name: Restore the backup on the router
-      ansible.builtin.shell:
-        cmd: ssh -o BatchMode=yes {{ dns_router | quote }} 'sysupgrade -r -' < {{ router_restore_path | quote }}
+      ansible.builtin.script:
+        cmd: "{{ router_restore_path }}"
+        executable: sysupgrade -r
       changed_when: true
 
-    # Dropbear may drop the session as the router goes down (ssh exits
-    # 255); the waits below check the outcome.
+    # Dropbear may drop the session as the router goes down; the waits
+    # check the outcome.
     - name: Reboot the router
-      ansible.builtin.command:
-        cmd: ssh -o BatchMode=yes {{ dns_router | quote }} reboot
+      ansible.builtin.raw: reboot
       changed_when: true
       failed_when: false
+      ignore_unreachable: true
 
-    - name: Wait for the router to go down
-      ansible.builtin.wait_for:
-        host: "{{ router_host }}"
-        port: 22
-        state: stopped
-        timeout: 120
-
-    - name: Wait for SSH on the router to come back
-      ansible.builtin.wait_for:
-        host: "{{ router_host }}"
-        port: 22
-        delay: 10
-        timeout: 300
+    - name: Wait for the router to reboot
+      ansible.builtin.include_role:
+        name: router
+        tasks_from: reboot_wait

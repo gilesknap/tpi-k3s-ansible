@@ -1,0 +1,74 @@
+# Is the router doing its job? Run on the controller, except the last,
+# which logs in to the router afresh. Each check fails the play (or, in a
+# guarded change, the confirm block) on its own. router_check_retries
+# (default none) retries the internet and DNS checks every 10 s, for a
+# router still bringing its WAN up after a reboot.
+#
+#   ansible-playbook pb_router.yml --tags check
+
+- name: Read the control plane's address
+  ansible.builtin.setup:
+    gather_subset: [network]
+    filter: [ansible_default_ipv4]
+  delegate_to: "{{ control_plane }}"
+  delegate_facts: true
+  when: hostvars[control_plane].ansible_facts.default_ipv4 is not defined
+
+- name: Check the internet is reachable
+  ansible.builtin.uri:
+    url: "{{ router_check_url }}"
+    method: HEAD
+    timeout: 15
+  delegate_to: localhost
+  register: router_check_internet
+  retries: "{{ router_check_retries | default(0) }}"
+  delay: 10
+  until: router_check_internet is not failed
+
+# host, not dig: dig cannot exit cleanly in the Claude sandbox.
+- name: Check the router's DNS answers {{ router_check_name }}
+  ansible.builtin.command:
+    cmd: host -t A -W 5 {{ router_check_name }} {{ router_address }}
+  delegate_to: localhost
+  register: router_check_public
+  changed_when: false
+  failed_when: router_check_public.rc != 0 or ' has address ' not in router_check_public.stdout
+  retries: "{{ router_check_retries | default(0) }}"
+  delay: 10
+  until: router_check_public is not failed
+
+- name: Check the router resolves the API name to the control plane, {{ k3s_api_name }}
+  ansible.builtin.command:
+    cmd: host -t A -W 5 {{ k3s_api_name }} {{ router_address }}
+  delegate_to: localhost
+  register: router_check_api_name
+  changed_when: false
+  failed_when: >-
+    router_check_api_name.rc != 0 or
+    router_check_api_name.stdout_lines | select('search', ' has address ') | map('split') | map('last') | list
+    != [hostvars[control_plane].ansible_facts.default_ipv4.address]
+
+# Any HTTP answer will do: anonymous requests get 401.
+- name: Check the cluster API answers on port 6443
+  ansible.builtin.uri:
+    url: https://{{ hostvars[control_plane].ansible_facts.default_ipv4.address }}:6443/version
+    validate_certs: false
+    status_code: [200, 401, 403]
+    timeout: 15
+  delegate_to: localhost
+
+# A new login, not the connection Ansible already holds open.
+- name: Close the SSH connection to the router
+  ansible.builtin.meta: reset_connection
+
+- name: Check SSH to the router still works
+  ansible.builtin.raw: "true"
+  changed_when: false
+  ignore_unreachable: true
+  register: router_check_ssh
+
+- name: Fail if SSH to the router does not work
+  ansible.builtin.assert:
+    that: not (router_check_ssh.unreachable | default(false))
+    fail_msg: "SSH to {{ dns_router }} fails: {{ router_check_ssh.msg | default('') }}"
+    quiet: true

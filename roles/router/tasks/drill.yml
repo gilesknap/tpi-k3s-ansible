@@ -1,0 +1,38 @@
+# Prove the guard: arm it, make a harmless change, do not confirm it, and
+# check the router puts itself back. The internet is down for everyone for
+# a minute or two while it reboots.
+#
+#   ansible-playbook pb_router.yml --tags drill
+
+- name: Arm the guard
+  ansible.builtin.include_tasks: arm.yml
+
+- name: Make a harmless change, a note in the router's system settings
+  ansible.builtin.raw: >-
+    uci set system.@system[0].notes={{ router_drill_note | quote }} &&
+    uci commit system && uci get system.@system[0].notes
+  vars:
+    router_drill_note: router-guard drill {{ router_guard_deadline }}
+  changed_when: true
+
+- name: Leave the change unconfirmed and wait for the router to revert it
+  ansible.builtin.include_tasks: reboot_wait.yml
+  vars:
+    router_down_timeout: "{{ router_guard_timeout | int + 120 }}"
+
+- name: Read the note back
+  ansible.builtin.raw: uci -q get system.@system[0].notes || true
+  changed_when: false
+  register: router_drill_after
+
+- name: Check the revert removed the note
+  ansible.builtin.assert:
+    that: "'router-guard drill' not in router_drill_after.stdout"
+    fail_msg: "The note is still there after the reboot: {{ router_drill_after.stdout | trim }}"
+    quiet: true
+
+# The WAN (PPPoE) and upstream DNS may lag SSH by a minute or so.
+- name: Run the checks
+  ansible.builtin.include_tasks: check.yml
+  vars:
+    router_check_retries: 12
