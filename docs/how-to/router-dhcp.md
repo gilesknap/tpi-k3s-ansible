@@ -142,8 +142,14 @@ node checklist is in {doc}`/reference/inventory`.
 ## Change an address
 
 Edit the host's `lan_ip` (or the entry's `ip`) and push. The device keeps
-its old address until it renews, so reconnect it. Changing `node02`'s
-`lan_ip` moves `k3s.lan` with it, in the same push. The NAS exports take
+its old address until it renews, so reconnect it.
+
+The control plane's `lan_ip` needs one more step: the guard backs up from,
+and checks, node02 at its `lan_ip` before node02 has the new address, so the
+play stops at the backup and changes nothing. Give node02 the new address as
+a second one first (`ssh ansible@node02 sudo ip addr add <new>/24 dev end0`),
+push (`k3s.lan` moves with it), then `sudo networkctl renew end0` on node02
+and remove the extra address (`sudo ip addr del <new>/24 dev end0`). The NAS exports take
 their addresses from `lan_ip` too: run `pb_nas.yml --tags nas_nfs`
 afterwards. These still repeat addresses by hand, so change them with it:
 

@@ -70,6 +70,7 @@
         cmd: "{{ router_dhcp_tmp.path }}/dhcp"
         executable: >-
           sh -c 'umask 077 && cat "$0" > /etc/config/dhcp.new && mv /etc/config/dhcp.new /etc/config/dhcp'
+      register: router_dhcp_push
       when: router_dhcp_apply | bool and router_dhcp_diff.rc == 1
 
     # dnsmasq's reload regenerates its configuration and restarts it if
@@ -78,7 +79,17 @@
     - name: Reload dnsmasq and odhcpd
       ansible.builtin.raw: /etc/init.d/dnsmasq reload && /etc/init.d/odhcpd reload
       changed_when: true
+      register: router_dhcp_reload
       when: router_dhcp_apply | bool and router_dhcp_diff.rc == 1
+
+    # The guard runs a change with ignore_unreachable (for steps that drop
+    # their own session); neither of these does, so a lost session here
+    # means the push may not have happened: fail, and the guard reverts.
+    - name: Check the push and reload reached the router
+      ansible.builtin.assert:
+        that: not (router_dhcp_push.unreachable | default(false)) and not (router_dhcp_reload.unreachable | default(false))
+        fail_msg: SSH to the router dropped during the push or reload.
+        quiet: true
 
   always:
     - name: Remove the working directory
