@@ -1,9 +1,10 @@
 # Inventory reference
 
 `hosts.yml` at the repo root is the only Ansible inventory (`ansible.cfg` names
-it, so no `-i` is needed). It lists machines by name, without addresses: the
-router's DNS resolves `node02`, `nuc2` and the rest, and the `known_hosts` role
-looks each one up as `<name>.lan` (`local_domain`).
+it, so no `-i` is needed). Ansible reaches machines by name: the router's DNS
+resolves `node02`, `nuc2` and the rest, and the `known_hosts` role looks each
+one up as `<name>.lan` (`local_domain`). Each machine's address is its
+`lan_ip`, which the router reserves for its name ({doc}`/how-to/router-dhcp`).
 
 For what the machines are, see {doc}`/explanations/architecture/hardware`.
 
@@ -41,6 +42,8 @@ commented-out sketch of one).
 | `nvidia_gpu_node` | Optional | `true`/`false` | Installs the NVIDIA driver and container toolkit, configures K3s's containerd with the NVIDIA runtime and labels the node `nvidia.com/gpu.present=true` |
 | `intel_gpu_node` | Optional | `true`/`false` | Labels the node `intel.feature.node.kubernetes.io/gpu=true`, so the Intel GPU device plugin runs there and advertises `gpu.intel.com/i915`. Installs nothing on the node |
 | `workstation` | Optional | `true`/`false` | Registers the agent with the `workstation=true:NoSchedule` taint and the `node-role=workstation` label, so nothing lands there first. Only tolerating pods (GPU, monitoring) schedule on it. The label keeps it out of the automatic K3s upgrades, and kured does not tolerate the taint, so it is never rebooted by automation ({doc}`/explanations/upgrade-model`) |
+| `lan_ip` | Nodes and the NAS | IPv4 address | The host's fixed LAN address. The router reserves it for the hostname the host sends in DHCP (the inventory name, which the flash role and the install stick set), serves `<name>.lan` for it, and points `k3s_api_name` at `control_plane`'s ({doc}`/how-to/router-dhcp`) |
+| `dhcp_tags` | With `lan_ip`, optional | List | DHCP tags on that reservation (`cluster`) |
 | `node_ip` | Optional | IPv4 address | Passed to the agent as `--node-ip`. Needed on a multi-homed node whose default route is on the wrong subnet |
 | `install_profile` | x86 hosts, optional | `server`, `desktop` | Gives the host an entry on the install stick ({doc}`/how-to/install-stick`); `desktop` adds `ubuntu-desktop-minimal` and NetworkManager |
 | `install_disk_serial` | With `install_profile` | Disk serial | The OS disk the install erases. The install refuses unless exactly one disk has this serial |
@@ -68,8 +71,9 @@ control plane is not an inventory setting: `control_plane` and
 | `gknas` | `nas` | 192.168.1.3 | | | | | No: the NAS, configured by `pb_nas.yml` |
 | `router` | `routers` | 192.168.1.1 | | | | | No: the OpenWrt router, changed only by `pb_router.yml` |
 
-The addresses are not in `hosts.yml` (the router's comes from `dns_router`);
-they are the ones the router hands out,
+The addresses are each host's `lan_ip` in `hosts.yml` (the BMC's is a MAC
+reservation in `router_dhcp_hosts`, and the router's comes from `dns_router`);
+the router hands them out ({doc}`/how-to/router-dhcp`),
 and the sandbox allow-list (`.devcontainer/claude-sandbox.conf`) repeats them.
 
 Slot 1 of the board is not in the inventory. It holds `node01`, a CM4 that
@@ -88,7 +92,7 @@ rows are done by hand, and {doc}`/how-to/node-operations` has the procedures.
 | `group_vars/all.yml`, `k8s_data_dirs` and `values.yaml`, `local_storage` | An entry in each, with the same `node` and `path` | Only if the node will hold a `local-nvme` PV: the first creates the host directory, the second the PV pinned to it ({ref}`move-a-local-nvme-pv`) |
 | `group_vars/all.yml`, `control_plane` and `standby_control_plane` | The node's name | Only if it takes one of those roles ({doc}`/how-to/recover-control-plane`) |
 | `pb_all.yml --tags claude_key` (or `just claude-ssh-bootstrap`) | Run once the node is up | Puts the Claude sandbox's SSH key on the node's `ansible` account. A flashed RK1 gets it from its cloud-init seed instead |
-| The router | A fixed address and a DNS name for the node | The inventory holds names only |
+| The router | `just router-dhcp` after adding `lan_ip` to `hosts.yml` | Reserves the address for the node's name and serves `<node>.lan` ({doc}`/how-to/router-dhcp`) |
 
 A machine outside the Turing Pi also needs its OS installed by hand and one run
 of `pb_add_nodes.yml` before `pb_all.yml` can reach it

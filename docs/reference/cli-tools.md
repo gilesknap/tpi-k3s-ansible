@@ -44,7 +44,8 @@ is not always the section of the `justfile` they sit in.
 | `just upgrade-workstation <node> [args]` | Drains `ws03`, reinstalls its K3s agent at the control plane's version, uncordons it | Devcontainer terminal only: the sandbox cannot SSH to its own host ({doc}`/how-to/upgrade-k3s`) |
 | `just restart-dex` | Restarts `argocd-dex-server`, `argocd-server` and `argocd-repo-server` | After a change to Dex's config or secrets ({doc}`/how-to/oauth-setup`) |
 | `just headlamp-token` | Prints a 100 day token for the `headlamp` ServiceAccount, to paste into Headlamp's login page | The output is a credential |
-| `just k3s-api-dns <ip>` | Points `k3s.lan` at a control plane address on the router (`dns_router`) and checks it resolves | Needs SSH to the router ({doc}`/how-to/recover-control-plane`) |
+| `just k3s-api-dns <ip>` | Points `k3s.lan` at a control plane address on the router (`dns_router`) with `uci`, unguarded, and checks it resolves | For emergencies; `just router-dhcp` afterwards, once `control_plane` names the new node ({doc}`/how-to/recover-control-plane`) |
+| `just router-dhcp [args]` | Shows the diff of the router's DHCP and DNS against the template, then on `y` pushes it with confirm-or-revert | args go to `ansible-playbook` (in the sandbox, `--private-key ...`) ({doc}`/how-to/router-dhcp`) |
 | `just restore-control-plane <snapshot> <token_file> [k3s_version] [node_password]` | Restores the control plane from a decrypted etcd bundle onto a fresh node. Asks for the node name to be typed; `DRY_RUN=1` previews | Devcontainer terminal ({doc}`/how-to/recover-control-plane`) |
 
 ### Cloudflare

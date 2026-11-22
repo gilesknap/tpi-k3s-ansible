@@ -45,6 +45,7 @@ how-to/add-remove-services
 :caption: Operations
 
 how-to/node-operations
+how-to/router-dhcp
 how-to/upgrade-k3s
 how-to/install-stick
 how-to/nfs-stable-paths

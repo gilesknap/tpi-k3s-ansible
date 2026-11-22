@@ -31,7 +31,9 @@ Two details matter to the cluster:
   plane (`k3s_api_name` in `group_vars/all.yml`). Agents join through it,
   Cilium's agents reach the API server by it, the API server certificate
   carries it as a SAN, and the kubeconfig uses it, so
-  moving the control plane is a DNS change (`just k3s-api-dns <ip>`) and not a
+  moving the control plane is a DNS change (`control_plane` in
+  `group_vars/all.yml`, pushed with `just router-dhcp`, or
+  `just k3s-api-dns <ip>` in an emergency) and not a
   re-join of every node.
 - **nuc2 is multi-homed.** It has a second LAN, `192.168.0.0/24`, so
   `hosts.yml` pins K3s to the right side with `node_ip: 192.168.1.92`.

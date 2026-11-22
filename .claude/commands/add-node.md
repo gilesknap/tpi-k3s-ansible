@@ -46,6 +46,7 @@ Add under `extra_nodes`. Create the group if it doesn't exist.
 extra_nodes:
   hosts:
     <hostname>:
+      lan_ip: 192.168.1.x     # its fixed address (ask; not in the DHCP pool .100-.249)
       nvidia_gpu_node: true   # only if GPU
       workstation: true        # only if workstation
       node_ip: 192.168.1.x    # only if multi-homed (see below)
@@ -54,6 +55,11 @@ extra_nodes:
 ```
 
 Ensure `extra_nodes` is listed under `all_nodes.children`.
+
+Every node gets `lan_ip` (a Turing Pi node too). The router reserves it for
+the node's hostname: ask the user to run `just router-dhcp` (preview, then
+confirm-or-revert) before the node first boots, see
+`docs/how-to/router-dhcp.md`.
 
 ### Multi-homed nodes
 

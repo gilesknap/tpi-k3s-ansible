@@ -48,6 +48,19 @@
     router_check_api_name.stdout_lines | select('search', ' has address ') | map('split') | map('last') | list
     != [hostvars[control_plane].ansible_facts.default_ipv4.address]
 
+# A static host's name, which the router serves from its configuration
+# (dns '1'), lease or not: a broken /etc/config/dhcp fails here.
+- name: Check the router resolves the control plane's static name, {{ control_plane ~ '.' ~ router_dns_domain }}
+  ansible.builtin.command:
+    cmd: host -t A -W 5 {{ control_plane }}.{{ router_dns_domain }} {{ router_address }}
+  delegate_to: localhost
+  register: router_check_static_name
+  changed_when: false
+  failed_when: >-
+    router_check_static_name.rc != 0 or
+    router_check_static_name.stdout_lines | select('search', ' has address ') | map('split') | map('last') | unique | list
+    != [hostvars[control_plane].ansible_facts.default_ipv4.address]
+
 # Any HTTP answer will do: anonymous requests get 401.
 - name: Check the cluster API answers on port 6443
   ansible.builtin.uri:

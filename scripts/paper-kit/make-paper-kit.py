@@ -502,7 +502,7 @@ def inventory() -> list[tuple[str, str, str]]:
                 rows.append(cur)  # type: ignore[arg-type]
             elif ind == 6 and cur is not None and ":" in line:
                 k, v = (s.strip() for s in line.split(":", 1))
-                if k in ("node_ip",):
+                if k in ("node_ip", "lan_ip"):
                     cur["ip"] = v
                 elif k in ("type", "slot_num", "root_dev"):
                     cur["note"] = (cur["note"] + f"; {k} {v}").lstrip("; ")

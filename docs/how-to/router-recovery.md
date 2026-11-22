@@ -6,6 +6,7 @@ running OpenWrt 23.05.5, at 192.168.1.1 (`dns_router` in
 DNS, not only the cluster's. This page covers its daily backup, changing
 it with a revert that fires by itself unless the change is confirmed,
 restoring it with a playbook, and getting it back when SSH to it is gone.
+Its DNS and DHCP configuration is code: {doc}`/how-to/router-dhcp`.
 
 `pb_router.yml` reaches the router as the `router` host in `hosts.yml`
 (user and address from `dns_router`), with `raw`, as it has no Python.
@@ -110,7 +111,9 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    child of init in a session of its own, with no terminal: the SSH
    session ending, or dying with the network, does not reach it. The play
    prints the time the revert fires (controller time).
-4. **The change:** the task file `roles/router/tasks/<name>.yml`. With no
+4. **The change:** the task file `roles/router/tasks/<name>.yml`, e.g.
+   `dhcp`, which pushes the router's DNS and DHCP from a template
+   ({doc}`/how-to/router-dhcp`). With no
    `router_change_tasks` the play skips this and only arms, checks and
    disarms, a harmless test of the guard.
 5. **The checks**, from the controller (`roles/router/tasks/check.yml`):
@@ -118,6 +121,9 @@ ansible-playbook pb_router.yml --tags change -e router_change_tasks=<name>
    - the router's DNS answers a public name (`host -t A github.com 192.168.1.1`);
    - `k3s.lan` (`k3s_api_name`) resolves via the router to node02's
      address, read from node02 itself;
+   - `node02.lan` (`control_plane` in the `lan` domain) resolves via the
+     router to the same address: a static name, served from the router's
+     DHCP configuration ({doc}`/how-to/router-dhcp`);
    - the cluster API answers on port 6443 (any HTTP status: anonymous
      requests get 401);
    - a new SSH login to the router works.
