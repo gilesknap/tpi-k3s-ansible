@@ -1,0 +1,878 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>16. Cilium’s Gateway API Replaces ingress-nginx &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'explanations/decisions/0016-cilium-gateway-api';</script>
+    <link rel="icon" href="../../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Reference" href="../../reference.html" />
+    <link rel="prev" title="15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller" href="0015-cilium-network-layer.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture.html">Architecture overview</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/hardware.html">Hardware and nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/provisioning.html">Provisioning with Ansible</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/gitops.html">GitOps delivery with ArgoCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/networking.html">Networking and ingress</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/authentication.html">Authentication</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/security.html">Security model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/storage.html">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/backups.html">Backups and disaster recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/claude-code.html">Claude Code integration</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it runs</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../upgrade-model.html">Automatic maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ansible-roles.html">Ansible roles in detail</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Claude Code</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../claude-code-capability.html">Lessons learned using Claude Code for infrastructure</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Decisions</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../decisions.html">Decision records</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="0001-record-architecture-decisions.html">1. Record Architecture Decisions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0002-open-brain-supabase-self-hosted.html">2. Self-Host Full Supabase Stack for Open Brain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0003-hybrid-intelligence-architecture.html">3. Hybrid Intelligence Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0004-mcp-auth-brain-key.html">4. Use x-brain-key Header Auth for MCP API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0005-ws03-workstation-taint.html">5. Taint Workstation Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0006-supabase-nfs-storage.html">6. Supabase Database Storage on NAS via NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0007-supabase-x86-node-affinity.html">7. Pin Supabase to x86 Nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0008-embedding-pipeline-deferred.html">8. Defer Embedding Pipeline to Phase 2b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0009-longhorn-exclude-workstations.html">9. Exclude Workstation Nodes from Longhorn Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0010-mcp-protocol-github-oauth.html">10. MCP Protocol with GitHub OAuth for Claude.ai</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0011-minio-file-attachments.html">11. MinIO for Open Brain File Attachments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0012-drop-longhorn.html">12. Drop Longhorn in Favour of Static Local PVs + NFS Backups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0013-scrap-litestream-on-nfs.html">13. scrap Runs on Any Node: Litestream on NFS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0014-immutable-offsite-copy.html">14. A Second, Immutable Off-site Copy on Backblaze B2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="0015-cilium-network-layer.html">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">16. Cilium’s Gateway API Replaces ingress-nginx</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../explanations.html" class="nav-link">Explanations</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../decisions.html" class="nav-link">Decision records</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">16. Cilium’s Gateway API Replaces ingress-nginx</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="cilium-s-gateway-api-replaces-ingress-nginx">
+<h1>16. Cilium’s Gateway API Replaces ingress-nginx<a class="headerlink" href="#cilium-s-gateway-api-replaces-ingress-nginx" title="Link to this heading">#</a></h1>
+<p><strong>Status:</strong> Proposed. The first of two PRs is in: the Gateway runs beside
+ingress-nginx and carries every Cloudflare tunnel route, while ingress-nginx
+keeps the node addresses. Phase 2 (removing ingress-nginx) marks this
+Accepted.</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading">#</a></h2>
+<p>ingress-nginx went end-of-life upstream in March 2026 and gets no more CVE
+fixes. Phase 1 (ADR 0015) made Cilium the CNI so that its Gateway API
+implementation, which runs on the Envoy that Cilium already deploys, can take
+over. The owner’s decisions are in issue #781: oauth2-proxy stays the login
+gate, through Gateway API’s ExternalAuth filter; the Gateway does not touch the
+node addresses until ingress-nginx is gone; and traffic moves by pointing the
+Cloudflare tunnel routes at the Gateway, which can be done, and undone, one
+hostname at a time.</p>
+<p>There are 16 Ingresses: echo, home, home-lan, home-tailnet, grafana,
+alertmanager, argocd, argocd-monitor, headlamp, hubble, minecraft, ntfy,
+oauth2, pages, scrap, and scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>. Five are behind oauth2-proxy:
+headlamp, alertmanager, minecraft, scrap and hubble (the last added by phase 1).</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading">#</a></h2>
+<section id="the-gateway-api-crds">
+<h3>The Gateway API CRDs<a class="headerlink" href="#the-gateway-api-crds" title="Link to this heading">#</a></h3>
+<p>The <strong>experimental</strong> channel of Gateway API <strong>v1.6.3</strong>. ExternalAuth (GEP-1494)
+is in the experimental CRDs only: the standard <code class="docutils literal notranslate"><span class="pre">HTTPRoute</span></code> schema has no
+<code class="docutils literal notranslate"><span class="pre">externalAuth</span></code> field. v1.6.3 is the version Cilium 1.20.5 is built and
+documented against (<code class="docutils literal notranslate"><span class="pre">gateway_api_version</span></code> in its
+<a class="reference external" href="https://github.com/cilium/cilium/blob/v1.20.5/Documentation/conf.py">Documentation/conf.py</a>;
+the <a class="reference external" href="https://github.com/cilium/cilium/releases/tag/v1.20.0">1.20.0 release notes</a>
+name v1.6.1 and list ExternalAuth as new). Cilium needs GatewayClass,
+Gateway, HTTPRoute, GRPCRoute, BackendTLSPolicy, ReferenceGrant and TLSRoute
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/network/servicemesh/gateway-api/gateway-api/">Gateway API support</a>);
+the bundle has those and the optional ones.</p>
+<p>The one copy of the version is <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/gateway-api-crds/kustomization.yaml</span></code>,
+a kustomize build of the upstream <code class="docutils literal notranslate"><span class="pre">config/crd/experimental</span></code> at that tag (the
+same content as the release’s <code class="docutils literal notranslate"><span class="pre">experimental-install.yaml</span></code>, which at 1.4 MB is
+too big to vendor past the large-file hook). Two things apply it:</p>
+<ul class="simple">
+<li><p><strong>ArgoCD</strong>, through the <code class="docutils literal notranslate"><span class="pre">gateway-api-crds</span></code> Application, with server-side
+apply (the HTTPRoute CRD is too big for the last-applied annotation), no
+pruning and no resources finalizer: deleting a CRD deletes every object made
+from it.</p></li>
+<li><p><strong>The k3s role</strong>, on a new cluster, before it installs Cilium
+(<code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/cilium.yml</span></code>). The Cilium operator checks for the CRDs once,
+when it starts, and if they are missing it leaves its Gateway API controller
+off until it restarts (<code class="docutils literal notranslate"><span class="pre">operator/pkg/gateway-api/cell.go</span></code>). The role applies
+the same kustomize build with ArgoCD’s own field manager,
+<code class="docutils literal notranslate"><span class="pre">argocd-controller</span></code>, so ArgoCD adopts the CRDs without a field-ownership
+conflict, as it adopts Cilium.</p></li>
+</ul>
+<p>On the running cluster the CRDs arrive through ArgoCD at the same time as the
+new Cilium values that restart the operator. If the operator wins that race,
+it must be restarted once (<code class="docutils literal notranslate"><span class="pre">docs/how-to/gateway.md</span></code>).</p>
+</section>
+<section id="cilium">
+<h3>Cilium<a class="headerlink" href="#cilium" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">gatewayAPI.enabled:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">kubernetes-services/templates/cilium.yaml</span></code>.
+<code class="docutils literal notranslate"><span class="pre">gatewayAPI.gatewayClass.create:</span> <span class="pre">false</span></code>: the GatewayClass is the cluster’s own
+(below), and without the chart’s class the chart renders the same whether or
+not the CRDs exist, which the default <code class="docutils literal notranslate"><span class="pre">auto</span></code> does not.</p>
+<p>Enabling it changes more than the Gateway. The chart also turns on
+<code class="docutils literal notranslate"><span class="pre">enable-envoy-config</span></code>, and forces <code class="docutils literal notranslate"><span class="pre">bpf-lb-sock-hostns-only:</span> <span class="pre">true</span></code> and
+<code class="docutils literal notranslate"><span class="pre">bpf-lb-algorithm-annotation:</span> <span class="pre">true</span></code> (<code class="docutils literal notranslate"><span class="pre">templates/cilium-configmap.yaml</span></code> in the
+1.20.5 chart, for TCPRoute and UDPRoute weights). With the first, Cilium’s
+socket-level load balancing serves only host processes: a pod’s connection to
+a Service is translated per packet in eBPF at its interface instead of when
+it connects. Services still never touch iptables, and pods keep their own
+identity to the backend, which the Minecraft RCON policy relies on (ADR
+0015). Every agent and the operator restart for the new values.</p>
+</section>
+<section id="one-gatewayclass-and-one-gateway">
+<h3>One GatewayClass and one Gateway<a class="headerlink" href="#one-gatewayclass-and-one-gateway" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">additions/gateway</span></code>, synced by the <code class="docutils literal notranslate"><span class="pre">gateway</span></code> Application into the <code class="docutils literal notranslate"><span class="pre">gateway</span></code>
+namespace:</p>
+<ul class="simple">
+<li><p><strong>GatewayClass <code class="docutils literal notranslate"><span class="pre">cilium-gateway</span></code></strong>, with a <code class="docutils literal notranslate"><span class="pre">CiliumGatewayClassConfig</span></code>:</p>
+<ul>
+<li><p>gRPC-web translation <strong>off</strong>. Cilium’s Envoy otherwise turns gRPC-web
+requests into gRPC before they reach the backend
+(<a class="reference external" href="https://github.com/cilium/cilium/issues/31933">Cilium #31933</a>), which
+breaks backends that speak gRPC-web themselves: ArgoCD’s server, and Hubble
+UI’s backend. ingress-nginx passes them through
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/network/servicemesh/gateway-api/parameterized-gatewayclass/">GatewayClass parameters</a>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">allocateLoadBalancerNodePorts:</span> <span class="pre">false</span></code>, so the Gateway’s Service takes no
+NodePorts, which Cilium would serve on every node address (and which could
+take a port the Minecraft worlds want).</p></li>
+</ul>
+</li>
+<li><p><strong>Gateway <code class="docutils literal notranslate"><span class="pre">web</span></code></strong>, with two listeners for <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code>: port 80, plain
+HTTP, which is what cloudflared sends; and port 443 with the wildcard
+certificate, for direct clients once the Gateway has the node addresses.
+The certificate stays in <code class="docutils literal notranslate"><span class="pre">cert-manager/wildcard-tls</span></code>; a ReferenceGrant there
+lets the Gateway use it, and Cilium copies it into <code class="docutils literal notranslate"><span class="pre">cilium-secrets</span></code> for Envoy.
+Routes may attach from any namespace, as any namespace can use the nginx
+IngressClass today.</p></li>
+</ul>
+<p>Cilium makes the Service <code class="docutils literal notranslate"><span class="pre">cilium-gateway-web</span></code> in <code class="docutils literal notranslate"><span class="pre">gateway</span></code>. Its in-cluster
+address, <code class="docutils literal notranslate"><span class="pre">http://cilium-gateway-web.gateway.svc.cluster.local</span></code>, is
+<code class="docutils literal notranslate"><span class="pre">local.gateway</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>, the default for every tunnel
+route.</p>
+</section>
+<section id="keeping-the-gateway-off-nginx-s-ports">
+<h3>Keeping the Gateway off nginx’s ports<a class="headerlink" href="#keeping-the-gateway-off-nginx-s-ports" title="Link to this heading">#</a></h3>
+<p>The Gateway’s Service is a LoadBalancer, and k3s’s servicelb would serve it as
+it serves ingress-nginx’s: a svclb pod on every node, bound to host ports 80
+and 443, the ones nginx’s svclb pods hold. Options considered:</p>
+<ul class="simple">
+<li><p><strong>Service type ClusterIP or NodePort</strong> through the CiliumGatewayClassConfig.
+ClusterIP is not allowed (<code class="docutils literal notranslate"><span class="pre">LoadBalancer</span></code> or <code class="docutils literal notranslate"><span class="pre">NodePort</span></code> only); NodePort puts the
+Gateway on high ports of every node address.</p></li>
+<li><p><strong>A <code class="docutils literal notranslate"><span class="pre">loadBalancerClass</span></code> that nothing implements.</strong> servicelb ignores such a
+Service, but the field is immutable, so phase 2 would have to recreate the
+Service.</p></li>
+<li><p><strong>Different listener ports</strong> (8080, 8443). They would be published on every
+node address, and phase 2 would have to change every listener.</p></li>
+<li><p><strong>servicelb’s node pool label</strong> on the Service, through the Gateway’s
+<code class="docutils literal notranslate"><span class="pre">spec.infrastructure.labels</span></code>, which Cilium copies to the Service. Chosen.</p></li>
+</ul>
+<p>With <code class="docutils literal notranslate"><span class="pre">svccontroller.k3s.cattle.io/lbpool:</span> <span class="pre">gateway-standby</span></code>, servicelb gives its
+DaemonSet for this Service a node affinity for that pool
+(<a class="reference external" href="https://docs.k3s.io/networking/networking-services#creating-servicelb-node-pools">ServiceLB node pools</a>;
+<code class="docutils literal notranslate"><span class="pre">pkg/cloudprovider/servicelb.go</span></code> in k3s v1.34 sets the affinity from the
+Service’s label alone). No node is in the pool, so no svclb pod runs, no host
+port is taken, and the Service has a ClusterIP and no external address. The
+cost: the Gateway reports <code class="docutils literal notranslate"><span class="pre">Programmed:</span> <span class="pre">False</span></code> (“waiting for address”) and
+ArgoCD shows the <code class="docutils literal notranslate"><span class="pre">gateway</span></code> Application as Progressing until phase 2. Envoy is
+configured all the same; Cilium writes the listeners whether or not the
+Service has an address (<code class="docutils literal notranslate"><span class="pre">operator/pkg/gateway-api/gateway_reconcile.go</span></code>).</p>
+<p>Phase 2 sets the label to <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code>. Removing it would not do: Cilium merges the
+infrastructure labels onto its Service and never deletes one
+(<code class="docutils literal notranslate"><span class="pre">setMergedLabelsAndAnnotations</span></code> in <code class="docutils literal notranslate"><span class="pre">operator/pkg/gateway-api</span></code>), and servicelb
+treats an empty pool as no pool. servicelb only re-renders a Service’s
+DaemonSet when the Service’s annotations change, not its labels (the
+cloud-provider service controller’s <code class="docutils literal notranslate"><span class="pre">needsUpdate</span></code>), so the same commit adds or
+changes an infrastructure annotation.</p>
+</section>
+<section id="one-httproute-per-ingress">
+<h3>One HTTPRoute per Ingress<a class="headerlink" href="#one-httproute-per-ingress" title="Link to this heading">#</a></h3>
+<p>The ingress sub-chart, <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code>, emits an HTTPRoute beside each
+Ingress, from the same values, so each app keeps one place to change. New
+values: <code class="docutils literal notranslate"><span class="pre">http_route</span></code> (default on), <code class="docutils literal notranslate"><span class="pre">ingress</span></code> (default on; off for the four
+whose Ingress comes from elsewhere: Alertmanager’s and oauth2-proxy’s from
+their charts, pages from the scrap chart, ArgoCD’s from the cluster role),
+and <code class="docutils literal notranslate"><span class="pre">namespace</span></code> (pages lives in <code class="docutils literal notranslate"><span class="pre">scrap-public</span></code>). Those four use the sub-chart
+for the route alone: Alertmanager in the grafana Application, oauth2 in the
+oauth2-proxy one, pages in scrap’s, and ArgoCD in the gateway Application.
+scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> route sits beside its Ingress in <code class="docutils literal notranslate"><span class="pre">additions/scrap</span></code>. The route
+templates render only when the HTTPRoute CRD exists
+(<code class="docutils literal notranslate"><span class="pre">.Capabilities.APIVersions</span></code>), so no Application fails its first sync on the
+running cluster while the CRDs are still on their way; a new cluster has them
+from the k3s role.</p>
+<p>How the nginx annotations map:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Annotation</p></th>
+<th class="head"><p>Where</p></th>
+<th class="head"><p>On the Gateway</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ssl-redirect</span></code></p></td>
+<td><p>all, <code class="docutils literal notranslate"><span class="pre">&quot;false&quot;</span></code> with the tunnel on</p></td>
+<td><p>Off: the route attaches to both listeners. On: the route attaches to the HTTPS listener only, and a second route on the HTTP listener answers with a <code class="docutils literal notranslate"><span class="pre">RequestRedirect</span></code> to HTTPS. Phase 2 decides the LAN redirect.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">auth-url</span></code>, <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code>, <code class="docutils literal notranslate"><span class="pre">auth-response-headers</span></code></p></td>
+<td><p>the five gated apps</p></td>
+<td><p>The ExternalAuth filter, below</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">proxy-body-size</span></code></p></td>
+<td><p>scrap and <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> (50m), ntfy (64k)</p></td>
+<td><p>None. Envoy streams the body and sets no limit; Gateway API and Cilium have no field for one. scrap and ntfy keep their own limits (ntfy’s messages are at most 4k, attachments off).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">proxy-buffering:</span> <span class="pre">off</span></code>, <code class="docutils literal notranslate"><span class="pre">proxy-request-buffering:</span> <span class="pre">off</span></code></p></td>
+<td><p>ntfy, <code class="docutils literal notranslate"><span class="pre">/mcp</span></code></p></td>
+<td><p>None needed: Envoy streams both ways (<a class="reference external" href="https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-to-gateway/nginx-annotations-migration/">Cilium’s annotation guide</a> lists buffering as dropped).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">proxy-read-timeout</span></code>, <code class="docutils literal notranslate"><span class="pre">proxy-send-timeout</span></code></p></td>
+<td><p>ntfy (180 s), <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> (3600 s)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">timeouts.request:</span> <span class="pre">0s</span></code> on the routes of apps that stream or run long requests, below</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The timeouts need care in the other direction. Envoy’s route timeout defaults
+to 15 s for the whole response
+(<a class="reference external" href="https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/route/v3/route_components.proto">RouteAction.timeout</a>),
+and Cilium leaves it at that default when a route sets no timeout
+(<code class="docutils literal notranslate"><span class="pre">operator/pkg/model/translation/envoy_virtual_host.go</span></code>). nginx has no
+whole-response limit, only one between reads. So the route of each app that
+streams or runs long requests sets <code class="docutils literal notranslate"><span class="pre">timeouts.request:</span> <span class="pre">0s</span></code>, which turns the
+route timeout off (<a class="reference external" href="https://gateway-api.sigs.k8s.io/geps/gep-1742/">GEP-1742</a>):
+ntfy’s subscriptions, Headlamp’s, Grafana’s and Hubble UI’s live streams,
+ArgoCD’s watch streams, the log streams of argocd-monitor and the Minecraft
+dashboard, and scrap’s uploads, attachment downloads and MCP event streams
+(its public pages too). The ingress sub-chart’s <code class="docutils literal notranslate"><span class="pre">gateway_request_timeout</span></code>
+value sets it. The rest (echo, home, oauth2-proxy, Alertmanager) keep Envoy’s
+15 s, which bounds a request that hangs. For the streaming apps what is left
+is Envoy’s idle timeout for a stream, 5 minutes for all of Cilium’s Envoy
+(<code class="docutils literal notranslate"><span class="pre">envoy.streamIdleTimeoutDurationSeconds</span></code>): longer than ntfy’s 180 s (its
+clients send keepalives every 45 s), shorter than <code class="docutils literal notranslate"><span class="pre">/mcp</span></code>’s 3600 s. MCP clients
+reconnect, and an MCP session from Claude worked in the trial.</p>
+</section>
+<section id="externalauth-against-oauth2-proxy">
+<h3>ExternalAuth against oauth2-proxy<a class="headerlink" href="#externalauth-against-oauth2-proxy" title="Link to this heading">#</a></h3>
+<p>nginx’s <code class="docutils literal notranslate"><span class="pre">auth-url</span></code> calls oauth2-proxy’s <code class="docutils literal notranslate"><span class="pre">/oauth2/auth</span></code> for each request; on a
+401 nginx redirects the browser to <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code>
+(<code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org/oauth2/start?rd=&lt;the</span> <span class="pre">URL&gt;</span></code>), and on a 2xx it copies
+<code class="docutils literal notranslate"><span class="pre">X-Auth-Request-User</span></code> and <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> into the request. Cilium turns
+the ExternalAuth filter into Envoy’s <code class="docutils literal notranslate"><span class="pre">ext_authz</span></code> in HTTP mode
+(<a class="reference external" href="https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter">ext_authz</a>),
+which differs in three ways, and the wiring follows from them:</p>
+<ul class="simple">
+<li><p><strong>Only a 200 allows the request</strong> (GEP-1494’s HTTP protocol), and anything
+else is sent back to the client as the answer. <code class="docutils literal notranslate"><span class="pre">/oauth2/auth</span></code> answers 202,
+and a bare 401 the browser cannot act on. So the filter does not use it. It
+sends the request to oauth2-proxy’s catch-all proxy handler, which with
+<code class="docutils literal notranslate"><span class="pre">upstream:</span> <span class="pre">static://200</span></code> answers 200 to a signed-in request, and for a
+browser with no session answers 403 with its sign-in page
+(<a class="reference external" href="https://oauth2-proxy.github.io/oauth2-proxy/features/endpoints">endpoints</a>).
+The upstream was <code class="docutils literal notranslate"><span class="pre">static://202</span></code>; nothing used it, as nginx calls
+<code class="docutils literal notranslate"><span class="pre">/oauth2/auth</span></code>, which answers 202 regardless.</p></li>
+<li><p><strong>The path.</strong> ext_authz sends the client’s path to the auth service,
+behind an optional prefix. Unprefixed, a request for an app’s <code class="docutils literal notranslate"><span class="pre">/ping</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/robots.txt</span></code>, <code class="docutils literal notranslate"><span class="pre">/oauth2/static/...</span></code> or <code class="docutils literal notranslate"><span class="pre">/oauth2/sign_in</span></code> would reach
+oauth2-proxy’s own handlers, which answer 200 with no session, and Envoy
+would let it through. The filter therefore sets <code class="docutils literal notranslate"><span class="pre">path:</span> <span class="pre">/gateway-auth</span></code>, so
+every check lands on the catch-all handler. A local run of oauth2-proxy
+v7.15.6 answers those paths 200 unprefixed and 403 prefixed.</p></li>
+<li><p><strong>No redirect on denial.</strong> The sign-in page is the denial, served at the
+app’s own URL. A custom <code class="docutils literal notranslate"><span class="pre">sign_in.html</span></code> (in
+<code class="docutils literal notranslate"><span class="pre">additions/oauth2-proxy/error-templates.yaml</span></code>) does what <code class="docutils literal notranslate"><span class="pre">auth-signin</span></code> did:
+it sends the browser to <code class="docutils literal notranslate"><span class="pre">oauth2.&lt;domain&gt;/oauth2/start</span></code> with <code class="docutils literal notranslate"><span class="pre">rd</span></code> set to the
+page’s own address. Login must start on the oauth2 host, as that is the
+GitHub OAuth app’s callback. oauth2-proxy still checks <code class="docutils literal notranslate"><span class="pre">rd</span></code> against
+<code class="docutils literal notranslate"><span class="pre">whitelist-domain</span></code>.</p></li>
+</ul>
+<p>Headers:</p>
+<ul class="simple">
+<li><p><strong>To oauth2-proxy:</strong> only <code class="docutils literal notranslate"><span class="pre">Cookie</span></code> (the session), on top of what ext_authz
+always sends (<code class="docutils literal notranslate"><span class="pre">Host</span></code>, method, path, <code class="docutils literal notranslate"><span class="pre">Authorization</span></code>). No body.</p></li>
+<li><p><strong>Back to the app:</strong> only <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-User</span></code> and <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code>.
+With an empty list Cilium would copy every response header, including the
+user’s GitHub access token in <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Access-Token</span></code>
+(<code class="docutils literal notranslate"><span class="pre">pass-access-token</span></code>). Envoy replaces a client’s header of the same name
+with oauth2-proxy’s, so a client cannot claim another identity. Unlike
+nginx, which always sets them (empty if absent), a header oauth2-proxy does
+not return would pass through from the client; it returns both for every
+session, as the GitHub provider and the email allow list need an email.</p></li>
+</ul>
+<p>The backend reference crosses namespaces, so a ReferenceGrant in
+<code class="docutils literal notranslate"><span class="pre">oauth2-proxy</span></code> names the namespaces whose routes may use it (in the gateway
+Application). A gated route in a namespace left out gets a 500, and one whose
+check cannot reach oauth2-proxy a 403 (Envoy’s default on error, which Cilium
+does not change): the filter fails closed either way.</p>
+<p>The filter depends on the experimental CRDs. A standard-channel HTTPRoute CRD
+applied over them would drop the <code class="docutils literal notranslate"><span class="pre">externalAuth</span></code> field, and Cilium skips an
+ExternalAuth filter with no body, so the gated routes would serve without
+oauth2-proxy. The upstream safe-upgrades policy in the bundle refuses only the
+opposite move, so nothing in the cluster may install standard-channel Gateway
+API CRDs.</p>
+<p>Grafana, ArgoCD and argocd-monitor keep their own logins (Dex) and need
+nothing from the Gateway.</p>
+</section>
+<section id="networkpolicies">
+<h3>NetworkPolicies<a class="headerlink" href="#networkpolicies" title="Link to this heading">#</a></h3>
+<p>Envoy reaches backends as Cilium’s reserved <code class="docutils literal notranslate"><span class="pre">ingress</span></code> identity, not from a pod
+in <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code>, so the policies that admit only that namespace (scrap,
+scrap’s public pages, ntfy) would drop the Gateway’s requests. A
+CiliumNetworkPolicy beside each admits <code class="docutils literal notranslate"><span class="pre">fromEntities:</span> <span class="pre">[ingress]</span></code> on the same
+port
+(<a class="reference external" href="https://docs.cilium.io/en/v1.20/network/servicemesh/ingress-and-network-policy/">Ingress and network policy</a>,
+<a class="reference external" href="https://docs.cilium.io/en/v1.20/security/policy/layer3/#entities-based">entities</a>).</p>
+</section>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>The tunnel reaches the Gateway, while the node addresses (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>,
+<code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code> and the VPS) still reach ingress-nginx, and every Ingress
+renders as before. Browsers at home use the tunnel too: the router has no
+local <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> names. The change restarts every Cilium agent and
+the operator (new values), and oauth2-proxy (new upstream).</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">gateway</span></code> Application stays Progressing until phase 2 gives the Gateway
+an address; <code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> counts that as healthy until then.</p></li>
+<li><p>The custom sign-in page replaces oauth2-proxy’s everywhere, so on
+<code class="docutils literal notranslate"><span class="pre">oauth2.gkcluster.org</span></code> itself the “Sign in with GitHub” button is gone and
+the page goes straight to GitHub. A sign-out that lands there signs straight
+back in while the GitHub session lasts. Nothing links to sign-out today.</p></li>
+<li><p>Envoy does not merge <code class="docutils literal notranslate"><span class="pre">..</span></code> path segments as nginx does (Cilium sets no path
+normalisation), so <code class="docutils literal notranslate"><span class="pre">scrap.gkcluster.org/mcp/../x</span></code> matches the <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> route,
+which has no oauth2-proxy; scrap then sees the path unchanged.
+<code class="docutils literal notranslate"><span class="pre">docs/how-to/gateway.md</span></code> has the check.</p></li>
+<li><p>The trial moved all 13 tunnel routes to the Gateway in one <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">cf-apply</span></code>
+on 22 Nov 2026, and every app passed: sign-in on the five gated apps, ntfy
+to a phone, scrap’s MCP, Hubble and ArgoCD. A route can go back to
+ingress-nginx with a one-line change in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code> until phase
+2 (<code class="docutils literal notranslate"><span class="pre">docs/how-to/gateway.md</span></code>).</p></li>
+<li><p>A new gated app needs its namespace added to the oauth2-proxy
+ReferenceGrant’s list in <code class="docutils literal notranslate"><span class="pre">templates/gateway.yaml</span></code>, or it fails closed.</p></li>
+<li><p>Gateway API upgrades follow Cilium’s supported version and are not
+automerged.</p></li>
+<li><p>Not covered: HTTP/2 and gRPC to backends (<code class="docutils literal notranslate"><span class="pre">enableAppProtocol</span></code>), and access
+logs.</p></li>
+</ul>
+<section id="left-for-phase-2">
+<h3>Left for phase 2<a class="headerlink" href="#left-for-phase-2" title="Link to this heading">#</a></h3>
+<p>Removing ingress-nginx and its Ingresses; dropping the lbpool label so the
+Gateway takes the node addresses (LAN, <code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>, and the
+VPS on nuc2’s tailnet address); the LAN HTTPS redirect; the <code class="docutils literal notranslate"><span class="pre">coredns-custom</span></code>
+override for <code class="docutils literal notranslate"><span class="pre">argocd.gkcluster.org</span></code>, which points at nginx’s ClusterIP; and a
+<code class="docutils literal notranslate"><span class="pre">/rebuild-cluster</span></code> test.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="0015-cilium-network-layer.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">15. Cilium Replaces Flannel, kube-proxy and k3s’s Policy Controller</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../../reference.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#context">Context</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#decision">Decision</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-gateway-api-crds">The Gateway API CRDs</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cilium">Cilium</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#one-gatewayclass-and-one-gateway">One GatewayClass and one Gateway</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keeping-the-gateway-off-nginx-s-ports">Keeping the Gateway off nginx’s ports</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#one-httproute-per-ingress">One HTTPRoute per Ingress</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#externalauth-against-oauth2-proxy">ExternalAuth against oauth2-proxy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#networkpolicies">NetworkPolicies</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#consequences">Consequences</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#left-for-phase-2">Left for phase 2</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/explanations/decisions/0016-cilium-gateway-api.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/explanations/decisions/0016-cilium-gateway-api.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

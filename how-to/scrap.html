@@ -763,6 +763,7 @@ window.addEventListener("load", load);</script>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -870,7 +871,7 @@ cluster wiring.</p>
     mcp[&quot;MCP client&lt;br/&gt;(Claude Code)&quot;]
     reader[&quot;Anyone&quot;]
     cf[&quot;Cloudflare Tunnel and Access&quot;]
-    nginx[&quot;ingress-nginx&quot;]
+    nginx[&quot;Cilium's Gateway&quot;]
     o2p[&quot;oauth2-proxy&lt;br/&gt;(GitHub, admin_emails)&quot;]
     subgraph ns1[&quot;namespace scrap (any node)&quot;]
         scrap[&quot;scrap pod:&lt;br/&gt;scrap, litestream, jobs&quot;]
@@ -940,9 +941,12 @@ Litestream.</p></li>
 <p>The <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> path cannot use oauth2-proxy, because an MCP client cannot complete
 a browser login. It has its own Ingress, <code class="docutils literal notranslate"><span class="pre">scrap-mcp-ingress</span></code>, without the
 oauth2 annotations; nginx routes to the most specific path, so <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> requests
-go there and everything else goes to the gated <code class="docutils literal notranslate"><span class="pre">scrap-ingress</span></code>.</p>
-<p>The NetworkPolicy admits only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace to the scrap pod,
-so nothing else in the cluster can reach it or forge the identity headers that
+go there and everything else goes to the gated <code class="docutils literal notranslate"><span class="pre">scrap-ingress</span></code>. On the Gateway,
+which the tunnel reaches, the same file makes a <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> HTTPRoute without the
+ExternalAuth filter, and Envoy likewise picks the longest matching prefix.</p>
+<p>The NetworkPolicy admits only the <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> namespace, and the
+<code class="docutils literal notranslate"><span class="pre">scrap-from-gateway</span></code> CiliumNetworkPolicy only Cilium’s Gateway, to the scrap
+pod, so nothing else in the cluster can reach it or forge the identity headers that
 oauth2-proxy sets.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
@@ -965,7 +969,7 @@ cannot reach <code class="docutils literal notranslate"><span class="pre">/mcp</
 (<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>); nothing for scrap is set by hand in the
 dashboard except the service token itself.</p>
 <p>In <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>, two <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> entries create the tunnel
-routes to ingress-nginx and the proxied CNAMEs:</p>
+routes to Cilium’s Gateway and the proxied CNAMEs:</p>
 <div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;scrap&quot;</span><span class="w"> </span><span class="p">},</span>
 <span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pages&quot;</span><span class="p">,</span><span class="w"> </span><span class="na">cache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">true</span><span class="p">,</span><span class="w"> </span><span class="na">access_bypass</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">true</span><span class="w"> </span><span class="p">},</span>
 </pre></div>

@@ -69,7 +69,7 @@ they switch the oauth2-proxy annotations on Headlamp's Ingress and the
 ## Access
 
 Every `gkcluster.org` hostname below is a route on the Cloudflare Tunnel to
-ingress-nginx (`tunnel_services` in `cloudflare/locals.tf`), so a request
+Cilium's Gateway (`tunnel_services` in `cloudflare/locals.tf`), so a request
 passes Cloudflare Access at the edge, then whatever the service does itself.
 {doc}`/explanations/architecture/authentication` explains the layers and
 {doc}`/tutorials/tour` walks through the UIs.

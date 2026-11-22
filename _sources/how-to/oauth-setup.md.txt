@@ -345,7 +345,7 @@ Cloudflare and met the Access login page. Inside the cluster,
 ### Dex rejects the redirect URI
 
 The redirect URIs in `dex.config` are `https://` only. A service behind
-the tunnel receives plain HTTP from ingress-nginx and may build an
+the tunnel receives plain HTTP from Cilium's Gateway and may build an
 `http://` callback from it. Tell the service its public URL, as
 Grafana's `root_url` and argocd-monitor's `--redirect-url` do, so that
 the callback it sends matches the one registered.

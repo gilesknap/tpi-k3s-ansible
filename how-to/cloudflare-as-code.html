@@ -486,7 +486,7 @@ window.addEventListener("load", load);</script>
     <link rel="icon" href="../_static/logo.svg"/>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Set up OAuth authentication" href="oauth-setup.html" />
+    <link rel="next" title="Check Cilium’s Gateway, and move a route back to ingress-nginx" href="gateway.html" />
     <link rel="prev" title="How-to guides" href="../how-to.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -763,6 +763,7 @@ window.addEventListener("load", load);</script>
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -877,25 +878,25 @@ pod, and why the edge is built this way, see
         dns[&quot;DNS: one proxied CNAME per service&quot;]
         waf[&quot;Zone settings, cache rule, rate limit&quot;]
         access[&quot;Access: 5 apps, 4 policies&quot;]
-        tunnel[&quot;Tunnel: 12 hostnames, then 404&quot;]
+        tunnel[&quot;Tunnel: 13 hostnames, then 404&quot;]
     end
     subgraph cluster[&quot;Cluster&quot;]
         cfd[&quot;cloudflared (2 pods)&quot;]
-        nginx[&quot;ingress-nginx&quot;]
+        gw[&quot;Cilium's Gateway&quot;]
     end
     client --&gt; dns --&gt; waf --&gt; access --&gt; tunnel
     cfd -- &quot;dials out&quot; --&gt; tunnel
     tunnel -. &quot;requests, down that connection&quot; .-&gt; cfd
-    cfd -- &quot;HTTP&quot; --&gt; nginx
+    cfd -- &quot;HTTP&quot; --&gt; gw
     </pre><ul>
 <li><p><strong>The zone</strong> <code class="docutils literal notranslate"><span class="pre">gkcluster.org</span></code>, with strict SSL, TLS 1.2 or later,
 “always use HTTPS” and HSTS (180 days, including subdomains).</p></li>
 <li><p><strong>One remotely-managed tunnel.</strong> Two <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> pods in the
 <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code> namespace dial out to it, so the home router forwards no
-ports. Every route points at ingress-nginx
-(<code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>),
-never straight at a Service, so the ingress rules and oauth2-proxy
-apply to everything.</p></li>
+ports. Every route points at Cilium’s Gateway
+(<code class="docutils literal notranslate"><span class="pre">http://cilium-gateway-web.gateway.svc.cluster.local</span></code>, <code class="docutils literal notranslate"><span class="pre">local.gateway</span></code>),
+never straight at a Service, so the HTTPRoutes and oauth2-proxy
+apply to everything (<a class="reference internal" href="gateway.html"><span class="doc">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></a>).</p></li>
 <li><p><strong>Thirteen public hostnames</strong>, the <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> list in
 <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>. Each is a tunnel route and a proxied CNAME to
 the tunnel:</p>
@@ -1431,8 +1432,9 @@ the shared chart in <code class="docutils literal notranslate"><span class="pre"
 (echo’s, and ArgoCD’s in <code class="docutils literal notranslate"><span class="pre">argo-cd/ingress.yaml</span></code>, are always <code class="docutils literal notranslate"><span class="pre">false</span></code>),
 so every Ingress in the
 cluster carries <code class="docutils literal notranslate"><span class="pre">nginx.ingress.kubernetes.io/ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>.
-Cloudflare terminates TLS at its edge and <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>
-hands ingress-nginx plain HTTP; with the redirect on, nginx would
+The same value attaches the service’s HTTPRoute to the Gateway’s plain
+HTTP listener. Cloudflare terminates TLS at its edge and <code class="docutils literal notranslate"><span class="pre">cloudflared</span></code>
+hands the Gateway plain HTTP; with the redirect on, it would
 answer every request with a redirect to HTTPS, which the browser is
 already using, and the page would loop (<code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code>).
 Check with:</p>
@@ -1446,8 +1448,8 @@ Check with:</p>
 <div class="highlight-hcl notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="w"> </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;myservice&quot;</span><span class="w"> </span><span class="p">},</span>
 </pre></div>
 </div>
-<p>The route defaults to ingress-nginx. Keep it that way: a route
-straight to a Service skips the ingress, so oauth2-proxy never runs
+<p>The route defaults to Cilium’s Gateway. Keep it that way: a route
+straight to a Service skips the HTTPRoute, so oauth2-proxy never runs
 and the <code class="docutils literal notranslate"><span class="pre">X-Auth-Request-Email</span></code> header is empty.</p>
 </li>
 <li><p><strong>Access.</strong> Nothing to add for an owner-only service: the
@@ -1722,11 +1724,11 @@ For <code class="docutils literal notranslate"><span class="pre">just</span> <sp
       </div>
     </a>
     <a class="right-next"
-       href="oauth-setup.html"
+       href="gateway.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Set up OAuth authentication</p>
+        <p class="prev-next-title">Check Cilium’s Gateway, and move a route back to ingress-nginx</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

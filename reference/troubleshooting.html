@@ -808,20 +808,25 @@ encrypted on Google Drive. The restore recipes are in
 </section>
 <section id="networking">
 <h2>Networking<a class="headerlink" href="#networking" title="Link to this heading">#</a></h2>
-<section id="ingress-returning-404-or-503">
-<h3>Ingress returning 404 or 503<a class="headerlink" href="#ingress-returning-404-or-503" title="Link to this heading">#</a></h3>
-<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">https://&lt;service&gt;.gkcluster.org</span></code> returns 404 Not Found or 503
-Service Temporarily Unavailable from nginx.</p>
+<section id="web-service-returning-404-or-503">
+<h3>Web service returning 404 or 503<a class="headerlink" href="#web-service-returning-404-or-503" title="Link to this heading">#</a></h3>
+<p><strong>Symptom:</strong> <code class="docutils literal notranslate"><span class="pre">https://&lt;service&gt;.gkcluster.org</span></code> returns 404 Not Found, or 503
+(“no healthy upstream”), from Envoy (<code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>): the tunnel reaches
+Cilium’s Gateway. Through a node address (<code class="docutils literal notranslate"><span class="pre">home-lan</span></code>, <code class="docutils literal notranslate"><span class="pre">home-tailnet</span></code>) the
+same errors come from ingress-nginx.</p>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic simple">
 <li><p><strong>Service exists?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">svc</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span></code></p></li>
 <li><p><strong>Endpoints populated?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">endpoints</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">&lt;svc-name&gt;</span></code></p></li>
-<li><p><strong>Ingress resource correct?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
-(ingresses made by <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> are named <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-ingress</span></code>)</p></li>
-<li><p><strong>Is the request reaching nginx?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&lt;service&gt;.gkcluster.org</span></code> returns
-Cloudflare addresses for every tunnelled name, not node addresses: the
-path is Cloudflare, cloudflared, then ingress-nginx. A 404 that is not
-nginx’s means the hostname is not a tunnel route, and fell to the
+<li><p><strong>HTTPRoute correct?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">&lt;service&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
+(routes made by <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> are named after the service). For the
+node-address path, the Ingress: <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-n</span> <span class="pre">&lt;namespace&gt;</span> <span class="pre">-o</span> <span class="pre">yaml</span></code>
+(named <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-ingress</span></code>)</p></li>
+<li><p><strong>Is the request reaching the Gateway?</strong> <code class="docutils literal notranslate"><span class="pre">dig</span> <span class="pre">&lt;service&gt;.gkcluster.org</span></code>
+returns Cloudflare addresses for every tunnelled name, not node addresses:
+the path is Cloudflare, cloudflared, then Cilium’s Gateway, which matches
+the service’s HTTPRoute (<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">-A</span></code>). A 404 that is not
+Envoy’s (<code class="docutils literal notranslate"><span class="pre">server:</span> <span class="pre">envoy</span></code>) means the hostname is not a tunnel route, and fell to the
 tunnel’s catch-all (<a class="reference internal" href="../how-to/cloudflare-as-code.html#cf-add-service"><span class="std std-ref">Publish a new hostname</span></a>).</p></li>
 </ol>
 </section>
@@ -881,18 +886,21 @@ is reverted by the next <code class="docutils literal notranslate"><span class="
 <section id="redirect-loop-through-the-tunnel">
 <h3>Redirect loop through the tunnel<a class="headerlink" href="#redirect-loop-through-the-tunnel" title="Link to this heading">#</a></h3>
 <p><strong>Symptom:</strong> Browser shows <code class="docutils literal notranslate"><span class="pre">ERR_TOO_MANY_REDIRECTS</span></code> on a tunnelled service.</p>
-<p><strong>Cause:</strong> cloudflared talks plain HTTP to ingress-nginx
-(<code class="docutils literal notranslate"><span class="pre">http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local</span></code>,
-<code class="docutils literal notranslate"><span class="pre">local.ingress_nginx</span></code> in <code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>). An Ingress that forces an
-SSL redirect answers every such request with a redirect to HTTPS, which
-comes back the same way.</p>
-<p><strong>Fix:</strong> The Ingress must have <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>. The templates set
+<p><strong>Cause:</strong> cloudflared talks plain HTTP to Cilium’s Gateway
+(<code class="docutils literal notranslate"><span class="pre">http://cilium-gateway-web.gateway.svc.cluster.local</span></code>, <code class="docutils literal notranslate"><span class="pre">local.gateway</span></code> in
+<code class="docutils literal notranslate"><span class="pre">cloudflare/locals.tf</span></code>). A service with the SSL redirect on has its
+HTTPRoute on the HTTPS listener only, and a second route answers every
+plain HTTP request with a redirect to HTTPS, which comes back the same way.</p>
+<p><strong>Fix:</strong> The service’s <code class="docutils literal notranslate"><span class="pre">additions/ingress</span></code> values must have
+<code class="docutils literal notranslate"><span class="pre">ssl_redirect:</span> <span class="pre">false</span></code>, which also sets the Ingress’s <code class="docutils literal notranslate"><span class="pre">ssl-redirect:</span> <span class="pre">&quot;false&quot;</span></code>
+and leaves no <code class="docutils literal notranslate"><span class="pre">&lt;service&gt;-https-redirect</span></code> HTTPRoute. The templates set
 <code class="docutils literal notranslate"><span class="pre">ssl_redirect</span></code> from <code class="docutils literal notranslate"><span class="pre">enable_cloudflare_tunnel</span></code> (which is <code class="docutils literal notranslate"><span class="pre">true</span></code>); a new
 service’s template must do the same. Check:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kubectl<span class="w"> </span>get<span class="w"> </span>ingress<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;service&gt;-ingress<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>ssl-redirect
+kubectl<span class="w"> </span>get<span class="w"> </span>httproute<span class="w"> </span>-A<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>https-redirect<span class="w">   </span><span class="c1"># should print nothing</span>
 </pre></div>
 </div>
-<p>If it shows <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code>, check that ArgoCD has synced the app. A route in
+<p>If either shows the redirect on, check that ArgoCD has synced the app. A route in
 <code class="docutils literal notranslate"><span class="pre">locals.tf</span></code> must also keep the <code class="docutils literal notranslate"><span class="pre">http://</span></code> scheme.</p>
 </section>
 <section id="tunnel-not-connecting">
@@ -921,11 +929,12 @@ port 7844 (TCP and UDP).</p></li>
 <h3>502 Bad Gateway from Cloudflare<a class="headerlink" href="#bad-gateway-from-cloudflare" title="Link to this heading">#</a></h3>
 <p><strong>Checklist:</strong></p>
 <ol class="arabic simple">
-<li><p><strong>Route goes to the ingress?</strong> Every entry of <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> uses the
-ingress controller’s Service on port 80. A route straight to a service
-also bypasses oauth2-proxy.</p></li>
-<li><p><strong>ingress-nginx running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">pods</span> <span class="pre">-n</span> <span class="pre">ingress-nginx</span></code></p></li>
-<li><p><strong>Ingress resource exists</strong> for the hostname? <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">ingress</span> <span class="pre">-A</span></code></p></li>
+<li><p><strong>Route goes to the Gateway?</strong> Every entry of <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code> uses the
+Gateway’s Service on port 80 (<code class="docutils literal notranslate"><span class="pre">local.gateway</span></code>). A route straight to a
+service also bypasses oauth2-proxy.</p></li>
+<li><p><strong>Envoy running?</strong> <code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">-n</span> <span class="pre">kube-system</span> <span class="pre">get</span> <span class="pre">ds</span> <span class="pre">cilium-envoy</span></code></p></li>
+<li><p><strong>HTTPRoute exists and is accepted</strong> for the hostname?
+<code class="docutils literal notranslate"><span class="pre">kubectl</span> <span class="pre">get</span> <span class="pre">httproute</span> <span class="pre">-A</span></code>; <a class="reference internal" href="../how-to/gateway.html"><span class="doc">Check Cilium’s Gateway, and move a route back to ingress-nginx</span></a> has the checks.</p></li>
 </ol>
 </section>
 <section id="new-tunnel-hostname-won-t-resolve-on-the-lan">
@@ -1193,7 +1202,7 @@ tpi<span class="w"> </span>info
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#networking">Networking</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ingress-returning-404-or-503">Ingress returning 404 or 503</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#web-service-returning-404-or-503">Web service returning 404 or 503</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#certificate-not-issuing">Certificate not issuing</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#home-lan-gkcluster-org-does-not-resolve-on-the-lan-dns-rebinding-protection"><code class="docutils literal notranslate"><span class="pre">home-lan.gkcluster.org</span></code> does not resolve on the LAN (DNS rebinding protection)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-node-cannot-resolve-node-lan-or-k3s-lan">A node cannot resolve <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;.lan</span></code> or <code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code></a></li>

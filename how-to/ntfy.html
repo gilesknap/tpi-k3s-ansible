@@ -328,6 +328,7 @@
   <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway, and move a route back to ingress-nginx</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
@@ -442,9 +443,10 @@ Deployment, Service, the <code class="docutils literal notranslate"><span class=
 <code class="docutils literal notranslate"><span class="pre">ntfy-auth</span></code> SealedSecret.</p></li>
 <li><p>An ingress for <code class="docutils literal notranslate"><span class="pre">ntfy.gkcluster.org</span></code> through the Cloudflare Tunnel, with no
 oauth2-proxy and no Cloudflare Access login, because the phone app can
-complete neither. Its annotations turn off nginx’s buffering and raise
-the read timeout to 180 seconds, as a subscription is a long-lived
-stream.</p></li>
+complete neither. The tunnel reaches it through its HTTPRoute on Cilium’s
+Gateway, which sets no request timeout (<code class="docutils literal notranslate"><span class="pre">gateway_request_timeout:</span> <span class="pre">0s</span></code>), as
+a subscription is a long-lived stream; the Ingress’s annotations do the
+same on nginx (no buffering, a 180 second read timeout).</p></li>
 </ul>
 <p>The pod runs <code class="docutils literal notranslate"><span class="pre">binwiederhier/ntfy:v2.34.0</span></code> (the <code class="docutils literal notranslate"><span class="pre">image</span></code> value in
 <code class="docutils literal notranslate"><span class="pre">kubernetes-services/additions/ntfy/values.yaml</span></code>), one replica with the
@@ -529,16 +531,16 @@ are random and discarded: they authenticate with tokens only.</p></li>
 <code class="docutils literal notranslate"><span class="pre">scripts/lib/ntfy_auth.py</span></code>; every script derives them from there.</p></li>
 </ul>
 <p>The NetworkPolicy admits only <code class="docutils literal notranslate"><span class="pre">ingress-nginx</span></code> (the <code class="docutils literal notranslate"><span class="pre">allowed_namespaces</span></code>
-value), the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> and the scrap pods in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
+value), Cilium’s Gateway (the <code class="docutils literal notranslate"><span class="pre">ntfy-from-gateway</span></code> CiliumNetworkPolicy), the Alertmanager pods in <code class="docutils literal notranslate"><span class="pre">monitoring</span></code> and the scrap pods in <code class="docutils literal notranslate"><span class="pre">scrap</span></code>
 (<code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>), which publish to the Service directly. Another in-cluster publisher adds its pods
 to <code class="docutils literal notranslate"><span class="pre">allowed_pods</span></code>. This limits who reaches the pod
-<em>directly</em>; anything that can reach ingress-nginx can still talk to ntfy
-through it, so ntfy’s token auth is the real gate.</p>
+<em>directly</em>; anything that can reach ingress-nginx or the Gateway can still
+talk to ntfy through them, so ntfy’s token auth is the real gate.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p><code class="docutils literal notranslate"><span class="pre">CF-Connecting-IP</span></code> is trusted from anyone who reaches ingress-nginx. On the
-tunnel path Cloudflare’s edge sets it, but a LAN host (through
-ingress-nginx’s LoadBalancer IPs) or a pod (through its ClusterIP) can send
+<p><code class="docutils literal notranslate"><span class="pre">CF-Connecting-IP</span></code> is trusted from anyone who reaches ingress-nginx or the
+Gateway. On the tunnel path Cloudflare’s edge sets it, but a LAN host (through
+ingress-nginx’s LoadBalancer IPs) or a pod (through either ClusterIP) can send
 any value, and so dodge the per-IP rate limits and the daily cap. ntfy
 counts users without a tier per IP, so the daily cap is also per address,
 not per account: a leaked token used from many addresses gets 500 messages
@@ -602,7 +604,7 @@ applied with <code class="docutils literal notranslate"><span class="pre">just</
 <ul class="simple">
 <li><p><strong>Tunnel route and DNS record</strong> (<code class="docutils literal notranslate"><span class="pre">locals.tf</span></code>): the entry
 <code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">name</span> <span class="pre">=</span> <span class="pre">&quot;ntfy&quot;,</span> <span class="pre">access_bypass</span> <span class="pre">=</span> <span class="pre">true</span> <span class="pre">}</span></code> in <code class="docutils literal notranslate"><span class="pre">tunnel_services</span></code>, routed
-to ingress-nginx like every other service.</p></li>
+to Cilium’s Gateway like every other service.</p></li>
 <li><p><strong>Access bypass</strong> (<code class="docutils literal notranslate"><span class="pre">access.tf</span></code>): the <code class="docutils literal notranslate"><span class="pre">clusterapps</span></code> wildcard application
 puts a browser login in front of every subdomain, which the phone app
 and <code class="docutils literal notranslate"><span class="pre">curl</span></code> cannot complete. The <code class="docutils literal notranslate"><span class="pre">ntfy</span></code> application, for exactly
