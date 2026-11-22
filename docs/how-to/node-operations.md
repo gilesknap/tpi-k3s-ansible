@@ -436,6 +436,11 @@ until a workload is given a `local-nvme` PV pinned to it.
    `.devcontainer/claude-sandbox.conf`, its entry in `rcon_allowed_cidrs`
    (and in `rcon_allowed_nodes`, if any), and `standby_control_plane` in `group_vars/all.yml` if it named this
    node. Commit the change.
+5. Drop its reservation and its NFS exports: `just router-dhcp`
+   ({doc}`/how-to/router-dhcp`), then
+   `ansible-playbook pb_nas.yml --tags nas_nfs` (its name stays in
+   `nas_nfs_clients` but is left out once it is not in `hosts.yml`; remove
+   it there too if it is gone for good).
 
 (what-never-applies-to-ws03)=
 ## What never applies to ws03

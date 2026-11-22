@@ -109,8 +109,13 @@ A device moves to a new reservation only when it next renews its lease
 that does not send its hostname until then: after the first push, which
 moves the nodes from MAC to name, check each one keeps its address once it
 has renewed. `ssh root@192.168.1.1 cat /tmp/dhcp.leases` lists each lease's
-address; the name there is the reservation's, not the one the device sent,
-so check the address.
+address. Its name is the one the client sent for a reservation by name, and
+the reservation's own for one by MAC, so check the address.
+
+Make this first push before any `--tags drill`
+({doc}`/how-to/router-recovery`): until then the router's reboot loses the
+`.lan` names, and the `<control_plane>.lan` check fails for hours although
+the guard worked.
 
 ## Add a device
 
@@ -137,10 +142,18 @@ node checklist is in {doc}`/reference/inventory`.
 ## Change an address
 
 Edit the host's `lan_ip` (or the entry's `ip`) and push. The device keeps
-its old address until it renews, so reconnect it. For a cluster node, also
-update `.devcontainer/claude-sandbox.conf` and the other places that list
-its address ({doc}`/reference/inventory`). Changing `node02`'s `lan_ip`
-moves `k3s.lan` with it, in the same push.
+its old address until it renews, so reconnect it. Changing `node02`'s
+`lan_ip` moves `k3s.lan` with it, in the same push. The NAS exports take
+their addresses from `lan_ip` too: run `pb_nas.yml --tags nas_nfs`
+afterwards. These still repeat addresses by hand, so change them with it:
+
+| Address | Where |
+|---------|-------|
+| The NAS, 192.168.1.3 | `nfs.server`, `nfs_csi.server` and `nas.monitoring.targets` in `kubernetes-services/values.yaml`; `nfs.server` in `kubernetes-services/additions/jellyfin/values.yaml`; `nfs.server` and `worlds_server` in `kubernetes-services/additions/backups/values.yaml` |
+| node02, 192.168.1.82 | `k3s.etcd_metrics_endpoints` in `kubernetes-services/values.yaml` |
+| node01 to node04 and nuc1 | The `except` list of `minecraft.worlds.rcon_allowed_cidrs` in `kubernetes-services/values.yaml` |
+| nuc2, 192.168.1.92 | `node_ip` in `hosts.yml`; the `vps_relay` forward's `target` in `kubernetes-services/values.yaml` |
+| Any cluster node | Its `allow-ip` line in `.devcontainer/claude-sandbox.conf` ({doc}`/reference/inventory`) |
 
 ## Replace a machine
 

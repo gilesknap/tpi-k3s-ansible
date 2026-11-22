@@ -173,6 +173,11 @@ ansible-playbook pb_router.yml --tags check
 
 ### Drill the revert
 
+Push the DNS and DHCP template once first (`just router-dhcp`,
+{doc}`/how-to/router-dhcp`): until then the drill's reboot loses the `.lan`
+names, and the `<control_plane>.lan` check fails for hours although the
+guard worked.
+
 Proves the guard on the real router. It arms the guard, writes a note
 into the router's system settings (`uci set system.@system[0].notes='router-guard drill <time>'`,
 committed), deliberately does not confirm it, waits for the watchdog to

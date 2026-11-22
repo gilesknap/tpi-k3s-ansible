@@ -280,7 +280,7 @@ router-dhcp *args:
     #!/usr/bin/env bash
     set -euo pipefail
     ansible-playbook pb_router.yml --tags dhcp-diff {{ args }}
-    read -rp "Apply this to the router, with confirm-or-revert? [y/N] " answer
+    read -rp "Apply this to the router, with confirm-or-revert? [y/N] " answer || answer=n
     [[ $answer == y ]] || { echo "Nothing changed."; exit 0; }
     ansible-playbook pb_router.yml --tags change -e router_change_tasks=dhcp {{ args }}
 
