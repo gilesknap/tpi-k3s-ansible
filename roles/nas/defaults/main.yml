@@ -138,17 +138,13 @@ nas_directories:
 # NFS
 ################################################################################
 
-# The only hosts the exports admit: the cluster's nodes and ws03, by IP
-# (each node mounts NFS volumes for its pods, so the NAS sees the node's
-# address). SYNC: the nodes' lan_ip in hosts.yml, which the router
-# reserves for them.
-nas_nfs_clients:
-  - { name: ws03, ip: 192.168.1.10 }
-  - { name: node02, ip: 192.168.1.82 }
-  - { name: node03, ip: 192.168.1.83 }
-  - { name: node04, ip: 192.168.1.84 }
-  - { name: nuc1, ip: 192.168.1.91 }
-  - { name: nuc2, ip: 192.168.1.92 }
+# The only hosts the exports admit: the cluster's nodes and ws03, by name
+# here, exported by IP, their lan_ip in hosts.yml (the router reserves it
+# for them). Each node mounts NFS volumes for its pods, so the NAS sees
+# the node's address; IPs, not names, keep NFS free of the router's DNS.
+# A name not in hosts.yml is left out, and an export left with no hosts
+# is not written (a cut-down rebuild keeps this list as it is).
+nas_nfs_clients: [ws03, node02, node03, node04, nuc1, nuc2]
 
 # Export options, as on QTS: the bigdisk family squashes root to
 # 65534 (nobody) but no other uid; the NFS CSI share does not squash root

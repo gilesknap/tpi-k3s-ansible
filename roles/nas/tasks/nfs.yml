@@ -63,12 +63,12 @@
 - name: Check the exports name only known NFS clients
   ansible.builtin.assert:
     that:
-      - (item.clients | default([]) + item.read_only_for | default([])) | difference(nas_nfs_clients | map(attribute='name') | list) | length == 0
+      - (item.clients | default([]) + item.read_only_for | default([])) | difference(nas_nfs_clients) | length == 0
       - item.clients is not defined or item.clients | length > 0
     fail_msg: >-
       {{ item.path }}: clients, if given, must not be empty, and clients and
       read_only_for may only name hosts in nas_nfs_clients
-      ({{ nas_nfs_clients | map(attribute='name') | join(', ') }}).
+      ({{ nas_nfs_clients | join(', ') }}).
     quiet: true
   loop: "{{ nas_nfs_exports }}"
   loop_control:
