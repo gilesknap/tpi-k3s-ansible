@@ -5,8 +5,8 @@
 #   ansible-playbook pb_router.yml --tags restore -e router_restore_file=<file>
 #
 # <file> is a backup already decrypted with the offline age key, e.g.
-# `age -d -i <key> router-<time>.tar.gz.age > router.tar.gz`. The restore
-# lists the files, asks before going on, unpacks them over the router's
+# `(umask 077; age -d -i <key> router-<time>.tar.gz.age > /dev/shm/router.tar.gz)`.
+# The restore lists the files, asks you to type yes, unpacks them over the router's
 # own with `sysupgrade -r`, then reboots the router and waits for SSH.
 # See docs/how-to/router-recovery.md.
 
@@ -38,7 +38,16 @@
 
           These {{ router_restore_list.stdout_lines | length }} files replace their copies on {{ dns_router }},
           which then reboots: the whole house loses the internet for a minute or two.
-          Press Enter to restore, or Ctrl+C then A to abort
+          Type yes to restore
+      register: router_restore_confirm
+
+    # pause does not wait without a terminal, so check the answer: a run
+    # with no one to type yes stops here.
+    - name: Check the restore was confirmed
+      ansible.builtin.assert:
+        that: router_restore_confirm.user_input | default('') == 'yes'
+        fail_msg: Not confirmed; nothing was changed on the router.
+        quiet: true
 
     # sysupgrade reads the archive from stdin with `-`, so nothing needs
     # scp or a copy in the router's /tmp.
@@ -47,10 +56,13 @@
         cmd: ssh -o BatchMode=yes {{ dns_router | quote }} 'sysupgrade -r -' < {{ router_restore_path | quote }}
       changed_when: true
 
+    # Dropbear may drop the session as the router goes down (ssh exits
+    # 255); the waits below check the outcome.
     - name: Reboot the router
       ansible.builtin.command:
         cmd: ssh -o BatchMode=yes {{ dns_router | quote }} reboot
       changed_when: true
+      failed_when: false
 
     - name: Wait for the router to go down
       ansible.builtin.wait_for:

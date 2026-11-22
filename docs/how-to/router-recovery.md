@@ -45,8 +45,9 @@ reach the phone through ntfy.
 
 The role authorizes the key on the router with `raw` (the router has no
 Python), adding the line only if it is missing. If the control plane
-moves, the old node's line stays, still limited to `sysupgrade -b`; delete
-it by hand ({doc}`/how-to/recover-control-plane`).
+moves, or is re-flashed (a new key), the old line stays, still limited to
+`sysupgrade -b` and harmless; delete it by hand if you like
+({doc}`/how-to/recover-control-plane`).
 
 ### Set it up
 
@@ -94,7 +95,7 @@ For a router that still answers SSH, e.g. after a bad change.
 
    The playbook runs on the controller with your own ssh to `dns_router`,
    the same way `just k3s-api-dns` does. It lists the files in the backup
-   and waits for Enter (Ctrl+C then A aborts), then pipes the file to
+   and asks you to type `yes` (anything else stops it), then pipes the file to
    `sysupgrade -r -` on the router (no scp or copy in `/tmp` needed),
    reboots the router and waits for its SSH to come back. The internet is
    down for everyone for a minute or two.
@@ -193,9 +194,9 @@ Failsafe makes new host keys in RAM and has no root password, so skip the
 known_hosts check for this session only:
 
 ```bash
-FS="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.1.1"
-ssh $FS 'cat > /tmp/router.tar.gz' < /dev/shm/router.tar.gz
-ssh $FS
+ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.1.1 \
+    'cat > /tmp/router.tar.gz' < /dev/shm/router.tar.gz
+ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.1.1
 ```
 
 On the router:
@@ -227,7 +228,7 @@ reboot -f
 
 After that reboot the router has OpenWrt's default configuration: LAN on
 ports 2 to 5 at 192.168.1.1 with DHCP, no WAN login, no root password and
-new host keys. Restore an older backup into it with the same `ssh $FS`
+new host keys. Restore an older backup into it with the same two `ssh`
 commands as above, without `mount_root`, then `reboot`; or upload it in
 LuCI (`http://192.168.1.1`), **System > Backup / Flash Firmware >
 Restore backup**.

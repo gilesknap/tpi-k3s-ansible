@@ -17,8 +17,9 @@
   register: etcd_backup_router_pubkey
 
 # Dropbear reads /etc/dropbear/authorized_keys, not /root/.ssh. The key may
-# only run `sysupgrade -b -`. A control plane that moves leaves its old
-# host's line behind; delete that by hand if it matters.
+# only run `sysupgrade -b -`. A control plane that moves or is re-flashed
+# (a new key) leaves its old line behind: harmless, delete it by hand if
+# you like.
 - name: Authorize the key on the router for sysupgrade -b only, and read its host key
   vars:
     ansible_user: "{{ etcd_backup_router.split('@') | first }}"
@@ -39,9 +40,10 @@
 - name: Warn that the router backup is not authorized
   ansible.builtin.debug:
     msg: >-
-      WARNING: the router ({{ etcd_backup_router }}) was unreachable, so the
-      router backup key is not authorized there and its host key is not
-      pinned: router-backup will fail until you rerun
+      WARNING: the router ({{ etcd_backup_router }}) was unreachable (down,
+      or the controller's SSH key or known_hosts entry for it is missing),
+      so the router backup key is not authorized there and its host key is
+      not pinned: router-backup will fail until you rerun
       `ansible-playbook pb_all.yml --limit {{ inventory_hostname }} --tags etcd_backup`.
   when: etcd_backup_router_auth.unreachable | default(false)
 
