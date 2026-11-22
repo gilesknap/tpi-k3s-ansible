@@ -13,5 +13,4 @@ mkdir -p ${HOME}/.config/bash-config
 xhost +SI:localuser:$(id -un)
 
 # ensure the mounted files/folders exist before the container is launched
-touch ${HOME}/.ansible_vault_password
 mkdir -p ${HOME}/.claude ${HOME}/.config/terminal-config
