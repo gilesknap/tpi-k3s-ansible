@@ -575,7 +575,7 @@ Into the folder `offsite_backup.drive_root` (default `home-cluster-offsite`):
 | On Drive | From | When |
 |----------|------|------|
 | `backups/<path>.age` | each file under `backups/` on the NAS (the Grafana and Jellyfin tarballs, e.g. `backups/grafana/<date>_<HHMM>.tar.gz.age`); files that already end `.age` (the etcd bundles, `pre-upgrade/` snapshots, dated sealed-secrets key exports and router backups) go up as they are | once, the first night it is there |
-| `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's daily, monthly and curated runs) as one tarball | once it has its `COMPLETE` marker |
+| `backups/<run>.tar.age` | each run directory of `offsite_backup.backups.run_dirs` (scrap's daily and monthly runs) as one tarball | once it has its `COMPLETE` marker |
 | `backups/<run>.incomplete.tar.age` | a run directory with no `COMPLETE` marker | once the run folder is two days old (its modification time) |
 | `minecraft/nightly/minecraft-<UTC time>.tar.age` | the Minecraft dashboard's store (`/bigdisk/k8s-cluster/minecraft`: its backups, snapshots and state), and from `/k8s-dynamic/stable` the live worlds' volumes (`minecraft/`) and the deleted worlds (`archived-minecraft/`) | every night; the newest `offsite_backup.minecraft.keep` (7) are kept |
 | `minecraft/archive/minecraft-archive-<fingerprint>.tar.age` | the world archive (`/bigdisk/minecraft-archive`) | once; again only if its files change (the fingerprint hashes their names and sizes) |
@@ -586,6 +586,12 @@ up once. Skipped: dotfiles, files written in the last 10 minutes, and
 `offsite_backup.backups.exclude`, the files rewritten in place each night
 (`etcd/LATEST` and the undated `sealed-secrets-keys.yaml.age`, whose dated
 copies are uploaded).
+
+`backups/scrap-curated/` on Drive holds four scrap runs once kept by hand,
+uploaded on 14 Nov 2026. The NAS folder and the B2 copies were deleted on 22
+Nov 2026; the Drive copy is kept, by the owner's choice, and is now the only
+one. Nothing uploads to that folder any more, and pruning (below) leaves it
+alone while `keep_min` is at least 4.
 
 **Not** copied off site:
 
