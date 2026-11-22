@@ -86,13 +86,13 @@ More in {doc}`/explanations/architecture/hardware`.
 kubectl get applications -n argo-cd
 ```
 
-There are 27 applications. `all-cluster-services` is the root: it renders
-the Helm chart in `kubernetes-services/`, whose templates are the other 26.
+There are 28 applications. `all-cluster-services` is the root: it renders
+the Helm chart in `kubernetes-services/`, whose templates are the other 27.
 Roughly, they fall into four groups:
 
 | Group | Applications |
 |-------|--------------|
-| Platform | `cilium`, `ingress`, `cert-manager`, `cloudflared`, `coredns`, `sealed-secrets`, `oauth2-proxy`, `kernel-settings` |
+| Platform | `cilium`, `gateway-api-crds`, `gateway`, `cert-manager`, `cloudflared`, `coredns`, `sealed-secrets`, `oauth2-proxy`, `kernel-settings` |
 | Storage and backups | `local-storage`, `nfs-csi`, `backups` |
 | Maintenance and devices | `kured`, `system-upgrade`, `intel-gpu-plugin`, `nvidia-device-plugin` |
 | Things to look at and use | `home`, `grafana-prometheus`, `headlamp`, `hubble-ui`, `argocd-monitor`, `echo`, `scrap`, `jellyfin`, `minecraft`, `ntfy`, `vps-relay` |
@@ -205,7 +205,7 @@ worker: whichever answers, the browser can reach that network.
 
 ### Jellyfin
 
-Jellyfin has no ingress and no Cloudflare route. Its pod runs on nuc2's own
+Jellyfin has no HTTPRoute and no Cloudflare route. Its pod runs on nuc2's own
 network, so it answers on port 8096 of every nuc2 interface:
 
 - on the LAN: <http://192.168.1.92:8096>

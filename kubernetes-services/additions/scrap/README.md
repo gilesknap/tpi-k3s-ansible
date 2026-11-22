@@ -2,9 +2,9 @@
 
 This directory is a small Helm chart holding these things for scrap:
 
-- `templates/mcp-ingress.yaml`: (only when `mcp_ingress_enabled` is true; enable
-  it only with a scrap chart release that supports `SCRAP_MCP_TOKEN`) an Ingress for `scrap.<domain>/mcp` only, without the
-  oauth2-proxy annotations (the main PWA Ingress comes from `additions/ingress`).
+- `templates/mcp-route.yaml`: (only when `mcp_route_enabled` is true; enable
+  it only with a scrap chart release that supports `SCRAP_MCP_TOKEN`) an HTTPRoute for `scrap.<domain>/mcp` only, without the
+  oauth2-proxy filter (the main PWA route comes from `additions/ingress`).
 - the SealedSecret below.
 - `templates/scrap-ntfy-secret.yaml`: the SealedSecret `scrap-ntfy`, scrap's
   ntfy token and `SCRAP_NOTIFY_URL` (key `url`). Not sealed by hand:

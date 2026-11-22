@@ -153,10 +153,15 @@
     state: present
     definition: "{{ lookup('template', 'argo-cd/argo-project.yaml') }}"
 
-- name: Add an ingress for ArgoCD
+# ArgoCD's HTTPRoute comes from the gateway Application (ADR 0016). This
+# removes the ingress-nginx Ingress the role made before the Gateway took
+# over, which no controller serves any more.
+- name: Remove the old ingress-nginx Ingress for ArgoCD
   kubernetes.core.k8s:
-    state: present
-    definition: "{{ lookup('template', 'argo-cd/ingress.yaml') }}"
+    state: absent
+    api_version: networking.k8s.io/v1
+    kind: Ingress
+    name: argocd-ingress
     namespace: argo-cd
 
 # Install sealed-secrets directly so kubeseal has a controller to talk

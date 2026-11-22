@@ -70,7 +70,7 @@ flowchart LR
 
   | Record | Points at | Purpose |
   |---|---|---|
-  | `home-lan` | The LAN address of a node that answers for the ingress LoadBalancer | The home page's "am I on the LAN?" probe |
+  | `home-lan` | The LAN address of a node where servicelb serves the Gateway's LoadBalancer | The home page's "am I on the LAN?" probe |
   | `home-tailnet` | That node's tailnet address | The same probe for the tailnet |
   | `mc` | The VPS's public address | Minecraft game ports ({doc}`vps-relay`) |
 
@@ -454,10 +454,10 @@ passphrase, not a token ({ref}`cf-token-errors`).
 ## Publish a new hostname
 
 A service becomes reachable at `<name>.gkcluster.org` when two things
-exist: an Ingress for that host in the cluster, and a `tunnel_services`
+exist: an HTTPRoute for that host in the cluster, and a `tunnel_services`
 entry at Cloudflare.
 
-1. **Ingress.** Give the service's ArgoCD Application an ingress from
+1. **HTTPRoute.** Give the service's ArgoCD Application a route from
    the shared chart in `kubernetes-services/additions/ingress`
    ({doc}`add-remove-services`), with:
 
@@ -467,20 +467,20 @@ entry at Cloudflare.
 
    `enable_cloudflare_tunnel` is `true` in
    `kubernetes-services/values.yaml`, and the templates under
-   `kubernetes-services/templates/` set their ingresses from it this way
-   (echo's, and ArgoCD's in `argo-cd/ingress.yaml`, are always `false`),
-   so every Ingress in the
-   cluster carries `nginx.ingress.kubernetes.io/ssl-redirect: "false"`.
-   The same value attaches the service's HTTPRoute to the Gateway's plain
-   HTTP listener. Cloudflare terminates TLS at its edge and `cloudflared`
-   hands the Gateway plain HTTP; with the redirect on, it would
-   answer every request with a redirect to HTTPS, which the browser is
-   already using, and the page would loop (`ERR_TOO_MANY_REDIRECTS`).
-   Check with:
+   `kubernetes-services/templates/` set their routes from it this way
+   (echo's, and ArgoCD's in `templates/gateway.yaml`, are always `false`),
+   so every HTTPRoute in the cluster attaches to both of the Gateway's
+   listeners, the plain HTTP one included, and none redirects. Cloudflare
+   terminates TLS at its edge and `cloudflared` hands the Gateway plain
+   HTTP on port 80; with the redirect on, the route would attach to the
+   HTTPS listener only and a `-https-redirect` route would answer every
+   request with a redirect to HTTPS, which the browser is already using,
+   and the page would loop (`ERR_TOO_MANY_REDIRECTS`). Check that no route
+   names a listener (the second column is empty) and that no
+   `-https-redirect` route exists:
 
    ```bash
-   kubectl get ingress -A -o json | jq -r '.items[] |
-     "\(.metadata.name) \(.metadata.annotations["nginx.ingress.kubernetes.io/ssl-redirect"])"'
+   kubectl get httproute -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{.spec.parentRefs[*].sectionName}{"\n"}{end}'
    ```
 
 2. **Route and DNS record.** Add an entry to `tunnel_services` in
@@ -509,8 +509,8 @@ entry at Cloudflare.
    and the tunnel configuration updated in place; then `just cf-apply`.
 
 No certificate step is needed. Cloudflare serves its own edge
-certificate for the public name, and inside the cluster ingress-nginx
-serves the wildcard certificate for any host without one of its own
+certificate for the public name, and inside the cluster the Gateway's
+HTTPS listener serves the wildcard certificate for every host
 ({ref}`cf-dns01-token`).
 
 A record that must not go through the tunnel (a non-HTTP port on the
@@ -566,12 +566,12 @@ issue a wildcard.
 - The one `Certificate`, `wildcard-cert`
   (`templates/wildcard-certificate.yaml`), covers `*.gkcluster.org` and
   `gkcluster.org` and is stored as `cert-manager/wildcard-tls`.
-- ingress-nginx uses that Secret as its `default-ssl-certificate`
-  (`kubernetes-services/templates/ingress.yaml`), and no Ingress names a
-  certificate of its own, so every host is served the wildcard. Clients
-  that reach ingress-nginx directly see it: LAN and tailnet browsers
-  (`home-lan`, `home-tailnet`) and pods that resolve
-  `argocd.gkcluster.org` to the ingress inside the cluster.
+- The Gateway's HTTPS listener (port 443) names that Secret
+  (`kubernetes-services/additions/gateway/templates/gateway.yaml`, allowed
+  by a ReferenceGrant in `cert-manager`), so every host is served the
+  wildcard. Clients that reach the Gateway directly on 443 see it: LAN and
+  tailnet browsers (`home-lan`, `home-tailnet`), the VPS's `/mcp`, and pods
+  that resolve `argocd.gkcluster.org` to the Gateway inside the cluster.
 
 ### Create the token
 
@@ -712,7 +712,7 @@ Access app that only served it), and its ID from `import_ids` in
 `live.auto.tfvars` (an import block for an object no longer in the
 code is skipped; for DNS records a check also warns about the stale
 key). Check that `just cf-plan` destroys exactly those objects, and
-apply. Then remove the service's Ingress with the rest of its
+apply. Then remove the service's HTTPRoute with the rest of its
 Application ({doc}`add-remove-services`).
 
 ## Troubleshooting

@@ -100,14 +100,14 @@ spec:
           enrichTopics:
             timeZone: Europe/London
 
-          # Only ingress-nginx may reach scrap, so clients inside the cluster
-          # cannot forge identity headers. scrap has no login of its own.
+          # Only Cilium's Gateway may reach scrap, so clients inside the
+          # cluster cannot forge identity headers. scrap has no login of its
+          # own. No peers here: the Gateway's Envoy connects as Cilium's
+          # "ingress" identity, which a NetworkPolicy cannot name, so the
+          # CiliumNetworkPolicy in additions/scrap admits it.
           networkPolicy:
             enabled: true
-            from:
-              - namespaceSelector:
-                  matchLabels:
-                    kubernetes.io/metadata.name: ingress-nginx
+            from: []
 
           # Public pages: a static site of the pages marked Public, served at
           # pages.<cluster_domain> from the scrap-public namespace (created in
@@ -123,24 +123,19 @@ spec:
             tokenSecret:
               name: scrap-publish
               key: token
+            # The chart's Ingress is on by default; the pages' HTTPRoute is
+            # below instead.
             ingress:
-              className: nginx
-              annotations:
-                nginx.ingress.kubernetes.io/ssl-redirect: {{ if .Values.enable_cloudflare_tunnel }}"false"{{ else }}"true"{{ end }}
-              hosts:
-                - pages.{{ .Values.cluster_domain }}
-              tls:
-                - hosts:
-                    - pages.{{ .Values.cluster_domain }}
-            # Only ingress-nginx may reach nginx; the receiver is open to
-            # scrap's pods alone, and the namespace has no egress.
+              enabled: false
+            # The site's web server (nginx) is open to anyone, as the
+            # chart does with no webFrom peers: it serves only public files,
+            # and the Gateway's Envoy connects as Cilium's "ingress"
+            # identity, which a NetworkPolicy cannot name. The receiver is
+            # open to scrap's pods alone, and the namespace has no egress.
             networkPolicy:
-              webFrom:
-                - namespaceSelector:
-                    matchLabels:
-                      kubernetes.io/metadata.name: ingress-nginx
+              webFrom: []
 
-    # /mcp-only Ingress (no oauth2-proxy), the SealedSecrets, the
+    # /mcp-only HTTPRoute (no oauth2-proxy), the SealedSecrets, the
     # scrap-public namespace, the static NFS volumes and the off-NAS backup
     # copy.
     - path: ./kubernetes-services/additions/scrap
@@ -166,10 +161,9 @@ spec:
           # Only enable with a scrap release that supports SCRAP_MCP_TOKEN
           # (>= 0.2.0) and mcp.tokenSecret set above; otherwise /mcp would
           # have only Cloudflare in front.
-          mcp_ingress_enabled: true
+          mcp_route_enabled: true
 
-    # The public pages' HTTPRoute (ADR 0016), beside the scrap-public Service;
-    # their Ingress comes from the scrap chart above (public.ingress).
+    # The public pages' HTTPRoute (ADR 0016), beside the scrap-public Service.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -184,11 +178,10 @@ spec:
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           # Turns off Envoy's 15 s cap on a request, for attachment downloads (ADR 0016).
           gateway_request_timeout: 0s
-          ingress: false
 
     # Public via the Cloudflare tunnel at scrap.<cluster_domain>. The PWA is
     # gated by Cloudflare Access plus oauth2-proxy; /mcp is split out into its
-    # own Ingress (additions/scrap) without oauth2-proxy.
+    # own HTTPRoute (additions/scrap) without oauth2-proxy.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -202,8 +195,6 @@ spec:
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           # Turns off Envoy's 15 s cap on a request, for uploads and attachment downloads (ADR 0016).
           gateway_request_timeout: 0s
-          extra_annotations:
-            nginx.ingress.kubernetes.io/proxy-body-size: 50m
   syncPolicy:
     automated:
       prune: true

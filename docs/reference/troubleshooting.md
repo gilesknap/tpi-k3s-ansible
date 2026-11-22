@@ -145,13 +145,13 @@ application's sync status in the ArgoCD UI. Do not delete or patch the
 **Symptom:** An ArgoCD application shows a perpetual `Running` operation and
 never reaches `Synced`, even though all resources are healthy.
 
-**Cause:** Charts like `kube-prometheus-stack` and `ingress-nginx` include
+**Cause:** Charts like `kube-prometheus-stack` include
 admission webhook jobs with `helm.sh/hook-delete-policy: hook-succeeded`. The
 job deletes itself before ArgoCD records completion, leaving the operation stuck.
 
-**Fix:** The webhooks are disabled in both charts' values, in
-`kubernetes-services/templates/`; keep them so, and do the same for a new
-chart that shows this:
+**Fix:** The webhooks are disabled in its values, in
+`kubernetes-services/templates/grafana.yaml`; keep them so, and do the same
+for a new chart that shows this:
 
 ```yaml
 # kube-prometheus-stack (grafana.yaml), under helm.valuesObject
@@ -160,11 +160,6 @@ prometheusOperator:
     enabled: false
   tls:
     enabled: false  # its cert came from the webhooks' certgen job
-
-# ingress-nginx (ingress.yaml), under helm.valuesObject
-controller:
-  admissionWebhooks:
-    enabled: false
 ```
 
 An operation that is already stuck is ended with **Terminate** in the
@@ -292,15 +287,16 @@ HTML login page.
 
 **Fix:** The `cluster` tag writes a split-horizon override: a
 `coredns-custom` ConfigMap in `kube-system` whose `cluster-domain.server`
-block makes `argocd.gkcluster.org` resolve to the ingress-nginx Service's
-ClusterIP for pods, then restarts argocd-server. The task waits up to five
-minutes for ArgoCD to create the ingress Service; if it timed out on a
+block makes `argocd.gkcluster.org` resolve to the ClusterIP of the Gateway's
+Service (`gateway/cilium-gateway-web`, whose port 443 serves the wildcard
+certificate) for pods, then restarts argocd-server. The task waits up to ten
+minutes for Cilium to create the Gateway's Service; if it timed out on a
 fresh build, or the Service was re-created with a new ClusterIP, run the
 tag again:
 
 ```bash
 kubectl -n kube-system get configmap coredns-custom -o yaml   # is it there?
-kubectl -n ingress-nginx get svc ingress-ingress-nginx-controller   # same ClusterIP?
+kubectl -n gateway get svc cilium-gateway-web   # same ClusterIP?
 ansible-playbook pb_all.yml --tags cluster
 ```
 
@@ -450,30 +446,30 @@ encrypted on Google Drive. The restore recipes are in
 ### Web service returning 404 or 503
 
 **Symptom:** `https://<service>.gkcluster.org` returns 404 Not Found, or 503
-("no healthy upstream"), from Envoy (`server: envoy`): the tunnel reaches
-Cilium's Gateway. Through a node address (`home-lan`, `home-tailnet`) the
-same errors come from ingress-nginx.
+("no healthy upstream"), from Envoy (`server: envoy`): the tunnel and the
+node addresses (`home-lan`, `home-tailnet`) both reach Cilium's Gateway.
 
 **Checklist:**
 
 1. **Service exists?** `kubectl get svc -n <namespace>`
 2. **Endpoints populated?** `kubectl get endpoints -n <namespace> <svc-name>`
 3. **HTTPRoute correct?** `kubectl -n <namespace> get httproute <service> -o yaml`
-   (routes made by `additions/ingress` are named after the service). For the
-   node-address path, the Ingress: `kubectl get ingress -n <namespace> -o yaml`
-   (named `<service>-ingress`)
+   (routes made by `additions/ingress` are named after the service);
+   `kubectl -n <namespace> describe httproute <service>` shows whether the
+   Gateway accepted it and resolved its backend.
 4. **Is the request reaching the Gateway?** `dig <service>.gkcluster.org`
    returns Cloudflare addresses for every tunnelled name, not node addresses:
    the path is Cloudflare, cloudflared, then Cilium's Gateway, which matches
    the service's HTTPRoute (`kubectl get httproute -A`). A 404 that is not
    Envoy's (`server: envoy`) means the hostname is not a tunnel route, and fell to the
-   tunnel's catch-all ({ref}`cf-add-service`).
+   tunnel's catch-all ({ref}`cf-add-service`). {doc}`/how-to/gateway` has
+   the Gateway's own checks and symptoms.
 
 ### Certificate not issuing
 
 The cluster has one certificate: `wildcard-cert` in the `cert-manager`
-namespace (issued by DNS-01 through Cloudflare), which ingress-nginx serves
-as its default (`cert-manager/wildcard-tls`).
+namespace (issued by DNS-01 through Cloudflare), which the Gateway's HTTPS
+listener serves for every host (`cert-manager/wildcard-tls`).
 
 **Symptom:** `kubectl get cert -n cert-manager` shows `False` for Ready.
 
@@ -535,17 +531,16 @@ HTTPRoute on the HTTPS listener only, and a second route answers every
 plain HTTP request with a redirect to HTTPS, which comes back the same way.
 
 **Fix:** The service's `additions/ingress` values must have
-`ssl_redirect: false`, which also sets the Ingress's `ssl-redirect: "false"`
-and leaves no `<service>-https-redirect` HTTPRoute. The templates set
+`ssl_redirect: false`, which attaches the route to both listeners and
+leaves no `<service>-https-redirect` HTTPRoute. The templates set
 `ssl_redirect` from `enable_cloudflare_tunnel` (which is `true`); a new
 service's template must do the same. Check:
 
 ```bash
-kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep ssl-redirect
 kubectl get httproute -A | grep https-redirect   # should print nothing
 ```
 
-If either shows the redirect on, check that ArgoCD has synced the app. A route in
+If it shows a redirect route, check that ArgoCD has synced the app. A route in
 `locals.tf` must also keep the `http://` scheme.
 
 ### Tunnel not connecting
@@ -731,9 +726,9 @@ to check the job on node02 by hand: {ref}`etcd-offsite-backup`.
 **Symptom:** the node's kernel log fills with `apparmor="DENIED"
 operation="signal"` entries for container processes, often `signal=urg`
 from Go programs or `signal=hup` from nginx. Visible failures include
-ingress-nginx never becoming ready because its reload fails with
-`kill(...): permission denied`, and containers that ignore SIGTERM on
-shutdown.
+nginx reloads failing with `kill(...): permission denied` (ingress-nginx,
+before the Gateway replaced it, never became ready from this), and
+containers that ignore SIGTERM on shutdown.
 
 **Cause:** Ubuntu 25.04 and later set
 `kernel.apparmor_restrict_unprivileged_unconfined=1`. Container processes

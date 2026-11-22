@@ -36,8 +36,7 @@ spec:
             cookie-secure: "true"
             # Answers a signed-in request on any path but oauth2-proxy's own.
             # 200, not 202: Cilium's Gateway (Envoy's ext_authz) allows only
-            # a 200 (additions/ingress/templates/httproute.yaml). ingress-nginx
-            # uses /oauth2/auth instead, which answers 202 whatever this is.
+            # a 200 (additions/ingress/templates/httproute.yaml).
             upstream: "static://200"
             set-xauthrequest: "true"
             pass-access-token: "true"
@@ -50,18 +49,6 @@ spec:
             - name: error-templates
               mountPath: /etc/oauth2-proxy/templates
               readOnly: true
-          ingress:
-            enabled: true
-            className: nginx
-            hosts:
-              - oauth2.{{ .Values.cluster_domain }}
-            tls:
-              - hosts:
-                  - oauth2.{{ .Values.cluster_domain }}
-            annotations:
-{{- if .Values.enable_cloudflare_tunnel }}
-              nginx.ingress.kubernetes.io/ssl-redirect: "false"
-{{- end }}
           # Sessions live in the encrypted cookie (sessionStorage: cookie, the
           # chart default) and every replica shares the cookie secret, so
           # replicas need no shared state.
@@ -95,8 +82,7 @@ spec:
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
 
-    # oauth2.<cluster_domain>'s HTTPRoute (ADR 0016); its Ingress comes from
-    # the chart above.
+    # oauth2.<cluster_domain>'s HTTPRoute (ADR 0016).
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -108,7 +94,6 @@ spec:
           service_port: 80
           oauth2_proxy: false
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
-          ingress: false
   syncPolicy:
     automated:
       prune: true

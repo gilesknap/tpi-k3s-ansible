@@ -25,7 +25,7 @@ spec:
     # Public via the Cloudflare tunnel at ntfy.<cluster_domain>, with no
     # Cloudflare Access (phone apps cannot do its login) and no oauth2-proxy:
     # ntfy's own token auth is the gate. Subscriptions are long-lived
-    # streams, so nginx must not buffer them or time them out early.
+    # streams, which Envoy passes through unbuffered.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}
       targetRevision: {{ .Values.repo_branch }}
@@ -39,13 +39,6 @@ spec:
           ssl_redirect: {{ if .Values.enable_cloudflare_tunnel }}false{{ else }}true{{ end }}
           # Turns off Envoy's 15 s cap on a request, for ntfy's long-lived subscriptions (ADR 0016).
           gateway_request_timeout: 0s
-          extra_annotations:
-            nginx.ingress.kubernetes.io/proxy-buffering: "off"
-            nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-            nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
-            nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
-            # Messages are at most 4k and attachments are off.
-            nginx.ingress.kubernetes.io/proxy-body-size: 64k
   syncPolicy:
     automated:
       prune: true

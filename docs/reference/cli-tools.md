@@ -165,7 +165,7 @@ Ansible, `ansible-lint` and Sphinx come from `pyproject.toml` through
 ### Port-forward scripts
 
 The `tools` role writes three scripts into `$BIN_DIR`. Each starts a
-`kubectl port-forward` in the background, for when the ingress is down or the
+`kubectl port-forward` in the background, for when the Gateway is down or the
 route through Cloudflare is the thing being debugged.
 
 | Script | Forwards | Notes |

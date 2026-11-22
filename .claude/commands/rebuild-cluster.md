@@ -400,10 +400,7 @@ while true; do
   nodes_total=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
   nodes_ready=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
   apps_total=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | wc -l)
-  # The gateway app stays Progressing while its Gateway is kept off the node
-  # addresses (ADR 0016, until phase 2), so count that as healthy.
-  apps_healthy=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null \
-    | awk '$3 == "Healthy" || ($1 == "gateway" && $3 == "Progressing")' | wc -l)
+  apps_healthy=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Healthy' || true)
   apps_synced=$(kubectl get apps -n argo-cd --no-headers 2>/dev/null | grep -c 'Synced' || true)
   ss_total=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)
   ss_ok=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | grep -c 'True' || true)
@@ -467,10 +464,25 @@ If any SealedSecrets show `False` with "no key could decrypt":
       kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -E 'KubeProxyReplacement|Host Routing|Masquerading'
       kubectl -n argo-cd get app cilium hubble-ui
       ```
-- [ ] ingress-nginx answers on every ServiceLB node IP from the LAN (k3s
-      servicelb with Cilium in kube-proxy's place):
-      `for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do curl -s -o /dev/null -w "$ip %{http_code}\n" -H 'Host: echo.<domain>' http://$ip/; done`
-      (200 each).
+- [ ] Cilium's Gateway answers on every ServiceLB node IP from the LAN (k3s
+      servicelb with Cilium in kube-proxy's place), over HTTP and over
+      HTTPS with the wildcard certificate, and has those addresses:
+      ```bash
+      kubectl -n gateway get gateway web          # PROGRAMMED True, ADDRESS the node IPs
+      kubectl -n gateway get svc cilium-gateway-web   # EXTERNAL-IP 192.168.1.83,.84,.91,.92
+      for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do
+        curl -s -o /dev/null -w "$ip http %{http_code} " -H 'Host: echo.<domain>' http://$ip/
+        curl -s -o /dev/null -w "https %{http_code} verify=%{ssl_verify_result}\n" \
+          --resolve home-lan.<domain>:443:$ip https://home-lan.<domain>/healthz
+      done
+      ```
+      (`http 200 https 200 verify=0` each: plain HTTP is not redirected
+      while the tunnel is on, as cloudflared uses it too). Then the
+      in-cluster Dex path that the CoreDNS override sends to the Gateway:
+      `kubectl -n kube-system get cm coredns-custom -o yaml` names the
+      ClusterIP of `gateway/cilium-gateway-web`, and from a pod with curl
+      (`kubectl -n home exec deploy/home -- curl -s -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' https://argocd.<domain>/api/dex/.well-known/openid-configuration`)
+      it prints `200 0`.
 - [ ] Hubble shows flows: the Hubble UI at `https://hubble.<domain>` (needs
       the `hubble` tunnel route: see "Cloudflare prerequisite"), or
       `kubectl -n kube-system exec ds/cilium -c cilium-agent -- hubble observe --last 20`.
@@ -479,12 +491,17 @@ If any SealedSecrets show `False` with "no key could decrypt":
       test pod in `backups` reaches Drive and B2 but nothing else:
       ```bash
       kubectl -n backups run egress-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- sh -c '
-        for u in https://www.googleapis.com/generate_204 https://api.backblazeb2.com/ https://example.com/; do
+        for u in https://www.googleapis.com/generate_204 https://api.backblazeb2.com/b2api/v3/b2_authorize_account https://example.com/; do
           if wget -q -T 10 -O /dev/null "$u" 2>/dev/null || wget -T 10 -O /dev/null "$u" 2>&1 | grep -q "server returned error"; then
             echo "$u reachable"; else echo "$u blocked"; fi
         done'
       ```
-      googleapis and backblazeb2 reachable, example.com blocked. Hubble on
+      googleapis and backblazeb2 reachable, example.com blocked. The B2 URL
+      is one that answers itself (401 without credentials): B2's bare
+      `https://api.backblazeb2.com/` redirects to `www.backblaze.com`, which
+      the policy rightly blocks, and wget follows the redirect, so it would
+      read as blocked. A server error counts as reachable (the second wget);
+      only a failed connection or DNS answer counts as blocked. Hubble on
       the pod's node shows the drop:
       `hubble observe -n backups --verdict DROPPED --last 20` in that node's
       `cilium-agent` container.
@@ -496,8 +513,8 @@ If any SealedSecrets show `False` with "no key could decrypt":
       a pod it fails:
       `kubectl -n default run rcon-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- nc -z -w5 192.168.1.92 <port> && echo LEAK || echo blocked`.
 - [ ] The five NetworkPolicies still hold: scrap and ntfy load through
-      their Ingresses (Phase 6/7), and a pod outside `ingress-nginx` is
-      refused by scrap:
+      their HTTPRoutes on the Gateway (Phase 6/7), and any pod, which is
+      not the Gateway's Envoy, is refused by scrap:
       `kubectl -n default run np-test-$(date +%s) --rm -i --restart=Never --image=alpine:3.24 -- wget -q -T 5 -O /dev/null http://scrap.scrap.svc.cluster.local/ && echo LEAK || echo blocked`.
 
 If certificates are pending, restart cert-manager and wait 2 minutes:
@@ -526,24 +543,33 @@ kubectl rollout restart deployment cert-manager -n cert-manager
 
 ## Phase 6: Verify via curl
 
-Read `cluster_domain` from `group_vars/all.yml`. Test all service URLs:
+Read `cluster_domain` from `group_vars/all.yml`. From outside, Cloudflare
+Access answers every tunnel hostname but `ntfy` and `pages` (the two with
+an Access bypass) with a 302 to its own login, before the request reaches
+the cluster, so only those two show the cluster's answer. A response that
+came through the Gateway carries Envoy's `x-envoy-upstream-service-time`
+header (Cloudflare replaces `server`):
 
 ```bash
-for url in https://echo.<domain> https://grafana.<domain> \
-           https://headlamp.<domain> \
-           https://argocd-monitor.<domain> https://argocd.<domain>; do
-  status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$url")
-  echo "$url -> HTTP $status"
+for h in echo home grafana alertmanager argocd argocd-monitor headlamp \
+         hubble minecraft oauth2 scrap; do
+  curl -s -o /dev/null -m 10 -w "$h %{http_code} %{redirect_url}\n" "https://$h.<domain>/" \
+    | sed -E 's|(https://[^/]+).*|\1|'
+done
+for u in https://ntfy.<domain>/v1/health https://pages.<domain>/; do
+  curl -s -o /dev/null -D - -m 10 "$u" \
+    | grep -i -E '^HTTP|^x-envoy-upstream-service-time' | tr -d '\r' | tr '\n' ' '; echo " <- $u"
 done
 ```
 
 Expected results:
-- `echo`, `argocd`: HTTP 200 (no auth or own login page)
-- `grafana`: HTTP 302 (redirects to OAuth login)
-- `headlamp`: HTTP 302 (oauth2-proxy redirect)
-- `argocd-monitor`: HTTP 302 (oauth2-proxy redirect)
+- every host in the first loop: `302 https://<cf_access_team>.cloudflareaccess.com`
+  (Cloudflare Access; `cf_access_team` in `kubernetes-services/values.yaml`)
+- `ntfy.<domain>/v1/health` and `pages.<domain>/`: `HTTP/2 200` with an
+  `x-envoy-upstream-service-time` header
 
-All services must respond (no timeouts or 5xx errors).
+Nothing may time out or answer 5xx. What lies behind Access (Dex, oauth2-proxy
+and each app) is checked in the browser in Phase 7, and from the LAN in 5b.
 
 ## Phase 7: Verify via browser
 

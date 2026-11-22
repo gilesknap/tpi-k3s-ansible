@@ -13,7 +13,7 @@ its own GitHub OAuth app:
 | Path | GitHub OAuth app callback | Used by |
 |---|---|---|
 | **Dex** (the `argocd-dex-server` Deployment in `argo-cd`), an OIDC provider | `https://argocd.gkcluster.org/api/dex/callback` | ArgoCD, Grafana, argocd-monitor: services that speak OIDC |
-| **oauth2-proxy** (two replicas in `oauth2-proxy`), a forward-auth gateway on the ingress | `https://oauth2.gkcluster.org/oauth2/callback` | Headlamp, Alertmanager, the Minecraft dashboard, scrap: admin-only services with no OIDC of their own |
+| **oauth2-proxy** (two replicas in `oauth2-proxy`), the login check in front of the Gateway's routes | `https://oauth2.gkcluster.org/oauth2/callback` | Headlamp, Alertmanager, the Minecraft dashboard, scrap: admin-only services with no OIDC of their own |
 
 Both apps exist and both paths are live. The steps below are needed on a
 rebuild only if the apps have been lost (the rebuild otherwise carries
@@ -143,8 +143,8 @@ To put another OIDC-capable service behind Dex:
 ## Part B: oauth2-proxy
 
 oauth2-proxy (`kubernetes-services/templates/oauth2-proxy.yaml`)
-authenticates a browser with GitHub and answers ingress-nginx's
-auth subrequests. It lets in only the addresses in `admin_emails`
+authenticates a browser with GitHub and answers the auth checks of
+Cilium's Gateway (its ExternalAuth filter). It lets in only the addresses in `admin_emails`
 (`authenticatedEmailsFile`, with `email_domains = []` so that the
 chart's default of "any address" does not override the list), and sets
 its cookie on `.gkcluster.org` so that one sign-in covers every
@@ -206,29 +206,29 @@ cookie secret signs everyone out.
 
 ### How a service is put behind oauth2-proxy
 
-A service's ingress comes from the shared chart
+A service's HTTPRoute comes from the shared chart
 `kubernetes-services/additions/ingress`. Setting `oauth2_proxy: true` in
-its values adds three annotations:
-
-```yaml
-nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth"
-nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.gkcluster.org/oauth2/start?rd=https://$host$escaped_request_uri"
-nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-```
-
-ingress-nginx then asks oauth2-proxy about every request, sends a
-browser without a session to `oauth2.gkcluster.org` to sign in, and
-passes the signed-in address to the backend as `X-Auth-Request-Email`.
-The `auth-url` is the in-cluster Service on purpose: the public name
-resolves to Cloudflare, which pods cannot rely on reaching.
+its values adds an `ExternalAuth` filter to the route
+(`additions/ingress/templates/httproute.yaml`): Envoy sends every request
+first to the in-cluster Service `oauth2-proxy.oauth2-proxy` (path prefixed
+with `/gateway-auth`, only the `Cookie` header), and lets it through only
+on a 200. A browser without a session gets a 403 carrying oauth2-proxy's
+sign-in page, which sends it on to `oauth2.gkcluster.org/oauth2/start` to
+sign in. A signed-in request reaches the backend with
+`X-Auth-Request-User` and `X-Auth-Request-Email` set by oauth2-proxy,
+replacing any the client sent. The backend is the in-cluster Service on
+purpose: the public name resolves to Cloudflare, which pods cannot rely
+on reaching. A gated route's namespace must be in the oauth2-proxy
+ReferenceGrant's list (`external_auth_namespaces` in
+`templates/gateway.yaml`), or every request gets a 500.
 
 | Service | Where it is switched on |
 |---|---|
 | Headlamp | `oauth2_proxy: {{ .Values.enable_oauth2_proxy }}` in `templates/dashboard.yaml`; Headlamp then asks for a ServiceAccount token (`just headlamp-token`) |
-| Hubble UI | `oauth2_proxy: true` in `templates/hubble-ui.yaml`, whose Application exists only while `enable_oauth2_proxy` is on, so the UI never has an Ingress without it; it has no login of its own |
-| Alertmanager | The same annotations written out in `templates/grafana.yaml` (the chart makes that ingress); Alertmanager has no login of its own |
+| Hubble UI | `oauth2_proxy: true` in `templates/hubble-ui.yaml`, whose Application exists only while `enable_oauth2_proxy` is on, so the UI never has a route without it; it has no login of its own |
+| Alertmanager | `oauth2_proxy: true`, hard-wired in the `alertmanager` route source in `templates/grafana.yaml`; Alertmanager has no login of its own |
 | Minecraft dashboard | `oauth2_proxy: true`, hard-wired in `templates/minecraft.yaml` |
-| scrap | `oauth2_proxy: true`, hard-wired in `templates/scrap.yaml` for the web app; its `/mcp` ingress has none and uses a bearer token |
+| scrap | `oauth2_proxy: true`, hard-wired in `templates/scrap.yaml` for the web app; its `/mcp` route has none and uses a bearer token |
 
 `oauth2.gkcluster.org` must itself be reachable from the browser, so it
 is one of the tunnel's hostnames (`oauth2` in `tunnel_services`,
@@ -237,11 +237,11 @@ is one of the tunnel's hostnames (`oauth2` in `tunnel_services`,
 ### The `enable_oauth2_proxy` flag
 
 `enable_oauth2_proxy` in `kubernetes-services/values.yaml` is `true`.
-Today it switches only Headlamp's ingress annotations: the oauth2-proxy
-Application is always deployed, and the other three services are
-hard-wired so that they fail closed (ingress-nginx returns an error when
-the auth subrequest fails) instead of opening up if oauth2-proxy is
-missing.
+Today it switches only Headlamp's ExternalAuth filter (and whether the
+Hubble UI exists at all): the oauth2-proxy Application is always
+deployed, and the other services are hard-wired so that they fail closed
+(the Gateway answers 403 or 500 when the auth check cannot be made)
+instead of opening up if oauth2-proxy is missing.
 
 :::{note}
 **Rebuild note.** The flag exists for a build that has no GitHub OAuth
@@ -270,12 +270,12 @@ Dex or oauth2-proxy.
 
 ### Redirect loop on a protected service
 
-The oauth2-proxy ingress must not itself be behind oauth2-proxy. Its
-ingress is made by the oauth2-proxy chart in `templates/oauth2-proxy.yaml`
-and has no `auth-url` annotation; check that none has been added:
+The oauth2-proxy route must not itself be behind oauth2-proxy. Its
+HTTPRoute, `oauth2` in `templates/oauth2-proxy.yaml`, has
+`oauth2_proxy: false`; check that it has no ExternalAuth filter:
 
 ```bash
-kubectl -n oauth2-proxy get ingress oauth2-proxy -o yaml | grep auth-
+kubectl -n oauth2-proxy get httproute oauth2 -o yaml | grep -i externalauth
 ```
 
 A service with its own oauth2-proxy sidecar (argocd-monitor) needs its
@@ -293,11 +293,15 @@ For ArgoCD, Grafana and argocd-monitor: any GitHub user who got past
 Cloudflare Access can sign in, as a viewer. A 403 there comes from the
 service's own roles (A4).
 
-### 500 on every protected service
+### 403 or 500 on every protected service
 
-ingress-nginx could not complete the auth subrequest. Check that the
-oauth2-proxy pods are running and that the ingress's `auth-url` is the
-in-cluster Service address shown above.
+A 403 with no sign-in page means Envoy could not reach oauth2-proxy (the
+filter fails closed): check that the oauth2-proxy pods are running. A 500
+means the Gateway refused the filter's reference to the oauth2-proxy
+Service: check that the route's namespace is in `external_auth_namespaces`
+(`templates/gateway.yaml`) and that the route is accepted
+(`kubectl -n <namespace> describe httproute <service>`). {doc}`gateway`
+has the other symptoms.
 
 ### Login fails right after a reseal
 
@@ -320,10 +324,10 @@ is 44 characters.
 
 ### A service loads without a login
 
-Check that the annotations are on its Ingress:
+Check that its HTTPRoute has the ExternalAuth filter:
 
 ```bash
-kubectl get ingress -n <namespace> <service>-ingress -o yaml | grep auth-
+kubectl -n <namespace> get httproute <service> -o yaml | grep -i -A3 externalauth
 ```
 
 For Headlamp, also check that `enable_oauth2_proxy` is `true`.
@@ -338,7 +342,8 @@ libraries do not follow the redirect.
 If the discovery document comes back as HTML (`expected Content-Type =
 application/json, got "text/html"`), the pod's request went out to
 Cloudflare and met the Access login page. Inside the cluster,
-`argocd.gkcluster.org` must resolve to ingress-nginx's ClusterIP: the
+`argocd.gkcluster.org` must resolve to the Gateway's ClusterIP
+(`gateway/cilium-gateway-web`): the
 `coredns-custom` ConfigMap that does this is written by
 `ansible-playbook pb_all.yml --tags cluster`.
 

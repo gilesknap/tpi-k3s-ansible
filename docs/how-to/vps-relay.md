@@ -57,7 +57,7 @@ initiates a connection into the home network, the tailnet policy gives the
 VPS no access to the relay node, and the relay node advertises no subnet
 routes. A compromised VPS can therefore reach only what the relay already
 forwards to it, the game ports on nuc2, and the one thing the policy grants
-it: ingress-nginx on nuc2's tailnet IP, for scrap's `/mcp`
+it: Cilium's Gateway on nuc2's tailnet IP, for scrap's `/mcp`
 ({ref}`scrap-canary`).
 
 | Piece | Where | Notes |
@@ -116,7 +116,7 @@ has:
     { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
     // The relay may reach only frps on the VPS.
     { "src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"] },
-    // The VPS (claude-canary) may reach only ingress-nginx on nuc2's tailnet
+    // The VPS (claude-canary) may reach only the Gateway on nuc2's tailnet
     // IP, for scrap's /mcp (docs/how-to/scrap.md). Nothing else with src tag:vps.
     { "src": ["tag:vps"], "dst": ["nuc2"], "ip": ["tcp:443"] }
   ],

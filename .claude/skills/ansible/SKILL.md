@@ -11,7 +11,7 @@ description: Ansible playbook structure, tags, topology rules, branch switching,
 - Vars: `group_vars/all.yml` — single source of truth for cluster-wide settings
 - Inventory: `hosts.yml`
 - ArgoCD apps: `kubernetes-services/templates/`; extra manifests in
-  `kubernetes-services/additions/`. Reusable ingress sub-chart at
+  `kubernetes-services/additions/`. Reusable HTTPRoute sub-chart at
   `kubernetes-services/additions/ingress/`.
 - SSH to nodes: `ssh ansible@<node>` (not root).
 
@@ -197,15 +197,16 @@ pins an exact release, but only on the `k3s_minor` line. See
   OpenWrt `dns_router` via uci); see `docs/how-to/recover-control-plane.md`.
 - **`known_hosts` write tasks need `throttle: 1`** — parallel writes
   race on the shared file. The scans run in parallel; don't add `serial`.
-- **Traefik is disabled** — `--disable=traefik` with NGINX Ingress. Do
-  not assume Traefik CRDs exist.
+- **Traefik is disabled** — `--disable=traefik`; Cilium's Gateway API
+  serves every app (ADR 0016). Do not assume Traefik CRDs exist, nor an
+  IngressClass: there is no Ingress controller.
 - **No automated tests** — validate by running playbook tags against
   the live cluster.
 - **Ansible `k8s` module merges annotations** — it never removes
-  annotations that were previously set on an Ingress. If you remove
-  annotations from a template (e.g. `ssl-passthrough`), you must
-  `kubectl delete` the old Ingress first, then re-run the playbook to
-  recreate it cleanly.
+  annotations that were previously set on an object it applies. If you
+  remove annotations from a template, the object must be deleted (a
+  `state: absent` task, as for the old ArgoCD Ingress in
+  `roles/cluster/tasks/argocd.yml`) and re-created by the playbook.
 - **ArgoCD `valuesObject` overrides `values.yaml`** — for child
   apps, the image tag is set in `templates/*.yaml`
   under `valuesObject`, not in `additions/*/values.yaml`. Editing

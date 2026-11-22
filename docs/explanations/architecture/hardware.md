@@ -164,7 +164,7 @@ flowchart TB
         NV["NVIDIA device plugin"]
     end
 
-    HA["Two replicas each, never on one node:<br/>ingress-nginx, oauth2-proxy, cloudflared, CoreDNS"]
+    HA["Two replicas each, never on one node:<br/>oauth2-proxy, cloudflared, CoreDNS"]
     HA -.-> SB & W4 & W1 & W2
 ```
 
@@ -185,12 +185,14 @@ The scheduling rules behind the picture:
   node in `spec.nodeAffinity`, so a pod that claims one can only run there.
   A new workload of this kind gets its own volume and an explicit node
   choice, never a shared pool.
-- **Shared services run twice.** ingress-nginx and oauth2-proxy spread
-  their two replicas with a `topologySpreadConstraints` rule on hostname,
+- **Shared services run twice.** oauth2-proxy spreads its two replicas
+  with a `topologySpreadConstraints` rule on hostname,
   cloudflared uses a required pod anti-affinity, and CoreDNS is held at two
   by a fixed HorizontalPodAutoscaler. A node reboot or drain therefore
   always leaves one of each serving. They can land on any untainted worker
-  or the standby.
+  or the standby. Cilium's Gateway needs no such rule: its Envoy is a
+  DaemonSet on every node, and the node addresses it answers on are those
+  of four nodes.
 - **Everything else floats.** scrap, ntfy, ArgoCD, cert-manager and the
   rest keep their data on the NAS (or have none), so they run wherever
   there is room and move when a node is drained.

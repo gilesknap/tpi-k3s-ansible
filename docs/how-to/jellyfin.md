@@ -2,7 +2,7 @@
 
 [Jellyfin](https://jellyfin.org) is the cluster's media server. It runs as one
 pod on nuc2, on the node's own network, and transcodes on nuc2's Intel Iris Xe.
-It is reachable on the LAN and the tailnet only: there is no Ingress, no
+It is reachable on the LAN and the tailnet only: there is no HTTPRoute, no
 Cloudflare route and no oauth2-proxy in front of it, and Jellyfin's own user
 accounts are the login.
 

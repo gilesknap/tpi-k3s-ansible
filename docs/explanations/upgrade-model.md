@@ -120,9 +120,11 @@ PodDisruptionBudget of `maxUnavailable: 1`, so a drain always leaves one
 running:
 
 - CoreDNS (see below)
-- ingress-nginx controller
 - oauth2-proxy
 - cloudflared
+
+Cilium's Gateway runs on the Envoy DaemonSet on every node, so a reboot
+takes out only that node's copy (and its node address).
 
 Workloads pinned to one node are down while it reboots, typically a few
 minutes: Prometheus and Grafana on `node04` (`local-nvme` volumes), and

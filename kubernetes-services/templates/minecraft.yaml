@@ -20,7 +20,7 @@ spec:
       targetRevision: {{ .Values.minecraft.chart_version | quote }}
       helm:
         # Fixed release name so the chart's Service is `minecraft-dashboard`,
-        # which the ingress source below points at.
+        # which the route source below points at.
         releaseName: minecraft-dashboard
         valuesObject:
           image:
@@ -75,10 +75,10 @@ spec:
           rcon_allowed_nodes:
             {{- toYaml .Values.minecraft.worlds.rcon_allowed_nodes | nindent 12 }}
 
-    # Source 3: dashboard ingress — admin-only via oauth2-proxy, like Headlamp.
+    # Source 3: dashboard route — admin-only via oauth2-proxy, like Headlamp.
     # The app does no auth itself; it logs X-Auth-Request-Email per action.
     # oauth2_proxy is hard-wired on (not tied to enable_oauth2_proxy as
-    # Headlamp is): with no proxy the ingress fails closed instead of
+    # Headlamp is): with no proxy the route fails closed instead of
     # exposing an unauthenticated control panel.
     - path: ./kubernetes-services/additions/ingress
       repoURL: {{ .Values.repo_remote }}

@@ -1,26 +1,54 @@
-# Check Cilium's Gateway, and move a route back to ingress-nginx
+# Check Cilium's Gateway
 
-Every Cloudflare tunnel route goes to Cilium's Gateway
-({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`): all 13
-moved in one `just cf-apply` on 22 Nov 2026. ingress-nginx still runs beside
-it and answers on the node addresses, which only the `home-lan` and
-`home-tailnet` probes and the VPS's `/mcp` use, until phase 2 removes it.
-Browsers at home use the tunnel like any other, as the router has no local
-`*.gkcluster.org` names.
+Cilium's Gateway `web` serves every hostname
+({doc}`ADR 16 </explanations/decisions/0016-cilium-gateway-api>`): every
+Cloudflare tunnel route goes to it, and servicelb gives it ports 80 and 443
+on the node addresses (192.168.1.83, .84, .91 and .92, and those nodes'
+tailnet addresses), which the `home-lan` and `home-tailnet` probes and the
+VPS's `/mcp` use. Browsers at home use the tunnel like any other, as the
+router has no local `*.gkcluster.org` names.
 
 ## Check the Gateway
 
 ```bash
 kubectl get crd httproutes.gateway.networking.k8s.io
 kubectl get gatewayclass cilium-gateway        # ACCEPTED True
-kubectl -n gateway get gateway web             # PROGRAMMED False is expected
+kubectl -n gateway get gateway web             # PROGRAMMED True, ADDRESS the node IPs
 kubectl get httproute -A                       # 16 routes
-kubectl -n gateway get svc cilium-gateway-web  # no EXTERNAL-IP, no NodePorts
-kubectl -n kube-system get ds | grep svclb     # cilium-gateway-web: 0 desired
+kubectl -n gateway get svc cilium-gateway-web  # EXTERNAL-IP the node IPs, no NodePorts
+kubectl -n kube-system get ds | grep svclb     # cilium-gateway-web: 4 desired, 4 ready
 ```
 
-`PROGRAMMED False` with "Gateway waiting for address" is the Gateway being
-kept off the node addresses on purpose; Envoy is configured all the same.
+`PROGRAMMED False` with "Gateway waiting for address" means servicelb has
+listed no node on the Service: check its svclb pods
+(`kubectl -n kube-system get pods -o wide | grep svclb-cilium-gateway-web`).
+One stuck Pending usually means something else holds host port 80 or 443 on
+that node. Envoy is configured all the same, so the tunnel still works.
+
+From the LAN, each node address answers plain HTTP and HTTPS (the
+wildcard certificate). Plain HTTP is served, not redirected, while the
+tunnel is on, as cloudflared uses port 80 too (ADR 16):
+
+```bash
+for ip in 192.168.1.83 192.168.1.84 192.168.1.91 192.168.1.92; do
+  curl -s -o /dev/null -w "$ip http %{http_code} " -H 'Host: echo.gkcluster.org' http://$ip/
+  curl -s -o /dev/null -w "https %{http_code} verify=%{ssl_verify_result}\n" \
+    --resolve home-lan.gkcluster.org:443:$ip https://home-lan.gkcluster.org/healthz
+done
+```
+
+Inside the cluster, `argocd.gkcluster.org` resolves to the Gateway's
+ClusterIP (the `coredns-custom` ConfigMap, written by the cluster role), so
+Dex sign-in for ArgoCD, Grafana and ArgoCD Monitor goes through it:
+
+```bash
+kubectl -n kube-system get cm coredns-custom -o yaml   # the ClusterIP of cilium-gateway-web
+kubectl -n home exec deploy/home -- curl -s -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' \
+  https://argocd.gkcluster.org/api/dex/.well-known/openid-configuration   # 200 0
+```
+
+If the Gateway's Service was ever re-made, its ClusterIP changed: re-run
+`ansible-playbook pb_all.yml --tags cluster` to rewrite the override.
 
 Every route should be accepted with its references resolved:
 
@@ -54,28 +82,6 @@ It must print `403` (the sign-in page). For scrap, also try a path that
 climbs out of `/mcp`, which Envoy does not normalise (add `--path-as-is`, or
 curl normalises it first), such as `http://$ip/mcp/../` with the same headers:
 it must not return scrap's app without the MCP bearer token.
-
-## Move a route back to ingress-nginx
-
-In an emergency, a hostname that fails on the Gateway can go back to
-ingress-nginx, which still has every Ingress. Add its address to the entry in
-`tunnel_services` in `cloudflare/locals.tf`:
-
-```hcl
-{ name = "scrap", service = "http://ingress-ingress-nginx-controller.ingress-nginx.svc.cluster.local" },
-```
-
-To move the whole tunnel, change the default in `tunnel_ingress`
-(`lookup(s, "service", local.gateway)`) to that address instead. Then plan
-and apply as on any day ({ref}`cf-roll-apply-token`): `just cf-plan` must show
-one in-place change to `cloudflare_zero_trust_tunnel_cloudflared_config.cluster`,
-the hostname's `service` going from the Gateway's address to nginx's. Roll the
-edit token at <https://dash.cloudflare.com/profile/api-tokens>, and run
-`just cf-apply` from the main clone. cloudflared picks up the route in
-seconds, and nothing in the cluster changes. A response through the Gateway
-carries `server: envoy`; one through nginx does not. Undo the edit the same
-way once the Gateway is fixed. This works only until phase 2 removes
-ingress-nginx.
 
 ## When something fails
 

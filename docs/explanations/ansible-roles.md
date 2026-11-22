@@ -593,7 +593,7 @@ file has the upstream issues and when the workaround can go.
 
 - Downloads the K3s install script.
 - Writes `/etc/rancher/k3s/config.yaml` and runs `k3s server` with it.
-- Traefik is disabled because the cluster uses ingress-nginx.
+- Traefik is disabled because the cluster uses Cilium's Gateway.
 - `cluster-init` enables embedded etcd.
 - `tls-san` adds `k3s_api_name` to the API server certificate. A config
   change restarts k3s before the workers are touched.
@@ -716,8 +716,9 @@ Bootstraps ArgoCD and the entire service stack:
    Destinations and cluster-scoped resources are not restricted. A service
    from a new chart repository needs a line there and a `--tags cluster`
    run ({doc}`/how-to/add-remove-services`).
-5. **Create ArgoCD Ingress** — an Ingress for `argocd.<cluster_domain>` to
-   `argocd-server:80` (TLS at ingress-nginx).
+5. **Remove the old ArgoCD Ingress** — deletes the ingress-nginx Ingress
+   `argocd-ingress` that earlier runs made. ArgoCD's HTTPRoute comes from the
+   `gateway` Application.
 6. **Bootstrap sealed-secrets** — applies the sealed-secrets Application on
    its own and waits for the controller to be ready.
 7. **Generate secrets** (only with `GENERATE_SECRETS=true`) — runs
@@ -728,9 +729,10 @@ Bootstraps ArgoCD and the entire service stack:
    `cluster_domain`, and `domain_email` as Helm values.
 9. **Dex secret** — applies the `argocd-dex-secret` SealedSecret and labels the
    Secret `app.kubernetes.io/part-of: argocd` so `dex.config` can resolve it.
-10. **CoreDNS split-horizon** — once ArgoCD has provisioned ingress-nginx,
-    creates the `coredns-custom` ConfigMap that resolves `argocd.<cluster_domain>`
-    to the ingress ClusterIP from inside the cluster.
+10. **CoreDNS split-horizon** — once Cilium has made the Gateway's Service
+    (`gateway/cilium-gateway-web`), creates the `coredns-custom` ConfigMap
+    that resolves `argocd.<cluster_domain>` to its ClusterIP from inside the
+    cluster.
 
 After this role completes, ArgoCD takes over and syncs all services defined in
 `kubernetes-services/templates/`: see {doc}`/explanations/architecture/gitops`.
