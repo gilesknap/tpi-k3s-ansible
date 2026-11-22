@@ -12,7 +12,7 @@ worlds and must agree: they are marked **SYNC** here and in the files.
 | `ansible_account` | `ansible` | The account Ansible uses on every node (created by the RK1 cloud-init seed, or by `pb_add_nodes.yml`) |
 | `tpi_user` | `root` | SSH user on the Turing Pi BMC |
 | `tpi_images_path` | `/mnt/sdcard/images` | Where OS images are staged on the BMC's SD card before `tpi flash` |
-| `bin_dir` | `/root/bin` (from `$BIN_DIR`; `$HOME/bin` without it) | Where the `tools` role installs helm, kubectl, kubeseal, argocd and the port-forward scripts: a volume, so it survives a devcontainer rebuild |
+| `bin_dir` | `/root/bin` (from `$BIN_DIR`; `$HOME/bin` without it) | Where the `tools` role installs helm, kubectl, kubeseal, hubble, argocd and the port-forward scripts: a volume, so it survives a devcontainer rebuild |
 | `k3s_minor` | `v1.34` (read from `k3s.minor` in `values.yaml`) | The K3s minor line the cluster follows. Edit it in `values.yaml`, not here |
 | `do_flash` | `false` | Whether the `flash` role runs; true when `flash_force` (or `force_flash`) is passed, or set directly with `-e do_flash=true` |
 | `local_domain` | `.lan` | Suffix the `known_hosts` role adds to a node name to look up its addresses |

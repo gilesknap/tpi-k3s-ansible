@@ -223,8 +223,8 @@ Three properties of Cilium's enforcement are worth knowing:
 
 The `backups-egress` rule works by name: the backup pods' DNS queries go
 through Cilium's DNS proxy, which learns the addresses behind the allowed
-names and opens only those. `hubble observe -n backups --verdict DROPPED`
-(in an agent pod, or the Hubble UI) shows what it refused.
+names and opens only those. `just hubble observe -n backups --verdict DROPPED`
+(or the Hubble UI) shows what it refused.
 
 The ntfy and scrap policies limit who reaches the pod directly. Anything
 that can reach Cilium's Gateway can still reach them through it, which is why

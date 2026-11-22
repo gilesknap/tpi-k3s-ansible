@@ -38,6 +38,7 @@ is not always the section of the `justfile` they sit in.
 | `just status` | Nodes, ArgoCD apps, pods that are not Running, certificates that are not Ready | Read-only |
 | `just switch-branch <branch>` | Points ArgoCD at a branch: `pb_all.yml --tags cluster -e repo_branch=<branch>` | {doc}`/how-to/work-in-branches` |
 | `just argocd-sync` | Hard-refreshes every ArgoCD Application, so each re-fetches from Git | |
+| `just hubble <args>` | Runs the `hubble` CLI against Hubble Relay through a port-forward (`localhost:4245`) that lasts for the command: `just hubble observe --last 20`, `just hubble status` | Every node's flows; `--last N` is per node |
 | `just node-fence <node>` | Adds the `out-of-service` taint to a dead node so its pods restart elsewhere; refuses a Ready node | Only for a node that is powered off ({ref}`fence-a-dead-node`) |
 | `just node-unfence <node>` | Removes the taint once the node is back | |
 | `just upgrade-workstation <node> [args]` | Drains `ws03`, reinstalls its K3s agent at the control plane's version, uncordons it | Devcontainer terminal only: the sandbox cannot SSH to its own host ({doc}`/how-to/upgrade-k3s`) |
@@ -142,6 +143,7 @@ them into `/usr/local/bin`, with bash and zsh completions:
 | `kubectl` | The newest stable release when the role runs (not pinned) | Everything; `k` is an alias for it |
 | `helm` | 3.20.0, with the `helm-diff` plugin | The `cluster` role's ArgoCD install; `helm template` when working on a chart |
 | `kubeseal` | 0.35.0 | Sealing Secrets against the controller in `kube-system` |
+| `hubble` | 1.20.4 (for Cilium 1.20.5) | `just hubble`: flows from every node through Hubble Relay |
 | `argocd` | 3.3.2 | `argocd app list --core` and similar. `--core` uses the kube context's namespace, which must be set to `argo-cd` first (the kubeconfig's default is `default`) |
 
 The role also writes the kubeconfig to `~/.kube/config`, fetched from the
