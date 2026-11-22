@@ -433,11 +433,15 @@ looks each one up as <code class="docutils literal notranslate"><span class="pre
 <td><p><code class="docutils literal notranslate"><span class="pre">gknas</span></code> (the NAS)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code> only (<a class="reference internal" href="../how-to/nas-ubuntu-zfs.html"><span class="doc">Build or rebuild the NAS (Ubuntu Server + ZFS)</span></a>). The NAS is not a cluster node: it is in no other group, so no play of <code class="docutils literal notranslate"><span class="pre">pb_all.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">pb_add_nodes.yml</span></code> or <code class="docutils literal notranslate"><span class="pre">pb_decommission.yml</span></code> reaches it, and the <code class="docutils literal notranslate"><span class="pre">nas</span></code> role refuses a host that is in <code class="docutils literal notranslate"><span class="pre">all_nodes</span></code></p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">routers</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">router</span></code> (the OpenWrt router)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code> only (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>). Its address and user come from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>, and it is in no other group. It has no Python, so its plays use <code class="docutils literal notranslate"><span class="pre">raw</span></code> and <code class="docutils literal notranslate"><span class="pre">script</span></code> and gather no facts; <code class="docutils literal notranslate"><span class="pre">script</span></code> sends files with <code class="docutils literal notranslate"><span class="pre">dd</span></code> (<code class="docutils literal notranslate"><span class="pre">ansible_ssh_transfer_method:</span> <span class="pre">piped</span></code>), as the router has no SFTP</p></td>
+</tr>
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">turing_pis</span></code> connects as <code class="docutils literal notranslate"><span class="pre">tpi_user</span></code> (<code class="docutils literal notranslate"><span class="pre">root</span></code>); the node groups connect as
-<code class="docutils literal notranslate"><span class="pre">ansible_account</span></code> (<code class="docutils literal notranslate"><span class="pre">ansible</span></code>), with sudo.</p>
+<p><code class="docutils literal notranslate"><span class="pre">turing_pis</span></code> connects as <code class="docutils literal notranslate"><span class="pre">tpi_user</span></code> (<code class="docutils literal notranslate"><span class="pre">root</span></code>), and <code class="docutils literal notranslate"><span class="pre">routers</span></code> as <code class="docutils literal notranslate"><span class="pre">root</span></code>; the
+node groups connect as <code class="docutils literal notranslate"><span class="pre">ansible_account</span></code> (<code class="docutils literal notranslate"><span class="pre">ansible</span></code>), with sudo.</p>
 <section id="the-bmc-nodes-rule">
 <h3>The <code class="docutils literal notranslate"><span class="pre">&lt;bmc&gt;_nodes</span></code> rule<a class="headerlink" href="#the-bmc-nodes-rule" title="Link to this heading">#</a></h3>
 <p>The group holding a Turing Pi’s nodes must be named after the BMC’s inventory
@@ -619,10 +623,20 @@ control plane is not an inventory setting: <code class="docutils literal notrans
 <td><p></p></td>
 <td><p>No: the NAS, configured by <code class="docutils literal notranslate"><span class="pre">pb_nas.yml</span></code></p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">router</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">routers</span></code></p></td>
+<td><p>192.168.1.1</p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p></p></td>
+<td><p>No: the OpenWrt router, changed only by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code></p></td>
+</tr>
 </tbody>
 </table>
 </div>
-<p>The addresses are not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>; they are the ones the router hands out,
+<p>The addresses are not in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (the router’s comes from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>);
+they are the ones the router hands out,
 and the sandbox allow-list (<code class="docutils literal notranslate"><span class="pre">.devcontainer/claude-sandbox.conf</span></code>) repeats them.</p>
 <p>Slot 1 of the board is not in the inventory. It holds <code class="docutils literal notranslate"><span class="pre">node01</span></code>, a CM4 that
 was the control plane before <code class="docutils literal notranslate"><span class="pre">node02</span></code> and is no longer part of the cluster.</p>

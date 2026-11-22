@@ -429,8 +429,14 @@
 <p>The home router is a MikroTik hEX S (RouterBOARD 760iGS, MediaTek MT7621)
 running OpenWrt 23.05.5, at 192.168.1.1 (<code class="docutils literal notranslate"><span class="pre">dns_router</span></code> in
 <code class="docutils literal notranslate"><span class="pre">group_vars/all.yml</span></code>). It carries every household device’s traffic and
-DNS, not only the cluster’s. This page covers its daily backup, restoring
-it with a playbook, and getting it back when SSH to it is gone.</p>
+DNS, not only the cluster’s. This page covers its daily backup, changing
+it with a revert that fires by itself unless the change is confirmed,
+restoring it with a playbook, and getting it back when SSH to it is gone.</p>
+<p><code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code> reaches the router as the <code class="docutils literal notranslate"><span class="pre">router</span></code> host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>
+(user and address from <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>), with <code class="docutils literal notranslate"><span class="pre">raw</span></code>, as it has no Python.
+Every play in it is tagged <code class="docutils literal notranslate"><span class="pre">never</span></code>, so a run names one with <code class="docutils literal notranslate"><span class="pre">--tags</span></code>. In
+the Claude sandbox, add <code class="docutils literal notranslate"><span class="pre">--private-key</span> <span class="pre">/root/.config/claude-ssh/id_ed25519</span></code>
+to each <code class="docutils literal notranslate"><span class="pre">ansible-playbook</span></code> command on this page.</p>
 <p>A backup is a <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code> tarball: everything under <code class="docutils literal notranslate"><span class="pre">/etc/config/</span></code>,
 <code class="docutils literal notranslate"><span class="pre">/etc/passwd</span></code>, <code class="docutils literal notranslate"><span class="pre">/etc/shadow</span></code> (the root password hash), the Dropbear host
 keys and <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>, the LuCI TLS key, and the PPPoE login of the
@@ -482,7 +488,8 @@ just<span class="w"> </span>router-backup
 </section>
 <section id="back-up-now">
 <h3>Back up now<a class="headerlink" href="#back-up-now" title="Link to this heading">#</a></h3>
-<p>Run this <strong>before every change to the router</strong>:</p>
+<p><code class="docutils literal notranslate"><span class="pre">pb_router.yml</span> <span class="pre">--tags</span> <span class="pre">change</span></code> (below) runs this first itself. Run it
+<strong>before any other change to the router</strong>, over SSH by hand or in LuCI:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>router-backup
 </pre></div>
 </div>
@@ -491,6 +498,101 @@ its log and metrics. To list the backups:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/bigdisk/k8s-cluster/backups/router
 </pre></div>
 </div>
+</section>
+</section>
+<section id="change-the-router-safely">
+<h2>Change the router safely<a class="headerlink" href="#change-the-router-safely" title="Link to this heading">#</a></h2>
+<p>A bad firewall, network or DNS change can cut the internet for the whole
+house, and with it the SSH session that made it. LuCI rolls an unconfirmed
+change back after 90 seconds; changes over SSH get the same from
+<code class="docutils literal notranslate"><span class="pre">pb_router.yml</span> <span class="pre">--tags</span> <span class="pre">change</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>change<span class="w"> </span>-e<span class="w"> </span><span class="nv">router_change_tasks</span><span class="o">=</span>&lt;name&gt;
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p><strong>Backup off the router.</strong> It starts <code class="docutils literal notranslate"><span class="pre">router-backup.service</span></code> on node02,
+as <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">router-backup</span></code> does, and stops unless it succeeds: an
+encrypted copy from just before the change is on the NAS.</p></li>
+<li><p><strong>Snapshot on the router.</strong> <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span> <span class="pre">/tmp/router-guard/backup.tar.gz</span></code>,
+in RAM. Creating <code class="docutils literal notranslate"><span class="pre">/tmp/router-guard</span></code> is also the lock: a second run
+while a guard is armed fails there, rather than snapshot the state the
+first one guards against.</p></li>
+<li><p><strong>Arm the revert.</strong> A watchdog on the router, started with
+<code class="docutils literal notranslate"><span class="pre">start-stop-daemon</span> <span class="pre">-b</span> <span class="pre">-m</span> <span class="pre">-p</span> <span class="pre">/tmp/router-guard/pid</span></code>, sleeps
+<code class="docutils literal notranslate"><span class="pre">router_guard_timeout</span></code> seconds (default 300, <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">router_guard_timeout=&lt;s&gt;</span></code>
+to change it), then, if the snapshot is still there, logs
+<code class="docutils literal notranslate"><span class="pre">router-guard</span></code> to syslog, runs <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span></code> on the snapshot and
+reboots. <code class="docutils literal notranslate"><span class="pre">start-stop-daemon</span> <span class="pre">-b</span></code> forks, calls <code class="docutils literal notranslate"><span class="pre">setsid</span></code>, points stdin,
+stdout and stderr at <code class="docutils literal notranslate"><span class="pre">/dev/null</span></code> and forks again, so the watchdog is a
+child of init in a session of its own, with no terminal: the SSH
+session ending, or dying with the network, does not reach it. The play
+prints the time the revert fires (controller time).</p></li>
+<li><p><strong>The change:</strong> the task file <code class="docutils literal notranslate"><span class="pre">roles/router/tasks/&lt;name&gt;.yml</span></code>. With no
+<code class="docutils literal notranslate"><span class="pre">router_change_tasks</span></code> the play skips this and only arms, checks and
+disarms, a harmless test of the guard.</p></li>
+<li><p><strong>The checks</strong>, from the controller (<code class="docutils literal notranslate"><span class="pre">roles/router/tasks/check.yml</span></code>):</p>
+<ul class="simple">
+<li><p>the internet answers: HTTPS to <code class="docutils literal notranslate"><span class="pre">router_check_url</span></code> (<code class="docutils literal notranslate"><span class="pre">https://github.com</span></code>);</p></li>
+<li><p>the router’s DNS answers a public name (<code class="docutils literal notranslate"><span class="pre">host</span> <span class="pre">-t</span> <span class="pre">A</span> <span class="pre">github.com</span> <span class="pre">192.168.1.1</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">k3s.lan</span></code> (<code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code>) resolves via the router to node02’s
+address, read from node02 itself;</p></li>
+<li><p>the cluster API answers on port 6443 (any HTTP status: anonymous
+requests get 401);</p></li>
+<li><p>a new SSH login to the router works.</p></li>
+</ul>
+</li>
+<li><p><strong>Confirm or revert.</strong> Only if every check passes does the play disarm
+the watchdog (<code class="docutils literal notranslate"><span class="pre">start-stop-daemon</span> <span class="pre">-K</span></code>) and delete <code class="docutils literal notranslate"><span class="pre">/tmp/router-guard</span></code>.
+If the change or a check fails and SSH to the router still works, the play runs the
+revert at once (<code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span></code> on the snapshot, then a reboot), waits
+for the router to come back, and fails, naming the check. If SSH fails
+too, it fails saying when the router will revert by itself, and the
+router does so on time. Either way the internet is down for a minute or
+two while it reboots; afterwards run the checks again (below).</p></li>
+</ol>
+<p>A change step may reload networking or the firewall and drop its own SSH
+session: that is fine, the play carries on to the checks, and they decide.
+A change that silently drops packets leaves a step waiting until SSH’s
+keepalive gives up, about a minute (<code class="docutils literal notranslate"><span class="pre">ServerAliveInterval=15</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ServerAliveCountMax=4</span></code> for the <code class="docutils literal notranslate"><span class="pre">routers</span></code> group in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code>); then the
+checks run and fail, and the play reverts or reports the deadline as
+above.</p>
+<p>If the play is stopped (Ctrl-C) while the guard is armed, the router still
+reverts at the deadline. To keep the change instead, disarm it by hand:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>root@192.168.1.1<span class="w"> </span><span class="s1">&#39;start-stop-daemon -K -p /tmp/router-guard/pid; rm -rf /tmp/router-guard&#39;</span>
+</pre></div>
+</div>
+<p>The same <code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">/tmp/router-guard</span></code> clears a stale lock left by an arm
+that failed after creating it (a failed <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-b</span></code>), which otherwise
+makes the next run fail at <code class="docutils literal notranslate"><span class="pre">mkdir</span></code>; a reboot clears it too.</p>
+<p>The snapshot only unpacks over <code class="docutils literal notranslate"><span class="pre">/</span></code>, as a restore does: a change that adds
+files (a new <code class="docutils literal notranslate"><span class="pre">/etc/nftables.d/*.nft</span></code>) leaves them behind after a revert,
+so a change edits the existing <code class="docutils literal notranslate"><span class="pre">/etc/config/*</span></code> files rather than add new
+ones.
+A power cut while the guard is armed clears the snapshot and the watchdog
+with the rest of RAM, and the router boots with the change; the backup on
+the NAS from step 1 is the way back then.</p>
+<section id="check-the-router">
+<h3>Check the router<a class="headerlink" href="#check-the-router" title="Link to this heading">#</a></h3>
+<p>The checks of step 5, on their own, change nothing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>check
+</pre></div>
+</div>
+</section>
+<section id="drill-the-revert">
+<h3>Drill the revert<a class="headerlink" href="#drill-the-revert" title="Link to this heading">#</a></h3>
+<p>Proves the guard on the real router. It arms the guard, writes a note
+into the router’s system settings (<code class="docutils literal notranslate"><span class="pre">uci</span> <span class="pre">set</span> <span class="pre">system.&#64;system[0].notes='router-guard</span> <span class="pre">drill</span> <span class="pre">&lt;time&gt;'</span></code>,
+committed), deliberately does not confirm it, waits for the watchdog to
+restore the snapshot and reboot the router, then checks the note is gone
+and runs the checks, retrying the internet and DNS checks for up to two
+minutes while the WAN comes back:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>drill
+</pre></div>
+</div>
+<p>It takes <code class="docutils literal notranslate"><span class="pre">router_guard_timeout</span></code> (5 minutes) plus the reboot, and <strong>the
+internet is down for everyone for a minute or two</strong> during the reboot.
+<code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">router_guard_timeout=60</span></code> makes it shorter.</p>
 </section>
 </section>
 <section id="restore-with-the-playbook">
@@ -509,12 +611,12 @@ ssh<span class="w"> </span>nas<span class="w"> </span>sudo<span class="w"> </spa
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ansible-playbook<span class="w"> </span>pb_router.yml<span class="w"> </span>--tags<span class="w"> </span>restore<span class="w"> </span>-e<span class="w"> </span><span class="nv">router_restore_file</span><span class="o">=</span>/dev/shm/router.tar.gz
 </pre></div>
 </div>
-<p>The playbook runs on the controller with your own ssh to <code class="docutils literal notranslate"><span class="pre">dns_router</span></code>,
-the same way <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span></code> does. It lists the files in the backup
-and asks you to type <code class="docutils literal notranslate"><span class="pre">yes</span></code> (anything else stops it), then pipes the file to
-<code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span> <span class="pre">-</span></code> on the router (no scp or copy in <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> needed),
-reboots the router and waits for its SSH to come back. The internet is
-down for everyone for a minute or two.</p>
+<p>It lists the files in the backup and asks you to type <code class="docutils literal notranslate"><span class="pre">yes</span></code> (anything
+else stops it). Ansible’s <code class="docutils literal notranslate"><span class="pre">script</span></code> module then copies the file into a
+temporary directory in the router’s <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> (RAM), runs <code class="docutils literal notranslate"><span class="pre">sysupgrade</span> <span class="pre">-r</span></code>
+on it and deletes the directory. The play reboots the router and waits
+for its SSH to come back. The internet is down for everyone for a
+minute or two.</p>
 </li>
 <li><p>Delete <code class="docutils literal notranslate"><span class="pre">/dev/shm/router.tar.gz</span></code>.</p></li>
 </ol>
@@ -693,6 +795,11 @@ once the cluster is back.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-backup-runs">How the backup runs</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#set-it-up">Set it up</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#back-up-now">Back up now</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#change-the-router-safely">Change the router safely</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-router">Check the router</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drill-the-revert">Drill the revert</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-with-the-playbook">Restore with the playbook</a></li>

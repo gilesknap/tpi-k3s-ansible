@@ -454,7 +454,7 @@ worlds and must agree: they are marked <strong>SYNC</strong> here and in the fil
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dns_router</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">root&#64;192.168.1.1</span></code></p></td>
-<td><p>SSH target (<code class="docutils literal notranslate"><span class="pre">user&#64;host</span></code>) of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>). Used by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane, by the control plane’s daily router backup (<code class="docutils literal notranslate"><span class="pre">etcd_backup_router</span></code>) and by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span> <span class="pre">--tags</span> <span class="pre">restore</span></code> (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
+<td><p>SSH target (<code class="docutils literal notranslate"><span class="pre">user&#64;host</span></code>) of the OpenWrt router (dnsmasq, <code class="docutils literal notranslate"><span class="pre">uci</span></code>). Used by <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">k3s-api-dns</span> <span class="pre">&lt;ip&gt;</span></code> to point <code class="docutils literal notranslate"><span class="pre">k3s_api_name</span></code> at the control plane, by the control plane’s daily router backup (<code class="docutils literal notranslate"><span class="pre">etcd_backup_router</span></code>) and by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code>, through the <code class="docutils literal notranslate"><span class="pre">router</span></code> host in <code class="docutils literal notranslate"><span class="pre">hosts.yml</span></code> (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_age_recipient</span></code></p></td>
 <td><p><em>(age public key)</em></p></td>
@@ -675,6 +675,37 @@ described, with the values each node has, in <a class="reference internal" href=
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">etcd_backup_router_key</span></code> / <code class="docutils literal notranslate"><span class="pre">etcd_backup_router_known_hosts</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/etc/k3s-etcd-backup/router_ed25519</span></code> / <code class="docutils literal notranslate"><span class="pre">router_known_hosts</span></code></p></td>
 <td><p>The job’s SSH key, made on the control plane, and the router’s pinned host key</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="router-role-roles-router-defaults-main-yml">
+<h3><code class="docutils literal notranslate"><span class="pre">router</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/router/defaults/main.yml</span></code>)<a class="headerlink" href="#router-role-roles-router-defaults-main-yml" title="Link to this heading">#</a></h3>
+<p>Used by <code class="docutils literal notranslate"><span class="pre">pb_router.yml</span></code> (<a class="reference internal" href="../how-to/router-recovery.html"><span class="doc">Back up and recover the router</span></a>, “Change the router safely”).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">router_guard_timeout</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">300</span></code></p></td>
+<td><p>Seconds the router waits for a change to be confirmed before it restores its snapshot and reboots</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">router_guard_dir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/tmp/router-guard</span></code></p></td>
+<td><p>On the router (RAM): the snapshot, the watchdog’s pid file, and the lock against arming twice</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">router_change_tasks</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code></p></td>
+<td><p>The change <code class="docutils literal notranslate"><span class="pre">--tags</span> <span class="pre">change</span></code> makes: a task file of the role, <code class="docutils literal notranslate"><span class="pre">roles/router/tasks/&lt;name&gt;.yml</span></code>. Empty: arm, check and disarm only</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">router_check_url</span></code> / <code class="docutils literal notranslate"><span class="pre">router_check_name</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">https://github.com</span></code> / <code class="docutils literal notranslate"><span class="pre">github.com</span></code></p></td>
+<td><p>The public URL the controller must reach, and the public name the router’s DNS must answer, in the checks</p></td>
 </tr>
 </tbody>
 </table>
@@ -1356,6 +1387,7 @@ root (gitignored), ready for a rebuild: <code class="docutils literal notranslat
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#flash-role-roles-flash-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">flash</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/flash/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#k3s-role-roles-k3s-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">k3s</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/k3s/vars/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#etcd-backup-role-roles-etcd-backup-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">etcd_backup</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/etcd_backup/defaults/main.yml</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#router-role-roles-router-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">router</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/router/defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nas-role-roles-nas-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">nas</span></code> role (<code class="docutils literal notranslate"><span class="pre">roles/nas/defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#update-packages-and-node-reboot-roles-defaults-main-yml"><code class="docutils literal notranslate"><span class="pre">update_packages</span></code> and <code class="docutils literal notranslate"><span class="pre">node_reboot</span></code> roles (<code class="docutils literal notranslate"><span class="pre">defaults/main.yml</span></code>)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rk1-os-role-defaults-main-yml-vars-main-yml"><code class="docutils literal notranslate"><span class="pre">rk1_os</span></code> role (<code class="docutils literal notranslate"><span class="pre">defaults/main.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">vars/main.yml</span></code>)</a></li>
