@@ -20,8 +20,10 @@ the next `just tailnet-apply` reverts it.
 
 The policy today:
 
-- **The owner's own devices** reach everything: the tailnet, the VPS, and
-  the home LAN through any subnet route. The grant names the owner's
+- **The owner's own devices** reach everything on the tailnet, the VPS
+  included. No node is a subnet router (ADR 0015;
+  `roles/k3s/tasks/tailscale.yml` refuses one), so the home LAN is not on
+  the tailnet. The grant names the owner's
   login, not `autogroup:member`, so anyone invited later starts with
   nothing. The repo is public, so `policy.hujson` holds a placeholder,
   `${owner_login}`, which OpenTofu fills in from `live.auto.tfvars`.
@@ -36,8 +38,8 @@ The policy today:
 
 ### What is not code
 
-- **The devices themselves**: joining a device to the tailnet, approving
-  a subnet route, key expiry.
+- **The devices themselves**: joining a device to the tailnet, route
+  approvals, key expiry.
 - **The tag on each device**: `tag:vps` is set on the VPS with
   `tailscale up --advertise-tags=tag:vps` or in the console
   (**Machines → ⋯ → Edit ACL tags**); the relay pod gets `tag:vps-relay`
@@ -55,7 +57,8 @@ worktree has neither the state nor `live.auto.tfvars`).
 
 Plan and apply use separate OAuth clients, and neither is stored in the
 repo. Create each in the admin console under **Settings → Trust
-credentials → Credential → OAuth**, then **Generate credential**, and copy
+credentials**: **Credential**, then **OAuth**, choose the scopes, then
+**Generate credential**, and copy
 the client ID and secret (the secret is shown only once). Tags do not apply
 to these scopes; leave them empty.
 
@@ -89,8 +92,8 @@ reads `TF_VAR_state_passphrase`, else
 passphrase to keep in the password manager for both
 ({doc}`cloudflare-as-code`, step 2, creates it).
 
-Losing the state loses nothing at Tailscale: the next plan imports the live
-policy again.
+Losing the state loses nothing at Tailscale: the next plan shows the import
+of the live policy again, and the next apply records it.
 
 ### 3. Fill in the owner's login
 
@@ -108,8 +111,9 @@ just tailnet-init
 just tailnet-plan
 ```
 
-The first plan imports the live policy into state and compares it with
-`policy.hujson`, showing the whole policy as a diff. It is the place to
+The first plan shows the import of the live policy and compares it with
+`policy.hujson`, showing the whole policy as a diff; the apply then records
+the import in state. It is the place to
 check that the file matches what is live:
 
 - `Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.` means the file

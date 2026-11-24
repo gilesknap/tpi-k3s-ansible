@@ -115,8 +115,8 @@ The policy is `tailscale/policy.hujson`, applied with `just tailnet-apply`
 The `tag:vps` grant is the claude-canary VPS's path to scrap without
 Cloudflare ({ref}`scrap-canary`); a VPS that needs no scrap needs no such
 grant. It names nuc2's tailnet IP only, so it would not reach the LAN even
-if nuc2 advertised a subnet route (the `192.168.1.92:443` test). The `k3s`
-role refuses a cluster node that advertises one (ADR 0015).
+if nuc2 were a subnet router (the `192.168.1.92:443` test). No node is one:
+the `k3s` role refuses a node that advertises routes (ADR 0015).
 
 The `tests` run on every plan and apply, so a later policy change cannot
 quietly let the VPS dial in. For a replacement VPS the policy needs no
@@ -145,12 +145,12 @@ new tailnet, apply it ({doc}`tailnet-as-code`) before the relay goes live.
 The pod authenticates with an OAuth client secret. Unlike auth keys, which
 expire after at most 90 days, OAuth clients do not expire.
 
-1. In the admin console go to **Settings → OAuth clients → Generate OAuth
-   client**.
+1. In the admin console go to **Settings → Trust credentials**, select
+   **Credential**, then **OAuth**.
 2. Grant the **Auth Keys** scope with **Write** access, and add the tag
    `tag:vps-relay`.
-3. Generate the client and copy the **client secret** (`tskey-client-…`).
-   It is shown only once.
+3. Select **Generate credential** and copy the **client secret**
+   (`tskey-client-…`). It is shown only once.
 
 The pod appends `?ephemeral=true&preauthorized=true` to the secret, so each
 pod joins as an ephemeral node that Tailscale removes soon after the pod

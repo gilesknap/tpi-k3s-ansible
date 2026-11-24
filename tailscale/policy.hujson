@@ -6,7 +6,11 @@
 // and tests is filled in from the gitignored
 // tailscale/live.auto.tfvars, so the owner's login stays out of this public
 // repo. Tailscale runs the "tests" below at plan and apply, and refuses the
-// policy if any fails.
+// policy if any fails. Because it goes through templatefile, a dollar or
+// percent sign followed by an opening brace, anywhere, breaks it.
+//
+// No node is a subnet router (ADR 0015; roles/k3s/tasks/tailscale.yml
+// refuses one), so no rule here reaches the home LAN.
 {
 	"hosts": {
 		// nuc2's tailnet IP.
@@ -19,12 +23,12 @@
 	},
 
 	"grants": [
-		// The owner's own devices keep full access to everything: the tailnet,
-		// the VPS, and the home LAN through any subnet route.
+		// The owner's own devices keep full access to everything on the
+		// tailnet, the VPS included.
 		// Granted to the owner's login, not autogroup:member, so anyone invited
 		// later starts with nothing until a rule is added for them.
 		// (A machine shared out to another tailnet is separate: a share
-		// reaches only that machine, not this rule or a subnet route.)
+		// reaches only that machine, not this rule.)
 		{"src": ["${owner_login}"], "dst": ["*"], "ip": ["*"]},
 
 		// The VPS (claude-canary) may reach only the Gateway on nuc2's tailnet
@@ -37,8 +41,8 @@
 	],
 
 	"tests": [
-		// The owner reaches everything, including the router on the LAN
-		// (through a subnet route, when one is advertised).
+		// The owner reaches everything. 192.168.1.1 is a check of the rule
+		// only: with no subnet router, the LAN is not on the tailnet.
 		{
 			"src":    "${owner_login}",
 			"accept": ["192.168.1.1:80", "nuc2:22", "tag:vps:22"],

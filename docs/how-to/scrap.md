@@ -183,9 +183,9 @@ Limits:
   Tailscale on nuc2). The path names one node, so nothing fails over;
   other clients, through Cloudflare, are unaffected.
 - **nuc2's tailnet IP is written in two places**: the `nuc2` host alias in
-  `tailscale/policy.hujson` and, by hand, the VPS's `/etc/hosts`. If nuc2 rejoins the tailnet
-  with a new IP (a reinstall or a logout), update both; until then the VPS
-  just loses scrap.
+  `tailscale/policy.hujson` and, by hand, the VPS's `/etc/hosts`. If nuc2
+  rejoins the tailnet with a new IP (a reinstall or a logout), update both;
+  until then the VPS just loses scrap.
 - **The grant opens all of the Gateway on nuc2, not only scrap.** Every
   `*.gkcluster.org` host is reachable from the VPS without Cloudflare Access,
   as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
