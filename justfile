@@ -92,6 +92,20 @@ cf-env-tunnel-token:
 cf-tunnel-disconnect:
     scripts/cf-tunnel-disconnect
 
+# Tailnet policy as code (tailscale/, OpenTofu); see
+# docs/how-to/tailnet-as-code.md. Run in the devcontainer.
+# Download the Tailscale provider
+tailnet-init:
+    scripts/tailnet-tofu init
+
+# Show what would change in the tailnet policy (read-only OAuth client)
+tailnet-plan *args:
+    scripts/tailnet-tofu plan {{ args }}
+
+# Apply tailscale/policy.hujson (write OAuth client; asks before changing anything)
+tailnet-apply *args:
+    scripts/tailnet-tofu apply {{ args }}
+
 # Restart Dex and ArgoCD server (use after changing dex.config or secrets)
 restart-dex:
     kubectl rollout restart deployment argocd-dex-server argocd-server argocd-repo-server -n argo-cd

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Run OpenTofu on the tailnet policy in tailscale/ with the right
+# credentials. See docs/how-to/tailnet-as-code.md.
+#
+#   scripts/tailnet-tofu init           # download the provider
+#   scripts/tailnet-tofu plan  [args]   # read-only OAuth client
+#   scripts/tailnet-tofu apply [args]   # write OAuth client, asks before changing anything
+#
+# State encryption passphrase: the Cloudflare config's, from
+#   $TF_VAR_state_passphrase, else cloudflare/.secrets/state-passphrase,
+#   else a prompt.
+# Plan client: $TS_PLAN_CLIENT_ID and $TS_PLAN_CLIENT_SECRET, else
+#   tailscale/.secrets/plan-client-id and plan-client-secret, else prompts.
+# Apply client: $TS_APPLY_CLIENT_ID and $TS_APPLY_CLIENT_SECRET, else
+#   prompts (never read from a file).
+set -euo pipefail
+
+. "$(dirname "$0")/lib/cf-secrets.sh"
+cd "$(dirname "$0")/../tailscale"
+secrets=.secrets
+
+usage() { echo "usage: $0 init|plan|apply [tofu args]" >&2; exit 1; }
+[[ $# -ge 1 ]] || usage
+action=$1
+shift
+
+command -v tofu >/dev/null || { echo "ERROR: tofu not found; run this in the devcontainer" >&2; exit 1; }
+
+need_tfvars() {
+    [[ -f live.auto.tfvars ]] || {
+        echo "ERROR: tailscale/live.auto.tfvars is missing; copy live.auto.tfvars.example and fill it in" >&2
+        exit 1
+    }
+}
+
+# use_client ID_VAR SECRET_VAR FILE_PREFIX LABEL: export the provider's
+# OAuth client variables. An empty FILE_PREFIX means prompt, never a file.
+use_client() {
+    local id_file="" secret_file=""
+    [[ -n $3 ]] && { id_file=$3-client-id; secret_file=$3-client-secret; }
+    TAILSCALE_OAUTH_CLIENT_ID=$(read_secret "$1" "$id_file" "Tailscale $4 OAuth client ID")
+    TAILSCALE_OAUTH_CLIENT_SECRET=$(read_secret "$2" "$secret_file" "Tailscale $4 OAuth client secret")
+    export TAILSCALE_OAUTH_CLIENT_ID TAILSCALE_OAUTH_CLIENT_SECRET
+    unset TAILSCALE_API_KEY
+}
+
+TF_VAR_state_passphrase=$(read_secret TF_VAR_state_passphrase ../cloudflare/.secrets/state-passphrase \
+    "State encryption passphrase")
+export TF_VAR_state_passphrase
+
+case $action in
+    init)
+        tofu init -input=false "$@"
+        ;;
+    plan)
+        need_tfvars
+        use_client TS_PLAN_CLIENT_ID TS_PLAN_CLIENT_SECRET "$secrets/plan" "read-only (plan)"
+        tofu plan -input=false "$@"
+        ;;
+    apply)
+        need_tfvars
+        use_client TS_APPLY_CLIENT_ID TS_APPLY_CLIENT_SECRET "" "write (apply)"
+        # tofu shows the plan and asks for "yes" before it changes anything.
+        tofu apply "$@"
+        ;;
+    *)
+        usage
+        ;;
+esac

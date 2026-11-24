@@ -65,7 +65,7 @@ it: Cilium's Gateway on nuc2's tailnet IP, for scrap's `/mcp`
 | `vps-relay` Deployment and `vps-relay-frpc` ConfigMap | `kubernetes-services/additions/vps-relay/`, namespace `vps-relay` | `frpc.toml` is generated from `vps_relay.forwards` |
 | `vps-relay-credentials` SealedSecret | `additions/vps-relay/templates/vps-relay-secret.yaml` | Tailscale OAuth client secret and the frp token |
 | `frps` | The VPS (Podman Quadlet, run by systemd) | Control port bound to the VPS's tailnet IP only |
-| Tailnet policy | Tailscale admin console | `tag:vps-relay` may reach only the VPS's frp port; `tag:vps` only nuc2's tailnet IP on 443 |
+| Tailnet policy | `tailscale/policy.hujson` ({doc}`tailnet-as-code`) | `tag:vps-relay` may reach only the VPS's frp port; `tag:vps` only nuc2's tailnet IP on 443 |
 | Public DNS name | The `mc` entry in `dns_only_records` ({doc}`cloudflare-as-code`) | A DNS-only A record on the VPS's public address |
 
 ### Trade-offs
@@ -88,60 +88,39 @@ Prerequisites:
 
 - A VPS with a public IPv4 address, Podman 4.4 or newer, and already on
   the tailnet (`tailscale up`).
-- Admin access to the tailnet's policy file and its OAuth clients.
+- Admin access to the tailnet's OAuth clients, and `just tailnet-apply`
+  set up ({doc}`tailnet-as-code`).
 
 ### Step 1: Tailnet policy
 
 **Tag the VPS** (`tag:vps`). An untagged VPS belongs to the owner's user,
-so any rule that lets the owner's own devices reach things (`autogroup:member`, or
-the default allow-all) would also let the VPS reach the relay. A tagged VPS
-is a separate identity that is granted nothing. Tagging also stops its key
-expiring; Tailscale SSH rules that reach it must then name the tag.
+so any rule that lets the owner's own devices reach things (the owner's
+login, `autogroup:member`, or the default allow-all) would also let the VPS
+reach the relay. A tagged VPS is a separate identity that is granted
+nothing. Tagging also stops its key expiring; Tailscale SSH rules that reach
+it must then name the tag.
 
-In the Tailscale admin console, **Access controls**, the policy file
-has:
+The policy is `tailscale/policy.hujson`, applied with `just tailnet-apply`
+({doc}`tailnet-as-code`). For the relay it has:
 
-```javascript
-{
-  "hosts": {
-    "nuc2": "100.125.90.58"   // nuc2's tailnet IP
-  },
-  "tagOwners": {
-    "tag:vps":       ["autogroup:admin"],
-    "tag:vps-relay": ["autogroup:admin"]
-  },
-  "grants": [
-    // The owner's own devices keep full access. Tagged devices are not members,
-    // so this does not cover the VPS.
-    { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
-    // The relay may reach only frps on the VPS.
-    { "src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"] },
-    // The VPS (claude-canary) may reach only the Gateway on nuc2's tailnet
-    // IP, for scrap's /mcp (docs/how-to/scrap.md). Nothing else with src tag:vps.
-    { "src": ["tag:vps"], "dst": ["nuc2"], "ip": ["tcp:443"] }
-  ],
-  "tests": [
-    { "src": "tag:vps-relay", "accept": ["tag:vps:7000"], "deny": ["tag:vps:22"] },
-    {
-      "src": "tag:vps",
-      "accept": ["nuc2:443"],
-      "deny": ["tag:vps-relay:1055", "tag:vps-relay:22", "nuc2:22", "nuc2:80",
-               "nuc2:8096", "192.168.1.92:443", "192.168.1.1:80"]
-    }
-  ]
-}
-```
+- `tagOwners` for `tag:vps` and `tag:vps-relay` (`autogroup:admin`);
+- a grant from `tag:vps-relay` to `tag:vps` on `tcp:7000` (frps), and
+  nothing else from that tag;
+- a grant from `tag:vps` to the `nuc2` host alias (nuc2's tailnet IP) on
+  `tcp:443`, and nothing else from that tag;
+- `tests` that the relay reaches the VPS on 7000 but not on 22, and that the
+  VPS reaches nuc2 on 443 but not SSH or Jellyfin on nuc2, the relay, or
+  the LAN.
 
 The `tag:vps` grant is the claude-canary VPS's path to scrap without
-Cloudflare ({ref}`scrap-canary`); leave it out if the VPS needs no scrap. It
-names nuc2's tailnet IP only, so it would not reach the LAN even if nuc2
-advertised a subnet route (the `192.168.1.92:443` test). nuc2 advertises none:
-the `k3s` role refuses a Tailscale node that does (ADR 0015).
+Cloudflare ({ref}`scrap-canary`); a VPS that needs no scrap needs no such
+grant. It names nuc2's tailnet IP only, so it would not reach the LAN even
+if nuc2 advertised a subnet route (the `192.168.1.92:443` test). The `k3s`
+role refuses a cluster node that advertises one (ADR 0015).
 
-The `tests` are checked on every save, so a later policy edit cannot quietly
-let the VPS dial in. In a file that uses `acls` rather than `grants`, the
-relay rule is `{"action": "accept", "src": ["tag:vps-relay"], "dst":
-["tag:vps:7000"]}`.
+The `tests` run on every plan and apply, so a later policy change cannot
+quietly let the VPS dial in. For a replacement VPS the policy needs no
+change: tag the new VPS and the same rules apply.
 
 Then apply the tag on the VPS (or in the console, **Machines → ⋯ → Edit ACL
 tags**):
@@ -157,9 +136,8 @@ console instead.
 :::{warning}
 A new tailnet starts with an allow-all rule (`"src": ["*"], "dst": ["*"]`).
 While that rule is present, every device on the tailnet, including the VPS,
-can reach the relay node. Remove it; the `autogroup:member` grant above
-replaces it for the owner's own devices. The relay advertises no routes, so
-even then the VPS cannot reach the rest of the home network through it.
+can reach the relay node. `tailscale/policy.hujson` has no such rule; on a
+new tailnet, apply it ({doc}`tailnet-as-code`) before the relay goes live.
 :::
 
 ### Step 2: OAuth client
@@ -200,7 +178,8 @@ connected through the relay are not dropped by a no-op run.
 
 The frp control port is 7000. After a change to `vps_relay.frp_port`, run
 the script with the same value (`sudo FRP_PORT=<port> ./vps-relay-setup ...`)
-and change the port in the tailnet grant and `tests` in Step 1 to match.
+and change the port in the `tag:vps-relay` grant and `tests` in
+`tailscale/policy.hujson` to match ({doc}`tailnet-as-code`).
 
 In the devcontainer, print the forwards in the form the script takes:
 
