@@ -300,13 +300,11 @@ spec:
           # backup timer (roles/etcd_backup). DirectoryOrCreate makes the
           # directory on every node, so nodes without such jobs report an
           # empty collector rather than a NodeTextFileCollectorScrapeError.
-          # extraArgs replaces the chart default list, so its two
-          # filesystem excludes are repeated here. Recheck them against the
-          # chart's values on every kube-prometheus-stack bump.
+          # extraArgs is added after the chart's defaultArgs (its filesystem
+          # excludes), so don't repeat those here: a repeated flag stops
+          # node-exporter from starting.
           prometheus-node-exporter:
             extraArgs:
-              - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
-              - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
               - --collector.textfile.directory=/host/textfile
             extraHostVolumeMounts:
               - name: textfile

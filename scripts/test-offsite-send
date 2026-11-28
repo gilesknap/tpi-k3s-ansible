@@ -19,8 +19,8 @@
 # fails a couple of times (as on B2's 503 too_busy) is retried until the
 # upload lands, and that one that always fails still fails after the
 # retries, leaving nothing behind. Last, it checks that offsite-backups.sh
-# logs diagnostics for a listing that hit an unreadable folder, and still
-# fails. Run by `just check`.
+# lists again after a listing that hit an unreadable folder: a clean second
+# listing carries on, and a second failure fails the run. Run by `just check`.
 #
 # Usage: scripts/test-offsite-send
 set -euo pipefail
@@ -121,39 +121,49 @@ PATH=$tmp/bin:$PATH RCLONE_CONFIG=/dev/null LIB=$lib REMOTE=$tmp/remote \
     exit 1
 }
 
-# offsite-backups.sh's find diagnostics: a listing of the others scope that
-# reports an unreadable folder once (a stand-in find, as on 21 Nov 2026)
-# logs them, finds the second listing clean, and still fails the run.
+# offsite-backups.sh's second listing: a stand-in find reports ./scrap as
+# unreadable, and lists nothing, while the count in $tmp/find-fails is
+# above 0 (as on 21 Nov 2026). One failure: the second listing is clean and the run uploads and
+# succeeds. Two: the run fails.
 printf '#!/bin/sh\n[ "$1" = --version ] && echo test && exit 0\nexec cat\n' >"$tmp/bin/age"
 cat >"$tmp/bin/find" <<EOF
 #!/bin/sh
-if [ -e "$tmp/find-fail" ]; then
-    rm "$tmp/find-fail"
+n=\$(cat "$tmp/find-fails" 2>/dev/null || echo 0)
+if [ "\$n" -gt 0 ]; then
+    echo \$((n - 1)) >"$tmp/find-fails"
     echo "find: ./scrap: Permission denied" >&2
+    exit 1
 fi
 exec $(command -v find) "\$@"
 EOF
 chmod +x "$tmp/bin/find"
-mkdir -p "$tmp/src/etcd" "$tmp/src/scrap" "$tmp/remote/full/backups" "$tmp/work2"
+mkdir -p "$tmp/src/etcd" "$tmp/src/scrap"
 echo bundle >"$tmp/src/etcd/a.tar"
 touch -d '1 hour ago' "$tmp/src/etcd/a.tar"
 : >"$tmp/rclone.conf"
-: >"$tmp/find-fail"
-rc=0
-PATH=$tmp/bin:$PATH TARGET=drive DEST_ROOT=$tmp/remote/full \
-    AGE_RECIPIENT=age1test RCLONE_SECRET=$tmp/rclone.conf WORK=$tmp/work2 \
-    SRC=$tmp/src RUN_DIRS=scrap EXCLUDE='' PRUNE_DAYS=0 KEEP_MIN=4 \
-    FIND_RECHECK_PAUSE=0 RCAT_FAILS=$tmp/rcat-fails \
-    busybox sh "${lib%/*}/offsite-backups.sh" others >"$tmp/out" 2>&1 || rc=$?
-why=
-[ "$rc" -ne 0 ] || why="$why; returned 0"
-grep -q 'find diagnostics: uid=' "$tmp/out" || why="$why; no id"
-grep -q 'find diagnostics: d.* scrap$' "$tmp/out" || why="$why; no ls of scrap"
-grep -q 'find diagnostics: second listing clean' "$tmp/out" || why="$why; no clean second listing"
-grep -q 'ERROR: could not read all of' "$tmp/out" || why="$why; no error"
-if [ -n "$why" ]; then
-    echo "FAIL find diagnostics:$why"
-    cat "$tmp/out" >&2
-    exit 1
-fi
-echo "ok   find diagnostics"
+for fails in 1 2; do
+    rm -rf "$tmp/remote/full" "$tmp/work2"
+    mkdir -p "$tmp/remote/full/backups" "$tmp/work2"
+    echo "$fails" >"$tmp/find-fails"
+    rc=0
+    PATH=$tmp/bin:$PATH TARGET=drive DEST_ROOT=$tmp/remote/full \
+        AGE_RECIPIENT=age1test RCLONE_SECRET=$tmp/rclone.conf WORK=$tmp/work2 \
+        SRC=$tmp/src RUN_DIRS=scrap EXCLUDE='' PRUNE_DAYS=0 KEEP_MIN=4 \
+        FIND_RECHECK_PAUSE=0 RCAT_FAILS=$tmp/rcat-fails \
+        busybox sh "${lib%/*}/offsite-backups.sh" others >"$tmp/out" 2>&1 || rc=$?
+    why=
+    if [ "$fails" = 1 ]; then
+        [ "$rc" -eq 0 ] || why="$why; returned $rc"
+        grep -q 'second listing clean' "$tmp/out" || why="$why; no clean second listing"
+        grep -q 'uploaded etcd/a.tar.age' "$tmp/out" || why="$why; no upload"
+    else
+        [ "$rc" -ne 0 ] || why="$why; returned 0"
+        grep -q 'ERROR: could not read all of' "$tmp/out" || why="$why; no error"
+    fi
+    if [ -n "$why" ]; then
+        echo "FAIL second listing ($fails failures):$why"
+        cat "$tmp/out" >&2
+        exit 1
+    fi
+    echo "ok   second listing ($fails failures)"
+done
