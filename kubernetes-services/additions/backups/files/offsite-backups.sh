@@ -187,21 +187,17 @@ done
 # Every other file. find reports unreadable directories but carries on.
 local_files 2>"$WORK/find.err" | sed 's|^\./||' | sort >"$WORK/local" || true
 if [ -s "$WORK/find.err" ]; then
-    # Diagnostics only, for an error once seen and not reproduced (B2, 21
-    # Nov 2026: ./scrap, pruned here, "Permission denied"): who asked, what
-    # the folders looked like, and whether a second listing after a pause
-    # sees it too. The run fails on the first listing whatever the second.
-    log "find diagnostics: $(id), $(date -u)"
-    for _r in . $roots; do
-        log "find diagnostics: $(ls -ldn "$_r" 2>&1)"
-    done
+    # A listing sometimes reports ./scrap, which this scope prunes, as
+    # "Permission denied" (21, 24 and 28 Nov 2026), and a second listing
+    # after a pause is clean. Use that second listing; fail if it is not.
+    log "find: $(head -n 3 "$WORK/find.err"); listing again"
     sleep "${FIND_RECHECK_PAUSE:-30}"
-    if local_files 2>"$WORK/find2.err" >/dev/null && [ ! -s "$WORK/find2.err" ]; then
-        log "find diagnostics: second listing clean"
+    local_files 2>"$WORK/find.err" | sed 's|^\./||' | sort >"$WORK/local" || true
+    if [ -s "$WORK/find.err" ]; then
+        fail "could not read all of $SRC: $(head -n 3 "$WORK/find.err")"
     else
-        log "find diagnostics: second listing failed too: $(head -n 3 "$WORK/find2.err")"
+        log "second listing clean"
     fi
-    fail "could not read all of $SRC: $(head -n 3 "$WORK/find.err")"
 fi
 while IFS= read -r f <&3; do
     case /$f in */.*) continue ;; esac
