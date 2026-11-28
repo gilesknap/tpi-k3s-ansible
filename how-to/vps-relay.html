@@ -772,6 +772,7 @@ window.addEventListener("load", load);</script>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tailnet-as-code.html">Manage the tailnet policy as code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
@@ -961,7 +962,7 @@ it: Cilium’s Gateway on nuc2’s tailnet IP, for scrap’s <code class="docuti
 <td><p>Control port bound to the VPS’s tailnet IP only</p></td>
 </tr>
 <tr class="row-odd"><td><p>Tailnet policy</p></td>
-<td><p>Tailscale admin console</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> (<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> may reach only the VPS’s frp port; <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> only nuc2’s tailnet IP on 443</p></td>
 </tr>
 <tr class="row-even"><td><p>Public DNS name</p></td>
@@ -993,55 +994,37 @@ credentials are carried over and resealed
 <ul class="simple">
 <li><p>A VPS with a public IPv4 address, Podman 4.4 or newer, and already on
 the tailnet (<code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span></code>).</p></li>
-<li><p>Admin access to the tailnet’s policy file and its OAuth clients.</p></li>
+<li><p>Admin access to the tailnet’s OAuth clients, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code>
+set up (<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>).</p></li>
 </ul>
 <section id="step-1-tailnet-policy">
 <h3>Step 1: Tailnet policy<a class="headerlink" href="#step-1-tailnet-policy" title="Link to this heading">#</a></h3>
 <p><strong>Tag the VPS</strong> (<code class="docutils literal notranslate"><span class="pre">tag:vps</span></code>). An untagged VPS belongs to the owner’s user,
-so any rule that lets the owner’s own devices reach things (<code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code>, or
-the default allow-all) would also let the VPS reach the relay. A tagged VPS
-is a separate identity that is granted nothing. Tagging also stops its key
-expiring; Tailscale SSH rules that reach it must then name the tag.</p>
-<p>In the Tailscale admin console, <strong>Access controls</strong>, the policy file
-has:</p>
-<div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="s2">&quot;hosts&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="s2">&quot;nuc2&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;100.125.90.58&quot;</span><span class="w">   </span><span class="c1">// nuc2&#39;s tailnet IP</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="s2">&quot;tagOwners&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="s2">&quot;tag:vps&quot;</span><span class="o">:</span><span class="w">       </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">],</span>
-<span class="w">    </span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:admin&quot;</span><span class="p">]</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="s2">&quot;grants&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="c1">// The owner&#39;s own devices keep full access. Tagged devices are not members,</span>
-<span class="w">    </span><span class="c1">// so this does not cover the VPS.</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;autogroup:member&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="c1">// The relay may reach only frps on the VPS.</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp:7000&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="c1">// The VPS (claude-canary) may reach only the Gateway on nuc2&#39;s tailnet</span>
-<span class="w">    </span><span class="c1">// IP, for scrap&#39;s /mcp (docs/how-to/scrap.md). Nothing else with src tag:vps.</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;dst&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;nuc2&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;ip&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tcp:443&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
-<span class="w">  </span><span class="p">],</span>
-<span class="w">  </span><span class="s2">&quot;tests&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;tag:vps-relay&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;accept&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps:7000&quot;</span><span class="p">],</span><span class="w"> </span><span class="s2">&quot;deny&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps:22&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="s2">&quot;src&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;tag:vps&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;accept&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;nuc2:443&quot;</span><span class="p">],</span>
-<span class="w">      </span><span class="s2">&quot;deny&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tag:vps-relay:1055&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;tag:vps-relay:22&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nuc2:22&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nuc2:80&quot;</span><span class="p">,</span>
-<span class="w">               </span><span class="s2">&quot;nuc2:8096&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;192.168.1.92:443&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;192.168.1.1:80&quot;</span><span class="p">]</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">]</span>
-<span class="p">}</span>
-</pre></div>
-</div>
+so any rule that lets the owner’s own devices reach things (the owner’s
+login, <code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code>, or the default allow-all) would also let the VPS
+reach the relay. A tagged VPS is a separate identity that is granted
+nothing. Tagging also stops its key expiring; Tailscale SSH rules that reach
+it must then name the tag.</p>
+<p>The policy is <code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code>, applied with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code>
+(<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>). For the relay it has:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tagOwners</span></code> for <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> and <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> (<code class="docutils literal notranslate"><span class="pre">autogroup:admin</span></code>);</p></li>
+<li><p>a grant from <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> to <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> on <code class="docutils literal notranslate"><span class="pre">tcp:7000</span></code> (frps), and
+nothing else from that tag;</p></li>
+<li><p>a grant from <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> to the <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> host alias (nuc2’s tailnet IP) on
+<code class="docutils literal notranslate"><span class="pre">tcp:443</span></code>, and nothing else from that tag;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests</span></code> that the relay reaches the VPS on 7000 but not on 22, and that the
+VPS reaches nuc2 on 443 but not SSH or Jellyfin on nuc2, the relay, or
+the LAN.</p></li>
+</ul>
 <p>The <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> grant is the claude-canary VPS’s path to scrap without
-Cloudflare (<a class="reference internal" href="scrap.html#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>); leave it out if the VPS needs no scrap. It
-names nuc2’s tailnet IP only, so it would not reach the LAN even if nuc2
-advertised a subnet route (the <code class="docutils literal notranslate"><span class="pre">192.168.1.92:443</span></code> test). nuc2 advertises none:
-the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role refuses a Tailscale node that does (ADR 0015).</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">tests</span></code> are checked on every save, so a later policy edit cannot quietly
-let the VPS dial in. In a file that uses <code class="docutils literal notranslate"><span class="pre">acls</span></code> rather than <code class="docutils literal notranslate"><span class="pre">grants</span></code>, the
-relay rule is <code class="docutils literal notranslate"><span class="pre">{&quot;action&quot;:</span> <span class="pre">&quot;accept&quot;,</span> <span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;tag:vps-relay&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;tag:vps:7000&quot;]}</span></code>.</p>
+Cloudflare (<a class="reference internal" href="scrap.html#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>); a VPS that needs no scrap needs no such
+grant. It names nuc2’s tailnet IP only, so it would not reach the LAN even
+if nuc2 were a subnet router (the <code class="docutils literal notranslate"><span class="pre">192.168.1.92:443</span></code> test). No node is one:
+the <code class="docutils literal notranslate"><span class="pre">k3s</span></code> role refuses a node that advertises routes (ADR 0015).</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">tests</span></code> run on every plan and apply, so a later policy change cannot
+quietly let the VPS dial in. For a replacement VPS the policy needs no
+change: tag the new VPS and the same rules apply.</p>
 <p>Then apply the tag on the VPS (or in the console, <strong>Machines → ⋯ → Edit ACL
 tags</strong>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tailscale<span class="w"> </span>up<span class="w"> </span>--advertise-tags<span class="o">=</span>tag:vps<span class="w"> </span>--reset
@@ -1054,9 +1037,8 @@ console instead.</p>
 <p class="admonition-title">Warning</p>
 <p>A new tailnet starts with an allow-all rule (<code class="docutils literal notranslate"><span class="pre">&quot;src&quot;:</span> <span class="pre">[&quot;*&quot;],</span> <span class="pre">&quot;dst&quot;:</span> <span class="pre">[&quot;*&quot;]</span></code>).
 While that rule is present, every device on the tailnet, including the VPS,
-can reach the relay node. Remove it; the <code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code> grant above
-replaces it for the owner’s own devices. The relay advertises no routes, so
-even then the VPS cannot reach the rest of the home network through it.</p>
+can reach the relay node. <code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> has no such rule; on a
+new tailnet, apply it (<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>) before the relay goes live.</p>
 </div>
 </section>
 <section id="step-2-oauth-client">
@@ -1064,12 +1046,12 @@ even then the VPS cannot reach the rest of the home network through it.</p>
 <p>The pod authenticates with an OAuth client secret. Unlike auth keys, which
 expire after at most 90 days, OAuth clients do not expire.</p>
 <ol class="arabic simple">
-<li><p>In the admin console go to <strong>Settings → OAuth clients → Generate OAuth
-client</strong>.</p></li>
+<li><p>In the admin console go to <strong>Settings → Trust credentials</strong>, select
+<strong>Credential</strong>, then <strong>OAuth</strong>.</p></li>
 <li><p>Grant the <strong>Auth Keys</strong> scope with <strong>Write</strong> access, and add the tag
 <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>.</p></li>
-<li><p>Generate the client and copy the <strong>client secret</strong> (<code class="docutils literal notranslate"><span class="pre">tskey-client-…</span></code>).
-It is shown only once.</p></li>
+<li><p>Select <strong>Generate credential</strong> and copy the <strong>client secret</strong>
+(<code class="docutils literal notranslate"><span class="pre">tskey-client-…</span></code>). It is shown only once.</p></li>
 </ol>
 <p>The pod appends <code class="docutils literal notranslate"><span class="pre">?ephemeral=true&amp;preauthorized=true</span></code> to the secret, so each
 pod joins as an ephemeral node that Tailscale removes soon after the pod
@@ -1096,7 +1078,8 @@ files that changed, and restarts frps only when something did, so players
 connected through the relay are not dropped by a no-op run.</p>
 <p>The frp control port is 7000. After a change to <code class="docutils literal notranslate"><span class="pre">vps_relay.frp_port</span></code>, run
 the script with the same value (<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">FRP_PORT=&lt;port&gt;</span> <span class="pre">./vps-relay-setup</span> <span class="pre">...</span></code>)
-and change the port in the tailnet grant and <code class="docutils literal notranslate"><span class="pre">tests</span></code> in Step 1 to match.</p>
+and change the port in the <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code> grant and <code class="docutils literal notranslate"><span class="pre">tests</span></code> in
+<code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> to match (<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>).</p>
 <p>In the devcontainer, print the forwards in the form the script takes:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>vps-relay-forwards<span class="w">        </span><span class="c1"># tcp:30565-30584</span>
 </pre></div>

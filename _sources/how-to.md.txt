@@ -20,6 +20,7 @@ how-to/router-recovery
 :caption: Edge, auth and secrets
 
 how-to/cloudflare-as-code
+how-to/tailnet-as-code
 how-to/gateway
 how-to/oauth-setup
 how-to/manage-sealed-secrets

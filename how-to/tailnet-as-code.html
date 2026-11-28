@@ -1,0 +1,738 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Manage the tailnet policy as code &#8212; gkcluster K3s homelab  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=53770504" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=fc97db16"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'how-to/tailnet-as-code';</script>
+    <link rel="icon" href="../_static/logo.svg"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Check Cilium’s Gateway" href="gateway.html" />
+    <link rel="prev" title="Manage Cloudflare: DNS, tunnel and Access" href="cloudflare-as-code.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">gkcluster K3s homelab</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../how-to.html">
+    How-to guides
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../explanations.html">
+    Explanations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference.html">
+    Reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/gilesknap/tpi-k3s-ansible" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Recovery</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="backup-restore.html">Backup and restore</a></li>
+<li class="toctree-l1"><a class="reference internal" href="paper-kit.html">Print the paper recovery kit</a></li>
+<li class="toctree-l1"><a class="reference internal" href="recover-control-plane.html">Recover the control plane</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rebuild-from-nothing.html">Rebuild from nothing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reflash-rebuild.html">Re-flash and rebuild</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-recovery.html">Back up and recover the router</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Manage the tailnet policy as code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-setup.html">The cluster’s directories on the NAS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nas-ubuntu-zfs.html">Build or rebuild the NAS (Ubuntu Server + ZFS)</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Services</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="jellyfin.html">Run Jellyfin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minecraft.html">Run the Minecraft dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scrap.html">Run scrap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ntfy.html">Push notifications with ntfy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vps-relay.html">Expose cluster ports through the VPS relay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="monitoring.html">Monitoring and alerts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add-remove-services.html">Add or remove a service</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Operations</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="node-operations.html">Node operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="router-dhcp.html">Manage the router’s DNS and DHCP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrade-k3s.html">Upgrade K3s</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-stick.html">Install Ubuntu from the install stick</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nfs-stable-paths.html">Stable NFS volumes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="work-in-branches.html">Develop and ship a change</a></li>
+<li class="toctree-l1"><a class="reference internal" href="claude-code.html">Set up and run Claude Code</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../how-to.html" class="nav-link">How-to guides</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Manage the tailnet policy as code</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="manage-the-tailnet-policy-as-code">
+<h1>Manage the tailnet policy as code<a class="headerlink" href="#manage-the-tailnet-policy-as-code" title="Link to this heading">#</a></h1>
+<p>The tailnet’s policy file (who may reach what over Tailscale) is
+<a class="reference external" href="https://opentofu.org">OpenTofu</a> code in <code class="docutils literal notranslate"><span class="pre">tailscale/</span></code>, using the
+<a class="reference external" href="https://registry.terraform.io/providers/tailscale/tailscale/latest/docs">Tailscale provider</a>.
+It works like <a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>: a change is made in the repo and
+reviewed like any other, then applied by the owner with
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code>. Nothing in CI can change the tailnet. An edit made in
+the admin console shows up as a change in the next <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-plan</span></code>, and
+the next <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code> reverts it.</p>
+<section id="what-is-in-code">
+<h2>What is in code<a class="headerlink" href="#what-is-in-code" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>What it holds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code></p></td>
+<td><p>The whole policy file: host aliases, tag owners, grants and tests, with its comments</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tailscale/acl.tf</span></code></p></td>
+<td><p>One <code class="docutils literal notranslate"><span class="pre">tailscale_acl</span></code> resource that sends that file, and the <code class="docutils literal notranslate"><span class="pre">import</span></code> block that adopts the live policy</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tailscale/versions.tf</span></code></p></td>
+<td><p>The provider pin and the state encryption</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tailscale/live.auto.tfvars</span></code></p></td>
+<td><p>Gitignored: <code class="docutils literal notranslate"><span class="pre">owner_login</span></code>, the owner’s Tailscale login</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The policy today:</p>
+<ul class="simple">
+<li><p><strong>The owner’s own devices</strong> reach everything on the tailnet, the VPS
+included. No node is a subnet router (ADR 0015;
+<code class="docutils literal notranslate"><span class="pre">roles/k3s/tasks/tailscale.yml</span></code> refuses one), so the home LAN is not on
+the tailnet. The grant names the owner’s
+login, not <code class="docutils literal notranslate"><span class="pre">autogroup:member</span></code>, so anyone invited later starts with
+nothing. The repo is public, so <code class="docutils literal notranslate"><span class="pre">policy.hujson</span></code> holds a placeholder,
+<code class="docutils literal notranslate"><span class="pre">${owner_login}</span></code>, which OpenTofu fills in from <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">tag:vps</span></code></strong> (the VPS) reaches only nuc2’s tailnet IP on TCP 443, for
+scrap’s <code class="docutils literal notranslate"><span class="pre">/mcp</span></code> (<a class="reference internal" href="scrap.html#scrap-canary"><span class="std std-ref">The claude-canary VPS</span></a>).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code></strong> (the <code class="docutils literal notranslate"><span class="pre">vps-relay</span></code> pod) reaches only frps on the VPS,
+TCP 7000 (<a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">tests</span></code></strong> assert those limits: the VPS cannot reach SSH or Jellyfin on
+nuc2, the relay or the LAN; the relay cannot reach SSH on the VPS or
+nuc2. Tailscale runs them when the plan validates the policy and again on
+apply, and refuses a policy that fails any.</p></li>
+</ul>
+<section id="what-is-not-code">
+<h3>What is not code<a class="headerlink" href="#what-is-not-code" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>The devices themselves</strong>: joining a device to the tailnet, route
+approvals, key expiry.</p></li>
+<li><p><strong>The tag on each device</strong>: <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code> is set on the VPS with
+<code class="docutils literal notranslate"><span class="pre">tailscale</span> <span class="pre">up</span> <span class="pre">--advertise-tags=tag:vps</span></code> or in the console
+(<strong>Machines → ⋯ → Edit ACL tags</strong>); the relay pod gets <code class="docutils literal notranslate"><span class="pre">tag:vps-relay</span></code>
+from its OAuth client (<a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a>, Step 2). The policy only defines
+who may own each tag.</p></li>
+<li><p><strong>OAuth clients</strong>, including the two below.</p></li>
+<li><p><strong>Users and their roles</strong>, and tailnet settings such as DNS.</p></li>
+</ul>
+</section>
+</section>
+<section id="set-up-the-code-against-the-tailnet">
+<h2>Set up the code against the tailnet<a class="headerlink" href="#set-up-the-code-against-the-tailnet" title="Link to this heading">#</a></h2>
+<p>Once per checkout, in the devcontainer and in the main checkout (a git
+worktree has neither the state nor <code class="docutils literal notranslate"><span class="pre">live.auto.tfvars</span></code>).</p>
+<section id="create-two-oauth-clients">
+<h3>1. Create two OAuth clients<a class="headerlink" href="#create-two-oauth-clients" title="Link to this heading">#</a></h3>
+<p>Plan and apply use separate OAuth clients, and neither is stored in the
+repo. Create each in the admin console under <strong>Settings → Trust
+credentials</strong>: <strong>Credential</strong>, then <strong>OAuth</strong>, choose the scopes, then
+<strong>Generate credential</strong>, and copy
+the client ID and secret (the secret is shown only once). Tags do not apply
+to these scopes; leave them empty.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Client</p></th>
+<th class="head"><p>Scopes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Plan (read-only)</p></td>
+<td><p><strong>Policy File: Read</strong>, and <strong>Devices Core: Read</strong> and <strong>Posture Attributes: Read</strong>, which Tailscale requires alongside it</p></td>
+</tr>
+<tr class="row-odd"><td><p>Apply</p></td>
+<td><p><strong>Policy File: Write</strong>, and <strong>Devices Core: Read</strong> and <strong>Posture Attributes: Write</strong>, which Tailscale requires alongside it</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The read-only client can read and validate the policy but not change it.
+It is read from <code class="docutils literal notranslate"><span class="pre">TS_PLAN_CLIENT_ID</span></code> and <code class="docutils literal notranslate"><span class="pre">TS_PLAN_CLIENT_SECRET</span></code>, else from
+<code class="docutils literal notranslate"><span class="pre">tailscale/.secrets/plan-client-id</span></code> and <code class="docutils literal notranslate"><span class="pre">plan-client-secret</span></code> (gitignored),
+else prompted for:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span><span class="m">700</span><span class="w"> </span>tailscale/.secrets
+<span class="nb">read</span><span class="w"> </span>-rp<span class="w"> </span><span class="s1">&#39;Client ID: &#39;</span><span class="w"> </span>t<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>tailscale/.secrets/plan-client-id
+<span class="nb">read</span><span class="w"> </span>-rsp<span class="w"> </span><span class="s1">&#39;Client secret: &#39;</span><span class="w"> </span>t<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s\n&#39;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>tailscale/.secrets/plan-client-secret<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">unset</span><span class="w"> </span>t
+chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>tailscale/.secrets/*
+</pre></div>
+</div>
+<p>The apply client can rewrite the whole policy, so its secret is not kept
+anywhere: it is read from <code class="docutils literal notranslate"><span class="pre">TS_APPLY_CLIENT_ID</span></code> and <code class="docutils literal notranslate"><span class="pre">TS_APPLY_CLIENT_SECRET</span></code>,
+else prompted for, never from a file. Keep it in the password manager.</p>
+</section>
+<section id="state-and-the-passphrase">
+<h3>2. State and the passphrase<a class="headerlink" href="#state-and-the-passphrase" title="Link to this heading">#</a></h3>
+<p>State is local (<code class="docutils literal notranslate"><span class="pre">tailscale/terraform.tfstate</span></code>, gitignored) and encrypted
+like the Cloudflare state, with <strong>the same passphrase</strong>: <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-*</span></code>
+reads <code class="docutils literal notranslate"><span class="pre">TF_VAR_state_passphrase</span></code>, else
+<code class="docutils literal notranslate"><span class="pre">cloudflare/.secrets/state-passphrase</span></code>, else prompts. Sharing it means one
+passphrase to keep in the password manager for both
+(<a class="reference internal" href="cloudflare-as-code.html"><span class="doc">Manage Cloudflare: DNS, tunnel and Access</span></a>, step 2, creates it).</p>
+<p>Losing the state loses nothing at Tailscale: the next plan shows the import
+of the live policy again, and the next apply records it.</p>
+</section>
+<section id="fill-in-the-owner-s-login">
+<h3>3. Fill in the owner’s login<a class="headerlink" href="#fill-in-the-owner-s-login" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>tailscale/live.auto.tfvars.example<span class="w"> </span>tailscale/live.auto.tfvars
+</pre></div>
+</div>
+<p>Set <code class="docutils literal notranslate"><span class="pre">owner_login</span></code> to the owner’s login, as the console’s <strong>Users</strong> page
+shows it.</p>
+</section>
+<section id="first-plan-adopt-the-live-policy">
+<h3>4. First plan: adopt the live policy<a class="headerlink" href="#first-plan-adopt-the-live-policy" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>tailnet-init
+just<span class="w"> </span>tailnet-plan
+</pre></div>
+</div>
+<p>The first plan shows the import of the live policy and compares it with
+<code class="docutils literal notranslate"><span class="pre">policy.hujson</span></code>, showing the whole policy as a diff; the apply then records
+the import in state. It is the place to
+check that the file matches what is live:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Plan:</span> <span class="pre">1</span> <span class="pre">to</span> <span class="pre">import,</span> <span class="pre">0</span> <span class="pre">to</span> <span class="pre">add,</span> <span class="pre">0</span> <span class="pre">to</span> <span class="pre">change,</span> <span class="pre">0</span> <span class="pre">to</span> <span class="pre">destroy.</span></code> means the file
+matches the live policy exactly, comments included.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">to</span> <span class="pre">import,</span> <span class="pre">0</span> <span class="pre">to</span> <span class="pre">add,</span> <span class="pre">1</span> <span class="pre">to</span> <span class="pre">change</span></code> shows the lines that differ. A
+difference only in comments or layout is harmless. A difference in a
+rule means the live policy has something the file does not (or the
+reverse): bring <code class="docutils literal notranslate"><span class="pre">policy.hujson</span></code> into line in a PR before the first apply,
+or the apply replaces the live rule.</p></li>
+</ul>
+<p>Then apply with the write client:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>just<span class="w"> </span>tailnet-apply
+</pre></div>
+</div>
+<p>From then on <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-plan</span></code> prints <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">changes.</span></code> and the import block
+is a no-op.</p>
+</section>
+</section>
+<section id="day-to-day">
+<h2>Day to day<a class="headerlink" href="#day-to-day" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Change <code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> in a branch. Add or adjust a <code class="docutils literal notranslate"><span class="pre">tests</span></code>
+entry for any rule that limits a tag.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-plan</span></code> and check the diff. The plan also validates the
+policy with Tailscale and runs its tests, so a broken policy fails
+here.</p></li>
+<li><p>Open the PR; CI runs <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">fmt</span> <span class="pre">-check</span></code> and <code class="docutils literal notranslate"><span class="pre">tofu</span> <span class="pre">validate</span></code> (no
+credentials, no Tailscale access).</p></li>
+<li><p>After review, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code> with the write client, then merge.</p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-apply</span></code> shows the plan and asks for <code class="docutils literal notranslate"><span class="pre">yes</span></code> before it changes
+anything. Claude sessions plan but never apply. Extra arguments pass
+through to <code class="docutils literal notranslate"><span class="pre">tofu</span></code>.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Overwrite</span> <span class="pre">Protected</span></code></strong> on apply: the policy is not in state, so the
+provider refuses to replace it. The import block in <code class="docutils literal notranslate"><span class="pre">tailscale/acl.tf</span></code>
+normally prevents this; check it is still there and run
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">tailnet-plan</span></code> again.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">Invalid</span> <span class="pre">ACL</span></code></strong> at plan: Tailscale rejected the policy, or one of its
+<code class="docutils literal notranslate"><span class="pre">tests</span></code> failed; the message names the test.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">401</span></code> or <code class="docutils literal notranslate"><span class="pre">403</span></code></strong>: the client ID or secret is wrong or revoked, or the
+client lacks the policy file scope (plan needs read, apply needs write).</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cloudflare-as-code.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Manage Cloudflare: DNS, tunnel and Access</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="gateway.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Check Cilium’s Gateway</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-in-code">What is in code</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-is-not-code">What is not code</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-up-the-code-against-the-tailnet">Set up the code against the tailnet</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-two-oauth-clients">1. Create two OAuth clients</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#state-and-the-passphrase">2. State and the passphrase</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fill-in-the-owner-s-login">3. Fill in the owner’s login</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#first-plan-adopt-the-live-policy">4. First plan: adopt the live policy</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#day-to-day">Day to day</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/gilesknap/tpi-k3s-ansible/edit/main/docs/how-to/tailnet-as-code.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/how-to/tailnet-as-code.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -772,6 +772,7 @@ window.addEventListener("load", load);</script>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Edge, auth and secrets</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="cloudflare-as-code.html">Manage Cloudflare: DNS, tunnel and Access</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tailnet-as-code.html">Manage the tailnet policy as code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gateway.html">Check Cilium’s Gateway</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oauth-setup.html">Set up OAuth authentication</a></li>
 <li class="toctree-l1"><a class="reference internal" href="manage-sealed-secrets.html">Manage Sealed Secrets</a></li>
@@ -1055,20 +1056,19 @@ check expects, and Envoy routes <code class="docutils literal notranslate"><span
 other client. The MCP entry is the
 usual <code class="docutils literal notranslate"><span class="pre">https://scrap.gkcluster.org/mcp</span></code> with only the
 <code class="docutils literal notranslate"><span class="pre">Authorization:</span> <span class="pre">Bearer</span> <span class="pre">&lt;canary</span> <span class="pre">token&gt;</span></code> header.</p>
-<p>The tailnet policy is set by hand in the Tailscale admin console (Access
-controls). The VPS is tagged <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code>, and the only grant from that tag is
-nuc2’s tailnet IP on TCP 443; <a class="reference internal" href="vps-relay.html"><span class="doc">Expose cluster ports through the VPS relay</span></a> (Step 1) has the whole policy
-with its <code class="docutils literal notranslate"><span class="pre">tests</span></code>, which check that the VPS still cannot reach SSH on nuc2,
-Jellyfin, the relay or the LAN behind nuc2’s subnet route.</p>
+<p>The tailnet policy is code, <code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> (<a class="reference internal" href="tailnet-as-code.html"><span class="doc">Manage the tailnet policy as code</span></a>).
+The VPS is tagged <code class="docutils literal notranslate"><span class="pre">tag:vps</span></code>, and the only grant from that tag is nuc2’s
+tailnet IP on TCP 443; the policy’s <code class="docutils literal notranslate"><span class="pre">tests</span></code> check that the VPS still cannot
+reach SSH or Jellyfin on nuc2, the relay, or the LAN.</p>
 <p>Limits:</p>
 <ul class="simple">
 <li><p><strong>The canary loses scrap whenever nuc2 is down</strong> (or its ServiceLB pod, or
 Tailscale on nuc2). The path names one node, so nothing fails over;
 other clients, through Cloudflare, are unaffected.</p></li>
-<li><p><strong>nuc2’s tailnet IP is written in two places</strong> by hand: the policy’s
-<code class="docutils literal notranslate"><span class="pre">nuc2</span></code> host alias and the VPS’s <code class="docutils literal notranslate"><span class="pre">/etc/hosts</span></code>. If nuc2 rejoins the tailnet
-with a new IP (a reinstall or a logout), update both; until then the VPS
-just loses scrap.</p></li>
+<li><p><strong>nuc2’s tailnet IP is written in two places</strong>: the <code class="docutils literal notranslate"><span class="pre">nuc2</span></code> host alias in
+<code class="docutils literal notranslate"><span class="pre">tailscale/policy.hujson</span></code> and, by hand, the VPS’s <code class="docutils literal notranslate"><span class="pre">/etc/hosts</span></code>. If nuc2
+rejoins the tailnet with a new IP (a reinstall or a logout), update both;
+until then the VPS just loses scrap.</p></li>
 <li><p><strong>The grant opens all of the Gateway on nuc2, not only scrap.</strong> Every
 <code class="docutils literal notranslate"><span class="pre">*.gkcluster.org</span></code> host is reachable from the VPS without Cloudflare Access,
 as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
