@@ -292,7 +292,8 @@ openssl rand -base64 24 > cloudflare/.secrets/state-passphrase
 chmod 600 cloudflare/.secrets/state-passphrase
 ```
 
-Keep a copy of the passphrase in the password manager. **Without it the
+Keep a copy of the passphrase in the password manager. The tailnet
+policy's state uses the same one ({doc}`tailnet-as-code`). **Without it the
 state cannot be read**; the encrypted state file itself is safe to copy
 to a backup location such as the NAS.
 

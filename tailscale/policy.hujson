@@ -1,0 +1,70 @@
+// The tailnet policy file, applied with `just tailnet-apply`
+// (docs/how-to/tailnet-as-code.md). Change it here, not in the admin
+// console: the next apply overwrites a console edit.
+//
+// This is an OpenTofu template: the owner_login placeholder in the grants
+// and tests is filled in from the gitignored
+// tailscale/live.auto.tfvars, so the owner's login stays out of this public
+// repo. Tailscale runs the "tests" below at plan and apply, and refuses the
+// policy if any fails. Because it goes through templatefile, a dollar or
+// percent sign followed by an opening brace, anywhere, breaks it.
+//
+// No node is a subnet router (ADR 0015; roles/k3s/tasks/tailscale.yml
+// refuses one), so no rule here reaches the home LAN.
+{
+	"hosts": {
+		// nuc2's tailnet IP.
+		"nuc2": "100.125.90.58",
+	},
+
+	"tagOwners": {
+		"tag:vps":       ["autogroup:admin"],
+		"tag:vps-relay": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// The owner's own devices keep full access to everything on the
+		// tailnet, the VPS included.
+		// Granted to the owner's login, not autogroup:member, so anyone invited
+		// later starts with nothing until a rule is added for them.
+		// (A machine shared out to another tailnet is separate: a share
+		// reaches only that machine, not this rule.)
+		{"src": ["${owner_login}"], "dst": ["*"], "ip": ["*"]},
+
+		// The VPS (claude-canary) may reach only the Gateway on nuc2's tailnet
+		// IP, for scrap's /mcp (docs/how-to/scrap.md). Nothing else with
+		// src tag:vps.
+		{"src": ["tag:vps"], "dst": ["nuc2"], "ip": ["tcp:443"]},
+
+		// The relay may reach only frps on the VPS (docs/how-to/vps-relay.md).
+		{"src": ["tag:vps-relay"], "dst": ["tag:vps"], "ip": ["tcp:7000"]},
+	],
+
+	"tests": [
+		// The owner reaches everything. 192.168.1.1 is a check of the rule
+		// only: with no subnet router, the LAN is not on the tailnet.
+		{
+			"src":    "${owner_login}",
+			"accept": ["192.168.1.1:80", "nuc2:22", "tag:vps:22"],
+		},
+
+		// The VPS reaches https on nuc2 only: not the relay, not SSH or
+		// Jellyfin on nuc2, not the LAN.
+		{"src": "tag:vps", "accept": ["nuc2:443"], "deny": [
+			"tag:vps-relay:1055",
+			"tag:vps-relay:22",
+			"nuc2:22",
+			"nuc2:80",
+			"nuc2:8096",
+			"192.168.1.92:443",
+			"192.168.1.1:80",
+		]},
+
+		// The relay reaches only frps on the VPS.
+		{
+			"src":    "tag:vps-relay",
+			"accept": ["tag:vps:7000"],
+			"deny":   ["tag:vps:22", "nuc2:22", "192.168.1.1:80"],
+		},
+	],
+}

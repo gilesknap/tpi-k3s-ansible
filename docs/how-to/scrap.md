@@ -172,21 +172,20 @@ other client. The MCP entry is the
 usual `https://scrap.gkcluster.org/mcp` with only the
 `Authorization: Bearer <canary token>` header.
 
-The tailnet policy is set by hand in the Tailscale admin console (Access
-controls). The VPS is tagged `tag:vps`, and the only grant from that tag is
-nuc2's tailnet IP on TCP 443; {doc}`vps-relay` (Step 1) has the whole policy
-with its `tests`, which check that the VPS still cannot reach SSH on nuc2,
-Jellyfin, the relay or the LAN behind nuc2's subnet route.
+The tailnet policy is code, `tailscale/policy.hujson` ({doc}`tailnet-as-code`).
+The VPS is tagged `tag:vps`, and the only grant from that tag is nuc2's
+tailnet IP on TCP 443; the policy's `tests` check that the VPS still cannot
+reach SSH or Jellyfin on nuc2, the relay, or the LAN.
 
 Limits:
 
 - **The canary loses scrap whenever nuc2 is down** (or its ServiceLB pod, or
   Tailscale on nuc2). The path names one node, so nothing fails over;
   other clients, through Cloudflare, are unaffected.
-- **nuc2's tailnet IP is written in two places** by hand: the policy's
-  `nuc2` host alias and the VPS's `/etc/hosts`. If nuc2 rejoins the tailnet
-  with a new IP (a reinstall or a logout), update both; until then the VPS
-  just loses scrap.
+- **nuc2's tailnet IP is written in two places**: the `nuc2` host alias in
+  `tailscale/policy.hujson` and, by hand, the VPS's `/etc/hosts`. If nuc2
+  rejoins the tailnet with a new IP (a reinstall or a logout), update both;
+  until then the VPS just loses scrap.
 - **The grant opens all of the Gateway on nuc2, not only scrap.** Every
   `*.gkcluster.org` host is reachable from the VPS without Cloudflare Access,
   as from the LAN. Hosts with a login of their own (the shared oauth2-proxy,
